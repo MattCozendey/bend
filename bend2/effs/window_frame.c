@@ -283,7 +283,7 @@ static u64         window_len;
 // a time.
 static void window_fill(Env e, u32* pix, u32 w, u32 h, Term image, u32 k) {
 #if BEND_CUDA
-  if (io_gpu) {
+  if (io_gpu && !gpu_twin) {
     Corpus H    = e.mem;
     u64    len  = (u64)w * h * 4;
     void*  args[] = { &H, &image, &w, &h, &k, &window_buf };
