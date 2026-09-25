@@ -12,7 +12,11 @@ static Term tcp_connect_more(Env e, IoWork* w) {
     err = errno;
   }
   if (err != 0 && fd >= 0) {
+#ifdef _WIN32
+    sock_close(fd);
+#else
     close(fd);
+#endif
   }
   free(w->data);
   return err != 0 ? io_fail(e, (u32)err, NULL) : io_done(e, io_hand(fd));
@@ -27,7 +31,11 @@ Term tcp_connect_run(Env e, Term* f, IoWork* w) {
     fd = socket(AF_INET, SOCK_STREAM, 0);
   }
   if (fd >= 0 && fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
+#ifdef _WIN32
+    sock_close(fd);
+#else
     close(fd);
+#endif
     fd = -1;
   }
   w->made = fd;

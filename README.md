@@ -245,7 +245,7 @@ def add_zero(x):
 - The compiler (not kernel) is 99% AI-written and not yet fully audited.
 - The checker has no proof and may have bugs; `--verdict` uses a proven kernel.
 - A binary needs clang 14+; ! needs 19+, Metal or CUDA 12.
-- No Windows (WSL works; there, one pure loop in a ! must end within 2 s, the display driver's watchdog); on Linux, Window and Audio need X11 and ALSA headers.
+- On Windows and WSL, one pure loop in a ! must end within 2 s (the display driver's watchdog); on Linux, Window and Audio need X11 and ALSA headers.
 - The hub has no names, versions, accounts or search yet. Packages are hashes.
 - Error messages are terse; no debugger, profiler or REPL.
 - The editor tool only formats; the community bend2-lsp adds errors and hover.

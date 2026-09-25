@@ -64,6 +64,11 @@ const GUIDE = path.join(Bend.BEND_DIR, "..", "guide");
 
 const ORIGIN = process.env.BEND_ORIGIN ?? "https://bend-lang.com";
 
+// the installer's command: the shell's, or PowerShell's on Windows
+const INSTALL = process.platform === "win32"
+  ? "irm " + ORIGIN + "/install.ps1 | iex"
+  : "curl -fsSL " + ORIGIN + "/install.sh | sh";
+
 // the Bender key `bend login` wrote: {key, login}, mode 0600
 const BENDER = path.join(os.homedir(), ".bend", "bender.json");
 
@@ -84,6 +89,12 @@ const MISMATCH = "Sorry - this is a mismatch between the TypeScript implementati
   + " and the formalized BendTT kernel. Your proofs may or may not be correct, and"
   + " we cannot validate them yet. This will be addressed in a future update."
   + " Meanwhile, feel free to open an issue to report this bug.";
+
+// a Windows binary's manifest: its code page is UTF-8 (argv, getenv, paths)
+const MANIFEST = "<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\""
+  + " manifestVersion=\"1.0\"><application><windowsSettings><activeCodePage"
+  + " xmlns=\"http://schemas.microsoft.com/SMI/2019/WindowsSettings\">UTF-8"
+  + "</activeCodePage></windowsSettings></application></assembly>";
 
 // BendHub's terms; s18.4 makes MIT-0 the default license
 const TERMS = "https://bend-lang.com/bender/terms#s18";
@@ -165,9 +176,10 @@ function cli_guide(name: string): void {
 // cli_update runs the installer again: the one way bend changes. The
 // command prints first, so the user can run it alone.
 function cli_update(): void {
-  const cmd = "curl -fsSL " + ORIGIN + "/install.sh | sh";
-  cli_say(2, cmd + "\n");
-  process.exitCode = child.spawnSync("sh", ["-c", cmd],
+  const win = process.platform === "win32";
+  cli_say(2, INSTALL + "\n");
+  process.exitCode = child.spawnSync(win ? "powershell" : "sh",
+    win ? ["-NoProfile", "-Command", INSTALL] : ["-c", INSTALL],
     { stdio: "inherit" }).status ?? 1;
 }
 
@@ -395,7 +407,12 @@ function cc_find(gpu: boolean): string {
   const nums = [...new Set(dirs.flatMap(dir_list).filter((f) =>
     /^clang-\d+$/.test(f)))].sort((a, b) => Number(b.slice(6)) - Number(a.slice(6)));
   const olds: string[] = [];
-  const ccs  = [...(process.env.CC ? [process.env.CC] : []), "clang", ...nums];
+  // LLVM's Windows installer leaves clang off PATH unless asked
+  const home = process.platform === "win32"
+    ? [path.join(process.env.ProgramFiles ?? "C:\\Program Files", "LLVM", "bin",
+      "clang.exe")] : [];
+  const ccs  = [...(process.env.CC ? [process.env.CC] : []), "clang", ...nums,
+    ...home];
   for (const cc of ccs) {
     const [got, out] = Safe.run_read(cc, ["--version"]);
     const m   = /^(Apple )?(?:\w+ )?clang version (\d+)/m.exec(out);
@@ -410,7 +427,9 @@ function cc_find(gpu: boolean): string {
     + " or newer to build " + (gpu ? "a GPU program" : "binaries") + " (found "
     + olds.join(", ") + "); on Debian/Ubuntu: curl -fsSL"
     + " https://apt.llvm.org/llvm.sh | sudo bash -s 19; on macOS: xcode-select"
-    + " --install";
+    + " --install" + (process.platform === "win32" ? "; on Windows: winget"
+    + " install LLVM.LLVM, and the Visual Studio Build Tools' C++ workload"
+    : "");
 }
 
 // cli_build builds the C file at `file` into the binary `bin`. A `!` program
@@ -422,11 +441,14 @@ function cc_find(gpu: boolean): string {
 // program with a framework (#import: a window, audio) builds as Objective-C;
 // on Linux it links the X11 and ALSA libraries it includes. On Windows CUDA
 // is at $CUDA_HOME, else at $CUDA_PATH (its installer's), its libraries in
-// lib/x64.
+// lib/x64; the C names its libraries, the binary embeds MANIFEST, and a bare
+// name gets .exe.
 function cli_build(bin: string, file: string): void {
   const c     = fs.readFileSync(file, "utf8");
   const mac   = process.platform === "darwin";
   const win   = process.platform === "win32";
+  const exe   = path.resolve(win && path.extname(bin) === "" ? bin + ".exe"
+    : bin);
   const cuda  = process.env.CUDA_HOME || (win ? process.env.CUDA_PATH : "")
     || "/usr/local/cuda";
   const bangs = !/^#define BANGS\s+0$/m.test(c)
@@ -436,14 +458,18 @@ function cli_build(bin: string, file: string): void {
     ? ["-x", "objective-c", "-fobjc-arc", "-fmodules"] : [];
   const libs  = [["X11", "X11"], ["alsa", "asound"]].flatMap(([h, l]) =>
     !mac && c.includes("#include <" + h + "/") ? ["-l" + l] : []);
-  const cpu = [...objc, "-std=c11", "-O3", file, "-lpthread", "-lm",
-    ...libs, "-o", path.resolve(bin)];
+  const host  = win ? ["-Wl,/manifest:embed", "-Wl,/manifestinput:" + file
+    + ".manifest"] : ["-lpthread", "-lm", ...libs];
+  if (win) {
+    fs.writeFileSync(file + ".manifest", MANIFEST);
+  }
+  const cpu = [...objc, "-std=c11", "-O3", file, ...host, "-o", exe];
   const gpu = mac ? ["-DBEND_METAL=1", ...cpu]
     : ["-DBEND_CUDA=1", "-I" + cuda + "/include", ...(win
       ? ["-L" + cuda + "/lib/x64"] : ["-L" + cuda + "/lib64", "-L" + cuda
       + "/lib", "-L" + cuda + "/lib64/stubs"]), ...cpu, "-lcuda", "-lnvrtc"];
   const steps: [string, string[]][] = bangs
-    ? [[cc, gpu], [path.resolve(bin), ["--gpu-build"]]] : [[cc, cpu]];
+    ? [[cc, gpu], [exe, ["--gpu-build"]]] : [[cc, cpu]];
   for (const [cmd, args] of steps) {
     if (child.spawnSync(cmd, args, { stdio: "inherit" }).status !== 0) {
       throw "Error: " + path.basename(cmd) + " failed to build " + bin;
@@ -629,7 +655,8 @@ async function cli_login(): Promise<string> {
   }
   cli_say(2, "log in at " + st.verify_url + "\n");
   try {
-    Bun.spawn([process.platform === "darwin" ? "open" : "xdg-open", st.verify_url], { stdout: "ignore", stderr: "ignore" });
+    const opener = { darwin: "open", win32: "explorer.exe" }[process.platform as string] ?? "xdg-open";
+    Bun.spawn([opener, st.verify_url], { stdout: "ignore", stderr: "ignore" });
   } catch {}
   const until = Date.parse(st.expires_at ?? "") || Date.now() + 600000;
   while (Date.now() < until) {
@@ -812,10 +839,10 @@ async function book_read(file: string, base?: Bend.Book,
     seen.set(BASE, "");
   }
   try {
-    await Bend.book_load(book, file, "", seen);
+    await Bend.book_load(book, file.replaceAll(path.sep, "/"), "", seen);
     const laws = path.join(path.dirname(file), "LAWS.bend");
     if (path.basename(file) === "PROOF.bend" && fs.existsSync(laws)
-      && !seen.has(fs.realpathSync(laws))) {
+      && !seen.has(fs.realpathSync(laws).replaceAll(path.sep, "/"))) {
       throw "Error: PROOF.bend must import ./LAWS.bend";
     }
     Bend.book_valid(book, base?.order.length ?? 0);
@@ -901,8 +928,7 @@ export default PLUGIN;
 
 if (import.meta.main) {
   if (typeof Bun === "undefined") {
-    cli_say(2, "bend runs on Bun: curl -fsSL https://bend-lang.com/install.sh"
-      + " | sh\n");
+    cli_say(2, "bend runs on Bun: " + INSTALL + "\n");
     process.exit(1);
   }
   ua_fetch();

@@ -1,7 +1,23 @@
 // File
 // ====
 
+// Windows reads through Node's fs: the fd is the C runtime's, not an fd
+// for read(2).
+function file_read_win(file, max, offset, pack) {
+  const len = Math.min(max, 2147483647);
+  const b = new Uint8Array(Math.max(len, 1));
+  try {
+    const n = require("fs").readSync(file, b, 0, len, offset);
+    return io_tup(file, io_done(pack(b, n)));
+  } catch (e) {
+    return io_tup(file, io_fail(io_code(e)));
+  }
+}
+
 function file_read_with(file, max, offset, pack) {
+  if (process.platform === "win32") {
+    return file_read_win(file, max, offset, pack);
+  }
   const sys = io_sys();
   const len = Math.min(max, 2147483647);
   const b = new Uint8Array(Math.max(len, 1));

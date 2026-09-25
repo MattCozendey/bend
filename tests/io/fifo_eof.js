@@ -1,8 +1,57 @@
+// Windows has no FIFO, and its loop waits on sockets only: the FIFO is a
+// loopback socket pair, written at once, and the ack closes the writer.
+function fifo_drain_win(len, k) {
+  const ffi = require("bun:ffi");
+  const sys = io_sys();
+  const ws = ffi.dlopen("ws2_32.dll", {
+    getsockname: { args: ["i64", "ptr", "ptr"], returns: "i32" },
+  }).symbols;
+  const at = io_addr("127.0.0.1", 0);
+  const l = sys.socket(2, 1, 0);
+  sys.bind(l, sys.ptr(at), 16);
+  sys.listen(l, 1);
+  ws.getsockname(l, sys.ptr(at), sys.ptr(new Int32Array([16])));
+  const wr = sys.socket(2, 1, 0);
+  sys.connect(wr, sys.ptr(at), 16);
+  const rd = sys.accept(l, null, null);
+  sys.close(l);
+  sys.fcntl(rd, 4, 0x800);
+  if (len > 0) {
+    sys.send(wr, sys.ptr(new Uint8Array(len).fill(120)), len, 0);
+  }
+  const b = new Uint8Array(64);
+  let total = 0;
+  let acked = false;
+  const go = () => {
+    for (;;) {
+      const n = sys.recv(rd, sys.ptr(b), 64, 0);
+      if (n > 0) {
+        total += n;
+        continue;
+      }
+      if (n < 0 && sys.errno() === 11) {
+        if (!acked && total === len) {
+          sys.close(wr);
+          acked = true;
+        }
+        io_park_on(rd, false, k, go);
+        return undefined;
+      }
+      sys.close(rd);
+      return total;
+    }
+  };
+  return go();
+}
+
 // A child writes len bytes into a FIFO, then waits on an ack pipe and
 // closes the FIFO only once the reader has drained it and parks again, so
 // the reader's last wake is the close alone. The reader's end moves to fd
 // hi when hi is nonzero, past FD_SETSIZE if hi is.
 function fifo_drain(len, hi, k) {
+  if (process.platform === "win32") {
+    return fifo_drain_win(len, k);
+  }
   const ffi = require("bun:ffi");
   const sys = io_sys();
   const lib = ffi.dlopen(sys.mac ? "libSystem.dylib" : "libc.so.6", {

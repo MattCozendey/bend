@@ -30,6 +30,43 @@ typedef struct {
   u32      grab;
 } BendWin;
 
+#elif defined(_WIN32)
+
+// The Win32 window: a fixed client area, its frame's pixels (a top-down
+// 32-bit DIB, 0x00RRGGBB as X11's image), the events pumped since the
+// last frame, five words each as on the Mac, and whether it holds the
+// pointer.
+#pragma comment(lib, "user32")
+#pragma comment(lib, "gdi32")
+
+typedef struct {
+  HWND       hwnd;
+  BITMAPINFO bmi;
+  u32*       pix;
+  u32        w;
+  u32        h;
+  u32        n;
+  u32        cap;
+  u32*       evs;
+  u32        grab;
+} BendWin;
+
+// The window's centre, on the screen: where a grab holds the pointer.
+static inline POINT window_centre(BendWin* win) {
+  POINT p = { (LONG)win->w / 2, (LONG)win->h / 2 };
+  ClientToScreen(win->hwnd, &p);
+  return p;
+}
+
+// A grab lets go of the pointer: unclipped, and the cursor shown again.
+static inline void window_ungrab(BendWin* win) {
+  if (win != NULL && win->grab) {
+    ClipCursor(NULL);
+    ShowCursor(TRUE);
+    win->grab = 0;
+  }
+}
+
 #endif
 
 #ifdef CID(Window.open)
@@ -280,6 +317,73 @@ static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,
   return 0;
 }
 
+#elif defined(_WIN32)
+
+// Close reaches the window procedure, not the queue: it comes back as a
+// WM_APP, the close event. Alt alone does not enter the menu loop, and a
+// window that loses the focus lets go of a grab.
+static LRESULT CALLBACK window_proc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
+  if (m == WM_CLOSE) {
+    PostMessageA(h, WM_APP, 0, 0);
+    return 0;
+  }
+  if (m == WM_SYSCOMMAND && (wp & 0xFFF0) == SC_KEYMENU) {
+    return 0;
+  }
+  if (m == WM_KILLFOCUS) {
+    window_ungrab((BendWin*)GetWindowLongPtrA(h, GWLP_USERDATA));
+  }
+  return DefWindowProcA(h, m, wp, lp);
+}
+
+// A session with no visible desktop (a service, ssh) has no display.
+static bool window_desktop(void) {
+  USEROBJECTFLAGS uf = { 0 };
+  return GetUserObjectInformationA(GetProcessWindowStation(), UOI_FLAGS, &uf,
+    sizeof uf, NULL) && (uf.dwFlags & WSF_VISIBLE);
+}
+
+static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,
+  const char** why) {
+  static ATOM cls;
+  DWORD       style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+  RECT        r     = { 0, 0, (LONG)w, (LONG)h };
+  if (w < 1 || h < 1 || w > 16384 || h > 16384) {
+    return EINVAL;
+  }
+  if (!window_desktop()) {
+    *why = "Window.open: no display (build a native binary with bend <file> -o <out> and run it from a desktop session)";
+    return ENOTSUP;
+  }
+  if (cls == 0) {
+    cls = RegisterClassA(&(WNDCLASSA){ .lpfnWndProc = window_proc,
+      .hInstance = GetModuleHandleA(NULL), .lpszClassName = "BendWin",
+      .hCursor = LoadCursorA(NULL, IDC_ARROW) });
+  }
+  AdjustWindowRect(&r, style, FALSE);
+  BendWin* win = io_mem(calloc(1, sizeof *win));
+  win->w   = w;
+  win->h   = h;
+  win->pix = io_mem(calloc((size_t)w * h, 4));
+  win->bmi.bmiHeader = (BITMAPINFOHEADER){ .biSize = sizeof(BITMAPINFOHEADER),
+    .biWidth = (LONG)w, .biHeight = -(LONG)h, .biPlanes = 1, .biBitCount = 32,
+    .biCompression = BI_RGB };
+  win->hwnd = CreateWindowExA(0, "BendWin", title, style, CW_USEDEFAULT,
+    CW_USEDEFAULT, r.right - r.left, r.bottom - r.top, NULL, NULL,
+    GetModuleHandleA(NULL), NULL);
+  if (win->hwnd == NULL) {
+    free(win->pix);
+    free(win);
+    *why = "Window.open: the window could not be created";
+    return ENXIO;
+  }
+  SetWindowLongPtrA(win->hwnd, GWLP_USERDATA, (LONG_PTR)win);
+  ShowWindow(win->hwnd, SW_SHOW);
+  SetForegroundWindow(win->hwnd);
+  *out = (intptr_t)win;
+  return 0;
+}
+
 #else
 
 static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,
@@ -314,7 +418,7 @@ static void __attribute__((constructor)) window_open_use(void) {
 
 // An event is five words: its constructor's id and its fields; a frame
 // answers the events pumped since the last one.
-#if defined(__OBJC__) || defined(__linux__)
+#if defined(__OBJC__) || defined(__linux__) || defined(_WIN32)
 
 static Term window_node(Env e, const u32* ev) {
   u32 n = cid_arity(ev[0]);
@@ -498,7 +602,72 @@ static Term window_frame(Env e, intptr_t at, Term image) {
   return list;
 }
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(_WIN32)
+
+#ifdef _WIN32
+
+// The Mac's key codes, as the X11 lane gives them.
+static const u32 window_keys[][2] = {
+  { VK_ESCAPE,   27 },    { VK_RETURN,   13 },    { VK_TAB,      9 },
+  { VK_BACK,     127 },   { VK_UP,       63232 }, { VK_DOWN,     63233 },
+  { VK_LEFT,     63234 }, { VK_RIGHT,    63235 }, { VK_INSERT,   63271 },
+  { VK_DELETE,   63272 }, { VK_HOME,     63273 }, { VK_END,      63275 },
+  { VK_PRIOR,    63276 }, { VK_NEXT,     63277 }, { VK_RWIN,     65590 },
+  { VK_LWIN,     65591 }, { VK_LSHIFT,   65592 }, { VK_CAPITAL,  65593 },
+  { VK_LMENU,    65594 }, { VK_LCONTROL, 65595 }, { VK_RSHIFT,   65596 },
+  { VK_RMENU,    65597 }, { VK_RCONTROL, 65598 },
+};
+
+// Mouse messages: the Mac's button number and whether it went down.
+static const u32 window_buttons[][3] = {
+  { WM_LBUTTONDOWN, 0, 1 }, { WM_LBUTTONUP, 0, 0 },
+  { WM_RBUTTONDOWN, 1, 1 }, { WM_RBUTTONUP, 1, 0 },
+  { WM_MBUTTONDOWN, 2, 1 }, { WM_MBUTTONUP, 2, 0 },
+};
+
+// A modifier's side: Windows names the key, the scan code its side.
+static u32 window_side(WPARAM vk, LPARAM lp) {
+  bool right = (lp >> 24) & 1;
+  switch (vk) {
+    case VK_SHIFT:
+      return MapVirtualKeyW((lp >> 16) & 0xFF, MAPVK_VSC_TO_VK_EX);
+    case VK_CONTROL:
+      return right ? VK_RCONTROL : VK_LCONTROL;
+    case VK_MENU:
+      return right ? VK_RMENU : VK_LMENU;
+    default:
+      return (u32)vk;
+  }
+}
+
+// A key's character under Shift and Caps Lock alone, in lower case, as
+// X11's lookup (Shift+Tab is its back tab); else its table code; else
+// 65536 + its scan code.
+static u32 window_key(WPARAM wp, LPARAM lp) {
+  u32   vk      = window_side(wp, lp);
+  UINT  scan    = (lp >> 16) & 0xFF;
+  BYTE  st[256] = { 0 };
+  WCHAR c[4];
+  st[VK_SHIFT]   = GetKeyState(VK_SHIFT) & 0x80;
+  st[VK_CAPITAL] = GetKeyState(VK_CAPITAL) & 1;
+  if (vk == VK_TAB && st[VK_SHIFT]) {
+    return 25;
+  }
+  for (u32 i = 0; i < sizeof window_keys / sizeof *window_keys; i += 1) {
+    if (window_keys[i][0] == vk) {
+      return window_keys[i][1];
+    }
+  }
+  if (vk >= VK_F1 && vk <= VK_F12) {
+    return 63236 + (vk - VK_F1);
+  }
+  if (ToUnicode(vk, scan, st, c, 4, 4) == 1 && c[0] >= 32) {
+    return c[0] >= 'A' && c[0] <= 'Z' ? c[0] + 32u : c[0];
+  }
+  return 65536 + scan;
+}
+
+#else
 
 // The Mac's key codes: a key's character in lower case (Escape, Return
 // and Tab are theirs), the function keys' private-use characters (the
@@ -532,6 +701,8 @@ static u32 window_key(XKeyEvent* ev) {
   return 65536 + ev->keycode;
 }
 
+#endif
+
 static void window_push(BendWin* win, u32 cid, u32 a, u32 b, u32 c, u32 d) {
   if (win->n == win->cap) {
     win->cap = win->cap == 0 ? 64 : win->cap * 2;
@@ -545,6 +716,96 @@ static void window_push(BendWin* win, u32 cid, u32 a, u32 b, u32 c, u32 d) {
 static u32 window_clip(int v, u32 most) {
   return v < 0 ? 0 : (u32)v < most ? (u32)v : most - 1;
 }
+
+#ifdef _WIN32
+
+// A press holds the mouse, so a drag past the window still ends in it (X11
+// grabs it implicitly).
+static void window_mouse(BendWin* win, const MSG* m) {
+  for (u32 i = 0; i < sizeof window_buttons / sizeof *window_buttons; i += 1) {
+    if (window_buttons[i][0] == m->message) {
+      window_push(win, CID(Mouse), window_clip((short)LOWORD(m->lParam),
+        win->w), window_clip((short)HIWORD(m->lParam), win->h),
+        window_buttons[i][1], window_buttons[i][2]);
+      if (window_buttons[i][2]) {
+        SetCapture(win->hwnd);
+      } else {
+        ReleaseCapture();
+      }
+    }
+  }
+}
+
+// A notch is 1, up and left positive as X11's wheel buttons; the message
+// holds the pointer on the screen.
+static void window_wheel(BendWin* win, const MSG* m) {
+  POINT p = { (short)LOWORD(m->lParam), (short)HIWORD(m->lParam) };
+  f32   s = (f32)GET_WHEEL_DELTA_WPARAM(m->wParam) / WHEEL_DELTA;
+  bool  x = m->message == WM_MOUSEHWHEEL;
+  ScreenToClient(win->hwnd, &p);
+  window_push(win, CID(Scroll), window_clip(p.x, win->w),
+    window_clip(p.y, win->h), f32_rewrap(x ? -s : 0), f32_rewrap(x ? 0 : s));
+}
+
+// Grabbed, a move is no event: it sets (x, y), and the pump's look is
+// taken from the last one.
+static void window_input(BendWin* win, const MSG* m, int* x, int* y) {
+  switch (m->message) {
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+      window_push(win, CID(Key), window_key(m->wParam, m->lParam),
+        m->message == WM_KEYDOWN || m->message == WM_SYSKEYDOWN, 0, 0);
+      break;
+    case WM_MOUSEMOVE:
+      *x = (short)LOWORD(m->lParam);
+      *y = (short)HIWORD(m->lParam);
+      if (!win->grab) {
+        window_push(win, CID(Move), window_clip(*x, win->w),
+          window_clip(*y, win->h), 0, 0);
+      }
+      break;
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL:
+      window_wheel(win, m);
+      break;
+    case WM_APP:
+      window_push(win, CID(Close), 0, 0, 0, 0);
+      break;
+    default:
+      window_mouse(win, m);
+  }
+}
+
+// The thread's queue, as X11's pump reads its connection's: every
+// window's messages, each an event of the window it names (a closed one
+// names none), then dispatched, so Alt+F4 and the title bar still work.
+static void window_pump(BendWin* win) {
+  int cx = win->w / 2;
+  int cy = win->h / 2;
+  int x  = cx;
+  int y  = cy;
+  int ox;
+  int oy;
+  MSG m;
+  while (PeekMessageA(&m, NULL, 0, 0, PM_REMOVE)) {
+    BendWin* to = (BendWin*)GetWindowLongPtrA(m.hwnd, GWLP_USERDATA);
+    if (to != NULL) {
+      window_input(to, &m, to == win ? &x : &ox, to == win ? &y : &oy);
+    }
+    DispatchMessageA(&m);
+  }
+  // grabbed, the frame's motion is one look from the centre
+  if (win->grab && (x != cx || y != cy)) {
+    POINT c = window_centre(win);
+    window_push(win, CID(Look), f32_rewrap(x - cx), f32_rewrap(y - cy), 0,
+      0);
+    SetCursorPos(c.x, c.y);
+  }
+}
+
+#else
 
 static void window_pump(BendWin* win) {
   u32 w  = win->img->width;
@@ -594,6 +855,8 @@ static void window_pump(BendWin* win) {
     XWarpPointer(win->dpy, None, win->win, 0, 0, 0, 0, cx, cy);
   }
 }
+
+#endif
 
 #if BEND_CUDA
 static CUfunction  window_pso;
@@ -672,6 +935,23 @@ static void window_pace(void) {
   due = (due > now ? due : now) + 16666667;
 }
 
+#ifdef _WIN32
+
+static void window_show(Env e, BendWin* win, Term image) {
+  u32 k = 0;
+  while ((1u << k) < win->w || (1u << k) < win->h) {
+    k += 1;
+  }
+  window_fill(e, win->pix, win->w, win->h, image, k);
+  window_pace();
+  HDC dc = GetDC(win->hwnd);
+  StretchDIBits(dc, 0, 0, win->w, win->h, 0, 0, win->w, win->h, win->pix,
+    &win->bmi, DIB_RGB_COLORS, SRCCOPY);
+  ReleaseDC(win->hwnd, dc);
+}
+
+#else
+
 static void window_show(Env e, BendWin* win, Term image) {
   u32 w = win->img->width;
   u32 h = win->img->height;
@@ -685,6 +965,8 @@ static void window_show(Env e, BendWin* win, Term image) {
     win->img, 0, 0, 0, 0, w, h);
   XFlush(win->dpy);
 }
+
+#endif
 
 static Term window_frame(Env e, intptr_t at, Term image) {
   BendWin* win = (BendWin*)at;
@@ -731,6 +1013,13 @@ static void window_set_title(intptr_t at, const char* text, u64 n) {
   BendWin* win = (BendWin*)at;
   XStoreName(win->dpy, win->win, text);
   XFlush(win->dpy);
+}
+
+#elif defined(_WIN32)
+
+// The code page is UTF-8 (the binary's manifest), so the A call takes it.
+static void window_set_title(intptr_t at, const char* text, u64 n) {
+  SetWindowTextA(((BendWin*)at)->hwnd, text);
 }
 
 #else
@@ -794,6 +1083,27 @@ static void window_grab(intptr_t at, bool on) {
   XFlush(win->dpy);
 }
 
+#elif defined(_WIN32)
+
+// The pointer is clipped to the window under a hidden cursor and set at
+// its centre, where each frame puts it back; only a focused window takes
+// it.
+static void window_grab(intptr_t at, bool on) {
+  BendWin* win = (BendWin*)at;
+  if (on && !win->grab && GetForegroundWindow() == win->hwnd) {
+    RECT  r;
+    POINT c = window_centre(win);
+    GetClientRect(win->hwnd, &r);
+    MapWindowPoints(win->hwnd, NULL, (POINT*)&r, 2);
+    ClipCursor(&r);
+    ShowCursor(FALSE);
+    SetCursorPos(c.x, c.y);
+    win->grab = 1;
+  } else if (!on) {
+    window_ungrab(win);
+  }
+}
+
 #else
 
 static void window_grab(intptr_t at, bool on) {
@@ -828,6 +1138,18 @@ static void window_close(intptr_t at) {
   BendWin* win = (BendWin*)at;
   XDestroyImage(win->img);
   XCloseDisplay(win->dpy);
+  free(win->evs);
+  free(win);
+}
+
+#elif defined(_WIN32)
+
+static void window_close(intptr_t at) {
+  BendWin* win = (BendWin*)at;
+  window_ungrab(win);
+  SetWindowLongPtrA(win->hwnd, GWLP_USERDATA, 0);
+  DestroyWindow(win->hwnd);
+  free(win->pix);
   free(win->evs);
   free(win);
 }

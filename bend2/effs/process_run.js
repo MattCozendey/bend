@@ -16,6 +16,9 @@ function process_run(program, args, input, maxOutput, timeoutMs) {
       stdout: "pipe", stderr: "pipe", timeout: timeoutMs,
       maxBuffer: maxOutput + 1 });
   } catch (e) {
+    if (process.platform === "win32") {
+      return io_fail(io_code(e));
+    }
     return io_fail(typeof e.errno === "number" ? Math.abs(e.errno) : 5);
   }
   const out = Buffer.from(got.stdout ?? []);
@@ -23,7 +26,13 @@ function process_run(program, args, input, maxOutput, timeoutMs) {
   if (got.exitedDueToMaxBuffer || out.length + err.length > maxOutput) {
     return io_fail(27);
   }
-  if (got.exitedDueToTimeout) {
+  // Windows: a child that exited on its own is done, though a grandchild
+  // held its pipes past the timeout (Bun there waits for them to close)
+  const win = process.platform === "win32";
+  if (win && got.exitedDueToTimeout && got.exitCode === null) {
+    return io_fail(require("node:os").constants.errno.ETIMEDOUT);
+  }
+  if (got.exitedDueToTimeout && !win) {
     return io_fail(process.platform === "darwin" ? 60 : 110);
   }
   const sig = got.signalCode === null ? 0

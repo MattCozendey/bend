@@ -6,8 +6,17 @@
 // loop reaches select, and the test then exercises nothing. Then the
 // computation parks on the read end of a pipe whose write end stays
 // open and unwritten: its fd never becomes ready, so a wake is
-// spurious.
+// spurious. Windows has no signals to land in the wait: the park is on a
+// loopback UDP socket nobody sends to.
 function idle_park(ms, k) {
+  if (process.platform === "win32") {
+    const sys = io_sys();
+    const fd = sys.socket(2, 2, 0);
+    sys.bind(fd, sys.ptr(io_addr("127.0.0.1", 0)), 16);
+    sys.fcntl(fd, 4, 0x800);
+    io_park_on(fd, false, k, () => ({ $: CID(Unit) }));
+    return undefined;
+  }
   const ffi = require("bun:ffi");
   const sys = io_sys();
   const lib = ffi.dlopen(sys.mac ? "libSystem.dylib" : "libc.so.6", {
