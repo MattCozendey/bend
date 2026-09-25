@@ -394,11 +394,15 @@ function cc_find(gpu: boolean): string {
 // the toolkit's stub where the driver's is off the linker's path (WSL keeps
 // it in /usr/lib/wsl/lib); the loader finds the driver's. On macOS a
 // program with a framework (#import: a window, audio) builds as Objective-C;
-// on Linux it links the X11 and ALSA libraries it includes.
+// on Linux it links the X11 and ALSA libraries it includes. On Windows CUDA
+// is at $CUDA_HOME, else at $CUDA_PATH (its installer's), its libraries in
+// lib/x64.
 function cli_build(bin: string, file: string): void {
   const c     = fs.readFileSync(file, "utf8");
   const mac   = process.platform === "darwin";
-  const cuda  = process.env.CUDA_HOME || "/usr/local/cuda";
+  const win   = process.platform === "win32";
+  const cuda  = process.env.CUDA_HOME || (win ? process.env.CUDA_PATH : "")
+    || "/usr/local/cuda";
   const bangs = !/^#define BANGS\s+0$/m.test(c)
     && (mac || fs.existsSync(cuda + "/include/nvrtc.h"));
   const cc    = cc_find(bangs);
@@ -409,9 +413,9 @@ function cli_build(bin: string, file: string): void {
   const cpu = [...objc, "-std=c11", "-O3", file, "-lpthread", "-lm",
     ...libs, "-o", path.resolve(bin)];
   const gpu = mac ? ["-DBEND_METAL=1", ...cpu]
-    : ["-DBEND_CUDA=1", "-I" + cuda + "/include", "-L" + cuda + "/lib64",
-      "-L" + cuda + "/lib", "-L" + cuda + "/lib64/stubs", ...cpu, "-lcuda",
-      "-lnvrtc"];
+    : ["-DBEND_CUDA=1", "-I" + cuda + "/include", ...(win
+      ? ["-L" + cuda + "/lib/x64"] : ["-L" + cuda + "/lib64", "-L" + cuda
+      + "/lib", "-L" + cuda + "/lib64/stubs"]), ...cpu, "-lcuda", "-lnvrtc"];
   const steps: [string, string[]][] = bangs
     ? [[cc, gpu], [path.resolve(bin), ["--gpu-build"]]] : [[cc, cpu]];
   for (const [cmd, args] of steps) {
