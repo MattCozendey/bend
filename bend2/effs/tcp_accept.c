@@ -8,7 +8,11 @@ static Term tcp_accept_more(Env e, IoWork* w) {
   int fd  = (int)w->hand;
   int got = accept(fd, NULL, NULL);
   if (got >= 0 && fcntl(got, F_SETFL, fcntl(got, F_GETFL) | O_NONBLOCK) < 0) {
+#ifdef _WIN32
+    sock_close(got);
+#else
     close(got);
+#endif
     got = -1;
   }
   io_sys_end(w, got);

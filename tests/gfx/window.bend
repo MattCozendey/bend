@@ -72,7 +72,8 @@ def refused(+code: U32, text: String) -> IO(Unit):
   +q = build(2n, 0, 0)
   do IO<Unit>:
     u : Unit <- IO.print(text)
-    v : Unit <- IO.print(sup(U32.is_eq(code, 45) || U32.is_eq(code, 95), code))
+    v : Unit <- IO.print(sup(U32.is_eq(code, 45) || U32.is_eq(code, 95)
+      || U32.is_eq(code, 129), code))
     x : Unit <- IO.print(U32.show(fold(Pix{7})))
     y : Unit <- IO.print(U32.show(fold(build(6n, 0, 0))))
     IO.print(U32.show(fold(Qua{q, Pix{1}, q, Pix{2}})))

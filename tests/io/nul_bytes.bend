@@ -14,7 +14,7 @@ law nul_tail:
 def nul_tail():
   SCon{Chr{0}, SCon{Chr{88}, SNil{}}}
 
-# EILSEQ is 92 on macOS and 84 on Linux.
+# EILSEQ is 92 on macOS, 84 on Linux and 42 on Windows.
 law ilseq:
   for yes: Bool
   for code: U32
@@ -40,7 +40,7 @@ def path_go(r):
     case Fail{error}:
       (+code, message) = error
       IO.print(String.append("path=fail:", ilseq(U32.is_eq(code, 92)
-        || U32.is_eq(code, 84), code)))
+        || U32.is_eq(code, 84) || U32.is_eq(code, 42), code)))
 
 law mode_go:
   for r: Result<&1, &1, (U32 & String), File>

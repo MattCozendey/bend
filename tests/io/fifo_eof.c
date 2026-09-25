@@ -1,3 +1,65 @@
+#ifdef _WIN32
+
+// Windows has no FIFO, and its loop waits on sockets only: the FIFO and
+// the ack are socket pairs and the child a thread (hi has no meaning:
+// WSAPoll has no FD_SETSIZE).
+static void* fifo_peer(void* arg) {
+  int* p = arg;
+  char c;
+  for (int i = 0; i < p[2]; i += 1) {
+    send(p[0], "x", 1, 0);
+  }
+  recv(p[1], &c, 1, 0);
+  sock_close(p[0]);
+  sock_close(p[1]);
+  free(p);
+  return NULL;
+}
+
+// The reader: as the POSIX one below, on a socket.
+static Term fifo_drain_more(Env e, IoWork* w) {
+  char    b[64];
+  ssize_t n = recv((int)w->hand, b, sizeof b, 0);
+  if (n > 0) {
+    w->size += (u64)n;
+    return fifo_drain_more(e, w);
+  }
+  if (n < 0 && errno == EAGAIN) {
+    if (w->code != 0 && w->size == (u64)w->made) {
+      sock_close((int)w->code);
+      w->code = 0;
+    }
+    return io_wait_on(w, (int)w->hand, POLLIN, 0, fifo_drain_more);
+  }
+  sock_close((int)w->hand);
+  return (u32)w->size;
+}
+
+Term fifo_drain_run(Env e, Term* f, IoWork* w) {
+  int*      p = io_mem(malloc(3 * sizeof(int)));
+  int       rd[2];
+  int       ack[2];
+  pthread_t t;
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, rd) != 0
+    || socketpair(AF_UNIX, SOCK_STREAM, 0, ack) != 0
+    || sock_nonblock(rd[0]) != 0) {
+    err_fail("fifo_eof: no socket pair");
+  }
+  p[0] = rd[1];
+  p[1] = ack[0];
+  p[2] = (int)f[0];
+  if (pthread_create(&t, NULL, fifo_peer, p) != 0) {
+    err_fail("fifo_eof: no thread");
+  }
+  pthread_detach(t);
+  w->hand = rd[0];
+  w->made = (intptr_t)f[0];
+  w->code = (u32)ack[1];
+  w->size = 0;
+  return fifo_drain_more(e, w);
+}
+
+#else
 #include <fcntl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
@@ -62,6 +124,7 @@ Term fifo_drain_run(Env e, Term* f, IoWork* w) {
   w->size = 0;
   return fifo_drain_more(e, w);
 }
+#endif
 
 static void __attribute__((constructor)) fifo_drain_use(void) {
   io_eff(CID(fifo.drain), fifo_drain_run, 0);

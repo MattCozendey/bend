@@ -37,9 +37,6 @@ The termination check reads arguments left to right (#770)
 No common-subexpression elimination (#812)
   Two calls of `f(p)` run twice. Bind the value once.
 
-The hub client trusts the manifest path grammar on POSIX only (#788)
-  The path guard is POSIX. Windows is not a supported host (see CAPACITY).
-
 A base-file helper may call a law filled below it (#793)
   `base.bend` carries this carve-out and the Lean formalization states it.
   User files do not get it.
@@ -51,9 +48,6 @@ A handle type is a law of Base (#825)
   consistency; we will address the gap later.
 
 CAPACITY (a small team keeps the language at a size it can maintain)
-
-Windows is not supported (#788)
-  Use WSL.
 
 No Vulkan or other extra GPU lanes (#811)
   Metal and CUDA only.

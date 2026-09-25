@@ -236,6 +236,90 @@ static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,
   return 0;
 }
 
+#elif defined(_WIN32)
+
+// The Win32 window: a fixed client area, its frame's pixels (a top-down
+// 32-bit DIB, 0x00RRGGBB as X11's image) and the events pumped since the
+// last frame, five words each as on the Mac. The same block sits in each
+// window file's Win32 lane under this guard.
+#ifndef BendWin
+#define BendWin BendWin
+#pragma comment(lib, "user32")
+#pragma comment(lib, "gdi32")
+
+typedef struct {
+  HWND       hwnd;
+  BITMAPINFO bmi;
+  u32*       pix;
+  u32        w;
+  u32        h;
+  u32        n;
+  u32        cap;
+  u32*       evs;
+} BendWin;
+#endif
+
+// Close reaches the window procedure, not the queue: it comes back as a
+// WM_APP, the close event. Alt alone does not enter the menu loop.
+static LRESULT CALLBACK window_proc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
+  if (m == WM_CLOSE) {
+    PostMessageA(h, WM_APP, 0, 0);
+    return 0;
+  }
+  if (m == WM_SYSCOMMAND && (wp & 0xFFF0) == SC_KEYMENU) {
+    return 0;
+  }
+  return DefWindowProcA(h, m, wp, lp);
+}
+
+// A session with no visible desktop (a service, ssh) has no display.
+static bool window_desktop(void) {
+  USEROBJECTFLAGS uf = { 0 };
+  return GetUserObjectInformationA(GetProcessWindowStation(), UOI_FLAGS, &uf,
+    sizeof uf, NULL) && (uf.dwFlags & WSF_VISIBLE);
+}
+
+static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,
+  const char** why) {
+  static ATOM cls;
+  DWORD       style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+  RECT        r     = { 0, 0, (LONG)w, (LONG)h };
+  if (w < 1 || h < 1 || w > 16384 || h > 16384) {
+    return EINVAL;
+  }
+  if (!window_desktop()) {
+    *why = "Window.open: no display (build a native binary with bend <file> -o <out> and run it from a desktop session)";
+    return ENOTSUP;
+  }
+  if (cls == 0) {
+    cls = RegisterClassA(&(WNDCLASSA){ .lpfnWndProc = window_proc,
+      .hInstance = GetModuleHandleA(NULL), .lpszClassName = "BendWin",
+      .hCursor = LoadCursorA(NULL, IDC_ARROW) });
+  }
+  AdjustWindowRect(&r, style, FALSE);
+  BendWin* win = io_mem(calloc(1, sizeof *win));
+  win->w   = w;
+  win->h   = h;
+  win->pix = io_mem(calloc((size_t)w * h, 4));
+  win->bmi.bmiHeader = (BITMAPINFOHEADER){ .biSize = sizeof(BITMAPINFOHEADER),
+    .biWidth = (LONG)w, .biHeight = -(LONG)h, .biPlanes = 1, .biBitCount = 32,
+    .biCompression = BI_RGB };
+  win->hwnd = CreateWindowExA(0, "BendWin", title, style, CW_USEDEFAULT,
+    CW_USEDEFAULT, r.right - r.left, r.bottom - r.top, NULL, NULL,
+    GetModuleHandleA(NULL), NULL);
+  if (win->hwnd == NULL) {
+    free(win->pix);
+    free(win);
+    *why = "Window.open: the window could not be created";
+    return ENXIO;
+  }
+  SetWindowLongPtrA(win->hwnd, GWLP_USERDATA, (LONG_PTR)win);
+  ShowWindow(win->hwnd, SW_SHOW);
+  SetForegroundWindow(win->hwnd);
+  *out = (intptr_t)win;
+  return 0;
+}
+
 #else
 
 static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,

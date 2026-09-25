@@ -3,7 +3,7 @@
 
 // An event is five words: kind (0 key, 1 mouse, 2 move, 3 close) and
 // its fields; a frame answers the events pumped since the last one.
-#if defined(__OBJC__) || defined(__linux__)
+#if defined(__OBJC__) || defined(__linux__) || defined(_WIN32)
 
 static Term window_node(Env e, const u32* ev) {
   static const u32 cids[3] = { CID(Key), CID(Mouse), CID(Move) };
@@ -181,8 +181,30 @@ static Term window_frame(Env e, intptr_t at, Term image) {
   return list;
 }
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(_WIN32)
 
+#ifdef _WIN32
+// The Win32 window: a fixed client area, its frame's pixels (a top-down
+// 32-bit DIB, 0x00RRGGBB as X11's image) and the events pumped since the
+// last frame, five words each as on the Mac. The same block sits in each
+// window file's Win32 lane under this guard.
+#ifndef BendWin
+#define BendWin BendWin
+#pragma comment(lib, "user32")
+#pragma comment(lib, "gdi32")
+
+typedef struct {
+  HWND       hwnd;
+  BITMAPINFO bmi;
+  u32*       pix;
+  u32        w;
+  u32        h;
+  u32        n;
+  u32        cap;
+  u32*       evs;
+} BendWin;
+#endif
+#else
 #ifndef BendWin
 #define BendWin BendWin
 #include <X11/Xlib.h>
@@ -199,7 +221,66 @@ typedef struct {
   u32*     evs;
 } BendWin;
 #endif
+#endif
 
+#ifdef _WIN32
+// The Mac's key codes, as the X11 lane gives them.
+static const u32 window_keys[][2] = {
+  { VK_ESCAPE,   27 },    { VK_RETURN,   13 },    { VK_TAB,      9 },
+  { VK_BACK,     127 },   { VK_UP,       63232 }, { VK_DOWN,     63233 },
+  { VK_LEFT,     63234 }, { VK_RIGHT,    63235 }, { VK_INSERT,   63271 },
+  { VK_DELETE,   63272 }, { VK_HOME,     63273 }, { VK_END,      63275 },
+  { VK_PRIOR,    63276 }, { VK_NEXT,     63277 }, { VK_RWIN,     65590 },
+  { VK_LWIN,     65591 }, { VK_LSHIFT,   65592 }, { VK_CAPITAL,  65593 },
+  { VK_LMENU,    65594 }, { VK_LCONTROL, 65595 }, { VK_RSHIFT,   65596 },
+  { VK_RMENU,    65597 }, { VK_RCONTROL, 65598 },
+};
+
+// Mouse messages: the Mac's button number and whether it went down.
+static const u32 window_buttons[][3] = {
+  { WM_LBUTTONDOWN, 0, 1 }, { WM_LBUTTONUP, 0, 0 },
+  { WM_RBUTTONDOWN, 1, 1 }, { WM_RBUTTONUP, 1, 0 },
+  { WM_MBUTTONDOWN, 2, 1 }, { WM_MBUTTONUP, 2, 0 },
+};
+
+// A modifier's side: Windows names the key, the scan code its side.
+static u32 window_side(WPARAM vk, LPARAM lp) {
+  bool right = (lp >> 24) & 1;
+  switch (vk) {
+    case VK_SHIFT:
+      return MapVirtualKeyW((lp >> 16) & 0xFF, MAPVK_VSC_TO_VK_EX);
+    case VK_CONTROL:
+      return right ? VK_RCONTROL : VK_LCONTROL;
+    case VK_MENU:
+      return right ? VK_RMENU : VK_LMENU;
+    default:
+      return (u32)vk;
+  }
+}
+
+// A key's character under Shift and Caps Lock alone, in lower case, as
+// X11's lookup; else its table code; else 65536 + its scan code.
+static u32 window_key(WPARAM wp, LPARAM lp) {
+  u32  vk   = window_side(wp, lp);
+  UINT scan = (lp >> 16) & 0xFF;
+  for (u32 i = 0; i < sizeof window_keys / sizeof *window_keys; i += 1) {
+    if (window_keys[i][0] == vk) {
+      return window_keys[i][1];
+    }
+  }
+  if (vk >= VK_F1 && vk <= VK_F12) {
+    return 63236 + (vk - VK_F1);
+  }
+  BYTE  st[256] = { 0 };
+  WCHAR c[4];
+  st[VK_SHIFT]   = GetKeyState(VK_SHIFT) & 0x80;
+  st[VK_CAPITAL] = GetKeyState(VK_CAPITAL) & 1;
+  if (ToUnicode(vk, scan, st, c, 4, 4) == 1 && c[0] >= 32) {
+    return c[0] >= 'A' && c[0] <= 'Z' ? c[0] + 32u : c[0];
+  }
+  return 65536 + scan;
+}
+#else
 // The Mac's key codes: a key's character in lower case, the function
 // keys' private-use characters (the arrows at 63232), a modifier's
 // 65536 + its key code.
@@ -232,6 +313,7 @@ static u32 window_key(XKeyEvent* ev) {
   }
   return 65536 + ev->keycode;
 }
+#endif
 
 static void window_push(BendWin* win, u32 kind, u32 a, u32 b, u32 c, u32 d) {
   if (win->n == win->cap) {
@@ -247,6 +329,59 @@ static u32 window_clip(int v, u32 most) {
   return v < 0 ? 0 : (u32)v < most ? (u32)v : most - 1;
 }
 
+#ifdef _WIN32
+// A press holds the mouse, so a drag past the window still ends in it (X11
+// grabs it implicitly).
+static void window_mouse(BendWin* win, const MSG* m) {
+  for (u32 i = 0; i < sizeof window_buttons / sizeof *window_buttons; i += 1) {
+    if (window_buttons[i][0] == m->message) {
+      window_push(win, 1, window_clip((short)LOWORD(m->lParam), win->w),
+        window_clip((short)HIWORD(m->lParam), win->h), window_buttons[i][1],
+        window_buttons[i][2]);
+      if (window_buttons[i][2]) {
+        SetCapture(win->hwnd);
+      } else {
+        ReleaseCapture();
+      }
+    }
+  }
+}
+
+static void window_input(BendWin* win, const MSG* m) {
+  switch (m->message) {
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+      window_push(win, 0, window_key(m->wParam, m->lParam),
+        m->message == WM_KEYDOWN || m->message == WM_SYSKEYDOWN, 0, 0);
+      break;
+    case WM_MOUSEMOVE:
+      window_push(win, 2, window_clip((short)LOWORD(m->lParam), win->w),
+        window_clip((short)HIWORD(m->lParam), win->h), 0, 0);
+      break;
+    case WM_APP:
+      window_push(win, 3, 0, 0, 0, 0);
+      break;
+    default:
+      window_mouse(win, m);
+  }
+}
+
+// The thread's queue, as X11's pump reads its connection's: every
+// window's messages, each an event of the window it names (a closed one
+// names none), then dispatched, so Alt+F4 and the title bar still work.
+static void window_pump(BendWin* win) {
+  MSG m;
+  while (PeekMessageA(&m, NULL, 0, 0, PM_REMOVE)) {
+    BendWin* to = (BendWin*)GetWindowLongPtrA(m.hwnd, GWLP_USERDATA);
+    if (to != NULL) {
+      window_input(to, &m);
+    }
+    DispatchMessageA(&m);
+  }
+}
+#else
 static void window_pump(BendWin* win) {
   u32 w = win->img->width;
   u32 h = win->img->height;
@@ -271,6 +406,7 @@ static void window_pump(BendWin* win) {
     }
   }
 }
+#endif
 
 #if BEND_CUDA
 static CUfunction  window_pso;
@@ -330,6 +466,20 @@ static void window_pace(void) {
   due = (due > now ? due : now) + 16666667;
 }
 
+#ifdef _WIN32
+static void window_show(Env e, BendWin* win, Term image) {
+  u32 k = 0;
+  while ((1u << k) < win->w || (1u << k) < win->h) {
+    k += 1;
+  }
+  window_fill(e, win->pix, win->w, win->h, image, k);
+  window_pace();
+  HDC dc = GetDC(win->hwnd);
+  StretchDIBits(dc, 0, 0, win->w, win->h, 0, 0, win->w, win->h, win->pix,
+    &win->bmi, DIB_RGB_COLORS, SRCCOPY);
+  ReleaseDC(win->hwnd, dc);
+}
+#else
 static void window_show(Env e, BendWin* win, Term image) {
   u32 w = win->img->width;
   u32 h = win->img->height;
@@ -343,6 +493,7 @@ static void window_show(Env e, BendWin* win, Term image) {
     win->img, 0, 0, 0, 0, w, h);
   XFlush(win->dpy);
 }
+#endif
 
 static Term window_frame(Env e, intptr_t at, Term image) {
   BendWin* win = (BendWin*)at;

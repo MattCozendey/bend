@@ -37,6 +37,38 @@ static void window_close(intptr_t at) {
   free(win);
 }
 
+#elif defined(_WIN32)
+
+// The Win32 window: a fixed client area, its frame's pixels (a top-down
+// 32-bit DIB, 0x00RRGGBB as X11's image) and the events pumped since the
+// last frame, five words each as on the Mac. The same block sits in each
+// window file's Win32 lane under this guard.
+#ifndef BendWin
+#define BendWin BendWin
+#pragma comment(lib, "user32")
+#pragma comment(lib, "gdi32")
+
+typedef struct {
+  HWND       hwnd;
+  BITMAPINFO bmi;
+  u32*       pix;
+  u32        w;
+  u32        h;
+  u32        n;
+  u32        cap;
+  u32*       evs;
+} BendWin;
+#endif
+
+static void window_close(intptr_t at) {
+  BendWin* win = (BendWin*)at;
+  SetWindowLongPtrA(win->hwnd, GWLP_USERDATA, 0);
+  DestroyWindow(win->hwnd);
+  free(win->pix);
+  free(win->evs);
+  free(win);
+}
+
 #else
 
 static void window_close(intptr_t at) {

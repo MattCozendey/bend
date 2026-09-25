@@ -8,13 +8,21 @@ Term udp_bind_run(Env e, Term* f, IoWork* w) {
   }
   struct sockaddr_in at;
   if (io_sys_addr("0.0.0.0", (uint32_t)f[0], &at) < 0) {
+#ifdef _WIN32
+    sock_close(fd);
+#else
     close(fd);
+#endif
     return io_fail(e, EINVAL, NULL);
   }
   if (bind(fd, (struct sockaddr*)&at, sizeof(at)) < 0
     || fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
     uint32_t code = (uint32_t)errno;
+#ifdef _WIN32
+    sock_close(fd);
+#else
     close(fd);
+#endif
     return io_fail(e, code, NULL);
   }
   return io_done(e, io_hand(fd));

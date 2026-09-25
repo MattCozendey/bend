@@ -1,9 +1,10 @@
 // Shared by the gates: local and cluster exec (ssh through the bastion's
-// mux), a slot of 48 minis (the live ones), a pool that hands jobs to free
-// nodes, and the verdict line.
+// mux), a slot of 48 minis (the live ones), or on Windows this machine over
+// localhost ssh, a pool that hands jobs to free nodes, and the verdict line.
 
 import * as child from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 // Types
@@ -24,7 +25,16 @@ export const ROOT = path.join(import.meta.dirname, "..");
 // hub and release.ts live there, beside this checkout or at $SITE_REPO
 export const SITE = process.env.SITE_REPO ?? path.join(ROOT, "..", "bend-lang.com");
 
-export const BUN = "/usr/local/bun/bin/bun";
+// A Windows host is a cluster of one: localhost over ssh (a session with
+// no desktop, as a mini's) with the gate's key, in LOCAL_SHARDS shards.
+export const LOCAL = process.platform === "win32";
+
+const LOCAL_SHARDS = 4;
+
+const LOCAL_SSH = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
+  "-i", path.join(os.homedir(), ".ssh", "bend_gate"), "localhost"];
+
+export const BUN = LOCAL ? "bun" : "/usr/local/bun/bin/bun";
 
 const SLOTS = { dir: "/tmp/bend-cluster-slots", count: 4, size: 48, base: 2 };
 
@@ -78,14 +88,26 @@ export function node_name(node: number): string {
 // twice; a node the bastion cannot reach (channel refused) fails at once.
 export async function ssh(node: number, script: string,
   input?: Buffer | string, timeout?: number): Promise<Exec> {
+  const dir = LOCAL ? fs.mkdtempSync(path.join(os.tmpdir(), "bend-ssh-")) : "";
   for (let hop = 0; ; hop += 1) {
-    const got = await exec("ssh", [...SSH, node_name(node), script], input,
-      timeout);
+    const got = await exec("ssh", LOCAL ? [...LOCAL_SSH, local_script(dir,
+      script)] : [...SSH, node_name(node), script], input, timeout);
     if (hop >= 2 || got.code !== 255 || !DROP.test(got.err)) {
+      if (LOCAL) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
       return got;
     }
     await sleep(500 + Math.random() * 1500);
   }
+}
+
+// Windows cuts a command line at 32 KiB: the local session, on this disk,
+// runs the script from a file.
+function local_script(dir: string, script: string): string {
+  const file = path.join(dir, "run.sh");
+  fs.writeFileSync(file, script);
+  return "bash " + file.replaceAll("\\", "/");
 }
 
 function sleep(ms: number): Promise<void> {
@@ -102,7 +124,10 @@ function sleep(ms: number): Promise<void> {
 // closed by UNKNOWN" and the pool runs dry. A dead node is found by its
 // first job (node_pool requeues the job and drops the node), not by a
 // probe.
-export async function node_lock(): Promise<number[]> {
+export async function node_lock(shards = LOCAL_SHARDS): Promise<number[]> {
+  if (LOCAL) {
+    return local_lock(shards);
+  }
   const nodes = slot_lock();
   const got = await exec("ssh", [...MUX, "cluster", "true"]);
   if (got.code !== 0) {
@@ -122,12 +147,21 @@ export function pack(dir: string): Buffer {
   const tmp = fs.mkdtempSync("/tmp/bend-pack-");
   fs.cpSync(path.join(ROOT, "bend2"), path.join(tmp, "bend2"), {
     recursive: true, filter: (p) => fs.statSync(p).isDirectory()
-      ? !/\/(docs|pack)$/.test(p) : /\.(ts|bend|c|js)$/.test(p) });
+      ? !/[\\/](docs|pack)$/.test(p) : /\.(ts|bend|c|js)$/.test(p) });
   fs.cpSync(dir, path.join(tmp, path.basename(dir)), { recursive: true });
-  const tar = child.spawnSync("tar", ["-czf", "-", "-C", tmp, "."],
-    { maxBuffer: 1 << 28 });
+  // run in tmp, not -C tmp: Windows' tar may be MSYS's, reading paths its way
+  const tar = child.spawnSync("tar", ["-czf", "-", "."],
+    { cwd: tmp, maxBuffer: 1 << 28 });
   fs.rmSync(tmp, { recursive: true, force: true });
   return tar.stdout;
+}
+
+// The tests write /tmp/..., which Windows reads as \tmp on the drive of
+// the run (the home, where a shard unpacks).
+function local_lock(shards: number): number[] {
+  fs.mkdirSync(path.join(path.parse(os.homedir()).root, "tmp"),
+    { recursive: true });
+  return Array.from({ length: shards }, (_, i) => i);
 }
 
 function slot_lock(): number[] {

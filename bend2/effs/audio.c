@@ -12,6 +12,15 @@
 #import <AudioToolbox/AudioToolbox.h>
 #elif defined(__linux__)
 #include <alsa/asoundlib.h>
+#elif defined(_WIN32)
+// the runtime's FAR is not the empty one Windows' headers expect
+#pragma push_macro("FAR")
+#undef FAR
+#define FAR
+#include <mmdeviceapi.h>
+#include <audioclient.h>
+#pragma pop_macro("FAR")
+#pragma comment(lib, "ole32")
 #endif
 
 typedef struct {
@@ -23,6 +32,13 @@ typedef struct {
   snd_pcm_t*   unit;
   pthread_t    pump;
   _Atomic(u32) done;
+#elif defined(_WIN32)
+  IAudioClient*       unit;
+  IAudioRenderClient* feed;
+  HANDLE              tick;
+  UINT32              frames;
+  pthread_t           pump;
+  _Atomic(u32)        done;
 #endif
 } IoRing;
 
@@ -146,6 +162,97 @@ static void io_ring_free(IoRing* p) {
       pthread_join(p->pump, NULL);
     }
     snd_pcm_close(p->unit);
+  }
+  free(p);
+}
+
+#elif defined(_WIN32)
+
+static const GUID io_ring_enum_cls = { 0xBCDE0395, 0xE52F, 0x467C,
+  { 0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E } };
+static const GUID io_ring_enum_iid = { 0xA95664D2, 0x9614, 0x4F35,
+  { 0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6 } };
+static const GUID io_ring_unit_iid = { 0x1CB9AD4C, 0xDBFA, 0x4C32,
+  { 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2 } };
+static const GUID io_ring_feed_iid = { 0xF294ACFC, 0x3146, 0x4483,
+  { 0xA7, 0xBF, 0xAD, 0xDC, 0xA7, 0xC2, 0x60, 0xE2 } };
+
+// A thread refills the WASAPI buffer each time the device signals room,
+// so the ring drains at the device's clock, as ALSA's. It moves only the
+// frames the ring holds: the device's buffer covers a late write, and a
+// block of silence would be heard.
+static void* io_ring_pump(void* ctx) {
+  IoRing* p = ctx;
+  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  while (atomic_load_explicit(&p->done, memory_order_relaxed) == 0) {
+    UINT32 used = p->frames;
+    BYTE*  out  = NULL;
+    WaitForSingleObject(p->tick, 100);
+    p->unit->lpVtbl->GetCurrentPadding(p->unit, &used);
+    u64    held = atomic_load_explicit(&p->written, memory_order_acquire)
+      - atomic_load_explicit(&p->read, memory_order_relaxed);
+    UINT32 n    = p->frames - used < held ? p->frames - used : (UINT32)held;
+    if (n > 0 && SUCCEEDED(p->feed->lpVtbl->GetBuffer(p->feed, n, &out))) {
+      io_ring_pull(p, (float*)out, n);
+      p->feed->lpVtbl->ReleaseBuffer(p->feed, n, 0);
+    }
+  }
+  CoUninitialize();
+  return NULL;
+}
+
+// The default device in shared mode, fed float32 stereo at the asked rate
+// (Windows converts to the device's own), a 20 ms buffer as ALSA's.
+static bool io_ring_unit(IoRing* p, u32 rate) {
+  IMMDeviceEnumerator* en  = NULL;
+  IMMDevice*           dev = NULL;
+  WAVEFORMATEX         fmt = { WAVE_FORMAT_IEEE_FLOAT, 2, rate, rate * 8, 8,
+    32, 0 };
+  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  bool ok = SUCCEEDED(CoCreateInstance(&io_ring_enum_cls, NULL, CLSCTX_ALL,
+      &io_ring_enum_iid, (void**)&en))
+    && SUCCEEDED(en->lpVtbl->GetDefaultAudioEndpoint(en, eRender, eConsole,
+      &dev))
+    && SUCCEEDED(dev->lpVtbl->Activate(dev, &io_ring_unit_iid, CLSCTX_ALL,
+      NULL, (void**)&p->unit))
+    && SUCCEEDED(p->unit->lpVtbl->Initialize(p->unit, AUDCLNT_SHAREMODE_SHARED,
+      AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+      | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY, 200000, 0, &fmt, NULL));
+  if (dev != NULL) {
+    dev->lpVtbl->Release(dev);
+  }
+  if (en != NULL) {
+    en->lpVtbl->Release(en);
+  }
+  return ok;
+}
+
+static u32 io_ring_start(IoRing* p, u32 rate) {
+  bool ok = io_ring_unit(p, rate)
+    && (p->tick = CreateEventA(NULL, FALSE, FALSE, NULL)) != NULL
+    && SUCCEEDED(p->unit->lpVtbl->SetEventHandle(p->unit, p->tick))
+    && SUCCEEDED(p->unit->lpVtbl->GetBufferSize(p->unit, &p->frames))
+    && SUCCEEDED(p->unit->lpVtbl->GetService(p->unit, &io_ring_feed_iid,
+      (void**)&p->feed))
+    && SUCCEEDED(p->unit->lpVtbl->Start(p->unit))
+    && pthread_create(&p->pump, NULL, io_ring_pump, p) == 0;
+  return ok ? 0 : ENODEV;
+}
+
+static void io_ring_free(IoRing* p) {
+  if (p->pump != NULL) {
+    atomic_store_explicit(&p->done, 1, memory_order_relaxed);
+    pthread_join(p->pump, NULL);
+  }
+  if (p->feed != NULL) {
+    p->feed->lpVtbl->Release(p->feed);
+  }
+  if (p->unit != NULL) {
+    p->unit->lpVtbl->Stop(p->unit);
+    p->unit->lpVtbl->Release(p->unit);
+  }
+  if (p->tick != NULL) {
+    CloseHandle(p->tick);
   }
   free(p);
 }

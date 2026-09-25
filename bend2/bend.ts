@@ -890,11 +890,13 @@ export function book_adt(book: Book, tm: Extract<HTerm, { $: "ADT" }>, ctx: Ctx,
   return { $: "ADT", n: tld.n, g: tld.g, T: tld.T, c: tld.c.filter((c) => !r.has(c.k)) };
 }
 
-export const BEND_DIR = import.meta.url.startsWith("file:///$bunfs/")
+export const BEND_DIR = (import.meta.url.startsWith("file:///$bunfs/")
   ? path.join(path.dirname(fs.realpathSync(process.execPath)), "..", "bend2")
-  : url.fileURLToPath(new URL(".", import.meta.url));
-export const BASE_BEND = fs.realpathSync(path.join(BEND_DIR, "base.bend"));
-const BEND_LIB = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib"));
+  : url.fileURLToPath(new URL(".", import.meta.url))).replaceAll(path.sep, "/");
+export const BASE_BEND = fs.realpathSync(path.join(BEND_DIR, "base.bend"))
+  .replaceAll(path.sep, "/");
+const BEND_LIB = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(),
+  ".bend", "lib")).replaceAll(path.sep, "/");
 export const BEND_HUB   = process.env.BEND_HUB ?? "https://hub.bend-lang.com";
 
 export const NAMED = /^([a-z][a-z0-9-]{0,63})@((?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){3})$/;
@@ -903,7 +905,7 @@ async function hub_get(book: Book, sub: string, hash: string, spn?: Span): Promi
   const res = await fetch(BEND_HUB + "/" + sub);
   const src = res.ok ? await res.text() : "";
   const sum = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(src))).toString("hex");
-  if (!res.ok || hash.length < 32 || sum.slice(0, hash.length) !== hash || path.posix.normalize("/" + sub) !== "/" + sub) {
+  if (!res.ok || hash.length < 32 || sum.slice(0, hash.length) !== hash || path.posix.normalize("/" + sub) !== "/" + sub || /[\\\x00-\x1f]/.test(sub)) {
     throw Err(book, ctx_nil(), "a file at " + BEND_HUB + "/" + sub + " hashing to " + hash, undefined, spn);
   }
   return src;
@@ -945,7 +947,7 @@ async function book_file(book: Book, file: string, spn?: Span): Promise<string> 
   if (!fs.existsSync(file)) {
     throw Err(book, ctx_nil(), "no such file: " + file, undefined, spn);
   }
-  return fs.realpathSync(file);
+  return fs.realpathSync(file).replaceAll(path.sep, "/");
 }
 
 export async function book_load(book: Book, file: string, ns: string, seen: Map<string, string | null>, spn?: Span): Promise<number> {
@@ -997,10 +999,10 @@ export async function book_load(book: Book, file: string, ns: string, seen: Map<
     if (!ok(as.replace(/^\.\//, "").slice(0, -5), hub(as))) {
       throw bad();
     }
-    const got = await book_file(book, hub(as) ? BEND_LIB + "/" + rel : path.posix.resolve(dir, rel), sp);
+    const got = await book_file(book, hub(as) ? BEND_LIB + "/" + rel : rel.startsWith("/") ? rel : path.resolve(dir, rel).replaceAll(path.sep, "/"), sp);
     const lib = fs.existsSync(BEND_LIB) ? fs.realpathSync(BEND_LIB) + "/" : "\0";
     const sub = (got.startsWith(lib) ? got.slice(lib.length)
-      : path.posix.join(path.posix.dirname(ns), path.posix.relative(dir, got))).replace(/\.bend$/, "");
+      : path.posix.join(path.posix.dirname(ns), path.relative(dir, got).replaceAll(path.sep, "/"))).replace(/\.bend$/, "");
     if (!ok(sub, got.startsWith(lib)) || (hub(ns) && !got.startsWith(lib))) {
       throw bad();
     }

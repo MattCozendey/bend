@@ -17,10 +17,12 @@
 // cell three times and writes the medians as the new pins (a space in
 // tenths of a megabyte, so a 2.5 MB program is not graded against "2M"),
 // refusing to write while any cell is unmeasured; --gate prints only the
-// verdict.
+// verdict. Words on the command line keep the benches whose name holds one.
+// On Windows the cells run one at a time on this machine (HOST).
 
 import * as child from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import * as lib from "./_lib";
@@ -51,15 +53,66 @@ const RUNTIME = path.join(lib.ROOT, "bench", "runtime");
 
 const CHECKER = path.join(lib.ROOT, "bench", "checker");
 
-const HW = "apple_m4";
+const TIME_EXE = path.join(path.parse(os.homedir()).root, "tmp",
+  "bend-perf-time.exe");
 
-export const MODES = ["SEQ-CPU", "PAR-CPU", "PAR-GPU"];
+// The cells' host: a mini (the apple_m4 pins, a Metal lane, BSD time), or
+// this Windows machine (lib.LOCAL: its pins by CPU, no GPU lane, LLVM's
+// clang, TIME_SRC for time -l).
+const HOST = lib.LOCAL ? {
+  hw: "windows_" + os.cpus()[0].model.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, ""),
+  modes: 2, cc: "\"$PROGRAMFILES/LLVM/bin/clang\" -std=c11 -O3", libs: "",
+  exe: "cell.exe", time: "\"" + TIME_EXE.replace(/\\/g, "/") + "\"",
+} : {
+  hw: "apple_m4", modes: 3, cc: "cc -std=c11 -O3", libs: " -lpthread",
+  exe: "cell", time: "/usr/bin/time -l",
+};
 
-export const CC = "cc -std=c11 -O3";
+const HW = HOST.hw;
 
-export const BUILD = [CC + " main.c -lpthread", CC + " main.c -lpthread",
+export const MODES = ["SEQ-CPU", "PAR-CPU", "PAR-GPU"].slice(0, HOST.modes);
+
+export const CC = HOST.cc;
+
+export const BUILD = [CC + " main.c" + HOST.libs, CC + " main.c" + HOST.libs,
   CC + " -DBEND_METAL=1 -x objective-c -fobjc-arc main.c -lpthread"
   + " -framework Metal -framework Foundation"];
+
+// time -l for Windows: runs the rest of its command line, then prints the
+// run's peak working set in the line BSD time prints. The run opts out of
+// power throttling: an ssh session is a background one, which Windows
+// would slow down.
+const TIME_SRC = `#include <windows.h>
+#include <psapi.h>
+#include <stdio.h>
+#include <string.h>
+#pragma comment(lib, "psapi")
+int main(void) {
+  char* cmd = GetCommandLineA();
+  cmd += *cmd == '"' ? strcspn(cmd + 1, "\\"") + 2 : strcspn(cmd, " ");
+  cmd += strspn(cmd, " ");
+  STARTUPINFOA si = { sizeof si };
+  PROCESS_INFORMATION pi;
+  PROCESS_MEMORY_COUNTERS pm = { sizeof pm };
+  PROCESS_POWER_THROTTLING_STATE full = {
+    PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+    PROCESS_POWER_THROTTLING_EXECUTION_SPEED, 0 };
+  DWORD code = 1;
+  if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, CREATE_SUSPENDED, NULL,
+    NULL, &si, &pi)) {
+    return 127;
+  }
+  SetProcessInformation(pi.hProcess, ProcessPowerThrottling, &full,
+    sizeof full);
+  ResumeThread(pi.hThread);
+  WaitForSingleObject(pi.hProcess, INFINITE);
+  GetProcessMemoryInfo(pi.hProcess, &pm, sizeof pm);
+  GetExitCodeProcess(pi.hProcess, &code);
+  fprintf(stderr, "%zu maximum resident set size\\n", pm.PeakWorkingSetSize);
+  return (int)code;
+}
+`;
 
 const THREADS = "nt=1; while [ $nt -lt $(getconf _NPROCESSORS_ONLN) ] &&"
   + " [ $nt -lt 256 ]; do nt=$((nt*2)); done;";
@@ -178,8 +231,8 @@ function pin_read(): [Map<string, Pin>, Map<string, number>] {
   const num = (c: string): number => Number(/[\d.]+/.exec(c)?.[0] ?? 0);
   for (const [b, c] of rows(path.join(RUNTIME, "_pin_", HW + ".txt"))) {
     const cell = (i: number): number[] => c[i].split(/\s+/).map(num);
-    pins.set(b, { comp: num(c[0]), secs: [1, 2, 3].map((i) => cell(i)[0]),
-      mems: [1, 2, 3].map((i) => cell(i)[1]), out: c[4] });
+    pins.set(b, { comp: num(c[0]), secs: MODES.map((_, i) => cell(i + 1)[0]),
+      mems: MODES.map((_, i) => cell(i + 1)[1]), out: c[MODES.length + 1] });
   }
   for (const [b, c] of rows(path.join(CHECKER, "_pin_", HW + ".txt"))) {
     cpins.set(b, num(c[0]));
@@ -222,17 +275,19 @@ function pin_write(cells: Cell[], chks: Chk[]): void {
 // Every runtime cell gets the one pack of bench/runtime and builds its
 // bench out of it.
 function cell_script(c: Cell): string {
-  const run = "./cell " + FLAGS[c.mode].replace("$gm", MEMORY[c.bench] ?? "on");
+  const run = "./" + HOST.exe + " " + FLAGS[c.mode].replace("$gm",
+    MEMORY[c.bench] ?? "on");
   const src = "runtime/" + c.bench + "/main.bend";
   return `d=$HOME/bend-perf/${c.bench}-${String(c.mode)}; rm -rf $d;`
     + ` mkdir -p $d; cd $d; tar -xzf -; ${THREADS} ${lib.BUN} bend2/main.ts`
     + ` ${src} -o main > /dev/null 2>&1; t0=$(${CLOCK}); ${lib.BUN}`
     + ` bend2/main.ts ${src} -o main > build.txt 2>&1; b=$?;`
     + ` t1=$(${CLOCK}); [ $b = 0 ] && { ${lib.BUN} bend2/main.ts ${src}`
-    + ` -o main.c >> build.txt 2>&1 && ${BUILD[c.mode]} -o cell >> build.txt`
-    + ` 2>&1; b=$?; }; echo "${MARK} built $b $t0 $t1"; cat build.txt;`
+    + ` -o main.c >> build.txt 2>&1 && ${BUILD[c.mode]} -o ${HOST.exe}`
+    + ` >> build.txt 2>&1; b=$?; }; echo "${MARK} built $b $t0 $t1";`
+    + ` cat build.txt;`
     + ` if [ $b = 0 ]; then ${run} > /dev/null 2>&1; t2=$(${CLOCK});`
-    + ` /usr/bin/time -l ${run} > out.txt 2> time.txt; r=$?; t3=$(${CLOCK});`
+    + ` ${HOST.time} ${run} > out.txt 2> time.txt; r=$?; t3=$(${CLOCK});`
     + ` echo "${MARK} ran $r $t2 $t3"; cat out.txt; echo "${MARK} time";`
     + ` cat time.txt; fi; cd; rm -rf $d`;
 }
@@ -272,6 +327,17 @@ async function cell_run(c: Cell, node: number, pack: Buffer): Promise<void> {
   }
 }
 
+// Builds TIME_EXE on this machine (the local node) once per run.
+function time_make(): void {
+  const src = TIME_EXE.replace(/\.exe$/, ".c");
+  fs.writeFileSync(src, TIME_SRC);
+  const cc = path.join(process.env.ProgramFiles ?? "C:\\Program Files", "LLVM",
+    "bin", "clang.exe");
+  if (child.spawnSync(cc, ["-O2", src, "-o", TIME_EXE]).status !== 0) {
+    throw new Error("the time tool failed to build: " + src);
+  }
+}
+
 // Chk
 // ===
 
@@ -300,14 +366,22 @@ async function chk_run(c: Chk, node: number): Promise<void> {
 // ====
 
 if (import.meta.main) {
+  // words on the command line keep the benches whose name holds one; a pin
+  // writes the whole table, so it runs them all
+  const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+  const kept = (b: string): boolean => only.length === 0
+    || only.some((w) => b.includes(w));
+  if (PIN && only.length > 0) {
+    throw new Error("--pin runs every bench: drop " + only.join(" "));
+  }
   const benches = fs.readdirSync(RUNTIME).filter((f) => !f.startsWith("_"))
-    .sort();
+    .filter(kept).sort();
   const reps = PIN ? 3 : 1;
   let cells: Cell[] = benches.flatMap((bench) => MODES.flatMap((_, mode) =>
     Array.from({ length: reps }, () => ({ bench, mode, secs: null,
       mem: null, comp: null, out: "", note: "" }))));
   const chks: Chk[] = fs.readdirSync(CHECKER).filter((f) => !f.startsWith("_"))
-    .sort().map((bench) => ({ bench, secs: null, note: "" }));
+    .filter(kept).sort().map((bench) => ({ bench, secs: null, note: "" }));
   const [pins, cpins] = PIN
     ? [new Map<string, Pin>(), new Map<string, number>()]
     : pin_read();
@@ -315,7 +389,11 @@ if (import.meta.main) {
     .filter((n) => n !== "");
   const draw = (): void => view_draw(cells, chks, pins, cpins, notes());
   draw();
-  const nodes = await lib.node_lock();
+  // one local cell at a time: a cell times the whole machine
+  const nodes = await lib.node_lock(1);
+  if (lib.LOCAL) {
+    time_make();
+  }
   const pack = lib.pack(RUNTIME);
   await lib.node_pool(nodes, [...cells.map((c) => async (node: number) => {
     await cell_run(c, node, pack);

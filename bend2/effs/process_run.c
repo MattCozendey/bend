@@ -1,6 +1,7 @@
 // Process
 // =======
 
+#ifndef _WIN32
 #include <spawn.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -11,6 +12,7 @@
 #endif
 
 extern char** environ;
+#endif
 
 typedef struct {
   char** argv;
@@ -66,6 +68,166 @@ static bool process_append(ProcessCall* p, bool error, const char* data,
   return true;
 }
 
+#ifdef _WIN32
+
+// Windows: CreateProcessW on the argv joined as CommandLineToArgvW splits
+// it (a bare name found as CreateProcess finds one: PATH, .exe added), the
+// child inheriting its three pipe ends alone. Anonymous pipes have no poll:
+// the loop peeks the outputs, writes the input without waiting and, idle,
+// waits a millisecond on the child.
+static wchar_t* process_line(ProcessCall* p) {
+  u64 size = 1;
+  for (u32 i = 0; i < p->argc; i += 1) {
+    size += 2 * strlen(p->argv[i]) + 3;
+  }
+  char* line = io_mem(malloc(size));
+  char* at   = line;
+  for (u32 i = 0; i < p->argc; i += 1) {
+    const char* a = p->argv[i];
+    bool        q = *a == '\0' || strpbrk(a, " \t\n\v\"") != NULL;
+    at += sprintf(at, i == 0 ? "%s" : " %s", q ? "\"" : "");
+    // backslashes double before a quote, which then takes one more
+    for (;; a += 1) {
+      u64 n = strspn(a, "\\");
+      a += n;
+      n = !q ? n : *a == '\0' ? 2 * n : *a == '"' ? 2 * n + 1 : n;
+      memset(at, '\\', n);
+      at += n;
+      if (*a == '\0') {
+        break;
+      }
+      *at++ = *a;
+    }
+    at += sprintf(at, "%s", q ? "\"" : "");
+  }
+  int      len  = MultiByteToWideChar(CP_UTF8, 0, line, -1, NULL, 0);
+  wchar_t* wide = io_mem(malloc((u64)len * sizeof(wchar_t)));
+  MultiByteToWideChar(CP_UTF8, 0, line, -1, wide, len);
+  free(line);
+  return wide;
+}
+
+static void process_shut(HANDLE* h) {
+  if (*h != NULL) {
+    CloseHandle(*h);
+    *h = NULL;
+  }
+}
+
+// Once the child exits, reads only the bytes already in the pipe: the child
+// cannot exit blocked on a write, so all of its own output is there, and a
+// descendant holding the pipe cannot extend it.
+static void process_drain(ProcessCall* p, HANDLE h, bool error) {
+  DWORD left = 0;
+  if (!PeekNamedPipe(h, NULL, 0, NULL, &left, NULL)) {
+    left = 0;
+  }
+  while (left > 0 && p->code == 0) {
+    char  buf[8192];
+    DWORD n = 0;
+    if (!ReadFile(h, buf, left < sizeof buf ? left : sizeof buf, &n, NULL)
+      || n == 0) {
+      break;
+    }
+    process_append(p, error, buf, n);
+    left -= n;
+  }
+}
+
+static void process_call(IoWork* w) {
+  ProcessCall* p = (ProcessCall*)w->data;
+  HANDLE io[3][2] = {{NULL, NULL}, {NULL, NULL}, {NULL, NULL}};
+  HANDLE mine[3];
+  PROCESS_INFORMATION pi = {0};
+  for (int i = 0; i < 3; i += 1) {
+    p->code = CreatePipe(&io[i][0], &io[i][1], NULL, 65536) ? p->code
+      : EMFILE;
+    mine[i] = io[i][i != 0];
+    SetHandleInformation(mine[i], HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+  }
+  SetNamedPipeHandleState(io[0][1], &(DWORD){ PIPE_NOWAIT }, NULL, NULL);
+  SIZE_T size = 0;
+  InitializeProcThreadAttributeList(NULL, 1, 0, &size);
+  LPPROC_THREAD_ATTRIBUTE_LIST list = io_mem(malloc(size));
+  InitializeProcThreadAttributeList(list, 1, 0, &size);
+  UpdateProcThreadAttribute(list, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, mine,
+    sizeof mine, NULL, NULL);
+  STARTUPINFOEXW si = { { .cb = sizeof si, .dwFlags = STARTF_USESTDHANDLES,
+    .hStdInput = mine[0], .hStdOutput = mine[1], .hStdError = mine[2] },
+    list };
+  wchar_t* line = process_line(p);
+  if (p->code == 0 && !CreateProcessW(NULL, line, NULL, NULL, TRUE,
+    EXTENDED_STARTUPINFO_PRESENT, NULL, NULL, &si.StartupInfo, &pi)) {
+    DWORD why = GetLastError();
+    p->code = why == ERROR_FILE_NOT_FOUND || why == ERROR_PATH_NOT_FOUND
+      ? ENOENT : why == ERROR_ACCESS_DENIED ? EACCES : EIO;
+  }
+  DeleteProcThreadAttributeList(list);
+  free(list);
+  free(line);
+  for (int i = 0; i < 3; i += 1) {
+    process_shut(&io[i][i != 0]);
+  }
+  if (p->input_len == 0) {
+    process_shut(&io[0][1]);
+  }
+  u64  deadline = io_tick() + (u64)p->timeout * 1000000ull;
+  u64  written  = 0;
+  bool live     = p->code == 0;
+  while (p->code == 0) {
+    bool  moved = false;
+    DWORD n     = 0;
+    for (int i = 1; i < 3 && p->code == 0; i += 1) {
+      char buf[8192];
+      // a pipe whose every writer closed fails the peek once drained
+      if (io[i][0] != NULL
+        && !PeekNamedPipe(io[i][0], NULL, 0, NULL, &n, NULL)) {
+        process_shut(&io[i][0]);
+      } else if (io[i][0] != NULL && n > 0
+        && ReadFile(io[i][0], buf, n < sizeof buf ? n : sizeof buf, &n, NULL)) {
+        moved = process_append(p, i == 2, buf, n);
+      }
+    }
+    if (io[0][1] != NULL) {
+      u64 left = p->input_len - written;
+      // a reader gone fails the write, as EPIPE does: the input ends
+      n = WriteFile(io[0][1], p->input + written,
+        left < 8192 ? (DWORD)left : 8192, &n, NULL) ? n : (DWORD)left;
+      written += n;
+      moved = moved || n > 0;
+      if (written == p->input_len) {
+        process_shut(&io[0][1]);
+      }
+    }
+    if (WaitForSingleObject(pi.hProcess, !moved) == WAIT_OBJECT_0) {
+      live = false;
+      for (int i = 1; i < 3; i += 1) {
+        if (io[i][0] != NULL) {
+          process_drain(p, io[i][0], i == 2);
+        }
+      }
+      break;
+    }
+    if (io_tick() >= deadline) {
+      p->code = ETIMEDOUT;
+    }
+  }
+  if (live) {
+    TerminateProcess(pi.hProcess, 1);
+    WaitForSingleObject(pi.hProcess, INFINITE);
+  }
+  DWORD status = 1;
+  GetExitCodeProcess(pi.hProcess, &status);
+  p->status = (u32)status;
+  for (int i = 0; i < 3; i += 1) {
+    process_shut(&io[i][0]);
+    process_shut(&io[i][1]);
+  }
+  process_shut(&pi.hProcess);
+  process_shut(&pi.hThread);
+}
+
+#else
 static void process_drain(ProcessCall* p, int fd, bool error) {
   int left = 0;
   if (ioctl(fd, FIONREAD, &left) != 0) {
@@ -301,6 +463,7 @@ done:
     }
   }
 }
+#endif
 
 static Term process_pack(Env e, IoWork* w) {
   ProcessCall* p = (ProcessCall*)w->data;

@@ -2915,9 +2915,15 @@ function compile_tables(fl: File, entries: Seg[]): string[] {
     `(V)[${j}] = ${r};`).join(" ")}`, "",
   `#define WL_TAKE(V) ${rs.slice(0, resw).map((r, j) =>
     `${r} = (V)[${j}];`).join(" ")}`, "",
+  "#ifdef _WIN32",
+  `#define WL_SIG DEV u64* em, u64* ea, DEV Term* sp, u32 seq, u32 rn, ${ws
+    .map((w) => "Term " + w).join(", ")}`,
+  `#define WL_ALL e.mem, e.alc, sp, seq, rn, ${ws.join(", ")}`,
+  "#else",
   `#define WL_SIG Env e, DEV Term* sp, u32 seq, u32 rn, ${ws.map((w) =>
     "Term " + w).join(", ")}`, "", `#define WL_ALL e, sp, seq, rn, ${ws
     .join(", ")}`, "",
+  "#endif",
   `#define WL_PARK_N ${n}`,
   `#define WL_PARK_SAVE(K) ${rs.map((r, i) =>
     `if ((K) > ${i}) sp[${i} * CUBE] = ${r};`).join(" ")}`,
@@ -3385,6 +3391,9 @@ using namespace metal;
 #elif !defined(BEND_RTC)
 #ifdef __APPLE__
 #define _DARWIN_UNLIMITED_SELECT
+#elif defined(_WIN32)
+#define _CRT_NONSTDC_NO_DEPRECATE
+#define _CRT_SECURE_NO_WARNINGS
 #else
 #define _GNU_SOURCE
 #endif
@@ -3394,6 +3403,177 @@ using namespace metal;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <stdatomic.h>
+#include <signal.h>
+#include <time.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdarg.h>
+// Windows: Win32 and Winsock under the POSIX names the runtime and the
+// effects call; the binary's manifest makes the code page UTF-8.
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#include <io.h>
+#include <sys/stat.h>
+#include <timeapi.h>
+#undef FAR
+#pragma comment(lib, "ws2_32")
+#pragma comment(lib, "winmm")
+#pragma comment(linker, "/STACK:8388608")
+
+typedef intptr_t           ssize_t;
+typedef SRWLOCK            pthread_mutex_t;
+typedef CONDITION_VARIABLE pthread_cond_t;
+typedef HANDLE             pthread_t;
+
+#define PTHREAD_MUTEX_INITIALIZER SRWLOCK_INIT
+#define PTHREAD_COND_INITIALIZER  CONDITION_VARIABLE_INIT
+#define pthread_mutex_lock        AcquireSRWLockExclusive
+#define pthread_mutex_unlock      ReleaseSRWLockExclusive
+#define pthread_cond_wait(c, m)   SleepConditionVariableSRW(c, m, INFINITE, 0)
+#define pthread_cond_signal       WakeConditionVariable
+#define pthread_cond_broadcast    WakeAllConditionVariable
+#define pthread_detach            CloseHandle
+#define nanosleep(t, r)           Sleep((DWORD)((t)->tv_nsec / 1000000))
+#define munmap(p, n)              VirtualFree(p, 0, MEM_RELEASE)
+#define MAP_FAILED                NULL
+#define stat                      _stat64
+#define fstat                     _fstat64
+#define sock_close                closesocket
+#define sock_nonblock(s)          ioctlsocket(s, FIONBIO, &(u_long){ 1 })
+
+typedef struct {
+  void* (*fn)(void*);
+  void* arg;
+} WinRun;
+
+static DWORD WINAPI win_run(void* p) {
+  WinRun r = *(WinRun*)p;
+  free(p);
+  r.fn(r.arg);
+  return 0;
+}
+
+// A thread gets Linux's 8 MiB stack.
+static int pthread_create(pthread_t* t, void* attr, void* (*fn)(void*),
+  void* arg) {
+  WinRun* r = malloc(sizeof(WinRun));
+  if (r == NULL) {
+    return 1;
+  }
+  *r = (WinRun){ fn, arg };
+  *t = CreateThread(NULL, 8u << 20, win_run, r,
+    STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
+  if (*t == NULL) {
+    free(r);
+  }
+  return *t == NULL;
+}
+
+static int pthread_join(pthread_t t, void** out) {
+  WaitForSingleObject(t, INFINITE);
+  return !CloseHandle(t);
+}
+
+// A failed Winsock call sets errno as a POSIX one does: WSAEWOULDBLOCK is
+// the call's pending code (EAGAIN, or EINPROGRESS for connect), the rest
+// the errno of the same name; UCRT has no ESHUTDOWN.
+#define WIN_ERRS(X) X(EINPROGRESS) X(ECONNREFUSED) X(ECONNRESET) \
+  X(ECONNABORTED) X(EADDRINUSE) X(EADDRNOTAVAIL) X(ETIMEDOUT) X(ENOTCONN) \
+  X(ENETUNREACH) X(EHOSTUNREACH) X(EMSGSIZE) X(EACCES) X(EINVAL) \
+  X(ENOTSOCK) X(EMFILE) X(ENOBUFS)
+#define WIN_ERR(E) case WSA##E: return E;
+
+static int win_errno(int wsa) {
+  switch (wsa) {
+    WIN_ERRS(WIN_ERR)
+    case WSAESHUTDOWN:
+      return EPIPE;
+    default:
+      return EIO;
+  }
+}
+
+static ssize_t win_net(ssize_t r, int pending) {
+  if (r < 0) {
+    int code = WSAGetLastError();
+    errno = code == WSAEWOULDBLOCK ? pending : win_errno(code);
+  }
+  return r;
+}
+
+// A datagram past the buffer is cut to it, as on POSIX.
+static ssize_t win_recvfrom(SOCKET s, char* b, size_t n, int f,
+  struct sockaddr* at, socklen_t* len) {
+  int r = recvfrom(s, b, (int)n, f, at, len);
+  return r < 0 && WSAGetLastError() == WSAEMSGSIZE ? (ssize_t)n
+    : win_net(r, EAGAIN);
+}
+
+static int win_getsockopt(SOCKET s, int lv, int o, void* v, socklen_t* n) {
+  int r = (int)win_net(getsockopt(s, lv, o, (char*)v, n), EAGAIN);
+  if (r == 0 && o == SO_ERROR && *(int*)v != 0) {
+    *(int*)v = win_errno(*(int*)v);
+  }
+  return r;
+}
+
+// Windows has no fcntl: the effects' one use of it, a socket's O_NONBLOCK
+// (F_GETFL answers no flags; F_SETFL sets FIONBIO).
+#define F_GETFL    3
+#define F_SETFL    4
+#define O_NONBLOCK 0x800
+static int fcntl(int s, int cmd, ...) {
+  va_list ap;
+  va_start(ap, cmd);
+  u_long on = cmd == F_SETFL && (va_arg(ap, int) & O_NONBLOCK) != 0;
+  va_end(ap);
+  return cmd != F_SETFL ? 0
+    : (int)win_net(ioctlsocket(s, FIONBIO, &on), EAGAIN);
+}
+
+static int setenv(const char* k, const char* v, int over) {
+  return !over && getenv(k) != NULL ? 0 : _putenv_s(k, v);
+}
+
+// Windows has no socketpair: a loopback pair.
+static int socketpair(int d, int t, int p, int fd[2]) {
+  struct sockaddr_in at = { .sin_family = AF_INET,
+    .sin_addr.s_addr = htonl(INADDR_LOOPBACK) };
+  int    len = sizeof at;
+  SOCKET l   = socket(AF_INET, SOCK_STREAM, 0);
+  SOCKET a   = socket(AF_INET, SOCK_STREAM, 0);
+  bool   ok  = bind(l, (struct sockaddr*)&at, len) == 0 && listen(l, 1) == 0
+    && getsockname(l, (struct sockaddr*)&at, &len) == 0
+    && connect(a, (struct sockaddr*)&at, len) == 0;
+  SOCKET b   = ok ? accept(l, NULL, NULL) : INVALID_SOCKET;
+  closesocket(l);
+  if (b == INVALID_SOCKET) {
+    closesocket(a);
+    return -1;
+  }
+  fd[0] = (int)b;
+  fd[1] = (int)a;
+  return 0;
+}
+
+#define socket(d, t, p)          (int)win_net((int)socket(d, t, p), EAGAIN)
+#define accept(s, a, n)          (int)win_net((int)accept(s, a, n), EAGAIN)
+#define bind(s, a, n)            (int)win_net(bind(s, a, n), EAGAIN)
+#define listen(s, n)             (int)win_net(listen(s, n), EAGAIN)
+#define connect(s, a, n)         (int)win_net(connect(s, a, n), EINPROGRESS)
+#define recv(s, b, n, f)         win_net(recv(s, b, (int)(n), f), EAGAIN)
+#define send(s, b, n, f)         win_net(send(s, b, (int)(n), f), EAGAIN)
+#define sendto(s, b, n, f, a, l) \
+  win_net(sendto(s, b, (int)(n), f, a, l), EAGAIN)
+#define recvfrom                 win_recvfrom
+#define getsockopt               win_getsockopt
+#define poll(f, n, ms)           (int)win_net(WSAPoll(f, n, ms), EAGAIN)
+#else
 #include <pthread.h>
 #include <sched.h>
 #include <stdatomic.h>
@@ -3403,6 +3583,7 @@ using namespace metal;
 #include <time.h>
 #include <poll.h>
 #include <sys/select.h>
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -3485,7 +3666,13 @@ using namespace metal;
 #define UNLOCK(l)  __atomic_store_n(&(l), 0, __ATOMIC_RELEASE)
 #define WL_FN      static PRESERVE(preserve_none) __attribute__((noinline)) Term
 #define WL_CASE(F) WL_FN WL_##F(WL_SIG)
+#ifdef _WIN32
+// The Env travels as its two words: Win64 passes a 16-byte struct by
+// reference, which a musttail chain cannot keep alive.
+#define WL_OPEN    { Env e = { em, ea }; WL_BANK u32 rn;
+#else
 #define WL_OPEN    { WL_BANK u32 rn;
+#endif
 #define WL_JMP(F)  __attribute__((musttail)) return WL_##F(WL_ALL)
 #define WL_GO(F, K) __attribute__((musttail)) return WL_##F(WL_ALL)
 #define WL_DYN(F)  __attribute__((musttail)) return wl_tab[F](WL_ALL)
@@ -4956,7 +5143,7 @@ extern "C" __global__ void ring_mend_dev(DEV u64* H, u32* from) {
 
 // Linux's window fill (the Mac's is window_msl): an Image is a quadtree over
 // 2^k x 2^k (Qua splits tl, tr, bl, br; Pix is 0xRRGGBB).
-#if defined(__linux__) || defined(BEND_RTC)
+#if defined(__linux__) || defined(_WIN32) || defined(BEND_RTC)
 
 INLINE u32 window_pix(DEV u64* H, Term t, u32 k, u32 x, u32 y) {
   for (u32 i = k; term_tag(t) == TAG_CTR;) {
@@ -5065,10 +5252,16 @@ static void row_grow(Env e, DEV Term* stk, u32 base, u32 stride, u32 want) {
 
 // cpu_count caps the CPU count by the affinity mask and the cgroup quota.
 
+#ifdef _WIN32
+static void* pool_try(void* at, u64 bytes) {
+  return VirtualAlloc(at, bytes, MEM_RESERVE, PAGE_READWRITE);
+}
+#else
 static void* pool_try(void* at, u64 bytes) {
   return mmap(at, bytes, PROT_READ | PROT_WRITE,
     MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
 }
+#endif
 
 static void* pool_mmap(u64 bytes) {
   void* p = pool_try(NULL, bytes);
@@ -5078,6 +5271,117 @@ static void* pool_mmap(u64 bytes) {
   return p;
 }
 
+#ifdef _WIN32
+// Windows does not overcommit: the corpus and each thread's stack are
+// reserved, and a fault in one commits the 2 MiB block that holds it, as a
+// first touch maps a page on Linux. Nothing commits a stack's guard, the
+// 16 KiB past it: a fault there, or anywhere not ours, reaches the trap.
+#define POOL_BLOCK ((uintptr_t)2 << 20)
+#define POOL_STACK (1ull << 31)
+
+// the corpus's size, for the fault handler; corpus_lay sets it
+static u64 corpus_size;
+
+static _Thread_local uintptr_t pool_lo;
+
+// A commit past the free RAM goes to the pagefile, where a runaway program
+// thrashes the whole machine (Linux's OOM killer ends it instead): a job
+// holds the process's commit to the RAM free at start less an eighth of
+// the RAM, a commit past it fails, and so does the program. A child the
+// program spawns breaks away. POOL_ROOM_MB sets it (a test's small room).
+static void pool_room_set(void) {
+  MEMORYSTATUSEX st = { .dwLength = sizeof st };
+  GlobalMemoryStatusEx(&st);
+  u64 keep = st.ullTotalPhys / 8;
+  JOBOBJECT_EXTENDED_LIMIT_INFORMATION lim = { 0 };
+  lim.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY
+    | JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK;
+#ifdef POOL_ROOM_MB
+  lim.ProcessMemoryLimit = (SIZE_T)POOL_ROOM_MB << 20;
+#else
+  lim.ProcessMemoryLimit = st.ullAvailPhys > 2 * keep
+    ? st.ullAvailPhys - keep : keep;
+#endif
+  HANDLE job = CreateJobObjectA(NULL, NULL);
+  if (job != NULL) {
+    SetInformationJobObject(job, JobObjectExtendedLimitInformation, &lim,
+      sizeof lim);
+    AssignProcessToJobObject(job, GetCurrentProcess());
+  }
+}
+
+// The range a fault at at may commit in: the corpus, or this thread's
+// stack (a thread with none has pool_lo 0).
+static bool pool_ours(uintptr_t at, uintptr_t* lo, uintptr_t* hi) {
+  u64 size = __atomic_load_n(&corpus_size, __ATOMIC_RELAXED);
+  if (at - (uintptr_t)CORPUS < size) {
+    *lo = (uintptr_t)CORPUS;
+    *hi = *lo + size;
+    return true;
+  }
+  *lo = pool_lo;
+  *hi = pool_lo + POOL_STACK;
+  return pool_lo != 0 && at - pool_lo < POOL_STACK;
+}
+
+static LONG CALLBACK pool_fault(EXCEPTION_POINTERS* x) {
+  uintptr_t at = x->ExceptionRecord->ExceptionInformation[1];
+  uintptr_t lo;
+  uintptr_t hi;
+  if (x->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+#if BEND_CUDA
+  // a twin's chunk: the corpus is a mapped section, committed whole
+  if (gpu_twin && gpu_fault((void*)at)) {
+    return EXCEPTION_CONTINUE_EXECUTION;
+  }
+#endif
+  if (!pool_ours(at, &lo, &hi)) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  lo = (at & ~(POOL_BLOCK - 1)) > lo ? at & ~(POOL_BLOCK - 1) : lo;
+  hi = lo + POOL_BLOCK < hi ? lo + POOL_BLOCK : hi;
+  if (!VirtualAlloc((void*)lo, hi - lo, MEM_COMMIT, PAGE_READWRITE)) {
+    // the first thread past the room tells; the rest wait for the exit
+    static _Atomic bool told;
+    if (atomic_exchange(&told, true)) {
+      Sleep(INFINITE);
+    }
+    err_fail("out of memory: the heap is past the RAM this machine had free");
+  }
+  return EXCEPTION_CONTINUE_EXECUTION;
+}
+
+static LONG WINAPI pool_trap(EXCEPTION_POINTERS* x) {
+  err_trap(SIGSEGV);
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// SetThreadStackGuarantee keeps room for the trap on an overflowed C stack.
+static Term* pool_stack(void) {
+  ULONG room = 65536;
+  pool_lo = (uintptr_t)pool_mmap(POOL_STACK + 16384);
+  if (!SetThreadStackGuarantee(&room)) {
+    err_fail("stack guard failed");
+  }
+  return (Term*)pool_lo;
+}
+
+// The process's Windows setup: Winsock, binary files and standard streams,
+// a 1 ms timer for deadlines, and the fault handlers.
+static void __attribute__((constructor)) host_setup(void) {
+  WSAStartup(MAKEWORD(2, 2), &(WSADATA){ 0 });
+  timeBeginPeriod(1);
+  _set_fmode(_O_BINARY);
+  _setmode(0, _O_BINARY);
+  _setmode(1, _O_BINARY);
+  _setmode(2, _O_BINARY);
+  pool_room_set();
+  AddVectoredExceptionHandler(1, pool_fault);
+  SetUnhandledExceptionFilter(pool_trap);
+}
+#else
 #if BEND_CUDA
 static void gpu_trap(int sig, siginfo_t* si, void* uc) {
   if (!gpu_fault(si->si_addr)) {
@@ -5108,6 +5412,7 @@ static Term* pool_stack(void) {
   sigaction(SIGBUS, &sa, NULL);
   return (Term*)p;
 }
+#endif
 
 static void* pool_work(void* arg) {
   Term* stk  = pool_stack();
@@ -5170,7 +5475,11 @@ static int cpu_read(const char* path, long* a, long* b) {
 }
 
 static long cpu_count(void) {
+#ifdef _WIN32
+  long n = (long)GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+#else
   long n = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
 #ifdef __linux__
   cpu_set_t set;
   if (sched_getaffinity(0, sizeof set, &set) == 0) {
@@ -5217,6 +5526,8 @@ static const char* gpu_path(void) {
   u32 n = sizeof path - 8;
 #ifdef __APPLE__
   _NSGetExecutablePath(path, &n);
+#elif defined(_WIN32)
+  GetModuleFileNameA(NULL, path, n);
 #else
   path[readlink("/proc/self/exe", path, n)] = 0;
 #endif
@@ -6055,6 +6366,10 @@ static void corpus_lay(u64* H, u64 size) {
     err_fail("the GPU span is under the rings, stacks and a page per lane");
   }
   cap = cap < ~0u ? cap : ~0u - 1;
+#ifdef _WIN32
+  // the fault handler commits within it, from the moving banks on
+  __atomic_store_n(&corpus_size, size, __ATOMIC_RELAXED);
+#endif
   u64 at = HEAP_OFF + (cap << PAGE_BITS);
   for (u32 c = 0; c < NCLS_ALL; c += 1) {
     Bank* b = bank_at(H, c);
@@ -6164,11 +6479,13 @@ OUTLINE Term corpus_eval(u64* H, Term t) {
 // macOS poll misses FIFO EOF, so io_wait selects, its sets sized to the
 // highest fd (_DARWIN_UNLIMITED_SELECT allows fds past FD_SETSIZE).
 
+#ifndef _WIN32
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#endif
 
 #define IO_READ 1
 #define IO_TIME 2
@@ -6209,9 +6526,18 @@ static IoEff io_eff_rows[1 << 16];
 static u32   io_live;
 
 static u64 io_tick(void) {
+#ifdef _WIN32
+  LARGE_INTEGER hz;
+  LARGE_INTEGER now;
+  QueryPerformanceFrequency(&hz);
+  QueryPerformanceCounter(&now);
+  return (u64)now.QuadPart / (u64)hz.QuadPart * 1000000000ull
+    + (u64)now.QuadPart % (u64)hz.QuadPart * 1000000000ull / (u64)hz.QuadPart;
+#else
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return (u64)ts.tv_sec * 1000000000ull + (u64)ts.tv_nsec;
+#endif
 }
 
 OUTLINE void* io_mem(void* mem) {
@@ -6253,6 +6579,10 @@ static u64 io_sys_end(IoWork* w, ssize_t n) {
 static IoWork* io_runs;
 static IoWork* io_park;
 static IoWork* io_jobs;
+
+#ifdef _WIN32
+static IoWork* io_done;
+#endif
 
 static void io_push(IoWork** q, IoWork* a) {
   IoWork* l = *q != NULL ? *q : a;
@@ -6411,6 +6741,26 @@ static u32             io_busy;
 static u32             io_size;
 static int             io_wake_fd[2];
 
+#ifdef _WIN32
+// The wake channel is a socket pair and its bytes carry nothing: a helper
+// queues its request on io_done, then sends a byte; a full channel already
+// holds one.
+static void io_take(Env e) {
+  char b[64];
+  while (recv(io_wake_fd[0], b, sizeof b, 0) > 0) {
+  }
+  pthread_mutex_lock(&io_gate);
+  IoWork* done = io_done;
+  io_done = NULL;
+  pthread_mutex_unlock(&io_gate);
+  while (done != NULL) {
+    IoWork* a = io_pop(&done);
+    a->item   = a->pack(e, a);
+    io_push(&io_runs, a);
+    io_busy -= 1;
+  }
+}
+#else
 static void io_take(Env e) {
   IoWork* acts[64];
   ssize_t n;
@@ -6423,6 +6773,7 @@ static void io_take(Env e) {
     }
   }
 }
+#endif
 
 static void* io_help(void* arg) {
   for (;;) {
@@ -6433,8 +6784,16 @@ static void* io_help(void* arg) {
     IoWork* a = io_pop(&io_jobs);
     pthread_mutex_unlock(&io_gate);
     a->call(a);
+#ifdef _WIN32
+    pthread_mutex_lock(&io_gate);
+    io_push(&io_done, a);
+    pthread_mutex_unlock(&io_gate);
+    if (send(io_wake_fd[1], "", 1, 0) < 0) {
+    }
+#else
     while (write(io_wake_fd[1], &a, sizeof a) != sizeof a) {
     }
+#endif
   }
 }
 
@@ -6466,6 +6825,64 @@ static Term io_exec(Env e, IoWork* w) {
   return io_eff_rows[c].run(e, fs, w);
 }
 
+#ifdef _WIN32
+// Windows waits with WSAPoll on the wake channel (fds[0]) and each parked
+// request's socket, in park order, until the soonest deadline. Any revents
+// is ready, as select's readiness: a closed FIFO or a failed connect
+// sets only POLLHUP or POLLERR.
+// The park is taken first, so a request io_take parks waits for the next.
+static void io_wait(Env e) {
+  u32 n    = 1;
+  u64 soon = 0;
+  for (IoWork* a = io_park != NULL ? io_park->next : NULL; a != NULL;
+    a = a != io_park ? a->next : NULL) {
+    n += a->evts != 0;
+    if (a->time != 0 && (soon == 0 || a->time < soon)) {
+      soon = a->time;
+    }
+  }
+  struct pollfd* fds = io_mem(calloc(n, sizeof(struct pollfd)));
+  fds[0] = (struct pollfd){ .fd = io_wake_fd[0], .events = POLLIN };
+  n = 1;
+  for (IoWork* a = io_park != NULL ? io_park->next : NULL; a != NULL;
+    a = a != io_park ? a->next : NULL) {
+    if (a->evts != 0) {
+      fds[n++] = (struct pollfd){ .fd = a->word, .events = a->evts };
+    }
+  }
+  IoWork* todo = io_park;
+  io_park = NULL;
+  u64 tick = io_tick();
+  u64 ms   = soon > tick ? (soon - tick) / 1000000 + 1 : 0;
+  io_sync();
+  // an interrupted poll leaves every revents 0: nothing wakes and the loop
+  // waits again
+  if (poll(fds, n, soon == 0 ? -1 : ms < INT32_MAX ? (int)ms : INT32_MAX) < 0
+    && errno != EINTR) {
+    err_fail("the poller failed");
+  }
+  if (fds[0].revents != 0) {
+    io_take(e);
+  }
+  u64 now = io_tick();
+  n = 1;
+  while (todo != NULL) {
+    IoWork* a   = io_pop(&todo);
+    bool    due = (a->evts != 0 && fds[n++].revents != 0)
+      || (a->time != 0 && a->time <= now);
+    if (!due) {
+      io_push(&io_park, a);
+      continue;
+    }
+    Term x = a->pack(e, a);
+    if (x != IO_PARK) {
+      a->item = x;
+      io_push(&io_runs, a);
+    }
+  }
+  free(fds);
+}
+#else
 static bool io_bit(u8* set, int fd, bool put) {
   u8* at = set + fd / 8;
   *at |= put << fd % 8;
@@ -6528,6 +6945,7 @@ static void io_wait(Env e) {
   }
   free(set[0]);
 }
+#endif
 
 ${NATIVE.IO}
 
@@ -6703,10 +7121,17 @@ static void io_step(Env e, IoWork* a) {
 OUTLINE void io_loop(u64* H) {
   Env e = { H, ALC[0] };
   io_stk = pool_stack();
+#ifdef _WIN32
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, io_wake_fd)
+    | sock_nonblock(io_wake_fd[0]) | sock_nonblock(io_wake_fd[1])) {
+    err_fail("the event loop failed to open");
+  }
+#else
   signal(SIGPIPE, SIG_IGN);
   if (pipe(io_wake_fd) | fcntl(io_wake_fd[0], F_SETFL, O_NONBLOCK)) {
     err_fail("the event loop failed to open");
   }
+#endif
   Term m = corpus_eval(H, term_tsk(MAIN_FID, task_node(e, MAIN_FID,
     TERM_HOLE, 0, 0)));
 #if MAIN_PURE
@@ -6978,6 +7403,9 @@ function io_errs(message) {
 }
 
 function io_sys() {
+  if (globalThis.BEND_SYS === undefined && process.platform === "win32") {
+    globalThis.BEND_SYS = io_sys_win(require("bun:ffi"));
+  }
   if (globalThis.BEND_SYS === undefined) {
     const ffi = require("bun:ffi");
     const mac = process.platform === "darwin";
@@ -7004,6 +7432,73 @@ function io_sys() {
       errno: () => ffi.read.i32(lib[err](), 0) };
   }
   return globalThis.BEND_SYS;
+}
+
+// Windows' bridge: Winsock (its sockets 64-bit) under the calls and the
+// Linux constants the POSIX bridge's users pass (fcntl's F_GETFL 3,
+// F_SETFL 4 and O_NONBLOCK 0x800; SOL_SOCKET 1 with SO_REUSEADDR 2 and
+// SO_ERROR 4). A failed call's error is taken at once (a later Win32 call
+// may clear it) and named as the C lane names it; EAGAIN is 11 there too,
+// and a pending connect answers 115, the EINPROGRESS its caller tests.
+function io_sys_win(ffi) {
+  const E = require("os").constants.errno;
+  const T = { i: "i32", u: "u32", S: "i64", R: "i64_fast", p: "ptr",
+    c: "cstring" };
+  const lib = (file, spec) => ffi.dlopen(file, Object.fromEntries(spec
+    .split(" ").map((s) => {
+      const [name, args, ret] = s.split(/[:>]/);
+      return [name, { args: [...args].map((a) => T[a]), returns: T[ret] }];
+    }))).symbols;
+  const ws = lib("ws2_32.dll", "socket:iii>R bind:Spi>i listen:Si>i"
+    + " connect:Spi>i accept:Spp>R send:Spii>i recv:Spii>i sendto:Spiipi>i"
+    + " recvfrom:Spiipp>i closesocket:S>i getsockopt:Siipp>i ioctlsocket:Sip>i"
+    + " WSAGetLastError:>i WSAPoll:pui>i WSAStartup:ip>i");
+  lib("winmm.dll", "timeBeginPeriod:u>u").timeBeginPeriod(1);
+  ws.WSAStartup(0x202, ffi.ptr(new Uint8Array(512)));
+  const over = { WSAEWOULDBLOCK: "EAGAIN", WSAESHUTDOWN: "EPIPE" };
+  const name = (wsa) => Object.keys(E).find((k) => k.startsWith("WSA")
+    && E[k] === wsa);
+  const map = (wsa) => E[over[name(wsa)] ?? name(wsa)?.slice(3)] ?? E.EIO;
+  let err = 0;
+  const net = (r) => {
+    err = r < 0 ? map(ws.WSAGetLastError()) : err;
+    return r;
+  };
+  const call = (f) => (...a) => net(f(...a));
+  const nonblock = (s) => net(ws.ioctlsocket(s, 0x8004667E | 0,
+    ffi.ptr(new Uint32Array([1]))));
+  return { win: true, mac: false, ptr: ffi.ptr, errno: () => err,
+    strerror: lib("ucrtbase.dll", "strerror:i>c").strerror,
+    socket: call(ws.socket), bind: call(ws.bind), listen: call(ws.listen),
+    accept: call(ws.accept), send: call(ws.send), recv: call(ws.recv),
+    sendto: call(ws.sendto), close: ws.closesocket,
+    connect: (...a) => {
+      const r = net(ws.connect(...a));
+      err = r < 0 && err === E.EAGAIN ? 115 : err;
+      return r;
+    },
+    // a datagram past the buffer is cut to it, as on POSIX
+    recvfrom: (s, b, n, f, a, l) => {
+      const r = ws.recvfrom(s, b, n, f, a, l);
+      return r < 0 && ws.WSAGetLastError() === E.WSAEMSGSIZE ? n : net(r);
+    },
+    fcntl: (s, cmd, arg) => cmd === 4 && (arg & 0x800) !== 0 ? nonblock(s)
+      : 0,
+    // SO_REUSEADDR lets a second socket take a bound port on Windows
+    setsockopt: () => 0,
+    getsockopt: (s, lv, o, v, l) => {
+      const r = net(ws.getsockopt(s, 0xffff, 0x1007, v, l));
+      const got = new Int32Array(ffi.toArrayBuffer(v, 0, 4));
+      got[0] = r === 0 && got[0] !== 0 ? map(got[0]) : got[0];
+      return r;
+    },
+    poll: ws.WSAPoll };
+}
+
+// A Node error's errno, by its name as the host numbers it (Windows: a
+// libuv errno is not the C lane's).
+function io_code(e) {
+  return require("os").constants.errno[e.code] ?? Math.abs(e.errno ?? 5);
 }
 
 function io_fail(code) {
@@ -7045,7 +7540,40 @@ function io_push(fun, arg, fresh) {
   io.live += fresh ? 1 : 0;
 }
 
+// Windows' wait: WSAPoll on 16-byte WSAPOLLFDs (the socket, its events,
+// their answer); any answer is ready, as select's. No sockets is a sleep.
+function io_wait_win(io) {
+  const soon = io.waits.reduce((m, w) => Math.min(m, w.at ?? m), Infinity);
+  const ms = soon === Infinity ? -1
+    : Math.max(0, Math.ceil(soon - performance.now()));
+  const fds = io.waits.filter((w) => w.fd !== undefined);
+  const buf = new Uint8Array(16 * Math.max(fds.length, 1));
+  const set = new DataView(buf.buffer);
+  fds.forEach((w, i) => {
+    set.setBigInt64(16 * i, BigInt(w.fd), true);
+    set.setInt16(16 * i + 8, w.out ? 0x10 : 0x300, true);
+  });
+  if (fds.length === 0) {
+    Bun.sleepSync(Math.max(ms, 0));
+  } else {
+    io_sys().poll(io_sys().ptr(buf), fds.length, Math.min(ms, 0x7fffffff));
+  }
+  const up = new Set(fds.filter((w, i) => set.getInt16(16 * i + 10, true)
+    !== 0));
+  const now = performance.now();
+  io.waits = io.waits.filter((w) => {
+    const ready = w.at <= now || up.has(w);
+    if (ready) {
+      io_push(io_wake, w, false);
+    }
+    return !ready;
+  });
+}
+
 function io_wait(io) {
+  if (io_sys().win) {
+    return io_wait_win(io);
+  }
   const soon = io.waits.reduce((m, w) => Math.min(m, w.at ?? m), Infinity);
   const ms = soon === Infinity ? -1
     : Math.max(0, Math.ceil(soon - performance.now()));
