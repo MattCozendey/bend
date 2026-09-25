@@ -2126,11 +2126,11 @@ function emit_jump(fl: File, args: string[], k: Name,
   }
   args.forEach((a, i) => file_push(fl, `r${i} = ${a};`));
   if (fl.seg.def !== k) {
-    return file_push(fl, `WL_JMP(${seg_ref(fl, fid)});`);
+    return file_push(fl, `WL_GO(${seg_ref(fl, fid)}, ${args.length});`);
   }
   fl.seg.spin = true;
   fl.seg.params.forEach((p, i) => file_push(fl, `${p} = r${i};`));
-  file_push(fl, `WL_AGAIN(${fl.seg.fid});`);
+  file_push(fl, `WL_AGAIN(${fl.seg.fid}, ${args.length});`);
 }
 
 // A call's arguments, laid out as the def takes them: nested ones first,
@@ -3050,6 +3050,11 @@ function compile_tables(fl: File, entries: Seg[]): string[] {
   `#define WL_SIG Env e, Stk sp, u32 seq, u32 rn, ${ws.map((w) =>
     "Term " + w).join(", ")}`, "", `#define WL_ALL e, sp, seq, rn, ${ws
     .join(", ")}`, "",
+  `#define WL_PARK_N ${n}`,
+  `#define WL_PARK_SAVE(K) ${rs.map((r, i) =>
+    `if ((K) > ${i}) sp[${i} * CUBE] = ${r};`).join(" ")}`,
+  `#define WL_PARK_TAKE(K) ${rs.map((r, i) =>
+    `if ((K) > ${i}) ${r} = sp[${i} * CUBE];`).join(" ")}`, "",
   `#define WL_TABLE ${entries.map((s) => `WL_X(${s.fid})`).join(" ")}`
     + " WL_X(FID_EXIT)");
   return defs;
@@ -3547,6 +3552,7 @@ using namespace metal;
 #define WL_OPEN    {
 #define WL_JMP(F)  { fid = (F); break; }
 #define WL_DYN     WL_JMP
+#define WL_GO(F, K) WL_JMP(F)
 #else
 #define LOCK(l)    while (__atomic_exchange_n(&(l), 1, __ATOMIC_ACQUIRE)) {}
 #define UNLOCK(l)  __atomic_store_n(&(l), 0, __ATOMIC_RELEASE)
@@ -3554,11 +3560,12 @@ using namespace metal;
 #define WL_CASE(F) WL_FN WL_##F(WL_SIG)
 #define WL_OPEN    { WL_BANK u32 rn;
 #define WL_JMP(F)  __attribute__((musttail)) return WL_##F(WL_ALL)
+#define WL_GO(F, K) __attribute__((musttail)) return WL_##F(WL_ALL)
 #define WL_DYN(F)  __attribute__((musttail)) return wl_tab[F](WL_ALL)
 #endif
 #define WL_SPIN     for (;;) { if (err_spun(e.mem, &wpoll)) { return 0; }
 #define WL_SPUN     } break;
-#define WL_AGAIN(F) continue
+#define WL_AGAIN(F, K) continue
 
 #define LANE_STEP (DEVICE ? (int64_t)CUBE : 1)
 #define STK(I)    sp[(int64_t)(I) * LANE_STEP]
@@ -3704,6 +3711,8 @@ typedef u32* Cur;
 #define H_BUMP       0
 #define H_CAP        1
 #define H_CURSOR     LINE
+#define H_PARKED     (LINE + 1)
+#define H_BUDGET     (LINE + 2)
 #define H_ROOT_DONE  (2 * LINE)
 #define H_ERROR_CODE (3 * LINE)
 #define H_ROOT_WORD  (4 * LINE)
@@ -4545,7 +4554,7 @@ ${spins}
 #undef  WL_AGAIN
 #define WL_SPIN
 #define WL_SPUN
-#define WL_AGAIN(F) __attribute__((musttail)) return WL_##F(WL_ALL)
+#define WL_AGAIN(F, K) __attribute__((musttail)) return WL_##F(WL_ALL)
 
 typedef Reply (PRESERVE(preserve_none) *WlFn)(WL_SIG);
 #define WL_X(F) WL_FN WL_##F(WL_SIG);
@@ -4556,6 +4565,77 @@ static const WlFn wl_tab[] = { WL_TABLE };
 #undef WL_X
 #endif
 
+// Park (-DBEND_PARK, a twin's lanes, under a display driver's watchdog): a
+// lane past its budget (H_BUDGET ns from its group's start) parks at its
+// next jump, self-jump or return. Its K live registers go on its stack, and
+// fid, seq, rn, K and depth into the two words under it; it replies
+// TERM_HOLE, and a later pass 1 resumes it before its ring. A pure spin_N's
+// loop cannot park.
+#if BEND_PARK
+#define PARK_AT(stk, i) (stk)[((int64_t)(i) - 2) * CUBE]
+#define PARK_ON(stk)    (PARK_AT(stk, 0) != 0)
+// a lane's stack base, from any of its slots: the lanes interleave by CUBE
+#define PARK_BASE(H, sp) \
+  ((H) + STAK_OFF + 2 * CUBE + (u64)((sp) - ((H) + STAK_OFF)) % CUBE)
+
+// with no room for the registers the lane goes on, as if not due; F is
+// read first, as a return's is the stack slot the registers go to
+#define WL_PARK(F, K) \
+  if (sp + WL_PARK_N * CUBE < e.mem + STAT_OFF) { \
+    Fid pf   = (F); \
+    Stk park = PARK_BASE(e.mem, sp); \
+    WL_PARK_SAVE(K) \
+    PARK_AT(park, 1) = (u64)(sp - park) / CUBE; \
+    PARK_AT(park, 0) = (1ull << 63) | (u64)pf << 32 \
+      | (u64)(seq & 0xFFFF) << 16 | (u64)(K) << 8 | (rn & 0xFF); \
+    a32_add(a32_at(e.mem, H_PARKED), 1); \
+    return TERM_HOLE; \
+  }
+
+#undef  WL_GO
+#define WL_GO(F, K) \
+  { \
+    if (pdue) { \
+      WL_PARK(F, K) \
+    } \
+    WL_JMP(F); \
+  }
+
+#undef  WL_RETN
+#define WL_RETN(N) \
+  { \
+    rn  = (N); \
+    sp -= LANE_STEP; \
+    if (pdue) { \
+      WL_PARK((Fid)STK(0), N) \
+    } \
+    WL_DYN((Fid)STK(0)); \
+  }
+
+// a segment's own loop never reaches the top, so it asks for itself
+#undef  WL_AGAIN
+#define WL_AGAIN(F, K) \
+  { \
+    if ((wpoll & 4095) == 0 && park_due(e.mem)) { \
+      WL_PARK(F, K) \
+    } \
+    continue; \
+  }
+
+__shared__ u64 park_t0;
+
+INLINE u64 park_now(void) {
+  u64 t;
+  asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t));
+  return t;
+}
+
+INLINE bool park_due(Corpus H) {
+  u64 b = H[H_BUDGET];
+  return b != 0 && park_now() - park_t0 > b;
+}
+#endif
+
 static Reply work_loop(Env e, Stk sp, Term t, u32 seq) {
   WL_BANK
   u32 rn = 0;
@@ -4563,10 +4643,27 @@ static Reply work_loop(Env e, Stk sp, Term t, u32 seq) {
 #if DEVICE
   Fid fid   = FID_ENTER;
   u32 wpoll = 0;
+#if BEND_PARK
+  bool pdue = false;
+  if (t == TERM_HOLE) {
+    u64 w = PARK_AT(sp, 0);
+    u32 k = (u32)(w >> 8) & 0xFF;
+    fid   = (u32)(w >> 32) & 0xFFFF;
+    seq   = (u32)(w >> 16) & 0xFFFF;
+    rn    = (u32)w & 0xFF;
+    PARK_AT(sp, 0) = 0;
+    sp   += PARK_AT(sp, 1) * CUBE;
+    WL_PARK_TAKE(k)
+    a32_sub(a32_at(e.mem, H_PARKED), 1);
+  }
+#endif
   for (;;) {
   if (err_spun(e.mem, &wpoll)) {
     return 0;
   }
+#if BEND_PARK
+  pdue |= (wpoll & 4095) == 0 && park_due(e.mem);
+#endif
   switch (fid) {
 #else
   return WL_FID_ENTER(WL_ALL);
@@ -4665,11 +4762,31 @@ ${segs}
 
 // One turn on a ring: its head task below put0 runs (a growing lane skips a
 // fork-free one). The host grows a row ring by ring and drains a ring; a
-// device lane does both.
+// device lane does both. A parked lane resumes before its ring, as a drain;
+// 3 if it parks.
 INLINE u32 monk_step(Env e, Stk stk, Ring rg, u32 put0, bool seq, u32 base,
   u32 stride, Cur cur) {
   Corpus   H   = e.mem;
   DEV u32* get = ring_get(H, rg);
+#if BEND_PARK
+  Term t = TERM_HOLE;
+  if (PARK_ON(stk)) {
+    seq    = false;
+    stride = 0;
+  } else {
+    if (*get == put0) {
+      return 0;
+    }
+    DEV u32* lo = (DEV u32*)ring_slot(H, rg, *get);
+    u32      hi = a32_load_acq(lo + 1);
+    t = (((u64)hi << 32) | a32_load(lo)) & ~RFC_BIT;
+    if ((hi >> 31) != ring_lap(*get)
+      || (!seq && fid_nofk((u32)term_aux(t)))) {
+      return 0;
+    }
+    a32_store(get, *get + 1);
+  }
+#else
   if (*get == put0) {
     return 0;
   }
@@ -4680,12 +4797,18 @@ INLINE u32 monk_step(Env e, Stk stk, Ring rg, u32 put0, bool seq, u32 base,
     return 0;
   }
   a32_store(get, *get + 1);
+#endif
   u32 spin = 0;
   for (;;) {
     Reply r = work_loop(e, stk, t, seq);
     if (r == 0) {
       return 2;
     }
+#if BEND_PARK
+    if (r == TERM_HOLE) {
+      return 3;
+    }
+#endif
     if ((u32)H[task_tail(r) + 1] == 0) {
       if (err_spun(H, &spin)) {
         return 2;
@@ -4781,6 +4904,12 @@ extern "C" __global__ void bend_dev(Corpus H, u32 pass) {
   if (lane == 0) {
     hold[0] = 0;
   }
+#if BEND_PARK
+  stk += 2 * CUBE;
+  if (lane == 0) {
+    park_t0 = park_now();
+  }
+#endif
   GA32 tg_cur, tg_grew, tg_has;
   g32_ini(&tg_cur);
   g32_ini(&tg_grew);
@@ -4791,7 +4920,11 @@ extern "C" __global__ void bend_dev(Corpus H, u32 pass) {
   u32 seen_grew = 0;
   for (;;) {
     if (pass) {
+#if BEND_PARK
+      if ((*ring_get(H, rg) == put0 && !PARK_ON(stk)) || err_seen(H)) {
+#else
       if (*ring_get(H, rg) == put0 || err_seen(H)) {
+#endif
         break;
       }
     } else {
@@ -4808,8 +4941,16 @@ extern "C" __global__ void bend_dev(Corpus H, u32 pass) {
       }
       seen_has = has;
     }
+#if BEND_PARK
+    u32 ran = !pass && PARK_ON(stk) ? 0 : monk_step(e, stk, rg, put0, pass,
+      pass ? rg : row * CUBE_T, pass ? 0 : stride, &tg_cur);
+    if (pass && ran == 3) {
+      break;
+    }
+#else
     u32 ran = monk_step(e, stk, rg, put0, pass, pass ? rg : row * CUBE_T,
       pass ? 0 : stride, &tg_cur);
+#endif
     if (!pass) {
       if (ran == 1) {
         g32_add(&tg_grew, 1);
@@ -5080,7 +5221,7 @@ static void gpu_run(u32 f) {
 #if BEND_CUDA
 
 static u64 gpu_hash(void) {
-  u64 key = 14695981039346656037ull ^ CUBE_LOG;
+  u64 key = 14695981039346656037ull ^ CUBE_LOG ^ (u64)gpu_twin << 8;
   for (const char* p = BEND_SRC; *p != 0; p += 1) {
     key = (key ^ (u8)*p) * 1099511628211ull;
   }
@@ -5244,11 +5385,17 @@ static bool gpu_probe(void) {
 // and heap_alloc rewrite freed slots under it. A fault fills its chunk
 // through gpu_alias, a second mapping, while the chunk still traps, so no
 // other thread sees it half filled.
+#ifndef GPU_WALL
+#define GPU_WALL 250000000ull  // ns a twin's launch runs, far under a TDR
+#endif
 #define GPU_CHUNK (1ull << 21)
 #define GPU_DIRTY 0
 #define GPU_STALE 1
 #define GPU_CLEAN 2
 
+// ns a group runs before its lanes park: GPU_WALL over the waves of groups
+// the device fits at once
+static u64       gpu_budget;
 static Corpus    gpu_vram;
 static char*     gpu_alias;
 static u8*       gpu_state;       // a chunk's GPU_DIRTY, _STALE or _CLEAN
@@ -5390,7 +5537,7 @@ static void gpu_sync(bool up) {
 }
 
 // A twin's host corpus is two mappings of one zeroed section; its device
-// side starts at zero as corpus_setup's managed corpus does.
+// side, and the lanes' park words under their stacks, start at zero.
 static Corpus gpu_twin_map(u64 bytes) {
   void*       h = NULL;
   CUdeviceptr v = 0;
@@ -5417,7 +5564,7 @@ static Corpus gpu_twin_map(u64 bytes) {
   gpu_alias = gpu_alias == MAP_FAILED ? NULL : gpu_alias;
 #endif
   if (h == NULL || gpu_alias == NULL || cuMemAlloc(&v, bytes) != CUDA_SUCCESS
-    || cuMemsetD8(v, 0, STAK_OFF * 8) != CUDA_SUCCESS) {
+    || cuMemsetD8(v, 0, (STAK_OFF + 2 * CUBE) * 8) != CUDA_SUCCESS) {
     err_fail("corpus reservation failed");
   }
   gpu_vram = (Corpus)(uintptr_t)v;
@@ -5451,13 +5598,14 @@ static bool gpu_make(const char* path) {
   char bag[24];
   snprintf(arch, sizeof arch, "--gpu-architecture=sm_%d%d", cc[0], cc[1]);
   snprintf(bag, sizeof bag, "-DCUBE_LOG=%u", CUBE_LOG);
-  const char* opts[] = { arch, bag, "--fmad=false", "-default-device" };
+  const char* opts[] = { arch, bag, "--fmad=false", "-default-device",
+    "-DBEND_PARK=1" };
   nvrtcProgram prog;
   if (nvrtcCreateProgram(&prog, BEND_SRC, "bend.cu", 0, NULL, NULL)
     != NVRTC_SUCCESS) {
     err_fail("cannot compile the CUDA library");
   }
-  if (nvrtcCompileProgram(prog, 4, opts) != NVRTC_SUCCESS) {
+  if (nvrtcCompileProgram(prog, gpu_twin ? 5 : 4, opts) != NVRTC_SUCCESS) {
     size_t n = 0;
     nvrtcGetProgramLogSize(prog, &n);
     char* log = calloc(n + 1, 1);
@@ -5518,6 +5666,16 @@ static void gpu_load(u64 bytes) {
   if (cuModuleGetFunction(&gpu_pso, gpu_lib, "bend_dev") != CUDA_SUCCESS) {
     err_fail("cannot load the GPU program");
   }
+  int per = 0;
+  int sms = 0;
+  if (gpu_twin) {
+    cuOccupancyMaxActiveBlocksPerMultiprocessor(&per, gpu_pso, CUBE_T,
+      TG_HOLD * 8);
+    cuDeviceGetAttribute(&sms, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT,
+      gpu_dev);
+    u64 fit    = per > 0 && sms > 0 ? (u64)per * sms : 1;
+    gpu_budget = GPU_WALL / ((CUBE_G + fit - 1) / fit);
+  }
 }
 
 static void gpu_kernel(u32 pass, u32 groups) {
@@ -5540,14 +5698,24 @@ static void gpu_wait(void) {
   }
 }
 
-// A twin's header crosses each pass (cube_run reads its cursor and flags).
+// A twin's header crosses each pass (cube_run reads its cursor and flags),
+// and drains resume its parked lanes until none is left.
 static void gpu_pass(u32 f) {
+  Corpus H = CORPUS;
   if (gpu_twin) {
+    H[H_BUDGET] = gpu_budget;
     gpu_copy(0, ALC_OFF, true);
   }
   gpu_run(f);
   gpu_wait();
   if (gpu_twin) {
+    gpu_copy(0, ALC_OFF, false);
+  }
+  while (gpu_twin && a32_load(a32_at(H, H_PARKED)) != 0
+    && a32_load(a32_at(H, H_ERROR_CODE)) == 0) {
+    gpu_kernel(1, CUBE_G);
+    gpu_kernel(2, 1);
+    gpu_wait();
     gpu_copy(0, ALC_OFF, false);
   }
 }
