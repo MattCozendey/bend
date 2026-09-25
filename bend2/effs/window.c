@@ -628,7 +628,7 @@ static void window_sq(u64* H, u32* pix, u32 w, u32 h, Term t, u32 s, u32 x,
 // there (the tree's pages never leave it), else window_sq from the root.
 static void window_fill(Env e, u32* pix, u32 w, u32 h, Term image, u32 k) {
 #if BEND_CUDA
-  if (io_gpu) {
+  if (io_gpu && !gpu_twin) {
     u64*   H    = e.mem;
     u64    len  = (u64)w * h * 4;
     void*  args[] = { &H, &image, &w, &h, &k, &window_buf };
