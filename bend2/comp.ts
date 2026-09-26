@@ -4353,6 +4353,22 @@ INLINE u32 ring_flip(u32 i) {
 
 #define ring_pick(b, s, c) ((b) + (s) * (a32_add(c, 1) & (CUBE_T - 1)))
 
+#if BEND_PARK || (BEND_CUDA && !DEVICE)
+// A twin's mend (gpu_rings): the slots ring r took since its put was from,
+// short of the live ones', get their lap and no task, as a take leaves them.
+// How many.
+INLINE u32 ring_mend(DEV u64* H, u32 r, u32 from) {
+  u32 get  = *ring_get(H, r);
+  u32 put  = *ring_put(H, r);
+  u32 took = get - from <= put - from ? get - from : 0;
+  took = took < RING_LEN - (put - get) ? took : (u32)(RING_LEN - (put - get));
+  for (u32 i = get - took; i != get; i += 1) {
+    ((DEV u32*)ring_slot(H, r, i))[1] = ring_lap(i) << 31;
+  }
+  return took;
+}
+#endif
+
 // Task
 // ====
 
@@ -4857,6 +4873,16 @@ extern "C" __global__ void bend_dev(DEV u64* H, u32 pass) {
   dev_cut(e);
 }
 
+#if BEND_PARK
+// a twin's mend of the device's copy, a lane a ring (gpu_rings)
+extern "C" __global__ void ring_mend_dev(DEV u64* H, u32* from) {
+  u32 r = blockIdx.x * blockDim.x + threadIdx.x;
+  if (r < LANES) {
+    ring_mend(H, r, from[r]);
+  }
+}
+#endif
+
 #endif
 
 // Window
@@ -5350,25 +5376,28 @@ static bool gpu_set(u64 lo, u64 hi, u8 state) {
 }
 
 // Of the rings only [get, put) is ever read: the counter planes go, and
-// the slot planes some ring wrote since the last sync (from its put then).
-// A slot one side pushed and took in between crosses too: left with an
-// older lap, the other side's copy would pass a take racing the next push
-// there.
+// the slot planes some ring has live. A slot one side pushed and took since
+// the last sync (from its put then) keeps, on the other side, the word of an
+// older lap, which a take racing the next push there would pass: the side
+// the copy lands on mends those (ring_mend), the host its own down and
+// ring_mend_dev the device's up, rather than their planes crossing whole.
 static void gpu_rings(bool up) {
-  static u8  live[1u << 17];  // RING_LEN at its widest (CUBE_LOG = 0)
-  static u32 from[1u << 14];  // a ring's put at the last sync; LANES wide
-  u64*       H = CORPUS;
+  static u8          live[1u << 17];  // RING_LEN at its widest (CUBE_LOG 0)
+  static u32         from[1u << 14];  // a ring's put at the last sync
+  static CUfunction  mend;
+  static CUdeviceptr at;
+  u64*               H    = CORPUS;
+  u64                took = 0;
   gpu_copy(RING_OFF + RING_LEN * LANES, RING_OFF + (RING_LEN + 2) * LANES, up);
   memset(live, 0, RING_LEN);
   for (u32 r = 0; r < LANES; r += 1) {
     u32 get = a32_load(ring_get(H, r));
-    u32 put = a32_load(ring_put(H, r));
-    u32 n   = put - from[r] > put - get ? put - from[r] : put - get;
+    u32 n   = a32_load(ring_put(H, r)) - get;
     n = n < RING_LEN ? n : (u32)RING_LEN;
     for (u32 i = 0; i < n; i += 1) {
-      live[(put - n + i) & (RING_LEN - 1)] = 1;
+      live[(get + i) & (RING_LEN - 1)] = 1;
     }
-    from[r] = put;
+    took += up ? get != from[r] : ring_mend(H, r, from[r]);
   }
   for (u64 w = 0; w < RING_LEN; w += 1) {
     u64 lo = w;
@@ -5376,6 +5405,17 @@ static void gpu_rings(bool up) {
       w += 1;
     }
     gpu_copy(RING_OFF + lo * LANES, RING_OFF + w * LANES, up);
+  }
+  void* args[] = { &gpu_vram, &at };
+  if (up && took != 0 && ((mend == NULL && (cuModuleGetFunction(&mend, gpu_lib,
+    "ring_mend_dev") != CUDA_SUCCESS || cuMemAlloc(&at, LANES * 4)
+    != CUDA_SUCCESS)) || cuMemcpyHtoD(at, from, LANES * 4) != CUDA_SUCCESS
+    || cuLaunchKernel(mend, (u32)(LANES + 255) / 256, 1, 1, 256, 1, 1, 0, NULL,
+    args, NULL) != CUDA_SUCCESS)) {
+    err_fail("device launch failed");
+  }
+  for (u32 r = 0; r < LANES; r += 1) {
+    from[r] = a32_load(ring_put(H, r));
   }
 }
 
