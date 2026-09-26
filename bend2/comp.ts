@@ -5429,7 +5429,7 @@ static Corpus    gpu_vram;
 static char*     gpu_alias;
 static u8*       gpu_state;       // a chunk's GPU_DIRTY, _STALE or _CLEAN
 static u64       gpu_lo, gpu_hi;  // the chunks' bytes in the corpus
-static u32       gpu_lock;
+static u32*      gpu_lock;        // a chunk's, for its faults
 
 static void gpu_copy(u64 lo, u64 hi, bool up) {
   CUdeviceptr d = (CUdeviceptr)(uintptr_t)(gpu_vram + lo);
@@ -5440,7 +5440,8 @@ static void gpu_copy(u64 lo, u64 hi, bool up) {
   }
 }
 
-// the chunks [lo, hi) enter a state, under gpu_lock
+// the chunks [lo, hi) enter a state, under their locks or in a sync (no
+// host thread runs then)
 static bool gpu_set(u64 lo, u64 hi, u8 state) {
   char* p = (char*)CORPUS + gpu_lo + lo * GPU_CHUNK;
   u64   n = (hi - lo) * GPU_CHUNK;
@@ -5513,7 +5514,6 @@ static void gpu_heap(u64 end, bool up) {
   if (e > gpu_hi) {
     gpu_copy(gpu_hi / 8, end, up);
   }
-  LOCK(gpu_lock);
   for (u64 c = 0; up && c < n; c += 1) {
     u64 lo = c;
     while (c < n && gpu_state[c] == GPU_DIRTY) {
@@ -5527,7 +5527,6 @@ static void gpu_heap(u64 end, bool up) {
   if (!up && !gpu_set(0, n, GPU_STALE)) {
     err_fail("corpus protection failed");
   }
-  UNLOCK(gpu_lock);
 }
 
 // A host touch of a stale chunk downloads it (the context is made current
@@ -5542,7 +5541,7 @@ static bool gpu_fault(void* addr, bool wr) {
   u64  c  = (off - gpu_lo) / GPU_CHUNK;
   u64  at = gpu_lo + c * GPU_CHUNK;
   bool ok = true;
-  LOCK(gpu_lock);
+  LOCK(gpu_lock[c]);
   if (gpu_state[c] == GPU_STALE) {
     ok = cuCtxSetCurrent(gpu_ctx) == CUDA_SUCCESS
       && cuMemcpyDtoH(gpu_alias + at,
@@ -5552,7 +5551,7 @@ static bool gpu_fault(void* addr, bool wr) {
   } else if (gpu_state[c] == GPU_CLEAN) {
     ok = gpu_set(c, c + 1, GPU_DIRTY);
   }
-  UNLOCK(gpu_lock);
+  UNLOCK(gpu_lock[c]);
   return ok;
 }
 
@@ -5568,7 +5567,8 @@ static void gpu_sync(bool up) {
     gpu_hi    = ((HEAP_OFF + (cap << PAGE_BITS)) * 8) & ~(GPU_CHUNK - 1);
     gpu_hi    = gpu_hi < gpu_lo ? gpu_lo : gpu_hi;
     gpu_state = calloc((gpu_hi - gpu_lo) / GPU_CHUNK + 1, 1);
-    if (gpu_state == NULL) {
+    gpu_lock  = calloc((gpu_hi - gpu_lo) / GPU_CHUNK + 1, 4);
+    if (gpu_state == NULL || gpu_lock == NULL) {
       err_fail("corpus reservation failed");
     }
   }
