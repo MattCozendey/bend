@@ -5410,7 +5410,7 @@ static bool gpu_probe(void) {
 #ifndef GPU_WALL
 #define GPU_WALL 250000000ull  // ns a twin's launch runs, far under a TDR
 #endif
-#define GPU_CHUNK (1ull << 21)
+#define GPU_CHUNK (1ull << 18)  // 256 KB: a touch downloads less
 #define GPU_DIRTY 0
 #define GPU_STALE 1
 #define GPU_CLEAN 2
