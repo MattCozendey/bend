@@ -5573,7 +5573,7 @@ static void gpu_sync(bool up) {
     Bank* b = bank_at(H, c);
     u32   n = b->wr > b->rd ? b->wr : b->rd;
     n = b->top > n ? b->top : n;
-    gpu_copy(b->off, b->off + n + 1, up);
+    gpu_copy(b->off, b->off + n + (n != 0), up);  // an empty bank: no call
   }
 }
 
