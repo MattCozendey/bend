@@ -3438,7 +3438,6 @@ typedef HANDLE             pthread_t;
 #define pthread_cond_signal       WakeConditionVariable
 #define pthread_cond_broadcast    WakeAllConditionVariable
 #define pthread_detach            CloseHandle
-#define nanosleep(t, r)           Sleep((DWORD)((t)->tv_nsec / 1000000))
 #define munmap(p, n)              VirtualFree(p, 0, MEM_RELEASE)
 #define MAP_FAILED                NULL
 #define stat                      _stat64
@@ -3477,6 +3476,22 @@ static int pthread_create(pthread_t* t, void* attr, void* (*fn)(void*),
 static int pthread_join(pthread_t t, void** out) {
   WaitForSingleObject(t, INFINITE);
   return !CloseHandle(t);
+}
+
+// A high-resolution waitable timer: Sleep rounds to whole milliseconds and
+// wakes a tick late, past a 60 Hz frame's due.
+static int nanosleep(const struct timespec* t, struct timespec* r) {
+  static _Thread_local HANDLE h;
+  LARGE_INTEGER due = { .QuadPart = -(LONGLONG)(t->tv_sec * 10000000ll
+    + t->tv_nsec / 100) };
+  h = h != NULL ? h : CreateWaitableTimerExW(NULL, NULL,
+    CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+  if (h == NULL || !SetWaitableTimer(h, &due, 0, NULL, NULL, FALSE)) {
+    Sleep((DWORD)(t->tv_sec * 1000 + t->tv_nsec / 1000000));
+    return 0;
+  }
+  WaitForSingleObject(h, INFINITE);
+  return 0;
 }
 
 // A failed Winsock call sets errno as a POSIX one does: WSAEWOULDBLOCK is
