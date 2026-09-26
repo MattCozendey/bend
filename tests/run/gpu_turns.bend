@@ -18,6 +18,16 @@ def gen(+n: Nat, +x: U32) -> Tr:
       l r = gen(p, U32.shl(x)) gen(p, U32.inc(U32.shl(x)))
       Nd{l, r}
 
+# host, no fork: a fork on the host sends every later ! to the cores (#1065)
+def gens(+n: Nat, +x: U32) -> Tr:
+  match n:
+    case 0n:
+      Lf{x}
+    case 1n+p:
+      l = gens(p, U32.shl(x))
+      r = gens(p, U32.inc(U32.shl(x)))
+      Nd{l, r}
+
 def sum(t: Tr) -> U32:
   match t:
     case Lf{v}:
@@ -50,7 +60,7 @@ def main() -> IO(Unit):
   t1 = bump(t0)
   t2 = flip!(t1)
   t3 = bump(t2)
-  h  = gen(10n, 3)
+  h  = gens(10n, 3)
   t4 = flip!(Nd{t3, h})
   t5 = bump(t4)
   s  = sum!(t5)
