@@ -3609,6 +3609,8 @@ typedef u32 __attribute__((may_alias)) u32a;
 
 #define H_BUMP       0
 #define H_CAP        1
+#define H_TWIN       2  // split: the host's nodes sent back (count, at, room),
+                        // the lanes' Bank rows
 #define H_CURSOR     LINE
 #define H_PARKED     (LINE + 1)
 #define H_BUDGET     (LINE + 2)
@@ -3637,6 +3639,31 @@ static u64    ALC[CUBE_T + 1][3 * NCLS_ALL] __attribute__((aligned(128)));
 static u32    KEEP_WORDS;
 static u32    CUBE_LOG = 7;
 static u32    bank_lock;
+
+// A twin splits its heap (BEND_SPLIT): the host's pages from the bottom,
+// the lanes' from the top (twin_top on, the lanes' H_CAP), so a turn leaves
+// the host's pages alone. A node of the lanes the host frees goes back to
+// them (twin_give), and one of the host's a lane frees comes back (H_TWIN),
+// up to TWIN_LIST a turn: past it the side that frees keeps the node, as a
+// walk that rebuilds what it reads reuses it while it's still in cache (a
+// frame hands back a few).
+#if BEND_CUDA
+#define TWIN_SPLIT 1
+#define TWIN_LIST (1u << 12)  // nodes a turn hands either way at most
+static u64 twin_top = ~0ull;
+static u64 twin_list[TWIN_LIST];
+static u32 twin_n;
+
+static bool twin_give(u64 loc, u32 cls) {
+  u32 i = __atomic_fetch_add(&twin_n, 1, __ATOMIC_RELAXED);
+  if (i < TWIN_LIST) {
+    twin_list[i] = loc | (u64)cls << 56;
+  }
+  return i < TWIN_LIST;
+}
+#else
+#define TWIN_SPLIT 0
+#endif
 
 static u32             pool_size;
 static u32             pool_row;
@@ -3839,7 +3866,11 @@ A32_LOOP(fadd, f32_rewrap(f32_unbox(o) + f32_unbox(v)))
 // A stack of exact generations per class. The host pops and pushes at rd;
 // a device pass pops below rd and pushes above top, compacted after it.
 
+#if BEND_SPLIT
+#define bank_at(H, c) ((DEV Bank*)((H) + (H)[H_TWIN + 3]) + (c))
+#else
 #define bank_at(H, c) ((DEV Bank*)((H) + H_BANK) + (c))
+#endif
 
 INLINE u64 bank_pop(DEV u64* H, u32 c) {
   DEV Bank* b = bank_at(H, c);
@@ -3915,12 +3946,22 @@ OUTLINE u64 heap_alloc_miss(Env e, u32 cls) {
   u32 n = got ? KEEP(cls) : cls < NCLS ? QUANTUM >> cls : 1;
   if (!got) {
     u32 pages = (n << cls) >> PAGE_BITS;
+#if BEND_SPLIT
+    u32 top = a32_sub(a32_at(H, H_CAP), pages);
+    u32 p   = top - pages;
+    if (top < a32_load(a32_at(H, H_BUMP)) + pages) {
+      a32_add(a32_at(H, H_CAP), pages);
+      err_post(H, ERR_HEAP);
+      return HEAP_OFF;
+    }
+#else
     u32 p     = a32_add(a32_at(H, H_BUMP), pages);
     if ((u64)p + pages > a32_load_acq(a32_at(H, H_CAP))
       && !corpus_grow(H, (u64)p + pages)) {
       err_post(H, ERR_HEAP);
       return HEAP_OFF;
     }
+#endif
     got = HEAP_OFF + ((u64)p << PAGE_BITS);
     for (u32 i = 1; i <= n; i += 1) {
       H[got + ((u64)(i - 1) << cls)] = i < n ? got + ((u64)i << cls) : 0;
@@ -3945,6 +3986,19 @@ INLINE void heap_free(Env e, u32 cls, u64 loc) {
   if (err_seen(e.mem)) {
     return;
   }
+#if BEND_SPLIT
+  if (loc < HEAP_OFF + ((u64)(u32)e.mem[H_BUMP] << PAGE_BITS)) {
+    u32 i = a32_add(a32_at(e.mem, H_TWIN), 1);
+    if (i < (u32)e.mem[H_TWIN + 2]) {
+      ((DEV u64*)e.mem[H_TWIN + 1])[i] = loc | (u64)cls << 56;
+      return;
+    }
+  }
+#elif TWIN_SPLIT
+  if (loc >= twin_top && twin_give(loc, cls)) {
+    return;
+  }
+#endif
   e.mem[loc]       = ALC_AT(e, cls);
   ALC_AT(e, cls)   = loc;
   ALC_LEN(e, cls) += 1ull << cls;
@@ -4769,6 +4823,18 @@ INLINE void dev_cut(Env e) {
   }
 }
 
+#if BEND_SPLIT
+// A split twin's lanes take back their nodes the host freed, each lane every
+// LANES-th into its chains.
+extern "C" __global__ void twin_give(DEV u64* H, u64* list, u32 n) {
+  u32 me = blockIdx.x * blockDim.x + threadIdx.x;
+  Env e  = { H, H + ALC_OFF + me };
+  for (u32 i = me; me < LANES && i < n; i += LANES) {
+    heap_free(e, (u32)(list[i] >> 56), list[i] & ((1ull << 56) - 1));
+  }
+}
+#endif
+
 INLINE void bank_pack(DEV u64* H, u32 lane) {
   for (u32 c = 0; c < NCLS_ALL; c += 1) {
     DEV Bank* b  = bank_at(H, c);
@@ -4912,6 +4978,51 @@ extern "C" __global__ void window_dev(DEV u64* H, Term root, u32 w, u32 h,
   u32 y = blockIdx.y * blockDim.y + threadIdx.y;
   if (x < w && y < h) {
     out[y * w + x] = window_pix(H, root, k, x, y);
+  }
+}
+#endif
+
+#if BEND_PARK
+INLINE u64 twin_mix(u64 z) {
+  z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+  z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+  return z ^ (z >> 31);
+}
+
+// A twin's chunk sums, two to a chunk of words words from lo: pass 0 takes
+// them for the chunks the host holds (keep), pass 1 keeps those whose sums
+// held through the turn. A block is a chunk under n, or one from m on.
+extern "C" __global__ void twin_sum(DEV u64* H, u64 lo, u32 words, u32 n,
+  u32 m, u8* keep, u64* sums, u32 pass) {
+  __shared__ u64 part[2][256];
+  u32 k = blockIdx.x;
+  u32 c = k < n ? k : m + (k - n);
+  u32 t = threadIdx.x;
+  u64 a = 0;
+  u64 b = 0;
+  if (!keep[k]) {
+    return;
+  }
+  for (u32 i = t; i < words; i += 256) {
+    u64 w = H[lo + (u64)c * words + i];
+    a += twin_mix(w ^ ((u64)i * 0x9E3779B97F4A7C15ull));
+    b += twin_mix(w + ((u64)i << 32) + 0xD1B54A32D192ED03ull);
+  }
+  part[0][t] = a;
+  part[1][t] = b;
+  __syncthreads();
+  for (u32 s = 128; s > 0; s /= 2) {
+    if (t < s) {
+      part[0][t] += part[0][t + s];
+      part[1][t] += part[1][t + s];
+    }
+    __syncthreads();
+  }
+  if (t == 0 && pass == 0) {
+    sums[2 * c]     = part[0][0];
+    sums[2 * c + 1] = part[1][0];
+  } else if (t == 0) {
+    keep[k] = sums[2 * c] == part[0][0] && sums[2 * c + 1] == part[1][0];
   }
 }
 #endif
@@ -5296,9 +5407,13 @@ static bool gpu_probe(void) {
 // Loc is an index and the host never runs during a turn, so a turn copies
 // up what it can touch, and down after. The free-list rows (the host keeps
 // ALC[]) and the lanes' stacks stay in VRAM. The heap is lazy, in chunks:
-// after a turn each is stale (no access); a host touch downloads it clean
+// after a turn each the host held that the turn changed (twin_sum's sums
+// before and after) is stale (no access); a host touch downloads it clean
 // (read-only), a host write makes it dirty (read-write), and the next turn
-// uploads the dirty ones. The bump cannot say what the host wrote: heap_free
+// uploads the dirty ones. One written again within two ups is hot and stays
+// dirty, so it goes up each turn without a fault (the hot ones cool each 64
+// ups): each protection change is a system call (on Windows a lock and a
+// flush of every core too). The bump cannot say what the host wrote: heap_free
 // and heap_alloc rewrite freed slots under it. A fault fills its chunk
 // through gpu_alias, a second mapping, while the chunk still traps, so no
 // other thread sees it half filled. Every copy goes through gpu_alias, whose
@@ -5310,11 +5425,14 @@ static bool gpu_probe(void) {
 #ifndef GPU_PIN
 #define GPU_PIN (2ull << 30)  // bytes of gpu_alias a twin pins at most
 #endif
-#define GPU_CHUNK (1ull << 21)
+// split, the host faults only on the lanes' nodes it reads: finer is
+// cheaper, down to 256 KiB, past which a walk's faults cost more
+#define GPU_CHUNK (TWIN_SPLIT ? 1ull << 18 : 1ull << 21)
 #define GPU_STEP  (8ull << 20)  // a pin's stall stays inside a frame's slack
 #define GPU_DIRTY 0
 #define GPU_STALE 1
 #define GPU_CLEAN 2
+#define GPU_LOAD  3  // a fault fills it; a touch meanwhile retries
 
 // ns a group runs before its lanes park: GPU_WALL over the waves of groups
 // the device fits at once
@@ -5322,6 +5440,10 @@ static u64       gpu_budget;
 static u64*      gpu_vram;
 static char*     gpu_alias;
 static u8*       gpu_state;       // a chunk's GPU_DIRTY, _STALE or _CLEAN
+static u8*       gpu_hot;         // one the host writes each turn: kept dirty
+static u32*      gpu_wrote;       // the up before a chunk's last write, + 1
+static u32       gpu_ups;         // the ups so far
+static u64       gpu_cool;        // where the host's clean chunks cool next
 static u64       gpu_lo, gpu_hi;  // the chunks' bytes in the corpus
 static u32       gpu_lock;
 static u64       gpu_size;        // the corpus's bytes
@@ -5419,37 +5541,122 @@ static void gpu_rings(bool up) {
   }
 }
 
-// The static image and the heap up to the word end: the whole chunks in the
-// heap are lazy, the rest goes at once.
-static void gpu_heap(u64 end, bool up) {
-  u64 e  = end * 8;
-  u64 te = e < gpu_lo ? gpu_lo : e > gpu_hi ? gpu_hi
-    : (e + GPU_CHUNK - 1) & ~(GPU_CHUNK - 1);
-  u64 n  = (te - gpu_lo) / GPU_CHUNK;
-  gpu_copy(STAT_OFF, (e < gpu_lo ? e : gpu_lo) / 8, up);
-  if (e > gpu_hi) {
-    gpu_copy(gpu_hi / 8, end, up);
+static CUfunction  gpu_sum_fn;
+static CUdeviceptr gpu_keep_d;
+static CUdeviceptr gpu_sums_d;
+static u8*         gpu_keep;      // a held chunk twin_sum keeps, packed
+static u64         gpu_n, gpu_m;  // the host's chunks under n, the lanes' from m
+static u64         gpu_sn, gpu_sm;  // gpu_n and gpu_m at pass 0
+
+#define gpu_in(c) ((c) < gpu_n || (c) >= gpu_m)
+
+// the next chunk a walk takes from c: the gap between the ranges is skipped
+#define gpu_next(c) ((c) >= gpu_n && (c) < gpu_m ? gpu_m : (c))
+
+// twin_sum over the held chunks, packed (those under gpu_sn, then those from
+// gpu_sm): pass 0 sums those the host holds, and pass 1 leaves gpu_keep on
+// those of them the turn did not change.
+static void gpu_sum(u64 all, u32 pass) {
+  u64   lo     = gpu_lo / 8;
+  u32   words  = GPU_CHUNK / 8;
+  u32   n      = 0;
+  u32   m      = 0;
+  void* args[] = { &gpu_vram, &lo, &words, &n, &m, &gpu_keep_d, &gpu_sums_d,
+    &pass };
+  if (gpu_keep == NULL && ((gpu_keep = calloc(all + 1, 1)) == NULL
+    || cuModuleGetFunction(&gpu_sum_fn, gpu_lib, "twin_sum") != CUDA_SUCCESS
+    || cuMemAlloc(&gpu_keep_d, all + 1) != CUDA_SUCCESS
+    || cuMemAlloc(&gpu_sums_d, (all + 1) * 16) != CUDA_SUCCESS)) {
+    err_fail("the twin's sums failed");
   }
+  if (pass == 0) {
+    gpu_sn = gpu_n < all ? gpu_n : all;
+    gpu_sm = gpu_m > all ? all : gpu_m > gpu_sn ? gpu_m : gpu_sn;
+  }
+  n = (u32)gpu_sn;
+  m = (u32)gpu_sm;
+  u64 held = gpu_sn + (all - gpu_sm);
+  for (u64 k = 0; pass == 0 && k < held; k += 1) {
+    gpu_keep[k] = gpu_state[k < gpu_sn ? k : gpu_sm + (k - gpu_sn)]
+      != GPU_STALE;
+  }
+  if (held != 0 && ((pass == 0 && cuMemcpyHtoD(gpu_keep_d, gpu_keep, held)
+    != CUDA_SUCCESS) || cuLaunchKernel(gpu_sum_fn, (u32)held, 1, 1, 256, 1, 1,
+    0, NULL, args, NULL) != CUDA_SUCCESS || (pass == 1
+    && cuMemcpyDtoH(gpu_keep, gpu_keep_d, held) != CUDA_SUCCESS))) {
+    err_fail("the twin's sums failed");
+  }
+}
+
+// whether twin_sum kept chunk c through the turn (held at pass 0)
+static bool gpu_kept(u64 c) {
+  return c < gpu_sn ? gpu_keep[c] : c >= gpu_sm && gpu_keep[gpu_sn + c - gpu_sm];
+}
+
+// The static image goes at once, and the heap's chunks lazily: the host's,
+// under its bump, and the lanes', from H_CAP up (none unless split). Up, the
+// dirty ones go; down, those the turn changed go stale.
+static void gpu_heap(u64 end, bool up) {
+  u64*   H   = CORPUS;
+  u64    e   = end * 8;
+  u64    top = (HEAP_OFF + ((u64)a32_load(a32_at(H, H_CAP)) << PAGE_BITS)) * 8;
+  u64    all = (gpu_hi - gpu_lo) / GPU_CHUNK;
+  u64    te  = e < gpu_lo ? gpu_lo : (e + GPU_CHUNK - 1) & ~(GPU_CHUNK - 1);
+  gpu_n = (te - gpu_lo) / GPU_CHUNK;
+  gpu_m = top < gpu_lo ? 0 : (top - gpu_lo) / GPU_CHUNK;
+  gpu_copy(STAT_OFF, (e < gpu_lo ? e : gpu_lo) / 8, up);
   LOCK(gpu_lock);
-  for (u64 c = 0; up && c < n; c += 1) {
+  gpu_ups += up;
+  if (up && gpu_ups % 64 == 0) {
+    memset(gpu_hot, 0, all);
+  }
+  for (u64 c = 0; up && c < all; c = gpu_next(c + 1)) {
     u64 lo = c;
-    while (c < n && gpu_state[c] == GPU_DIRTY) {
+    while (c < all && gpu_in(c) && gpu_state[c] == GPU_DIRTY) {
       c += 1;
     }
     gpu_copy((gpu_lo + lo * GPU_CHUNK) / 8, (gpu_lo + c * GPU_CHUNK) / 8, up);
-    if (!gpu_set(lo, c, GPU_CLEAN)) {
+    for (u64 d = lo; d < c; d += 1) {
+      u64 a = d;
+      while (d < c && !gpu_hot[d]) {
+        d += 1;
+      }
+      if (!gpu_set(a, d, GPU_CLEAN)) {
+        err_fail("corpus protection failed");
+      }
+    }
+  }
+  // a slice of the host's clean chunks goes stale each up, so the held ones
+  // (twin_sum's) are those it touched lately, not all it ever did
+  u64 lo = gpu_n == 0 ? 0 : gpu_cool % gpu_n;
+  u64 hi = lo + gpu_n / 512 + 1 < gpu_n ? lo + gpu_n / 512 + 1 : gpu_n;
+  for (u64 c = lo; up && c < hi; c += 1) {
+    u64 a = c;
+    while (c < hi && gpu_state[c] == GPU_CLEAN && !gpu_hot[c]) {
+      c += 1;
+    }
+    if (!gpu_set(a, c, GPU_STALE)) {
       err_fail("corpus protection failed");
     }
   }
-  if (!up && !gpu_set(0, n, GPU_STALE)) {
-    err_fail("corpus protection failed");
+  gpu_cool = up ? hi : gpu_cool;
+  gpu_sum(all, !up);
+  for (u64 c = 0; !up && c < all; c = gpu_next(c + 1)) {
+    u64 lo = c;
+    while (c < all && gpu_in(c) && !gpu_kept(c) && gpu_state[c] != GPU_STALE) {
+      c += 1;
+    }
+    if (!gpu_set(lo, c, GPU_STALE)) {
+      err_fail("corpus protection failed");
+    }
   }
   UNLOCK(gpu_lock);
 }
 
 // A host touch of a stale chunk downloads it (the context is made current
-// on the faulting thread), and one of a clean chunk is a write; false for a
-// fault that is not the twin's.
+// on the faulting thread) outside gpu_lock, so faults on other chunks go on,
+// and one of a clean chunk is a write; false for a fault that is not the
+// twin's.
 static bool gpu_fault(void* addr) {
   u64 off = (u64)((char*)addr - (char*)CORPUS);
   if (gpu_state == NULL || (char*)addr < (char*)CORPUS || off < gpu_lo
@@ -5460,18 +5667,87 @@ static bool gpu_fault(void* addr) {
   u64  at = gpu_lo + c * GPU_CHUNK;
   bool ok = true;
   LOCK(gpu_lock);
-  if (gpu_state[c] == GPU_STALE) {
+  u8 was = gpu_state[c];
+  if (was == GPU_STALE) {
+    gpu_state[c] = GPU_LOAD;
+  } else if (was == GPU_CLEAN) {
+    ok = gpu_set(c, c + 1, GPU_DIRTY);
+    gpu_hot[c]   = gpu_wrote[c] != 0 && gpu_wrote[c] + 1 >= gpu_ups;
+    gpu_wrote[c] = gpu_ups + 1;
+  }
+  UNLOCK(gpu_lock);
+  if (was == GPU_STALE) {
     ok = cuCtxSetCurrent(gpu_ctx) == CUDA_SUCCESS
       && cuMemcpyDtoH(gpu_alias + at,
         (CUdeviceptr)(uintptr_t)((char*)gpu_vram + at), GPU_CHUNK)
-        == CUDA_SUCCESS
-      && gpu_set(c, c + 1, GPU_CLEAN);
-  } else if (gpu_state[c] == GPU_CLEAN) {
-    ok = gpu_set(c, c + 1, GPU_DIRTY);
+        == CUDA_SUCCESS;
+    LOCK(gpu_lock);
+    ok = ok && gpu_set(c, c + 1, GPU_CLEAN);
+    UNLOCK(gpu_lock);
+  } else if (was == GPU_LOAD) {
+#ifdef _WIN32
+    SwitchToThread();
+#else
+    sched_yield();
+#endif
   }
-  UNLOCK(gpu_lock);
   return ok;
 }
+
+#if TWIN_SPLIT
+static CUfunction  gpu_give_fn;
+static CUdeviceptr gpu_give_d;
+static CUdeviceptr gpu_back_d;
+
+// A split twin's first sync: the lanes' pages start at the last whole chunk
+// and their Bank rows sit on the page past the chunks (their entries in the
+// device's copy of the host's banks), so no bank crosses.
+static void gpu_split(u64* H, u64 end) {
+  Bank rows[NCLS_ALL];
+  u64  top  = (gpu_hi / 8 - HEAP_OFF) >> PAGE_BITS;
+  u32  bump = a32_load(a32_at(H, H_BUMP));
+  u64  at   = end / 8 - PAGE_LEN;
+  for (u32 c = 0; c < NCLS_ALL; c += 1) {
+    rows[c] = (Bank){ bank_at(H, c)->off, 0, 0, 0 };
+  }
+  if (cuModuleGetFunction(&gpu_give_fn, gpu_lib, "twin_give") != CUDA_SUCCESS
+    || cuMemAlloc(&gpu_give_d, TWIN_LIST * 8) != CUDA_SUCCESS
+    || cuMemAlloc(&gpu_back_d, TWIN_LIST * 8) != CUDA_SUCCESS
+    || cuMemcpyHtoD((CUdeviceptr)(uintptr_t)(gpu_vram + at), rows,
+      sizeof rows) != CUDA_SUCCESS) {
+    err_fail("corpus reservation failed");
+  }
+  a32_store(a32_at(H, H_CAP), top > bump ? (u32)top : bump);
+  H[H_TWIN]     = 0;
+  H[H_TWIN + 1] = gpu_back_d;
+  H[H_TWIN + 2] = TWIN_LIST;
+  H[H_TWIN + 3] = at;
+}
+
+// Up, the lanes' nodes the host freed go to them (twin_give); down, the
+// host frees its nodes the lanes sent back, and learns the lanes' bound.
+static void gpu_trade(u64* H, bool up) {
+  u32   n      = up ? twin_n : (u32)H[H_TWIN];
+  void* args[] = { &gpu_vram, &gpu_give_d, &n };
+  n = n < TWIN_LIST ? n : TWIN_LIST;
+  if (n != 0 && (up ? cuMemcpyHtoD(gpu_give_d, twin_list, n * 8)
+    != CUDA_SUCCESS || cuLaunchKernel(gpu_give_fn, (u32)(LANES + 255) / 256,
+    1, 1, 256, 1, 1, 0, NULL, args, NULL) != CUDA_SUCCESS
+    : cuMemcpyDtoH(twin_list, gpu_back_d, n * 8) != CUDA_SUCCESS)) {
+    err_fail("corpus copy failed");
+  }
+  for (u32 i = 0; !up && i < n; i += 1) {
+    heap_free((Env){ H, ALC[0] }, (u32)(twin_list[i] >> 56),
+      twin_list[i] & ((1ull << 56) - 1));
+  }
+  if (up) {
+    twin_n = 0;
+  } else {
+    H[H_TWIN] = 0;
+    twin_top  = HEAP_OFF + ((u64)a32_load(a32_at(H, H_CAP)) << PAGE_BITS);
+  }
+}
+#endif
 
 // Down, the header leads: the bump and the banks come from it.
 static void gpu_sync(bool up) {
@@ -5481,24 +5757,34 @@ static void gpu_sync(bool up) {
   }
   if (gpu_state == NULL) {
     u64 cap = a32_load(a32_at(H, H_CAP));
+    u64 end = (HEAP_OFF + (cap << PAGE_BITS)) * 8;
     gpu_lo    = (HEAP_OFF * 8 + GPU_CHUNK - 1) & ~(GPU_CHUNK - 1);
-    gpu_hi    = ((HEAP_OFF + (cap << PAGE_BITS)) * 8) & ~(GPU_CHUNK - 1);
+    gpu_hi    = (end - (TWIN_SPLIT ? PAGE_LEN * 8 : 0)) & ~(GPU_CHUNK - 1);
     gpu_hi    = gpu_hi < gpu_lo ? gpu_lo : gpu_hi;
     gpu_state = calloc((gpu_hi - gpu_lo) / GPU_CHUNK + 1, 1);
-    if (gpu_state == NULL) {
+    gpu_hot   = calloc((gpu_hi - gpu_lo) / GPU_CHUNK + 1, 1);
+    gpu_wrote = calloc((gpu_hi - gpu_lo) / GPU_CHUNK + 1, sizeof(u32));
+    if (gpu_state == NULL || gpu_hot == NULL || gpu_wrote == NULL) {
       err_fail("corpus reservation failed");
     }
+#if TWIN_SPLIT
+    gpu_split(H, end);
+#endif
   }
   gpu_copy(0, ALC_OFF, up);
   gpu_rings(up);
   gpu_heap(HEAP_OFF + (((u64)a32_load(a32_at(H, H_BUMP)) + 1) << PAGE_BITS),
     up);
+#if TWIN_SPLIT
+  gpu_trade(H, up);
+#else
   for (u32 c = 0; c < NCLS_ALL; c += 1) {
     Bank* b = bank_at(H, c);
     u32   n = b->wr > b->rd ? b->wr : b->rd;
     n = b->top > n ? b->top : n;
     gpu_copy(b->off, b->off + n + 1, up);
   }
+#endif
 }
 
 // A twin's host corpus is two mappings of one zeroed section; its device
@@ -5567,13 +5853,14 @@ static bool gpu_make(const char* path) {
   snprintf(arch, sizeof arch, "--gpu-architecture=sm_%d%d", cc[0], cc[1]);
   snprintf(bag, sizeof bag, "-DCUBE_LOG=%u", CUBE_LOG);
   const char* opts[] = { arch, bag, "--fmad=false", "-default-device",
-    "-DBEND_PARK=1" };
+    "-DBEND_PARK=1", "-DBEND_SPLIT=1" };
   nvrtcProgram prog;
   if (nvrtcCreateProgram(&prog, BEND_SRC, "bend.cu", 0, NULL, NULL)
     != NVRTC_SUCCESS) {
     err_fail("cannot compile the CUDA library");
   }
-  if (nvrtcCompileProgram(prog, gpu_twin ? 5 : 4, opts) != NVRTC_SUCCESS) {
+  if (nvrtcCompileProgram(prog, gpu_twin ? 5 + TWIN_SPLIT : 4, opts)
+    != NVRTC_SUCCESS) {
     size_t n = 0;
     nvrtcGetProgramLogSize(prog, &n);
     char* log = calloc(n + 1, 1);
