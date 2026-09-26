@@ -3767,7 +3767,7 @@ static CUmodule   gpu_lib;
 static CUfunction gpu_pso;
 static CUcontext  gpu_ctx;
 static bool       gpu_twin;
-static bool gpu_fault(void* addr);
+static bool gpu_fault(void* addr, bool wr);
 #endif
 #if !BEND_CUDA
 #define gpu_twin false
@@ -4459,6 +4459,20 @@ INLINE Ring ring_flip(u32 i) {
   return (i % CUBE_T << CUBE_LOG) + i / CUBE_T;
 }
 
+// A twin's sync moves live slots only: a slot one side pushed and took
+// since the last one keeps an older lap on the other, which a take racing a
+// push there reads as full. The mend gives the n slots ring r took since its
+// put was from their lap, with no task (wr), or counts them.
+INLINE u32 ring_mend(Corpus H, Ring r, u32 from, bool wr) {
+  u32 put = a32_load(ring_put(H, r));
+  u32 w   = put - from < RING_LEN ? put - from : (u32)RING_LEN;
+  u32 n   = a32_load(ring_get(H, r)) - (put - w);
+  for (u32 i = 0; wr && n <= w && i < n; i += 1) {
+    ((DEV u32*)ring_slot(H, r, put - w + i))[1] = ring_lap(put - w + i) << 31;
+  }
+  return n <= w ? n : 0;
+}
+
 #define ring_pick(b, s, c) ((b) + (s) * (g32_add(c, 1) & (CUBE_T - 1)))
 
 // Task
@@ -4966,6 +4980,14 @@ extern "C" __global__ void bend_dev(Corpus H, u32 pass) {
   dev_cut(e);
 }
 
+#ifdef BEND_RTC
+// a twin's mend of the host's takes, a lane a ring
+extern "C" __global__ void ring_mend_dev(Corpus H, u32* from) {
+  u32 r = blockIdx.x * blockDim.x + threadIdx.x;
+  ring_mend(H, r, from[r], true);
+}
+#endif
+
 #endif
 
 // Window
@@ -5049,8 +5071,15 @@ static void* pool_mmap(u64 bytes) {
 }
 
 #if BEND_CUDA
+// wr: the page fault's error code says a write (x86-64 Linux; else a read,
+// which a write faults again from)
 static void gpu_trap(int sig, siginfo_t* si, void* uc) {
-  if (!gpu_fault(si->si_addr)) {
+#ifdef REG_ERR
+  bool wr = (((ucontext_t*)uc)->uc_mcontext.gregs[REG_ERR] & 2) != 0;
+#else
+  bool wr = false;
+#endif
+  if (!gpu_fault(si->si_addr, wr)) {
     err_trap(sig);
   }
 }
@@ -5388,10 +5417,13 @@ static bool gpu_probe(void) {
 #ifndef GPU_WALL
 #define GPU_WALL 250000000ull  // ns a twin's launch runs, far under a TDR
 #endif
-#define GPU_CHUNK (1ull << 21)
+#define GPU_CHUNK (1ull << 18)  // 256 KB: a touch downloads less
 #define GPU_DIRTY 0
 #define GPU_STALE 1
 #define GPU_CLEAN 2
+#define GPU_FETCHED 3  // stale's bytes, fetched at the leave; still traps
+#define GPU_KEYS  8
+#define GPU_WORDS (((gpu_hi - gpu_lo) / GPU_CHUNK >> 6) + 1)  // a bitmap's
 
 // ns a group runs before its lanes park: GPU_WALL over the waves of groups
 // the device fits at once
@@ -5400,7 +5432,14 @@ static Corpus    gpu_vram;
 static char*     gpu_alias;
 static u8*       gpu_state;       // a chunk's GPU_DIRTY, _STALE or _CLEAN
 static u64       gpu_lo, gpu_hi;  // the chunks' bytes in the corpus
-static u32       gpu_lock;
+static u32*      gpu_lock;        // a chunk's, for its faults
+static u64*      gpu_cur;         // the chunks touched since the leave
+static bool      gpu_pf;          // BEND_GPU_PREFETCH=0: no fetch
+typedef struct {
+  u32 key;         // a bang's fid
+  u64 last, *hist; // its last leave; the touches after it
+} GpuKey;
+static GpuKey    gpu_keys[GPU_KEYS], *gpu_at;  // whose leave opened it
 
 static void gpu_copy(u64 lo, u64 hi, bool up) {
   CUdeviceptr d = (CUdeviceptr)(uintptr_t)(gpu_vram + lo);
@@ -5411,7 +5450,8 @@ static void gpu_copy(u64 lo, u64 hi, bool up) {
   }
 }
 
-// the chunks [lo, hi) enter a state, under gpu_lock
+// the chunks [lo, hi) enter a state, under their locks or in a sync (no
+// host thread runs then)
 static bool gpu_set(u64 lo, u64 hi, u8 state) {
   char* p = (char*)CORPUS + gpu_lo + lo * GPU_CHUNK;
   u64   n = (hi - lo) * GPU_CHUNK;
@@ -5431,10 +5471,14 @@ static bool gpu_set(u64 lo, u64 hi, u8 state) {
 }
 
 // Of the rings only [get, put) is ever read: the counter planes go, and
-// the slot planes some ring has live.
+// the slot planes some ring has live; then the other side's mend from each
+// ring's put at the last sync (from, zero as the corpus starts).
 static void gpu_rings(bool up) {
-  static u8 live[1u << 17];  // RING_LEN at its widest (CUBE_LOG = 0)
-  Corpus    H = CORPUS;
+  static u8          live[1u << 17];  // RING_LEN at its widest (CUBE_LOG = 0)
+  static u32         from[1u << 14];  // LANES at its widest
+  static CUfunction  pso;
+  static CUdeviceptr at;
+  Corpus             H = CORPUS;
   gpu_copy(RING_OFF + RING_LEN * LANES, RING_OFF + (RING_LEN + 2) * LANES, up);
   memset(live, 0, RING_LEN);
   for (u32 r = 0; r < LANES; r += 1) {
@@ -5452,11 +5496,63 @@ static void gpu_rings(bool up) {
     }
     gpu_copy(RING_OFF + lo * LANES, RING_OFF + w * LANES, up);
   }
+  u64   n      = 0;
+  void* args[] = { &gpu_vram, &at };
+  for (u32 r = 0; r < LANES; r += 1) {
+    n += ring_mend(H, r, from[r], !up);
+  }
+  if (up && n != 0 && ((pso == NULL && (cuModuleGetFunction(&pso, gpu_lib,
+    "ring_mend_dev") != CUDA_SUCCESS || cuMemAlloc(&at, LANES * 4)
+    != CUDA_SUCCESS)) || cuMemcpyHtoD(at, from, LANES * 4) != CUDA_SUCCESS
+    || cuLaunchKernel(pso, CUBE_G, 1, 1, CUBE_T, 1, 1, 0, NULL, args, NULL)
+    != CUDA_SUCCESS)) {
+    err_fail("device launch failed");
+  }
+  for (u32 r = 0; r < LANES; r += 1) {
+    from[r] = a32_load(ring_put(H, r));
+  }
+}
+
+// Prefetch: a leave of bang k also fetches, in runs, the n chunks the host
+// touched after k's last leave (a new key takes the least recently left of
+// GPU_KEYS, and fetches nothing).
+static void gpu_fetch(u32 k, u64 n) {
+  static u64 turn;
+  GpuKey*    s = gpu_keys;
+  for (GpuKey* g = gpu_keys; g < gpu_keys + GPU_KEYS; g += 1) {
+    if (g->hist != NULL && g->key == k) {
+      s = g;
+      break;
+    }
+    s = g->last < s->last ? g : s;
+  }
+  if (s->key != k || s->hist == NULL) {
+    s->hist = s->hist != NULL ? s->hist : malloc(GPU_WORDS * 8);
+    if (s->hist == NULL) {
+      err_fail("corpus reservation failed");
+    }
+    memset(s->hist, 0, GPU_WORDS * 8);
+    s->key = k;
+  }
+  s->last = ++turn;
+  gpu_at  = s;
+  for (u64 c = 0; gpu_pf && c < n; c += 1) {
+    u64 lo = c;
+    while (c < n && s->hist[c >> 6] >> (c & 63) & 1) {
+      c += 1;
+    }
+    u64 at = gpu_lo + lo * GPU_CHUNK;
+    if (c > lo && cuMemcpyDtoH(gpu_alias + at, (CUdeviceptr)(uintptr_t)
+      ((char*)gpu_vram + at), (c - lo) * GPU_CHUNK) != CUDA_SUCCESS) {
+      err_fail("corpus copy failed");
+    }
+    memset(gpu_state + lo, GPU_FETCHED, c - lo);
+  }
 }
 
 // The static image and the heap up to the word end: the whole chunks in the
 // heap are lazy, the rest goes at once.
-static void gpu_heap(u64 end, bool up) {
+static void gpu_heap(u64 end, bool up, u32 k) {
   u64 e  = end * 8;
   u64 te = e < gpu_lo ? gpu_lo : e > gpu_hi ? gpu_hi
     : (e + GPU_CHUNK - 1) & ~(GPU_CHUNK - 1);
@@ -5465,7 +5561,6 @@ static void gpu_heap(u64 end, bool up) {
   if (e > gpu_hi) {
     gpu_copy(gpu_hi / 8, end, up);
   }
-  LOCK(gpu_lock);
   for (u64 c = 0; up && c < n; c += 1) {
     u64 lo = c;
     while (c < n && gpu_state[c] == GPU_DIRTY) {
@@ -5479,13 +5574,16 @@ static void gpu_heap(u64 end, bool up) {
   if (!up && !gpu_set(0, n, GPU_STALE)) {
     err_fail("corpus protection failed");
   }
-  UNLOCK(gpu_lock);
+  if (!up) {
+    gpu_fetch(k, n);
+  }
 }
 
 // A host touch of a stale chunk downloads it (the context is made current
-// on the faulting thread), and one of a clean chunk is a write; false for a
+// on the faulting thread) and of a fetched one opens it, dirty for a write,
+// either counted in gpu_cur; one of a clean chunk is a write; false for a
 // fault that is not the twin's.
-static bool gpu_fault(void* addr) {
+static bool gpu_fault(void* addr, bool wr) {
   u64 off = (u64)((char*)addr - (char*)CORPUS);
   if (gpu_state == NULL || (char*)addr < (char*)CORPUS || off < gpu_lo
     || off >= gpu_hi) {
@@ -5494,22 +5592,23 @@ static bool gpu_fault(void* addr) {
   u64  c  = (off - gpu_lo) / GPU_CHUNK;
   u64  at = gpu_lo + c * GPU_CHUNK;
   bool ok = true;
-  LOCK(gpu_lock);
-  if (gpu_state[c] == GPU_STALE) {
-    ok = cuCtxSetCurrent(gpu_ctx) == CUDA_SUCCESS
-      && cuMemcpyDtoH(gpu_alias + at,
+  LOCK(gpu_lock[c]);
+  if (gpu_state[c] == GPU_STALE || gpu_state[c] == GPU_FETCHED) {
+    ok = (gpu_state[c] == GPU_FETCHED || (cuCtxSetCurrent(gpu_ctx)
+      == CUDA_SUCCESS && cuMemcpyDtoH(gpu_alias + at,
         (CUdeviceptr)(uintptr_t)((char*)gpu_vram + at), GPU_CHUNK)
-        == CUDA_SUCCESS
-      && gpu_set(c, c + 1, GPU_CLEAN);
+        == CUDA_SUCCESS)) && gpu_set(c, c + 1, wr ? GPU_DIRTY : GPU_CLEAN);
+    __atomic_fetch_or(&gpu_cur[c >> 6], 1ull << (c & 63), __ATOMIC_RELAXED);
   } else if (gpu_state[c] == GPU_CLEAN) {
     ok = gpu_set(c, c + 1, GPU_DIRTY);
   }
-  UNLOCK(gpu_lock);
+  UNLOCK(gpu_lock[c]);
   return ok;
 }
 
-// Down, the header leads: the bump and the banks come from it.
-static void gpu_sync(bool up) {
+// Down, the header leads: the bump and the banks come from it; k: the bang
+// a leave ends.
+static void gpu_sync(bool up, u32 k) {
   Corpus H = CORPUS;
   if (!gpu_twin) {
     return;
@@ -5520,19 +5619,28 @@ static void gpu_sync(bool up) {
     gpu_hi    = ((HEAP_OFF + (cap << PAGE_BITS)) * 8) & ~(GPU_CHUNK - 1);
     gpu_hi    = gpu_hi < gpu_lo ? gpu_lo : gpu_hi;
     gpu_state = calloc((gpu_hi - gpu_lo) / GPU_CHUNK + 1, 1);
-    if (gpu_state == NULL) {
+    gpu_lock  = calloc((gpu_hi - gpu_lo) / GPU_CHUNK + 1, 4);
+    gpu_cur   = calloc(GPU_WORDS, 8);
+    gpu_pf    = getenv("BEND_GPU_PREFETCH") == NULL
+      || atoi(getenv("BEND_GPU_PREFETCH")) != 0;
+    if (gpu_state == NULL || gpu_lock == NULL || gpu_cur == NULL) {
       err_fail("corpus reservation failed");
     }
+  }
+  if (up && gpu_at != NULL) {  // the interval's touches: gpu_at's history
+    u64* h = gpu_at->hist;
+    gpu_at->hist = gpu_cur;
+    gpu_cur      = memset(h, 0, GPU_WORDS * 8);
   }
   gpu_copy(0, ALC_OFF, up);
   gpu_rings(up);
   gpu_heap(HEAP_OFF + (((u64)a32_load(a32_at(H, H_BUMP)) + 1) << PAGE_BITS),
-    up);
+    up, k);
   for (Cls c = 0; c < NCLS_ALL; c += 1) {
     Bank* b = bank_at(H, c);
     u32   n = b->wr > b->rd ? b->wr : b->rd;
     n = b->top > n ? b->top : n;
-    gpu_copy(b->off, b->off + n + 1, up);
+    gpu_copy(b->off, b->off + n + (n != 0), up);  // an empty bank: no call
   }
 }
 
@@ -5731,7 +5839,7 @@ static void gpu_pass(u32 f) {
 #endif
 
 #if !BEND_CUDA
-#define gpu_sync(up)
+#define gpu_sync(up, k)
 #endif
 
 // Cube
@@ -5873,9 +5981,9 @@ OUTLINE Term corpus_eval(Corpus H, Term t) {
         H[tl]     = TERM_HOLE;
         a32_store(a32_at(H, H_CURSOR), 1);
         ring_push(H, 0, t);
-        gpu_sync(true);
+        gpu_sync(true, 0);
         cube_run(H, true);
-        gpu_sync(false);
+        gpu_sync(false, (u32)term_aux(t));
         Term p = task_deliver(H, cont, idx, rv, root_take(H, rv));
         if (root_done(H)) {
           break;
