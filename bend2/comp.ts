@@ -5275,11 +5275,17 @@ static bool gpu_probe(void) {
 // uploads the dirty ones. The bump cannot say what the host wrote: heap_free
 // and heap_alloc rewrite freed slots under it. A fault fills its chunk
 // through gpu_alias, a second mapping, while the chunk still traps, so no
-// other thread sees it half filled.
+// other thread sees it half filled. Every copy goes through gpu_alias, whose
+// steps are pinned once each has carried twice its size (GPU_PIN at most): a
+// pinned copy runs about twice as fast, and a pin costs about two copies.
 #ifndef GPU_WALL
 #define GPU_WALL 250000000ull  // ns a twin's launch runs, far under a TDR
 #endif
+#ifndef GPU_PIN
+#define GPU_PIN (2ull << 30)  // bytes of gpu_alias a twin pins at most
+#endif
 #define GPU_CHUNK (1ull << 21)
+#define GPU_STEP  (8ull << 20)  // a pin's stall stays inside a frame's slack
 #define GPU_DIRTY 0
 #define GPU_STALE 1
 #define GPU_CLEAN 2
@@ -5292,13 +5298,35 @@ static char*     gpu_alias;
 static u8*       gpu_state;       // a chunk's GPU_DIRTY, _STALE or _CLEAN
 static u64       gpu_lo, gpu_hi;  // the chunks' bytes in the corpus
 static u32       gpu_lock;
+static u64       gpu_size;        // the corpus's bytes
+static u64*      gpu_heat;        // bytes a step carried; ~0 once pinned
+static u64       gpu_pinned;      // bytes pinned (a refusal sets GPU_PIN)
 
+// the step at byte at is pinned once hot
+static void gpu_pin(u64 at, u64 n) {
+  u64* heat = &gpu_heat[at / GPU_STEP];
+  u64  lo   = at & ~(GPU_STEP - 1);
+  u64  len  = gpu_size - lo < GPU_STEP ? gpu_size - lo : GPU_STEP;
+  if (*heat == ~0ull || (*heat += n) < 2 * GPU_STEP || gpu_pinned >= GPU_PIN) {
+    return;
+  }
+  bool ok = cuMemHostRegister(gpu_alias + lo, len, 0) == CUDA_SUCCESS;
+  *heat      = ok ? ~0ull : 0;
+  gpu_pinned = ok ? gpu_pinned + len : GPU_PIN;
+}
+
+// a copy is cut at the steps: CUDA refuses one across two pinned ranges
 static void gpu_copy(u64 lo, u64 hi, bool up) {
-  CUdeviceptr d = (CUdeviceptr)(uintptr_t)(gpu_vram + lo);
-  u64         n = (hi - lo) * 8;
-  if (hi > lo && (up ? cuMemcpyHtoD(d, CORPUS + lo, n)
-    : cuMemcpyDtoH(CORPUS + lo, d, n)) != CUDA_SUCCESS) {
-    err_fail("corpus copy failed");
+  for (u64 to; lo < hi; lo = to) {
+    CUdeviceptr d   = (CUdeviceptr)(uintptr_t)(gpu_vram + lo);
+    u64*        h   = (u64*)gpu_alias + lo;
+    u64         cut = (lo * 8 / GPU_STEP + 1) * (GPU_STEP / 8);
+    to = hi < cut ? hi : cut;
+    gpu_pin(lo * 8, (to - lo) * 8);
+    if ((up ? cuMemcpyHtoD(d, h, (to - lo) * 8)
+      : cuMemcpyDtoH(h, d, (to - lo) * 8)) != CUDA_SUCCESS) {
+      err_fail("corpus copy failed");
+    }
   }
 }
 
@@ -5460,7 +5488,10 @@ static u64* gpu_twin_map(u64 bytes) {
   h         = h == MAP_FAILED ? NULL : h;
   gpu_alias = gpu_alias == MAP_FAILED ? NULL : gpu_alias;
 #endif
-  if (h == NULL || gpu_alias == NULL || cuMemAlloc(&v, bytes) != CUDA_SUCCESS
+  gpu_size = bytes;
+  gpu_heat = calloc(bytes / GPU_STEP + 1, sizeof(u64));
+  if (h == NULL || gpu_alias == NULL || gpu_heat == NULL
+    || cuMemAlloc(&v, bytes) != CUDA_SUCCESS
     || cuMemsetD8(v, 0, (STAK_OFF + 2 * CUBE) * 8) != CUDA_SUCCESS) {
     err_fail("corpus reservation failed");
   }
