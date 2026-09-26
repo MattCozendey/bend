@@ -5322,19 +5322,25 @@ static bool gpu_set(u64 lo, u64 hi, u8 state) {
 }
 
 // Of the rings only [get, put) is ever read: the counter planes go, and
-// the slot planes some ring has live.
+// the slot planes some ring wrote since the last sync (from its put then).
+// A slot one side pushed and took in between crosses too: left with an
+// older lap, the other side's copy would pass a take racing the next push
+// there.
 static void gpu_rings(bool up) {
-  static u8 live[1u << 17];  // RING_LEN at its widest (CUBE_LOG = 0)
-  u64*      H = CORPUS;
+  static u8  live[1u << 17];  // RING_LEN at its widest (CUBE_LOG = 0)
+  static u32 from[1u << 14];  // a ring's put at the last sync; LANES wide
+  u64*       H = CORPUS;
   gpu_copy(RING_OFF + RING_LEN * LANES, RING_OFF + (RING_LEN + 2) * LANES, up);
   memset(live, 0, RING_LEN);
   for (u32 r = 0; r < LANES; r += 1) {
     u32 get = a32_load(ring_get(H, r));
-    u32 n   = a32_load(ring_put(H, r)) - get;
+    u32 put = a32_load(ring_put(H, r));
+    u32 n   = put - from[r] > put - get ? put - from[r] : put - get;
     n = n < RING_LEN ? n : (u32)RING_LEN;
     for (u32 i = 0; i < n; i += 1) {
-      live[(get + i) & (RING_LEN - 1)] = 1;
+      live[(put - n + i) & (RING_LEN - 1)] = 1;
     }
+    from[r] = put;
   }
   for (u64 w = 0; w < RING_LEN; w += 1) {
     u64 lo = w;
