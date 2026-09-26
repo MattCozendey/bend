@@ -3767,7 +3767,7 @@ static CUmodule   gpu_lib;
 static CUfunction gpu_pso;
 static CUcontext  gpu_ctx;
 static bool       gpu_twin;
-static bool gpu_fault(void* addr);
+static bool gpu_fault(void* addr, bool wr);
 #endif
 #if !BEND_CUDA
 #define gpu_twin false
@@ -5071,8 +5071,15 @@ static void* pool_mmap(u64 bytes) {
 }
 
 #if BEND_CUDA
+// wr: the page fault's error code says a write (x86-64 Linux; else a read,
+// which a write faults again from)
 static void gpu_trap(int sig, siginfo_t* si, void* uc) {
-  if (!gpu_fault(si->si_addr)) {
+#ifdef REG_ERR
+  bool wr = (((ucontext_t*)uc)->uc_mcontext.gregs[REG_ERR] & 2) != 0;
+#else
+  bool wr = false;
+#endif
+  if (!gpu_fault(si->si_addr, wr)) {
     err_trap(sig);
   }
 }
@@ -5524,9 +5531,9 @@ static void gpu_heap(u64 end, bool up) {
 }
 
 // A host touch of a stale chunk downloads it (the context is made current
-// on the faulting thread), and one of a clean chunk is a write; false for a
-// fault that is not the twin's.
-static bool gpu_fault(void* addr) {
+// on the faulting thread), dirty for a write, and one of a clean chunk is a
+// write; false for a fault that is not the twin's.
+static bool gpu_fault(void* addr, bool wr) {
   u64 off = (u64)((char*)addr - (char*)CORPUS);
   if (gpu_state == NULL || (char*)addr < (char*)CORPUS || off < gpu_lo
     || off >= gpu_hi) {
@@ -5541,7 +5548,7 @@ static bool gpu_fault(void* addr) {
       && cuMemcpyDtoH(gpu_alias + at,
         (CUdeviceptr)(uintptr_t)((char*)gpu_vram + at), GPU_CHUNK)
         == CUDA_SUCCESS
-      && gpu_set(c, c + 1, GPU_CLEAN);
+      && gpu_set(c, c + 1, wr ? GPU_DIRTY : GPU_CLEAN);
   } else if (gpu_state[c] == GPU_CLEAN) {
     ok = gpu_set(c, c + 1, GPU_DIRTY);
   }
