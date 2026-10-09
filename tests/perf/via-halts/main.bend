@@ -18,3 +18,7 @@ def main() -> IO(Unit):
   show(via([1n, 2n]))
 
 #|8
+#?ALL PROOFS CHECK
+#?Use --verdict for mathematical validity.
+#?PERF routes:
+#?- dbl -> PERF.dbl_fast (top call)

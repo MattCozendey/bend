@@ -307,11 +307,12 @@ async function cli_file(args: string[]): Promise<void> {
     const seen = new Map<string, string | null>();
     const book = await book_read(file, undefined, seen, perf);
     if (only || verdict) {
-      const routes = perf_rules(book);
+      const { rules, deep } = perf_plan(book);
       process.exitCode = cli_verdict(book, verdict);
-      if (process.exitCode === 0 && routes.size > 0) {
-        cli_say(1, "PERF routes:\n" + [...routes].map(([f, g]) => "- "
-          + Bend.name_key(f) + " -> " + Bend.name_key(g) + "\n").join(""));
+      if (process.exitCode === 0 && rules.size > 0) {
+        cli_say(1, "PERF routes:\n" + [...rules].map(([f, g]) => "- "
+          + Bend.name_key(f) + " -> " + Bend.name_key(g)
+          + (deep.has(f) ? " (every call)" : " (top call)") + "\n").join(""));
       }
       return;
     }
@@ -883,34 +884,153 @@ async function perf_load(book: Bend.Book, file: string,
   await Bend.book_load(book, perf, PERF, seen, undefined, top);
 }
 
-// perf_inpile is the book a run or a build compiles: every rule's f,
-// called from outside the code the routes reach, calls its g instead.
-function perf_inpile(book: Bend.Book): Bend.Book {
+// A plan: the rules, the code the routes reach (keep), and the rules
+// whose route takes f's every call, its self-calls too (deep).
+type Perf_Plan = { rules: Map<string, string>; keep: Set<string>;
+  deep: Set<string> };
+
+// perf_plan reads the plan off a checked book. A rule's f outside keep
+// is switched everywhere, self-calls included. An f inside keep switches
+// its self-calls only when perf_deep shows the loop f -> g -> f shrinks.
+function perf_plan(book: Bend.Book): Perf_Plan {
   const rules = perf_rules(book);
+  const reach = new Map([...rules.values()].map((g) =>
+    [g, perf_reach(book, g)]));
+  const keep = new Set([...reach.values()].flatMap((r) => [...r]));
+  const deep = new Set([...rules].filter(([f, g]) => !keep.has(f)
+    || perf_deep(book, f, g, reach.get(g)!, rules)).map(([f]) => f));
+  return { rules, keep, deep };
+}
+
+// perf_reach is every def k's code may call, k included.
+function perf_reach(book: Bend.Book, k: string): Set<string> {
+  const seen = new Set<string>();
+  for (const todo = [k]; todo.length > 0;) {
+    const j = todo.pop()!;
+    const t = book.tlds[j];
+    if (seen.has(j) || t?.$ !== "Def" || t.v === null) {
+      continue;
+    }
+    seen.add(j);
+    todo.push(...perf_refs(t));
+  }
+  return seen;
+}
+
+function perf_refs(t: Bend.Def): Set<string> {
+  const rs = new Set<string>();
+  term_refs(t.e ?? Bend.term_lower(t.v!), rs);
+  return rs;
+}
+
+// perf_inpile is the book a run or a build compiles: every rule's f,
+// called from outside the code the routes reach, calls its g instead,
+// and a deep rule's f calls its g in its own body.
+function perf_inpile(book: Bend.Book): Bend.Book {
+  const { rules, keep, deep } = perf_plan(book);
   if (rules.size === 0) {
     return book;
   }
-  const keep = new Set<string>();
-  for (const todo = [...rules.values()]; todo.length > 0;) {
-    const k = todo.pop()!;
-    const t = book.tlds[k];
-    if (keep.has(k) || t?.$ !== "Def" || t.v === null) {
-      continue;
-    }
-    keep.add(k);
-    const rs = new Set<string>();
-    term_refs(t.e ?? Bend.term_lower(t.v), rs);
-    todo.push(...rs);
-  }
+  const swap = (t: Bend.Def, by: Map<string, string>): Bend.Def => ({ ...t,
+    v: Bend.term_higher(perf_swap(Bend.term_lower(t.v!), by)),
+    e: t.e && perf_swap(t.e, by) });
   const tlds: Record<string, Bend.TLD> = Object.create(null);
   for (const k of Object.keys(book.tlds)) {
     const t = book.tlds[k];
     tlds[k] = t.$ !== "Def" || t.v === null || t.b === true || t.m === PERF
-      || keep.has(k) ? t : { ...t,
-        v: Bend.term_higher(perf_swap(Bend.term_lower(t.v), rules)),
-        e: t.e && perf_swap(t.e, rules) };
+      ? t : !keep.has(k) ? swap(t, rules) : deep.has(k)
+      ? swap(t, new Map([[k, rules.get(k)!]])) : t;
   }
   return { ...book, tlds };
+}
+
+// perf_deep holds when switching f's self-calls to g cannot loop. f's
+// self-calls descend (the checker proved it); then every path from g back
+// to f must not grow f's arguments. So:
+// - in g's reach, only g names f, and no other rule's f is there;
+// - each call f(a0, .., an) in g passes in every live column j g's own
+//   parameter j or a part of it (a field of a match on it), as Bend's
+//   descent check reads columns; erased columns may pass anything.
+// Each trip f -> g -> f then shrinks f's arguments, so the trips end.
+function perf_deep(book: Bend.Book, f: string, g: string,
+  reach: Set<string>, rules: Map<string, string>): boolean {
+  for (const k of reach) {
+    const t = book.tlds[k] as Bend.Def;
+    if ((k !== f && rules.has(k)) || (k !== g && k !== f
+      && perf_refs(t).has(f))) {
+      return false;
+    }
+  }
+  const F = book.tlds[f] as Bend.Def;
+  const G = book.tlds[g] as Bend.Def;
+  const live: boolean[] = [];
+  for (let T = Bend.term_lower(F.T); T.$ === "All"; T = T.B) {
+    live.push(T.q.$ !== "None");
+  }
+  let ok = G.e !== undefined;
+  // a variable's column, or null: a level maps to the column it is part of
+  type Cols = Map<number, number | null>;
+  const col = (env: Cols, t: Bend.LTerm): number | null => {
+    const x = perf_bare(t);
+    return x.$ === "Var" ? env.get(x.i) ?? null : null;
+  };
+  const walk = (t: Bend.LTerm, env: Cols, spine: (number | null)[]): void => {
+    const x = perf_bare(t);
+    if (!ok) {
+      return;
+    }
+    if (x.$ === "Lam") {
+      walk(x.f, new Map(env).set(x.i, spine[0] ?? null), spine.slice(1));
+    } else if (x.$ === "Mat") {
+      const s = spine[0] ?? null;
+      const n = book.ctrs[x.k]?.n ?? 0;
+      walk(x.h, env, [...Array<number | null>(n).fill(s), ...spine.slice(1)]);
+      walk(x.m, env, [s, ...spine.slice(1)]);
+    } else if (x.$ === "Let") {
+      const e = new Map(env);
+      x.v.forEach((v, j) => {
+        walk(v, env, []);
+        e.set(x.i[j], col(env, v));
+      });
+      walk(x.f, e, []);
+    } else if (x.$ === "App") {
+      const xs: Bend.LTerm[] = [];
+      let h = x as Bend.LTerm;
+      for (; perf_bare(h).$ === "App"; h = (perf_bare(h) as { f: Bend.LTerm }).f) {
+        xs.unshift((perf_bare(h) as { x: Bend.LTerm }).x);
+      }
+      const hd = perf_bare(h);
+      xs.forEach((a) => walk(a, env, []));
+      if (hd.$ === "Ref" && hd.k === f) {
+        ok = xs.length >= live.length
+          && live.every((l, j) => !l || col(env, xs[j]) === j);
+      } else if (hd.$ !== "Ref") {
+        walk(hd, env, xs.map((a) => col(env, a)));
+      }
+    } else if (x.$ === "Ref") {
+      ok = x.k !== f;
+    } else {
+      for (const k in x) {
+        const v = (x as Record<string, unknown>)[k];
+        if (k !== "s" && typeof v === "object" && v !== null) {
+          for (const y of Array.isArray(v) ? v : [v]) {
+            if (typeof y === "object" && y !== null && "$" in y) {
+              walk(y as Bend.LTerm, env, []);
+            }
+          }
+        }
+      }
+    }
+  };
+  if (ok) {
+    walk(G.e!, new Map(), live.map((_, j) => j));
+  }
+  return ok;
+}
+
+// perf_bare is t without its annotations.
+function perf_bare(t: Bend.LTerm): Bend.LTerm {
+  return t.$ === "Ann" ? perf_bare(t.x) : t;
 }
 
 // perf_rules maps each rule's f to its g.
