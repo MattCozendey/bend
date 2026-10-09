@@ -207,6 +207,43 @@ program with the exponent from the command line (WSL, C build):
 Without the deep check the route would take the top call only and save
 one call of 2^n.
 
+### Another representation: demos/perf_tree_array
+
+A route may hand the data to a very different structure and back, as long
+as the result is proven equal.
+
+- Bend's `Array` is logically a binary tree (`ALeaf`/`ANode`) and a
+  contiguous buffer at run time: the compiler turns `Array.get`, `set`,
+  `swap`, `size` and `new` into direct buffer access (`OPERATIONS` in
+  comp.ts). Their Bend definitions are the specification proofs read.
+- Measured first (WSL, C, answers checked against Python): reads by index
+  are where contiguity pays. k scattered reads cost 15.4 s on a 262144
+  element List for k = 10000, and 0.05 s on an Array for k = 100M. A sum
+  over 4M elements, 100 passes: List 4.9 s, Array read by index 0.11 s,
+  but an Array walked like a tree (matching `ALeaf`/`ANode` and handing it
+  back) 8.0 s, slower than the List.
+- main.bend keeps a sequence as a perfect binary `Tree` and reads it the
+  way a perfect tree is read: wrap the index to the size, descend by
+  comparing with the half size. `lookups` sums k reads.
+- PERF.bend's route checks the tree is perfect, turns it into an `Array`
+  once (`to_arr`, node for node), and reads with `Array.get`; any other
+  tree keeps `M.lookups`. The guard is for the run time: an `ANode` whose
+  halves differ in size stops the program, which the checker cannot see
+  (the Bend definition allows it).
+- The proofs need no U32 arithmetic lemma: `Array.get` reads its tree with
+  the same `shr`, `sub`, `is_lt` and `and` that `tree_get` uses on the
+  Tree, so each lemma (`size_arr`, `go_arr`, `get_arr`, `lookups_arr_eq`,
+  `pick_eq`) is a plain induction where both sides compute the same.
+- Results (WSL, C build; same answers both ways):
+
+      depth  reads   plain (--no-perf)   inpiled
+      18     1M      0.11 s              0.01 s
+      18     10M     1.08 s              0.02 s
+      22     1M      0.58 s              0.17 s
+      22     10M     4.53 s              0.20 s
+
+  At depth 22 the conversion (4M leaves) is most of the inpiled time.
+
 ### Tests: tests/perf
 
 One directory per case (lowercase, digits and hyphens: the repo gate's
@@ -224,6 +261,8 @@ are.
     pow2-every-call     a route calling pow2 on n's predecessor: every call
     grow-top-call       a route calling pow2 on same(n), not a part of n:
                         top call
+    tree-array          a perfect tree read through an Array, a lopsided
+                        one through main's lookups: same sums
     io-extra-print      an IO route with one more print: its proof fails
     unsafe-route        a route relying on @unsafe code: refused
     wrong-type          a route whose parameter mode differs: refused
