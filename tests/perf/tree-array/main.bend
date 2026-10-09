@@ -67,3 +67,4 @@ def main() -> IO(Unit):
 #?Use --verdict for mathematical validity.
 #?PERF routes:
 #?- lookups -> PERF.lookups_fast (top call)
+#?- lookups(_, _, build(..), _) -> PERF.lookups_built (producer)

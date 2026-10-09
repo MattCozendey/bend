@@ -68,7 +68,8 @@ equivalence; the compiler only switches calls.
     def foo.fast(x):
       ...   # the proof
 
-A rule is any PERF def or law whose type is
+A rule is a PERF `law` (an equality a `def` states in its own type is a
+lemma, never a rule) whose type is
 `{f(x0, .., xn) == g(x0, .., xn) : T}`, quantified over all of f's
 parameters in order, where:
 
@@ -88,9 +89,10 @@ other rules (`report.fast` in the demo uses `rev.fast`).
 2. Recognize (`perf_rules`): collect the rules.
    - A rule whose route has another type than f is an error.
    - A rule that relies on an @unsafe or foreign def is refused.
-   - Other lemmas, even ones that look alike (`rev_go_app` in the demo),
-     are not rules. `--check-only` lists the routes it found, so a near
-     miss is visible:
+   - Only laws are rules: a proof lemma of a rule's shape (`rev_go_app`
+     in the demo, a producer rule's shape) is never switched on, which
+     would put main on code written only to prove something.
+     `--check-only` lists the routes it found, so a near miss is visible:
 
          ALL PROOFS CHECK
          PERF routes:
@@ -166,7 +168,7 @@ that can lead back to foo.
   root aliases the namespace that file lives in, so PERF.bend's `M.foo`
   resolves to main.bend's root `foo`; error messages keep root names bare.
 - `bend2/main.ts`: the loader, `--no-perf`, rule recognition, the plan
-  (with the deep check), the switch, the route listing.
+  (with the deep check), producer rules, the switch, the route listing.
 - No change to the checker's rules, the emitters or the runtimes.
 
 ### The demo: demos/perf_reverse
@@ -244,6 +246,44 @@ as the result is proven equal.
 
   At depth 22 the conversion (4M leaves) is most of the inpiled time.
 
+### Producer rules
+
+A producer rule switches a call by its shape: f called on what a
+producer p returns.
+
+    law lookups.built:
+      for k: Nat
+      for +i: U32
+      for +d: Nat
+      for +lo: U32
+      for acc: U32
+      {M.lookups(k, i, M.build(d, lo), acc) == lookups_built(k, i, d, lo, acc) : U32}
+
+- The left side is a call of a def outside PERF.bend and Base whose
+  arguments are rule variables or calls of defs outside PERF.bend on rule
+  variables, at least one such call. The right side is a PERF def applied
+  to the rule variables, each once, in any order. Each of its parameters
+  has the type and mode of the slot its variable fills on the left; else
+  the rule is an error.
+- `perf_match` switches, in the same main code as a plain rule (outside
+  the code the routes reach), every call whose producers sit in their
+  slots; the first producer rule in file order wins, and a call that
+  matches none falls to f's plain rule, if any. The halting argument does
+  not change: a route only runs original, checked code.
+- The listing shows it: `- lookups(_, _, build(..), _) ->
+  PERF.lookups_built (producer)`.
+
+In perf_tree_array, main reads `build(d, 0)`'s tree, so the producer
+route builds the Array directly (`build_arr`, proven equal to
+`to_arr(build(..))` by one induction): no Tree, no conversion, no guard
+(build's trees are perfect). The compiled C holds no `build`. Times
+(WSL, C; same answers):
+
+      depth  reads   plain     convert route   producer route
+      22     1M      0.58 s    0.20 s          0.08 s
+      22     10M     4.53 s    0.20 s          0.14 s
+      24     1M      1.04 s    0.77 s          0.36 s
+
 ### Tests: tests/perf
 
 One directory per case (lowercase, digits and hyphens: the repo gate's
@@ -261,8 +301,12 @@ are.
     pow2-every-call     a route calling pow2 on n's predecessor: every call
     grow-top-call       a route calling pow2 on same(n), not a part of n:
                         top call
-    tree-array          a perfect tree read through an Array, a lopsided
-                        one through main's lookups: same sums
+    tree-array          build's tree takes the producer route, a lopsided
+                        one the plain route's fallback: same sums
+    producer-route      show on via's list switched to a route that never
+                        builds it (an IO producer rule)
+    producer-type       a producer route whose parameter mode differs from
+                        its slot's: refused
     io-extra-print      an IO route with one more print: its proof fails
     unsafe-route        a route relying on @unsafe code: refused
     wrong-type          a route whose parameter mode differs: refused
@@ -303,12 +347,9 @@ looking inside. The phase 2 ideas carry over as more specific rules:
 
 - The general route is always correct: the compiler may keep a call on f
   wherever it judges the route not worth it.
-- Producer rules: a rule over a call pattern, e.g.
-  `{M.foo(M.make(a)) == foo_small(M.make(a)) : T}`, switches only calls of
-  foo on make's output, straight to the shape's algorithm with no guard.
-  It covers results whose shape the code decides, even when `a` comes from
-  input, and reuses phase 1's recognition with a pattern in place of plain
-  variables.
+- Producer rules: built (above). A rule over a call pattern switches only
+  calls of f on a producer's output, straight to the shape's algorithm
+  with no guard, even when the producer's inputs come from input.
 - Compile-time evaluation: the compiler already folds whole programs on
   constant input (seen in the demo); a route on constant input folds with
   it.
