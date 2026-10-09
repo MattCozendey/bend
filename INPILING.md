@@ -21,6 +21,9 @@ PERF.bend changes how fast the program runs, never what it prints.
   `gates/perf.ts`, `gates/safe.ts`, `gates/ping.ts`); they may be too much
   for the machine. Run single tests or demos, and ask before running any
   gate.
+- Run `--verdict` conservatively: it builds and runs the Lean kernel and
+  is very expensive. Use `--check-only` day to day; run `--verdict` only
+  when a change needs the kernel's answer, one file at a time.
 
 ## Principles
 
@@ -167,23 +170,44 @@ program would never stop.
   input, the compiler folds the whole linear program at compile time,
   which hides the runtime comparison.
 
-### Negative cases (checked by hand in WSL)
+### Tests: tests/perf
 
-- A route reaching foo through main code (route -> M.via -> M.foo):
-  checks, runs, halts, prints the same answer.
-- An IO route with an extra effect: its proof fails.
-- An @unsafe route: refused.
-- A route whose parameter mode differs from foo's: refused, with the
-  required shape.
-- main.bend importing PERF.bend: rejected (an import cycle).
-- A PERF.bend that does not import ./main.bend: rejected.
+One directory per case (lowercase, digits and hyphens: the repo gate's
+allow line for `tests/<ns>/<dir>/<Name>.bend`), each a main.bend, its
+PERF.bend, and the `#|` lines its run must print at the end of main.bend.
+The test gate reads only the `.bend` files directly in `tests/<ns>/`, so
+it skips these directories; they run by hand, and the gates stay as they
+are.
+
+    rev-route           a pure rule and an IO rule proven with it
+    via-halts           a route reaching dbl through main's via: halts
+    io-extra-print      an IO route with one more print: its proof fails
+    unsafe-route        a route relying on @unsafe code: refused
+    wrong-type          a route whose parameter mode differs: refused
+    two-routes          two routes for one function: refused
+    main-imports-perf   main.bend imports PERF.bend: refused
+    perf-no-import      PERF.bend does not import ./main.bend: refused
+
+A passing case prints its `#|` lines with and without PERF.bend; a failing
+case (its `#|` lines start with `SOME PROOFS FAIL` or `Error:`) prints
+them with it. In WSL, from the repo root:
+
+    for d in tests/perf/*/; do
+      tidy() { tr -d '\r' | sed 's/[ \t]*$//'; }
+      want=$(grep '^#|' "${d}main.bend" | sed 's/^#|//' | tidy)
+      got=$(bun bend2/main.ts "${d}main.bend" 2>&1 | tidy)
+      case "$want" in
+        "SOME PROOFS FAIL"*|Error:*) bare=$want ;;
+        *) bare=$(bun bend2/main.ts "${d}main.bend" --no-perf 2>&1 | tidy) ;;
+      esac
+      [ "$got" = "$want" ] && [ "$bare" = "$want" ] \
+        && echo "PASS $d" || echo "FAIL $d"
+    done
 
 ### Not done yet
 
-- Tests in `tests/`: a test is one file, so a main.bend + PERF.bend pair
-  does not fit the test gate yet. It needs a layout (say, a directory per
-  test) and a with/without-PERF comparison in `gates/test.ts`.
-- `--verdict` on the demo (it builds the Lean kernel CLI).
+- `--verdict` on the demo (it builds the Lean kernel CLI; see Working
+  rules).
 - Templates: a def with ~ parameters cannot be a rule's f or g yet (phase
   3).
 
