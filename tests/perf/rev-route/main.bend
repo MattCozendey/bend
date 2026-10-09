@@ -28,3 +28,8 @@ def main() -> IO(Unit):
   report(rev([1n, 2n, 3n]))
 
 #|1
+#?ALL PROOFS CHECK
+#?Use --verdict for mathematical validity.
+#?PERF routes:
+#?- rev -> PERF.rev_fast (every call)
+#?- report -> PERF.report_fast (every call)

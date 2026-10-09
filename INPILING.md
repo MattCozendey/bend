@@ -94,13 +94,19 @@ other rules (`report.fast` in the demo uses `rev.fast`).
 
          ALL PROOFS CHECK
          PERF routes:
-         - rev -> PERF.rev_fast
-         - report -> PERF.report_fast
+         - rev -> PERF.rev_fast (every call)
+         - report -> PERF.report_fast (every call)
+
+   Each route says whether it takes every call of f or the top call only
+   (see the halting rule).
 
 3. Switch (`perf_inpile`), for runs and builds only, never for
    `--check-only`, `--verdict` or `-o x.bendtt`, which see the program as
    checked. Every reference to a rule's f, in every def outside PERF.bend
-   and Base that the routes do not reach, becomes a reference to its g.
+   and Base that the routes do not reach, becomes a reference to its g;
+   so does an f's reference to itself when its rule passes the deep check
+   (below). The decision is `perf_plan`, which the route listing reads
+   too.
    Both the checked body (`e`, which the emitters compile) and the value
    (`v`, which the interpreter runs) are switched.
 4. Emit as usual. C, Metal, CUDA and JS get the switched book with no
@@ -118,13 +124,28 @@ never saw. The rule: code the routes reach keeps its own calls.
 - Main code outside that set calls routes; a route only ever runs
   original, checked code, so every call into a route returns.
 
-The cost of the rule: when a route falls back on M.foo, foo's own
-recursive calls stay on foo, so the route applies only at the top call. A
-route that should apply at every level of a recursion recurses on itself:
-the route owns the recursion, and the checker checks it. Switching foo's
-self-calls instead is not safe in general: a route equal to foo may call
-foo on a larger input (sum(xs) as sum(xs ++ [0])), and the switched
-program would never stop.
+So when a route falls back on M.foo, foo's own recursive calls would stay
+on foo, and the route would apply only at the top call. Switching them
+blindly is not safe: a route equal to foo may call foo on a larger input
+(sum(xs) as sum(xs ++ [0])), and the switched program would never stop.
+
+The deep check (`perf_deep`) switches foo's self-calls too when the loop
+foo -> route -> foo provably shrinks:
+
+- in the route's reach, only the route names foo, and no other rule's f
+  is there;
+- every call `M.foo(a0, .., an)` in the route passes, in each live column
+  j, the route's own parameter j or a part of it (a field of a match on
+  it), the way Bend's descent check reads columns; erased columns may pass
+  anything.
+
+foo's self-calls shrink its arguments (the checker proved it), and the
+route never grows them, so each trip around the loop shrinks them and the
+trips end. A route that fails the check is still a route, for the top
+call; the listing says `(top call)`. A route that never reaches foo takes
+every call with no check needed. Bend lets a def call only defs declared
+before it and itself, so foo's self-calls are the only ones in its body
+that can lead back to foo.
 
 ### IO
 
@@ -144,8 +165,8 @@ program would never stop.
   `name_show`): an import of a file already loaded as the
   root aliases the namespace that file lives in, so PERF.bend's `M.foo`
   resolves to main.bend's root `foo`; error messages keep root names bare.
-- `bend2/main.ts`: the loader, `--no-perf`, rule recognition, the switch,
-  the route listing.
+- `bend2/main.ts`: the loader, `--no-perf`, rule recognition, the plan
+  (with the deep check), the switch, the route listing.
 - No change to the checker's rules, the emitters or the runtimes.
 
 ### The demo: demos/perf_reverse
@@ -170,17 +191,39 @@ program would never stop.
   input, the compiler folds the whole linear program at compile time,
   which hides the runtime comparison.
 
+### Every-call routing: pow2
+
+`tests/perf/pow2-every-call`: main.bend's `pow2(1+p)` adds `pow2(p)` to
+itself with two calls, so it takes 2^n steps; the route matches n and
+calls `M.pow2(p)` once. The route passes the deep check, so pow2's own
+calls switch too and every level takes the route: n steps. The same
+program with the exponent from the command line (WSL, C build):
+
+      n     plain (--no-perf)   inpiled
+      20    0.00 s              0.00 s
+      24    0.05 s              0.00 s
+      26    0.24 s              0.00 s
+
+Without the deep check the route would take the top call only and save
+one call of 2^n.
+
 ### Tests: tests/perf
 
 One directory per case (lowercase, digits and hyphens: the repo gate's
 allow line for `tests/<ns>/<dir>/<Name>.bend`), each a main.bend, its
-PERF.bend, and the `#|` lines its run must print at the end of main.bend.
+PERF.bend, and the `#|` lines its run must print at the end of main.bend;
+a case may add `#?` lines, what `--check-only` must print (the route
+listing, with each route's kind).
 The test gate reads only the `.bend` files directly in `tests/<ns>/`, so
 it skips these directories; they run by hand, and the gates stay as they
 are.
 
     rev-route           a pure rule and an IO rule proven with it
-    via-halts           a route reaching dbl through main's via: halts
+    via-halts           a route reaching dbl through main's via: halts,
+                        top call
+    pow2-every-call     a route calling pow2 on n's predecessor: every call
+    grow-top-call       a route calling pow2 on same(n), not a part of n:
+                        top call
     io-extra-print      an IO route with one more print: its proof fails
     unsafe-route        a route relying on @unsafe code: refused
     wrong-type          a route whose parameter mode differs: refused
@@ -200,7 +243,10 @@ them with it. In WSL, from the repo root:
         "SOME PROOFS FAIL"*|Error:*) bare=$want ;;
         *) bare=$(bun bend2/main.ts "${d}main.bend" --no-perf 2>&1 | tidy) ;;
       esac
+      ask=$(grep '^#?' "${d}main.bend" | sed 's/^#?//' | tidy)
+      [ -z "$ask" ] || seen=$(bun bend2/main.ts "${d}main.bend" --check-only 2>&1 | tidy)
       [ "$got" = "$want" ] && [ "$bare" = "$want" ] \
+        && { [ -z "$ask" ] || [ "$seen" = "$ask" ]; } \
         && echo "PASS $d" || echo "FAIL $d"
     done
 
@@ -227,9 +273,7 @@ looking inside. The phase 2 ideas carry over as more specific rules:
 - Compile-time evaluation: the compiler already folds whole programs on
   constant input (seen in the demo); a route on constant input folds with
   it.
-- Self-call routing: let a rule switch f's own recursive calls when the
-  route provably calls f only on smaller inputs, so a route applies at
-  every level of a recursion without owning it.
+- Self-call routing: built (the deep check, in phase 1 above).
 
 The remainder keeps the route's own check: shapes that depend on input
 with no rule about them.
@@ -258,4 +302,6 @@ function of its own that wants a route.
   gate.
 - The repo gate: `gates/repo.ts` keeps an allow list of files; this file,
   the demo and PERF.bend files would need entries there.
-- Self-call routing (phase 2): which proof obligation makes it safe.
+- The deep check reads parts of a parameter through matches only; a
+  route that takes its input apart some other way (a let of a pair, a
+  helper) gets the top call. Widen it if a real route needs it.
