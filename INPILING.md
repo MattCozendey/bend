@@ -287,6 +287,34 @@ route builds the Array directly (`build_arr`, proven equal to
       22     10M     4.53 s    0.20 s          0.14 s
       24     1M      1.04 s    0.77 s          0.36 s
 
+### Data from a file: demos/perf_file_lookup
+
+The routes above mostly meet data the program built itself. Here the data
+is read: main.bend reads numbers from a file, one per line, pairs them
+level by level into a balanced Tree (the natural bottom-up build) and
+sums k scattered reads, as perf_tree_array does. The tree is perfect
+exactly when the file holds 2^n numbers, so the route's guard decides
+from the data at run time. PERF.bend is perf_tree_array's route and
+proofs, unchanged.
+
+Two files of random numbers below 2^31: 2^20 lines (perfect) and
+1,000,000 lines (lopsided). Every answer below matches a Python model of
+main's own tree and reads. WSL, C, CPU; about 0.5 s of each run is
+reading and parsing the 12 MB file:
+
+      file        reads   plain     inpiled
+      2^20        1M      1.08 s    0.51 s
+      2^20        10M     4.14 s    0.49 s
+      2^20        50M     17.84 s   0.58 s
+      1,000,000   1M      0.79 s    0.76 s
+      1,000,000   10M     4.02 s    4.12 s
+      1,000,000   50M     18.11 s   15.61 s
+
+The perfect file takes the Array, about 30x the plain run at 50M reads;
+the lopsided one keeps main's lookups either way, as the guard says.
+There is no test case for it: a test is .bend files only, and the
+tree-array case already takes both of the guard's answers.
+
 ### An existing demo: pure_par_sort
 
 `demos/pure_par_sort` is the repo's own bitonic sort, untouched: main
