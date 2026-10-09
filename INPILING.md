@@ -412,6 +412,17 @@ parameters and need none of this.
 Small (tens of lines). Waits for a real program with a higher-order
 function of its own that wants a route.
 
+## TODO
+
+- Report to the maintainers, as a GitHub issue: the runtime can drift
+  from the checked program. An `ANode` whose two halves differ in size
+  checks (Bend's `Array` definition allows it) but stops the compiled
+  program (`bend: runtime fail-stop`); found building
+  `ANode{ALeaf{0}, a}` in a benchmark, and the reason
+  perf_tree_array's route checks the tree is perfect. The Array
+  intrinsics (`Array.get`, `set`, `swap`, `size`, `new`) are trusted to
+  match their Bend definitions the same way.
+
 ## Open questions
 
 - Test layout for PERF pairs, and the with/without-PERF comparison in the
