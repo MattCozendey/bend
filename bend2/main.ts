@@ -1161,17 +1161,17 @@ function perf_prod(book: Bend.Book, k: string, T: Bend.HTerm):
     || G.m !== PERF || lhs!.xs.length !== F.n || rhs!.xs.length !== G.n) {
     return null;
   }
-  // slot[v]: the mode and type of the parameter variable v fills
+  // slot[v]: the mode and type of the parameter variable v fills; a
+  // variable may fill several slots of one mode and type
   const slot: [Bend.Quant, Bend.LTerm][] = [];
   const fill = (ds: [Bend.Quant, Bend.LTerm][], xs: Bend.LTerm[]):
     number[] | null => {
-    const vs = xs.map((x) => perf_bare(x)).map((x) => x.$ === "Var"
-      && x.i >= 0 && x.i < n && slot[x.i] === undefined ? x.i : -1);
-    if (vs.includes(-1) || new Set(vs).size !== vs.length) {
-      return null;
-    }
-    vs.forEach((v, j) => slot[v] = ds[j]);
-    return vs;
+    const vs = xs.map((x) => perf_bare(x)).map((x) =>
+      x.$ === "Var" && x.i >= 0 && x.i < n ? x.i : -1);
+    const ok = vs.every((v, j) => v >= 0 && (slot[v] === undefined
+      ? (slot[v] = ds[j], true)
+      : slot[v][0].$ === ds[j][0].$ && term_same(slot[v][1], ds[j][1])));
+    return ok ? vs : null;
   };
   const args: Perf_Arg[] = [];
   for (const [j, x] of lhs!.xs.entries()) {
@@ -1223,21 +1223,23 @@ function perf_spine(t: Bend.LTerm): { k: string; xs: Bend.LTerm[] } | null {
 }
 
 // perf_match is t as its producer rule's g call, or null if none matches:
-// the first rule, in file order, whose producers sit in their slots.
+// the first rule, in file order, whose producers sit in their slots and
+// whose repeated variables meet the same term (a pure term: one value).
 function perf_match(book: Bend.Book, t: Bend.LTerm,
   prods: Map<string, Perf_Prod[]>): Bend.LTerm | null {
   const sp = perf_spine(t);
   for (const r of sp === null ? [] : prods.get(sp.k) ?? []) {
     const n = (book.tlds[r.f] as Bend.Def).n;
     const env: Bend.LTerm[] = [];
+    const bind = (v: number, x: Bend.LTerm): boolean => env[v] === undefined
+      ? (env[v] = x, true) : term_same(perf_bare(env[v]), perf_bare(x));
     const ok = sp!.xs.length >= n && r.args.every((a, j) => {
       if (typeof a === "number") {
-        env[a] = sp!.xs[j];
-        return true;
+        return bind(a, sp!.xs[j]);
       }
       const q = perf_spine(sp!.xs[j]);
-      q?.xs.forEach((x, i) => env[a.vs[i]] = x);
-      return q !== null && q.k === a.p && q.xs.length === a.vs.length;
+      return q !== null && q.k === a.p && q.xs.length === a.vs.length
+        && q.xs.every((x, i) => bind(a.vs[i], x));
     });
     if (ok) {
       const call = [...r.order.map((i) => env[i]), ...sp!.xs.slice(n)]
