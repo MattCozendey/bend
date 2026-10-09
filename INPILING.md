@@ -184,7 +184,8 @@ program would never stop.
   does not fit the test gate yet. It needs a layout (say, a directory per
   test) and a with/without-PERF comparison in `gates/test.ts`.
 - `--verdict` on the demo (it builds the Lean kernel CLI).
-- Templates: a def with ~ parameters cannot be a rule's f or g yet.
+- Templates: a def with ~ parameters cannot be a rule's f or g yet (phase
+  3).
 
 ## Phase 2: fewer checks, more routes
 
@@ -208,6 +209,24 @@ looking inside. The phase 2 ideas carry over as more specific rules:
 
 The remainder keeps the route's own check: shapes that depend on input
 with no rule about them.
+
+## Phase 3: templates
+
+A def with ~ parameters is a template: each call with concrete ~
+arguments mints a checked instance (`def_inst`), and main's code calls
+the instances, not the template. Erased parameters (`-A: Type`) are plain
+parameters and need none of this.
+
+- Rules: let a rule's law take ~ clauses, with f and g templates of the
+  same type.
+- Switch: for each instance of f that main's code calls (`book.tmps`
+  lists them), mint and check g's instance at the same ~ arguments, and
+  switch the call to it.
+- Unknown: whether a checked book keeps each instance's ~ argument terms;
+  if not, `bend.ts` keeps them.
+
+Small (tens of lines). Waits for a real program with a higher-order
+function of its own that wants a route.
 
 ## Open questions
 
