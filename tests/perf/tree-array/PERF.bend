@@ -1,6 +1,6 @@
-# perf (tree-array): a perfect tree becomes a contiguous Array for its
-# reads; a lopsided one fails the route's guard and keeps main's lookups.
-# Both print what main.bend alone prints.
+# perf (tree-array): lookups on build's tree takes the producer route (an
+# Array built directly); on a lopsided tree it takes the plain route,
+# whose guard keeps main's lookups. Both print what main.bend alone prints.
 import Base
 import ./main.bend as M
 
@@ -129,3 +129,43 @@ law lookups.fast:
 
 def lookups.fast(k, i, t, acc):
   pick_eq(k, i, t, acc, perfect(t))
+
+# A producer rule
+# ---------------
+
+# main calls lookups on build's tree: that call reads an Array built
+# directly, with no Tree to convert and no guard, as build's trees are
+# perfect
+
+# build's tree, built as an Array
+def build_arr(d: Nat, +lo: U32) -> Array<U32>:
+  match d:
+    case 0n:
+      ALeaf{lo}
+    case 1n++p:
+      ANode{build_arr(p, lo), build_arr(p, U32.add(lo, M.pw(p)))}
+
+def build_arr_eq(d: Nat, +lo: U32) -> {to_arr(M.build(d, lo)) == build_arr(d, lo) : Array<U32>}:
+  match d:
+    case 0n:
+      {==}
+    case 1n++p:
+      %build_arr_eq(p, lo) : {ANode{to_arr(M.build(p, lo)), to_arr(M.build(p, U32.add(lo, M.pw(p))))} == ANode{_, build_arr(p, U32.add(lo, M.pw(p)))} : Array<U32>}
+      %build_arr_eq(p, U32.add(lo, M.pw(p))) : {ANode{to_arr(M.build(p, lo)), to_arr(M.build(p, U32.add(lo, M.pw(p))))} == ANode{to_arr(M.build(p, lo)), _} : Array<U32>}
+      {==}
+
+def lookups_built(k: Nat, +i: U32, d: Nat, +lo: U32, acc: U32) -> U32:
+  Pair.snd(Array<U32>, U32, lookups_arr(k, i, (build_arr(d, lo), acc)))
+
+law lookups.built:
+  for k: Nat
+  for +i: U32
+  for +d: Nat
+  for +lo: U32
+  for acc: U32
+  {M.lookups(k, i, M.build(d, lo), acc) == lookups_built(k, i, d, lo, acc) : U32}
+
+def lookups.built(k, i, d, lo, acc):
+  %build_arr_eq(d, lo) : {M.lookups(k, i, M.build(d, lo), acc) == Pair.snd(Array<U32>, U32, lookups_arr(k, i, (_, acc))) : U32}
+  %lookups_arr_eq(k, i, M.build(d, lo), acc) : {M.lookups(k, i, M.build(d, lo), acc) == Pair.snd(Array<U32>, U32, _) : U32}
+  {==}

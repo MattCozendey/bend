@@ -307,12 +307,17 @@ async function cli_file(args: string[]): Promise<void> {
     const seen = new Map<string, string | null>();
     const book = await book_read(file, undefined, seen, perf);
     if (only || verdict) {
-      const { rules, deep } = perf_plan(book);
+      const { rules, prods, deep } = perf_plan(book);
+      const key = Bend.name_key;
+      const routes = [...[...rules].map(([f, g]) => key(f) + " -> " + key(g)
+        + (deep.has(f) ? " (every call)" : " (top call)")),
+        ...[...prods.values()].flat().map((r) => key(r.f) + "("
+        + r.args.map((a) => typeof a === "number" ? "_" : key(a.p) + "(..)")
+          .join(", ") + ") -> " + key(r.g) + " (producer)")];
       process.exitCode = cli_verdict(book, verdict);
-      if (process.exitCode === 0 && rules.size > 0) {
-        cli_say(1, "PERF routes:\n" + [...rules].map(([f, g]) => "- "
-          + Bend.name_key(f) + " -> " + Bend.name_key(g)
-          + (deep.has(f) ? " (every call)" : " (top call)") + "\n").join(""));
+      if (process.exitCode === 0 && routes.length > 0) {
+        cli_say(1, "PERF routes:\n" + routes.map((r) => "- " + r + "\n")
+          .join(""));
       }
       return;
     }
@@ -857,14 +862,18 @@ async function book_read(file: string, base?: Bend.Book,
 // ======
 
 // A PERF.bend beside main.bend gives main's defs faster routes, and main
-// never names it. A rule is a PERF def or law whose type is
-// {f(x0, .., xn) == g(x0, .., xn) : T} over f's parameters in order: f a
-// def outside PERF and Base, g a PERF def of f's type. A run or a build
-// calls g where main's code called f. The checker never sees that switch,
-// so code a route reaches keeps its own calls: a route that falls back on
-// f runs the f main wrote, and no switched call re-enters a route.
+// never names it. A rule is a PERF law (a def's own equality is a lemma,
+// never a rule) whose type is {f(x0, .., xn) == g(x0, .., xn) : T} over
+// f's parameters in order: f a def outside PERF and Base, g a PERF def of
+// f's type. A run or a build calls g where main's code called f. The
+// checker never sees that switch, so code a route reaches keeps its own
+// calls: a route that falls back on f runs the f main wrote, and no
+// switched call re-enters a route.
 
 const PERF = "PERF";
+
+// the laws each book's PERF.bend declares: the only rules it may hold
+const PERF_LAWS = new WeakMap<Bend.Book, Set<string>>();
 
 // perf_load loads the PERF.bend beside a main.bend into its book.
 async function perf_load(book: Bend.Book, file: string,
@@ -876,30 +885,47 @@ async function perf_load(book: Bend.Book, file: string,
   if (seen.has(fs.realpathSync(perf))) {
     throw "Error: main.bend must not import PERF.bend";
   }
-  if (!/^import\s+\.\/main\.bend\s+as\s+\w+\s*(#.*)?$/m
-    .test(fs.readFileSync(perf, "utf8"))) {
+  const text = fs.readFileSync(perf, "utf8");
+  if (!/^import\s+\.\/main\.bend\s+as\s+\w+\s*(#.*)?$/m.test(text)) {
     throw "Error: PERF.bend must import ./main.bend";
   }
   const top = path.dirname(fs.realpathSync(file)) + "/";
   await Bend.book_load(book, perf, PERF, seen, undefined, top);
+  PERF_LAWS.set(book, new Set([...text.matchAll(/^law\s+([\w.]+)\s*:/gm)]
+    .map((m) => PERF + ":" + m[1])));
 }
 
-// A plan: the rules, the code the routes reach (keep), and the rules
-// whose route takes f's every call, its self-calls too (deep).
-type Perf_Plan = { rules: Map<string, string>; keep: Set<string>;
-  deep: Set<string> };
+// perf_laws is the book's PERF laws, in file order.
+function perf_laws(book: Bend.Book): string[] {
+  const laws = PERF_LAWS.get(book) ?? new Set();
+  return [...new Set(book.order)].filter((k) => laws.has(k));
+}
+
+// A plan: the rules, the producer rules by f, the code the routes reach
+// (keep), and the rules whose route takes f's every call, its self-calls
+// too (deep).
+type Perf_Plan = { rules: Map<string, string>;
+  prods: Map<string, Perf_Prod[]>; keep: Set<string>; deep: Set<string> };
+
+// A producer rule {f(.., p(..), ..) == g(..) : T}: f's arguments are rule
+// variables (by level) or producer calls on them; g takes every variable
+// once, in its order.
+type Perf_Prod = { f: string; g: string; args: Perf_Arg[]; order: number[] };
+type Perf_Arg = number | { p: string; vs: number[] };
 
 // perf_plan reads the plan off a checked book. A rule's f outside keep
 // is switched everywhere, self-calls included. An f inside keep switches
 // its self-calls only when perf_deep shows the loop f -> g -> f shrinks.
 function perf_plan(book: Bend.Book): Perf_Plan {
   const rules = perf_rules(book);
-  const reach = new Map([...rules.values()].map((g) =>
-    [g, perf_reach(book, g)]));
+  const prods = new Map<string, Perf_Prod[]>();
+  perf_prods(book).forEach((r) => prods.set(r.f, [...prods.get(r.f) ?? [], r]));
+  const gs = [...rules.values(), ...[...prods.values()].flat().map((r) => r.g)];
+  const reach = new Map(gs.map((g) => [g, perf_reach(book, g)]));
   const keep = new Set([...reach.values()].flatMap((r) => [...r]));
   const deep = new Set([...rules].filter(([f, g]) => !keep.has(f)
     || perf_deep(book, f, g, reach.get(g)!, rules)).map(([f]) => f));
-  return { rules, keep, deep };
+  return { rules, prods, keep, deep };
 }
 
 // perf_reach is every def k's code may call, k included.
@@ -923,23 +949,25 @@ function perf_refs(t: Bend.Def): Set<string> {
   return rs;
 }
 
-// perf_inpile is the book a run or a build compiles: every rule's f,
-// called from outside the code the routes reach, calls its g instead,
-// and a deep rule's f calls its g in its own body.
+// perf_inpile is the book a run or a build compiles. Outside the code the
+// routes reach, a call matching a producer rule calls its g, and every
+// other call of a rule's f calls its g; a deep rule's f calls its g in its
+// own body.
 function perf_inpile(book: Bend.Book): Bend.Book {
-  const { rules, keep, deep } = perf_plan(book);
-  if (rules.size === 0) {
+  const { rules, prods, keep, deep } = perf_plan(book);
+  if (rules.size === 0 && prods.size === 0) {
     return book;
   }
-  const swap = (t: Bend.Def, by: Map<string, string>): Bend.Def => ({ ...t,
-    v: Bend.term_higher(perf_swap(Bend.term_lower(t.v!), by)),
-    e: t.e && perf_swap(t.e, by) });
+  const swap = (t: Bend.Def, by: Map<string, string>,
+    ps: Map<string, Perf_Prod[]>): Bend.Def => ({ ...t,
+    v: Bend.term_higher(perf_swap(book, Bend.term_lower(t.v!), by, ps)),
+    e: t.e && perf_swap(book, t.e, by, ps) });
   const tlds: Record<string, Bend.TLD> = Object.create(null);
   for (const k of Object.keys(book.tlds)) {
     const t = book.tlds[k];
     tlds[k] = t.$ !== "Def" || t.v === null || t.b === true || t.m === PERF
-      ? t : !keep.has(k) ? swap(t, rules) : deep.has(k)
-      ? swap(t, new Map([[k, rules.get(k)!]])) : t;
+      ? t : !keep.has(k) ? swap(t, rules, prods) : deep.has(k)
+      ? swap(t, new Map([[k, rules.get(k)!]]), new Map()) : t;
   }
   return { ...book, tlds };
 }
@@ -1037,7 +1065,7 @@ function perf_bare(t: Bend.LTerm): Bend.LTerm {
 function perf_rules(book: Bend.Book): Map<string, string> {
   const rules = new Map<string, string>();
   const shaky = new Set(book_promises(book));
-  for (const k of new Set(book.order)) {
+  for (const k of perf_laws(book)) {
     const law = book.tlds[k];
     const rule = law.$ === "Def" && law.m === PERF && law.v !== null
       ? perf_rule(book, k, law.T) : null;
@@ -1094,18 +1122,152 @@ function perf_call(t: Bend.LTerm, n: number): string | null {
     && xs.every((x, i) => x.$ === "Var" && x.i === i) ? t.k : null;
 }
 
-// perf_swap renames every call of a rule's f in t to its g.
-function perf_swap<T>(t: T, rules: Map<string, string>): T {
+// perf_prods lists the producer rules, in file order.
+function perf_prods(book: Bend.Book): Perf_Prod[] {
+  const shaky = new Set(book_promises(book));
+  const out: Perf_Prod[] = [];
+  for (const k of perf_laws(book)) {
+    const law = book.tlds[k];
+    const r = law.$ === "Def" && law.m === PERF && law.v !== null
+      ? perf_prod(book, k, law.T) : null;
+    if (r !== null && shaky.has(k)) {
+      throw "Error: the PERF rule " + Bend.name_key(k)
+        + " relies on an @unsafe or foreign def";
+    }
+    out.push(...r === null ? [] : [r]);
+  }
+  return out;
+}
+
+// perf_prod reads a producer rule off a law's type, or null if it is none.
+// Each of g's parameters has the type and mode of the slot its variable
+// fills on the left.
+function perf_prod(book: Bend.Book, k: string, T: Bend.HTerm):
+  Perf_Prod | null {
+  let t = Bend.term_lower(T);
+  let n = 0;
+  for (; t.$ === "All"; n++) {
+    t = t.B;
+  }
+  const lhs = t.$ === "Eql" ? perf_spine(t.a) : null;
+  const rhs = t.$ === "Eql" ? perf_spine(t.b) : null;
+  const def = (j: string | undefined): Bend.Def | null => {
+    const d = j === undefined ? undefined : book.tlds[j];
+    return d?.$ === "Def" && d.x === 0 ? d : null;
+  };
+  const F = def(lhs?.k);
+  const G = def(rhs?.k);
+  if (F === null || G === null || F.m === PERF || F.b === true
+    || G.m !== PERF || lhs!.xs.length !== F.n || rhs!.xs.length !== G.n) {
+    return null;
+  }
+  // slot[v]: the mode and type of the parameter variable v fills
+  const slot: [Bend.Quant, Bend.LTerm][] = [];
+  const fill = (ds: [Bend.Quant, Bend.LTerm][], xs: Bend.LTerm[]):
+    number[] | null => {
+    const vs = xs.map((x) => perf_bare(x)).map((x) => x.$ === "Var"
+      && x.i >= 0 && x.i < n && slot[x.i] === undefined ? x.i : -1);
+    if (vs.includes(-1) || new Set(vs).size !== vs.length) {
+      return null;
+    }
+    vs.forEach((v, j) => slot[v] = ds[j]);
+    return vs;
+  };
+  const args: Perf_Arg[] = [];
+  for (const [j, x] of lhs!.xs.entries()) {
+    const sp = perf_bare(x).$ === "Var" ? null : perf_spine(x);
+    const P = sp === null ? null : def(sp.k);
+    const vs = sp === null ? fill([perf_doms(F)[j]], [x])
+      : P === null || P.m === PERF || sp.xs.length !== P.n ? null
+      : fill(perf_doms(P), sp.xs);
+    if (vs === null) {
+      return null;
+    }
+    args.push(sp === null ? vs[0] : { p: sp.k, vs });
+  }
+  const order = rhs!.xs.map((x) => perf_bare(x))
+    .map((x) => x.$ === "Var" ? x.i : -1);
+  if (args.every((a) => typeof a === "number") || slot.length !== n
+    || [...slot.keys()].some((v) => slot[v] === undefined)
+    || new Set(order).size !== n || order.some((i) => i < 0 || i >= n)) {
+    return null;
+  }
+  const gd = perf_doms(G);
+  if (!order.every((i, m) => gd[m][0].$ === slot[i][0].$
+    && term_same(gd[m][1], slot[i][1]))) {
+    throw "Error: the PERF rule " + Bend.name_key(k) + " must give "
+      + Bend.name_key(rhs!.k) + " each variable with the type and mode of"
+      + " the slot it fills on the left";
+  }
+  return { f: lhs!.k, g: rhs!.k, args, order };
+}
+
+// perf_doms is a def's parameters: each one's mode and type.
+function perf_doms(D: Bend.Def): [Bend.Quant, Bend.LTerm][] {
+  const ds: [Bend.Quant, Bend.LTerm][] = [];
+  for (let T = Bend.term_lower(D.T); T.$ === "All" && ds.length < D.n;
+    T = T.B) {
+    ds.push([T.q, T.A]);
+  }
+  return ds;
+}
+
+// perf_spine reads t as k(x0, .., xn), annotations aside.
+function perf_spine(t: Bend.LTerm): { k: string; xs: Bend.LTerm[] } | null {
+  const xs: Bend.LTerm[] = [];
+  let h = perf_bare(t);
+  for (; h.$ === "App"; h = perf_bare(h.f)) {
+    xs.unshift(h.x);
+  }
+  return h.$ === "Ref" ? { k: h.k, xs } : null;
+}
+
+// perf_match is t as its producer rule's g call, or null if none matches:
+// the first rule, in file order, whose producers sit in their slots.
+function perf_match(book: Bend.Book, t: Bend.LTerm,
+  prods: Map<string, Perf_Prod[]>): Bend.LTerm | null {
+  const sp = perf_spine(t);
+  for (const r of sp === null ? [] : prods.get(sp.k) ?? []) {
+    const n = (book.tlds[r.f] as Bend.Def).n;
+    const env: Bend.LTerm[] = [];
+    const ok = sp!.xs.length >= n && r.args.every((a, j) => {
+      if (typeof a === "number") {
+        env[a] = sp!.xs[j];
+        return true;
+      }
+      const q = perf_spine(sp!.xs[j]);
+      q?.xs.forEach((x, i) => env[a.vs[i]] = x);
+      return q !== null && q.k === a.p && q.xs.length === a.vs.length;
+    });
+    if (ok) {
+      const call = [...r.order.map((i) => env[i]), ...sp!.xs.slice(n)]
+        .reduce<Bend.LTerm>((f, x) => ({ $: "App", f, x }),
+          { $: "Ref", k: r.g });
+      return t.$ === "Ann" ? { ...t, x: call } : call;
+    }
+  }
+  return null;
+}
+
+// perf_swap switches every call in t that matches a producer rule to its
+// g, then renames every other call of a rule's f to its g.
+function perf_swap<T>(book: Bend.Book, t: T, rules: Map<string, string>,
+  prods: Map<string, Perf_Prod[]>): T {
   if (typeof t !== "object" || t === null) {
     return t;
   }
   if (Array.isArray(t)) {
-    return t.map((x) => perf_swap(x, rules)) as T;
+    return t.map((x) => perf_swap(book, x, rules, prods)) as T;
   }
   const x = t as Record<string, unknown>;
+  const hit = prods.size > 0 && (x.$ === "App" || x.$ === "Ann")
+    ? perf_match(book, x as Bend.LTerm, prods) : null;
+  if (hit !== null) {
+    return perf_swap(book, hit as T, rules, prods);
+  }
   const out: Record<string, unknown> = {};
   for (const f in x) {
-    out[f] = f === "s" ? x[f] : perf_swap(x[f], rules);
+    out[f] = f === "s" ? x[f] : perf_swap(book, x[f], rules, prods);
   }
   if (x.$ === "Ref" && rules.has(x.k as string)) {
     out.k = rules.get(x.k as string);
