@@ -261,13 +261,16 @@ producer p returns.
 
 - The left side is a call of a def outside PERF.bend and Base whose
   arguments are rule variables or calls of defs outside PERF.bend on rule
-  variables, at least one such call. The right side is a PERF def applied
-  to the rule variables, each once, in any order. Each of its parameters
-  has the type and mode of the slot its variable fills on the left; else
-  the rule is an error.
+  variables, at least one such call. A variable may fill several slots on
+  the left when they have one mode and type (`sort(d, s, gen(d, i))`).
+  The right side is a PERF def applied to the rule variables, each once,
+  in any order. Each of its parameters has the type and mode of the slot
+  its variable fills on the left; else the rule is an error.
 - `perf_match` switches, in the same main code as a plain rule (outside
   the code the routes reach), every call whose producers sit in their
-  slots; the first producer rule in file order wins, and a call that
+  slots and whose repeated variables meet the same term (terms are pure:
+  the same term, the same value; a different spelling of one value keeps
+  the call); the first producer rule in file order wins, and a call that
   matches none falls to f's plain rule, if any. The halting argument does
   not change: a route only runs original, checked code.
 - The listing shows it: `- lookups(_, _, build(..), _) ->
@@ -283,6 +286,37 @@ route builds the Array directly (`build_arr`, proven equal to
       22     1M      0.58 s    0.20 s          0.08 s
       22     10M     4.53 s    0.20 s          0.14 s
       24     1M      1.04 s    0.77 s          0.36 s
+
+### An existing demo: pure_par_sort
+
+`demos/pure_par_sort` is the repo's own bitonic sort, untouched: main
+sorts `gen(16, 0)`'s tree of 2^16 numbers and checks it ascends. gen
+always builds one block of consecutive numbers, descending, so its
+PERF.bend holds one producer rule:
+
+    law sort.gen:
+      for +d: Nat
+      for +s: Bool
+      for +i: Nat
+      {M.sort(d, s, M.gen(d, i)) == sorted(d, s, i) : M.Tree(d)}
+
+`sorted` is the block ascending (`asc`, one pass, no compare) when s is
+up, and gen's tree itself when down. The proof follows the bitonic sort
+on such blocks with no arithmetic on the leaves' values beyond `<` on
+block numbers:
+
+- `LT` and four facts: k < j keeps 2k < 2j, 2k + 1 < 2j, 2k < 2j + 1,
+  and n < n + 1;
+- three mix lemmas: a mix of two blocks that do not overlap keeps one
+  block whole, the lesser up and the greater down;
+- two flow lemmas: a sorted block, either way, flows into the block
+  sorted by s;
+- sort_gen: the halves sort to an ascending upper block and a descending
+  lower one, which flow merges.
+
+The compiled C holds no `sort`, `flow` or `mix`. WSL, C, CPU: plain
+0.12 - 0.14 s and 14 MB, inpiled under 0.01 s and 3 MB; both print
+`sorted`, and the demo's own PROOF.bend still checks.
 
 ### Tests: tests/perf
 
@@ -307,6 +341,8 @@ are.
                         builds it (an IO producer rule)
     producer-type       a producer route whose parameter mode differs from
                         its slot's: refused
+    sort-gen            pure_par_sort at depth 6: a producer rule naming
+                        d twice, sort(d, s, gen(d, i))
     io-extra-print      an IO route with one more print: its proof fails
     unsafe-route        a route relying on @unsafe code: refused
     wrong-type          a route whose parameter mode differs: refused
