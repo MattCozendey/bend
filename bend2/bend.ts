@@ -1008,6 +1008,8 @@ export async function book_load(book: Book, file: string, ns: string, seen: Map<
     }
     al[m[2]] = sub;
     await book_load(book, got, sub, seen, sp, top);
+    // a file loaded before, as the root, keeps its own namespace
+    al[m[2]] = seen.get(got) ?? sub;
   }
   const n0 = book.order.length;
   parse_book(book, dir, body.join("\n"), ns, al);
@@ -1213,7 +1215,7 @@ export function name_show(file: File | undefined, k: Name): string {
     return name_key(k);
   }
   const [ns, nm] = k.includes(":") ? k.split(":") : ["", k];
-  const a = Object.keys(file.al).find((a) => file.al[a] === ns);
+  const a = ns === "" ? undefined : Object.keys(file.al).find((a) => file.al[a] === ns);
   return ns === file.ns ? nm : a === undefined ? name_key(k) : a + "." + nm;
 }
 
@@ -1671,7 +1673,8 @@ export function parse_reso(p: Parse, k: Name): Name {
   const dot = k.indexOf(".");
   let q = parse_qual(p, k);
   if (dot !== -1 && k.slice(0, dot) in p.al) {
-    q = p.al[k.slice(0, dot)] + ":" + k.slice(dot + 1);
+    const ns = p.al[k.slice(0, dot)];
+    q = ns === "" ? k.slice(dot + 1) : ns + ":" + k.slice(dot + 1);
     if (q !== k && (q in p.book.tlds || q in p.book.ctrs) && (k in p.book.tlds || k in p.book.ctrs)) {
       parse_fail(p, "an unambiguous name (the alias " + k.slice(0, dot) + " shadows " + k + ")");
     }

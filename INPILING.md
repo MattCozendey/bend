@@ -7,8 +7,8 @@ main.bend knowing it exists.
     main.bend    the program as written: the general, readable code
     LAWS.bend    what the program must satisfy
     PROOF.bend   the proofs of LAWS.bend
-    PERF.bend    the shape-specific routes, their guards, and the proofs
-                 that each route agrees with main.bend where its guard holds
+    PERF.bend    the routes, and the proofs that each route agrees with
+                 the main.bend function it stands in for
 
 The meaning lives in main.bend; the speed lives in PERF.bend. Deleting
 PERF.bend changes how fast the program runs, never what it prints.
@@ -40,170 +40,179 @@ A different representation of the data (tree vs array kept across calls)
 is out of scope for both phases. A route may still convert internally,
 compute, and return.
 
-## Phase 1: proof of concept, plain runtime guard
+## Phase 1: proof of concept (built)
+
+Status: built and checked in WSL. The design changed from the first draft:
+the user writes the dispatch inside PERF.bend (the one place an `if` is
+allowed), and the compiler generates nothing. A rule is one total
+equivalence; the compiler only switches calls.
 
 ### What the user writes (PERF.bend only)
 
-Syntax is illustrative; the final form follows Bend's law syntax.
-
+    import Base
     import ./main.bend as M
 
-    # the guard: pure, inspects x and hands it back (Bend is affine)
-    def small(x: Bar) -> Bar & Bool:
+    # the route: any code, usually a match on the input's shape; it may
+    # fall back on M.foo, the function main.bend wrote
+    def foo_fast(x: Bar) -> T:
       ...
 
-    # the route for that shape
-    def foo_small(x: Bar) -> T:
-      ...
-
-    # the guard returns x unchanged
-    law small.same:
+    # the rule: the route equals foo on every input
+    law foo.fast:
       for +x: Bar
-      {fst(small(x)) == x : Bar}
+      {M.foo(x) == foo_fast(x) : T}
 
-    # where the guard says True, the route agrees with main.bend
-    law foo.small:
-      for +x: Bar
-      {snd(small(x)) == True : Bool} -> {M.foo(x) == foo_small(x) : T}
+    def foo.fast(x):
+      ...   # the proof
+
+A rule is any PERF def or law whose type is
+`{f(x0, .., xn) == g(x0, .., xn) : T}`, quantified over all of f's
+parameters in order, where:
+
+- f is a def outside PERF.bend and Base;
+- g is a PERF def with exactly f's type (parameter modes included).
+
+One function takes at most one route; several shapes go in one route's
+match. Rules may have any number of parameters, and may be proven with
+other rules (`report.fast` in the demo uses `rev.fast`).
 
 ### What the compiler does
 
-1. Load: if PERF.bend sits next to main.bend, load and check it with the
-   book. It must import ./main.bend. A flag (`--no-perf`) skips it.
-2. Recognize: every PERF law of the shape
-   `guard(x) == True -> {M.f(x) == g(x) : T}`, with its `same` law, is a
-   rule. A PERF law that names a main.bend def in that position but has
-   another shape is an error.
-3. Rewrite the checked book, before emitting:
-   - `M.foo`'s original body becomes `M.foo.gen`.
-   - `M.foo` becomes the dispatcher:
+1. Load (`perf_load`): when the file is a main.bend with a PERF.bend
+   beside it, load PERF.bend into the same book under the namespace
+   `PERF` and check everything together. PERF.bend must import
+   ./main.bend; main.bend must not import PERF.bend. `--no-perf` skips it.
+2. Recognize (`perf_rules`): collect the rules.
+   - A rule whose route has another type than f is an error.
+   - A rule that relies on an @unsafe or foreign def is refused.
+   - Other lemmas, even ones that look alike (`rev_go_app` in the demo),
+     are not rules. `--check-only` lists the routes it found, so a near
+     miss is visible:
 
-         def M.foo(x):
-           (x, ok) = small(x)
-           match ok:
-             case True{}:  foo_small(x)
-             case False{}: M.foo.gen(x)
+         ALL PROOFS CHECK
+         PERF routes:
+         - rev -> PERF.rev_fast
+         - report -> PERF.report_fast
 
-   - Several rules for one function chain in file order; the first guard
-     that says True wins, and `M.foo.gen` is the last arm.
-   - Calls to main.bend defs from inside PERF.bend go to their `.gen`.
-   - Recursive calls inside main.bend go through the dispatcher, so a
-     route applies at every level of a recursion.
-4. Emit as usual. The dispatcher is plain Bend: a guard call, a tag
-   compare on the Bool, and a tail jump (`WL_JMP`) into the chosen route.
-   C, Metal, CUDA and JS get it with no emitter or runtime change.
+3. Switch (`perf_inpile`), for runs and builds only, never for
+   `--check-only`, `--verdict` or `-o x.bendtt`, which see the program as
+   checked. Every reference to a rule's f, in every def outside PERF.bend
+   and Base that the routes do not reach, becomes a reference to its g.
+   Both the checked body (`e`, which the emitters compile) and the value
+   (`v`, which the interpreter runs) are switched.
+4. Emit as usual. C, Metal, CUDA and JS get the switched book with no
+   emitter or runtime change.
 
 ### The halting rule
 
-Each piece is checked to halt on its own, but the rewrite builds a program
-the checker never saw. Without the `.gen` rule, `foo_small(x) = M.foo(x)` is
-provably equal to `M.foo(x)`, and the dispatched program loops forever.
-With it, a route never re-enters a dispatcher, and the original termination
-argument of main.bend still holds: dispatch only adds routes that halt.
+The checker proves each def halts, but the switch builds a call graph it
+never saw. The rule: code the routes reach keeps its own calls.
+
+- A route that falls back on `M.foo` runs the foo main.bend wrote.
+- A route that reaches foo through other main.bend code (route -> M.via
+  -> M.foo) does not loop either: M.via is reached by the route, so its
+  call stays on the original foo.
+- Main code outside that set calls routes; a route only ever runs
+  original, checked code, so every call into a route returns.
+
+The cost of the rule: when a route falls back on M.foo, foo's own
+recursive calls stay on foo, so the route applies only at the top call. A
+route that should apply at every level of a recursion recurses on itself:
+the route owns the recursion, and the checker checks it. Switching foo's
+self-calls instead is not safe in general: a route equal to foo may call
+foo on a larger input (sum(xs) as sum(xs ++ [0])), and the switched
+program would never stop.
 
 ### IO
 
-- A function returning `IO(A)` takes rules like any other; the law reads
-  `{M.foo(x) == foo_small(x) : IO(A)}`. IO is a continuation-passing value
-  whose primitives are opaque to the checker, so the proof should only go
-  through when both sides perform the same effects in the same order.
-  A route can speed up the pure work between effects; it cannot reorder,
+- A function returning `IO(A)` takes rules like any other. IO is a
+  continuation-passing value whose primitives are opaque to the checker,
+  so an equality between two IO programs holds only when both perform the
+  same effects with the same arguments in the same order. Confirmed: a
+  route that adds one `IO.print` fails its proof.
+- A route can speed up the pure work between effects; it cannot reorder,
   batch or merge effects.
-- Guards are pure: `Bar -> Bar & Bool`, never `IO`.
+- IO functions in main.bend also benefit from pure rules with no IO rule
+  at all: their calls of a ruled pure function are switched.
 
-### Where the changes go
+### Where the changes went
 
-- `bend2/main.ts`: the PERF.bend loader, the flag, rule recognition, the
-  book rewrite.
-- No change to `bend2/bend.ts`, the checker, the emitters or the runtimes.
+- `bend2/bend.ts` (three small edits, in `book_load`, `parse_reso` and
+  `name_show`): an import of a file already loaded as the
+  root aliases the namespace that file lives in, so PERF.bend's `M.foo`
+  resolves to main.bend's root `foo`; error messages keep root names bare.
+- `bend2/main.ts`: the loader, `--no-perf`, rule recognition, the switch,
+  the route listing.
+- No change to the checker's rules, the emitters or the runtimes.
 
-### The gate
+### The demo: demos/perf_reverse
 
-- Each test with a PERF.bend runs with and without it, and both runs must
-  print the same `#|` lines.
-- The perf bench times both and reports the difference.
-- During development, check this on the single tests and demos involved, in
-  WSL; running the gates themselves needs asking first (see Working rules).
+- main.bend: `rev` written the plain way (quadratic), and `report`, an IO
+  function that prints the head of `rev(xs)`. main reverses a range of the
+  length given on the command line (default 20000) and reports it.
+- PERF.bend: `rev_fast` (accumulator, linear) and `report_fast`, with the
+  proofs: `app_nil`, `app_assoc`, `rev_go_app`, then the rules `rev.fast`
+  and `report.fast`.
+- Results (WSL, C build, three runs each; both print 0):
 
-### Deliverables
+      length     plain (--no-perf)   inpiled
+      20000      1.42 - 1.50 s       < 0.01 s
+      40000      6.00 - 6.06 s       < 0.01 s
+      1000000    -                   0.03 s
+      4000000    -                   0.10 s
 
-- The loader, flag, recognizer and rewrite in `main.ts`.
-- A demo with main.bend, PERF.bend and a pure route.
-- A demo with an `IO` route.
-- Negative tests:
-  - a law of the wrong shape is rejected;
-  - a route that calls `M.foo` on the same input still halts (the `.gen`
-    rule);
-  - an IO route with different effects fails to check.
+  The default run (`bend main.bend`, 20000): 7.49 s plain, 0.19 s
+  inpiled. The JS build takes the route too.
+- The length comes from the command line on purpose: with a constant
+  input, the compiler folds the whole linear program at compile time,
+  which hides the runtime comparison.
 
-### Can the plain guard stay fast?
+### Negative cases (checked by hand in WSL)
 
-Yes, when the guard is cheap. Per call, dispatch costs:
+- A route reaching foo through main code (route -> M.via -> M.foo):
+  checks, runs, halts, prints the same answer.
+- An IO route with an extra effect: its proof fails.
+- An @unsafe route: refused.
+- A route whose parameter mode differs from foo's: refused, with the
+  required shape.
+- main.bend importing PERF.bend: rejected (an import cycle).
+- A PERF.bend that does not import ./main.bend: rejected.
 
-- the guard's own work;
-- one compare;
-- one jump.
+### Not done yet
 
-The branch is cheap on CPU. Whether the guard is cheap is up to its author:
-a guard should look at a bounded part of the input (the first constructors,
-a stored size), not walk all of it. Things to measure in phase 1:
+- Tests in `tests/`: a test is one file, so a main.bend + PERF.bend pair
+  does not fit the test gate yet. It needs a layout (say, a directory per
+  test) and a with/without-PERF comparison in `gates/test.ts`.
+- `--verdict` on the demo (it builds the Lean kernel CLI).
+- Templates: a def with ~ parameters cannot be a rule's f or g yet.
 
-- Guard round trip: the guard takes x apart and hands it back. Check
-  whether the emitted code reuses the nodes or rebuilds them; rebuilding
-  would put an allocation on every call.
-- Recursion: every recursive call pays the guard. With a bounded guard
-  that is a constant factor per call; measure it against the route's gain.
-- GPU: threads in one group that take different routes run both one after
-  the other. A guard that splits a group unevenly costs more on device
-  than on CPU.
+## Phase 2: fewer checks, more routes
 
-## Phase 2: dropping the check
+The guard now lives in the user's route, so the compiler cannot drop it by
+looking inside. The phase 2 ideas carry over as more specific rules:
 
-One asymmetry makes this safe:
+- The general route is always correct: the compiler may keep a call on f
+  wherever it judges the route not worth it.
+- Producer rules: a rule over a call pattern, e.g.
+  `{M.foo(M.make(a)) == foo_small(M.make(a)) : T}`, switches only calls of
+  foo on make's output, straight to the shape's algorithm with no guard.
+  It covers results whose shape the code decides, even when `a` comes from
+  input, and reuses phase 1's recognition with a pattern in place of plain
+  variables.
+- Compile-time evaluation: the compiler already folds whole programs on
+  constant input (seen in the demo); a route on constant input folds with
+  it.
+- Self-call routing: let a rule switch f's own recursive calls when the
+  route provably calls f only on smaller inputs, so a route applies at
+  every level of a recursion without owning it.
 
-- Skipping the check toward the general route (`M.foo.gen`) is always
-  correct. The compiler may do it whenever a cost heuristic says the check
-  is not worth it at a site.
-- Skipping the check toward a specialized route requires knowing the guard
-  says True there. Never a guess.
-
-Three ways to know, complementary:
-
-1. Compile-time guard evaluation. At call sites in main.bend, run the guard
-   on what is statically known: constants, constructors built at the site,
-   the `case` branch the call sits in. Guards are pure and checked to halt,
-   so evaluating one at compile time always finishes. Needs a partial
-   evaluator: the largest compiler addition of the three.
-2. Producer laws. The user proves in PERF.bend that a main.bend function's
-   output always passes a guard, e.g.
-   `{snd(small(M.make(a))) == True : Bool}`. Wherever `foo` is fed
-   `M.make`'s output, the compiler drops the check and calls the route.
-   Covers results evaluation cannot see, such as `make(a)` with `a` from
-   input. Reuses phase 1's law recognition.
-3. Routes call `.gen`. Already true from phase 1's halting rule: inside
-   PERF.bend there is no check to drop.
-
-1 and 2 combine best as one mechanism: an evaluator that uses producer
-laws as known facts when it reaches a call it cannot compute. 3 applies to
-PERF.bend's own code only.
-
-The remainder keeps the runtime check: shapes that depend on input with no
-law about them. No static fact decides those.
-
-Suggested order:
-
-1. producer laws;
-2. the general-route heuristic;
-3. compile-time evaluation, then its merge with producer laws.
+The remainder keeps the route's own check: shapes that depend on input
+with no rule about them.
 
 ## Open questions
 
-- Law syntax: the exact form of the guard hypothesis and the `same` law in
-  Bend's law syntax, and the quantity modes on `x` (`+x`).
-- Arity: phase 1 handles single-argument functions, or guards over all the
-  arguments.
-- Recognition: by shape alone, or by shape plus a naming convention.
-- IO equality: confirm in WSL that the checker rejects an IO equality whose
-  effects differ.
-- The repo gate: `gates/repo.ts` keeps an allow list of files; this file
-  and PERF.bend files would need entries there.
+- Test layout for PERF pairs, and the with/without-PERF comparison in the
+  gate.
+- The repo gate: `gates/repo.ts` keeps an allow list of files; this file,
+  the demo and PERF.bend files would need entries there.
+- Self-call routing (phase 2): which proof obligation makes it safe.

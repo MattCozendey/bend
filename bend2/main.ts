@@ -37,6 +37,7 @@ const USAGE = [
   ["bend <file.bend> [args]", "check the file, then run main with args"],
   ["bend <file.bend> -o <out>", "build a binary, or C, JS, .mjs or BendTT by extension"],
   ["bend <file.bend> --check-only", "check the file and its imports; run nothing"],
+  ["bend <file.bend> --no-perf", "run or build without the PERF.bend beside main.bend"],
   ["bend <file.bend> --verdict", "check it, then recheck it with the proven kernel"],
   ["bend <file.bend> --publish [<name>@<version>]", "publish the file and its imports; a name needs login"],
   ["bend link <name>@<version> 0x<hash>", "name a package already on the hub"],
@@ -238,6 +239,7 @@ async function cli_file(args: string[]): Promise<void> {
   let verdict = false;
   let checkup = false;
   let publish = false;
+  let perf = true;
   let named: string | undefined;
   for (let i = 0; i < args.length; i += 1) {
     const a = args[i];
@@ -249,6 +251,8 @@ async function cli_file(args: string[]): Promise<void> {
       verdict = true;
     } else if (a === "--checkup") {
       checkup = true;
+    } else if (a === "--no-perf") {
+      perf = false;
     } else if (a === "--publish") {
       publish = true;
       if (args[i + 1]?.includes("@")) {
@@ -301,13 +305,19 @@ async function cli_file(args: string[]): Promise<void> {
       return await cli_checkup(file);
     }
     const seen = new Map<string, string | null>();
-    const book = await book_read(file, undefined, seen);
+    const book = await book_read(file, undefined, seen, perf);
     if (only || verdict) {
+      const routes = perf_rules(book);
       process.exitCode = cli_verdict(book, verdict);
+      if (process.exitCode === 0 && routes.size > 0) {
+        cli_say(1, "PERF routes:\n" + [...routes].map(([f, g]) => "- "
+          + Bend.name_key(f) + " -> " + Bend.name_key(g) + "\n").join(""));
+      }
       return;
     }
+    const fast = perf_inpile(book);
     if (outs.length === 0) {
-      process.exitCode = book_run(book, [file, ...argv]);
+      process.exitCode = book_run(fast, [file, ...argv]);
       return;
     }
     const ins = new Set([...seen.keys(), ...Object.values(book.tlds).flatMap((t) =>
@@ -317,7 +327,7 @@ async function cli_file(args: string[]): Promise<void> {
       if (ins.has(at) || (fs.existsSync(at) && fs.statSync(at).isDirectory())) {
         cli_fail("-o " + out + " is a file the program reads, or a directory");
       }
-      cli_emit(book, out);
+      cli_emit(out.endsWith(".bendtt") ? book : fast, out);
     }
   } catch (e) {
     cli_say(2, book_err(e) + "\n");
@@ -816,13 +826,16 @@ function cli_fail(msg: string): never {
 // ====
 
 async function book_read(file: string, base?: Bend.Book,
-  seen = new Map<string, string | null>()): Promise<Bend.Book> {
+  seen = new Map<string, string | null>(), perf = true): Promise<Bend.Book> {
   const book = base === undefined ? Bend.book_nil() : book_seed(base);
   if (base !== undefined) {
     seen.set(BASE, "");
   }
   try {
     await Bend.book_load(book, file, "", seen);
+    if (perf) {
+      await perf_load(book, file, seen);
+    }
     const laws = path.join(path.dirname(file), "LAWS.bend");
     if (path.basename(file) === "PROOF.bend" && fs.existsSync(laws)
       && !seen.has(fs.realpathSync(laws))) {
@@ -837,6 +850,164 @@ async function book_read(file: string, base?: Bend.Book,
     throw new Check_Fail(e);
   }
   return book;
+}
+
+// Inpile
+// ======
+
+// A PERF.bend beside main.bend gives main's defs faster routes, and main
+// never names it. A rule is a PERF def or law whose type is
+// {f(x0, .., xn) == g(x0, .., xn) : T} over f's parameters in order: f a
+// def outside PERF and Base, g a PERF def of f's type. A run or a build
+// calls g where main's code called f. The checker never sees that switch,
+// so code a route reaches keeps its own calls: a route that falls back on
+// f runs the f main wrote, and no switched call re-enters a route.
+
+const PERF = "PERF";
+
+// perf_load loads the PERF.bend beside a main.bend into its book.
+async function perf_load(book: Bend.Book, file: string,
+  seen: Map<string, string | null>): Promise<void> {
+  const perf = path.join(path.dirname(file), "PERF.bend");
+  if (path.basename(file) !== "main.bend" || !fs.existsSync(perf)) {
+    return;
+  }
+  if (seen.has(fs.realpathSync(perf))) {
+    throw "Error: main.bend must not import PERF.bend";
+  }
+  if (!/^import\s+\.\/main\.bend\s+as\s+\w+\s*(#.*)?$/m
+    .test(fs.readFileSync(perf, "utf8"))) {
+    throw "Error: PERF.bend must import ./main.bend";
+  }
+  const top = path.dirname(fs.realpathSync(file)) + "/";
+  await Bend.book_load(book, perf, PERF, seen, undefined, top);
+}
+
+// perf_inpile is the book a run or a build compiles: every rule's f,
+// called from outside the code the routes reach, calls its g instead.
+function perf_inpile(book: Bend.Book): Bend.Book {
+  const rules = perf_rules(book);
+  if (rules.size === 0) {
+    return book;
+  }
+  const keep = new Set<string>();
+  for (const todo = [...rules.values()]; todo.length > 0;) {
+    const k = todo.pop()!;
+    const t = book.tlds[k];
+    if (keep.has(k) || t?.$ !== "Def" || t.v === null) {
+      continue;
+    }
+    keep.add(k);
+    const rs = new Set<string>();
+    term_refs(t.e ?? Bend.term_lower(t.v), rs);
+    todo.push(...rs);
+  }
+  const tlds: Record<string, Bend.TLD> = Object.create(null);
+  for (const k of Object.keys(book.tlds)) {
+    const t = book.tlds[k];
+    tlds[k] = t.$ !== "Def" || t.v === null || t.b === true || t.m === PERF
+      || keep.has(k) ? t : { ...t,
+        v: Bend.term_higher(perf_swap(Bend.term_lower(t.v), rules)),
+        e: t.e && perf_swap(t.e, rules) };
+  }
+  return { ...book, tlds };
+}
+
+// perf_rules maps each rule's f to its g.
+function perf_rules(book: Bend.Book): Map<string, string> {
+  const rules = new Map<string, string>();
+  const shaky = new Set(book_promises(book));
+  for (const k of new Set(book.order)) {
+    const law = book.tlds[k];
+    const rule = law.$ === "Def" && law.m === PERF && law.v !== null
+      ? perf_rule(book, k, law.T) : null;
+    if (rule === null) {
+      continue;
+    }
+    const [f, g] = rule;
+    if (shaky.has(k)) {
+      throw "Error: the PERF rule " + Bend.name_key(k)
+        + " relies on an @unsafe or foreign def";
+    }
+    if (rules.has(f) && rules.get(f) !== g) {
+      throw "Error: two PERF routes for " + Bend.name_key(f)
+        + "; one route may match on several shapes";
+    }
+    rules.set(f, g);
+  }
+  return rules;
+}
+
+// perf_rule reads [f, g] off a rule's type, or null if it is no rule.
+function perf_rule(book: Bend.Book, k: string, T: Bend.HTerm):
+  [string, string] | null {
+  let t = Bend.term_lower(T);
+  let n = 0;
+  for (; t.$ === "All"; n++) {
+    t = t.B;
+  }
+  const f = t.$ === "Eql" ? perf_call(t.a, n) : null;
+  const g = t.$ === "Eql" ? perf_call(t.b, n) : null;
+  const F = f === null ? undefined : book.tlds[f];
+  const G = g === null ? undefined : book.tlds[g];
+  if (F?.$ !== "Def" || G?.$ !== "Def" || F.m === PERF || F.b === true
+    || G.m !== PERF) {
+    return null;
+  }
+  if (F.n !== n || G.n !== n || F.x > 0 || G.x > 0
+    || !term_same(Bend.term_lower(F.T), Bend.term_lower(G.T))) {
+    throw "Error: the PERF rule " + Bend.name_key(k) + " must state "
+      + Bend.name_key(f!) + "(..) == " + Bend.name_key(g!) + "(..) over all of "
+      + Bend.name_key(f!) + "'s parameters, in order, and "
+      + Bend.name_key(g!) + " must have " + Bend.name_key(f!) + "'s type";
+  }
+  return [f!, g!];
+}
+
+// perf_call is k when t is k(x0, .., x(n-1)), the rule's own variables.
+function perf_call(t: Bend.LTerm, n: number): string | null {
+  const xs: Bend.LTerm[] = [];
+  for (; t.$ === "App"; t = t.f) {
+    xs.unshift(t.x);
+  }
+  return t.$ === "Ref" && xs.length === n
+    && xs.every((x, i) => x.$ === "Var" && x.i === i) ? t.k : null;
+}
+
+// perf_swap renames every call of a rule's f in t to its g.
+function perf_swap<T>(t: T, rules: Map<string, string>): T {
+  if (typeof t !== "object" || t === null) {
+    return t;
+  }
+  if (Array.isArray(t)) {
+    return t.map((x) => perf_swap(x, rules)) as T;
+  }
+  const x = t as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const f in x) {
+    out[f] = f === "s" ? x[f] : perf_swap(x[f], rules);
+  }
+  if (x.$ === "Ref" && rules.has(x.k as string)) {
+    out.k = rules.get(x.k as string);
+  }
+  return out as T;
+}
+
+// term_same compares two lowered terms, spans and binder names aside.
+function term_same(a: unknown, b: unknown): boolean {
+  if (typeof a !== "object" || a === null || typeof b !== "object"
+    || b === null) {
+    return a === b;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length
+      && a.every((x, i) => term_same(x, b[i]));
+  }
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  const bound = ["All", "Lam", "Var", "Let"].includes(x.$ as string);
+  return [...new Set([...Object.keys(x), ...Object.keys(y)])].every((f) =>
+    f === "s" || (f === "k" && bound) || term_same(x[f], y[f]));
 }
 
 // a failed check: bend2's reason, which book_err prints under FAIL
@@ -897,7 +1068,7 @@ function book_err(e: unknown): string {
 
 async function load_js(path: string): Promise<string> {
   try {
-    return Comp.js_lib(await book_read(path), true);
+    return Comp.js_lib(perf_inpile(await book_read(path)), true);
   } catch (e) {
     throw new Error(book_err(e));
   }
