@@ -89,6 +89,12 @@ const MISMATCH = "Sorry - this is a mismatch between the TypeScript implementati
   + " we cannot validate them yet. This will be addressed in a future update."
   + " Meanwhile, feel free to open an issue to report this bug.";
 
+// a Windows binary's manifest: its code page is UTF-8 (argv, getenv, paths)
+const MANIFEST = "<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\""
+  + " manifestVersion=\"1.0\"><application><windowsSettings><activeCodePage"
+  + " xmlns=\"http://schemas.microsoft.com/SMI/2019/WindowsSettings\">UTF-8"
+  + "</activeCodePage></windowsSettings></application></assembly>";
+
 // BendHub's terms; s18.4 makes MIT-0 the default license
 const TERMS = "https://bend-lang.com/bendai/terms#s18";
 
@@ -427,7 +433,11 @@ function cc_find(gpu: boolean): string {
   const olds: string[] = [];
   const want = gpu ? "19 (Apple clang 17)" : "14";
   const env  = process.env.CC;
-  const ccs  = [...new Set([...(env ? [env] : []), "clang", ...nums])];
+  // LLVM's Windows installer leaves clang off PATH unless asked
+  const home = process.platform === "win32"
+    ? [path.join(process.env.ProgramFiles ?? "C:\\Program Files", "LLVM", "bin",
+      "clang.exe")] : [];
+  const ccs  = [...new Set([...(env ? [env] : []), "clang", ...nums, ...home])];
   for (const cc of ccs) {
     const [got, out] = Safe.run_read(cc, ["--version"]);
     const m   = /^(Apple )?(?:\w+ )?clang version (\d+)/m.exec(out);
@@ -450,20 +460,30 @@ function cc_find(gpu: boolean): string {
     + " or newer to build " + (gpu ? "a GPU program" : "binaries") + " (found "
     + olds.join(", ") + "); on Debian/Ubuntu: curl -fsSL"
     + " https://apt.llvm.org/llvm.sh | sudo bash -s 19; on macOS: xcode-select"
-    + " --install";
+    + " --install" + (process.platform === "win32" ? "; on Windows: winget"
+    + " install LLVM.LLVM, and the Visual Studio Build Tools' C++ workload"
+    : "");
 }
 
 // cli_build builds the C file at `file` into the binary `bin`. A `!` program
 // builds with the GPU lane and writes its GPU program too (on Linux only with
 // CUDA at the first of $CUDA_HOME, $CUDA_PATH, /usr/local/cuda and /opt/cuda
 // (Arch's) that holds nvrtc.h, its libraries in lib64 or, as nix lays them,
-// lib; else the ! runs on the cores). On macOS a program with a framework
-// (#import: a window, audio) builds as Objective-C; on Linux it links the X11
-// (plus libdl, for dlopen before glibc 2.34) and ALSA libraries it includes.
-// The GPU program's build runs without the user's $BENDRTS.
+// lib, or on Windows (its installer sets $CUDA_PATH) in lib/x64; else the ! runs
+// on the cores). libcuda links against the toolkit's stub where the driver's is
+// off the linker's path (WSL keeps it in /usr/lib/wsl/lib); the loader finds
+// the driver's. On macOS a program with a framework (#import: a window, audio)
+// builds as Objective-C; on Linux it links the X11 (plus libdl, for dlopen
+// before glibc 2.34) and ALSA libraries it includes. On Windows the C names
+// its libraries, the binary embeds MANIFEST, through lld (MSVC's link.exe
+// needs the SDK's mt.exe for that), and a bare name gets .exe. The GPU
+// program's build runs without the user's $BENDRTS.
 function cli_build(bin: string, file: string): void {
   const c     = fs.readFileSync(file, "utf8");
   const mac   = process.platform === "darwin";
+  const win   = process.platform === "win32";
+  const exe   = path.resolve(win && path.extname(bin) === "" ? bin + ".exe"
+    : bin);
   const cuda  = [process.env.CUDA_HOME, process.env.CUDA_PATH,
     "/usr/local/cuda", "/opt/cuda"]
     .find(d => d && fs.existsSync(d + "/include/nvrtc.h")) ?? "";
@@ -473,13 +493,18 @@ function cli_build(bin: string, file: string): void {
     ? ["-x", "objective-c", "-fobjc-arc", "-fmodules"] : [];
   const libs  = [["X11", "X11", "dl"], ["alsa", "asound"]].flatMap(([h, ...ls]) =>
     !mac && c.includes("#include <" + h + "/") ? ls.map((l) => "-l" + l) : []);
-  const cpu = [...objc, "-std=c11", "-O3", file, "-lpthread", "-lm",
-    ...libs, "-o", path.resolve(bin)];
+  const host  = win ? ["-fuse-ld=lld", "-Wl,/manifest:embed",
+    "-Wl,/manifestinput:" + file + ".manifest"] : ["-lpthread", "-lm", ...libs];
+  if (win) {
+    fs.writeFileSync(file + ".manifest", MANIFEST);
+  }
+  const cpu = [...objc, "-std=c11", "-O3", file, ...host, "-o", exe];
   const gpu = mac ? ["-DBEND_METAL=1", ...cpu]
-    : ["-DBEND_CUDA=1", "-I" + cuda + "/include", "-L" + cuda + "/lib64",
-      "-L" + cuda + "/lib", ...cpu, "-lcuda", "-lnvrtc"];
+    : ["-DBEND_CUDA=1", "-I" + cuda + "/include", ...(win
+      ? ["-L" + cuda + "/lib/x64"] : ["-L" + cuda + "/lib64", "-L" + cuda
+      + "/lib", "-L" + cuda + "/lib64/stubs"]), ...cpu, "-lcuda", "-lnvrtc"];
   const steps: [string, string[]][] = bangs
-    ? [[cc, gpu], [path.resolve(bin), ["+RTS", "--gpu-build"]]] : [[cc, cpu]];
+    ? [[cc, gpu], [exe, ["+RTS", "--gpu-build"]]] : [[cc, cpu]];
   for (const [cmd, args] of steps) {
     if (child.spawnSync(cmd, args, { stdio: "inherit",
       env: { ...process.env, BENDRTS: "" } }).status !== 0) {
@@ -770,7 +795,8 @@ async function cli_login(): Promise<string> {
   }
   cli_say(2, "log in at " + st.verify_url + "\n");
   try {
-    Bun.spawn([process.platform === "darwin" ? "open" : "xdg-open", st.verify_url], { stdout: "ignore", stderr: "ignore" });
+    const opener = { darwin: "open", win32: "explorer.exe" }[process.platform as string] ?? "xdg-open";
+    Bun.spawn([opener, st.verify_url], { stdout: "ignore", stderr: "ignore" });
   } catch {}
   const until = Date.parse(st.expires_at ?? "") || Date.now() + 600000;
   while (Date.now() < until) {
@@ -804,18 +830,20 @@ async function cli_login(): Promise<string> {
 // never match its hash.
 function pkg_files(file: string, book: Bend.Book,
   seen: Map<string, string | null>): Record<string, string> {
-  const dir  = fs.realpathSync(path.dirname(file)) + "/";
+  // a package's paths have "/" between segments, also where real paths have "\"
+  const slash = (p: string): string => p.split(path.sep).join("/");
+  const here = slash(fs.realpathSync(path.dirname(file)));
+  const dir  = here + "/";
   const raws = [...[...seen].flatMap(([real, ns]): [string, string][] =>
     real === BASE || ns === null || ns.startsWith("0x") ? []
       : [[ns === "" ? path.basename(file) : ns + ".bend", real]]),
   ...Object.entries(book.tlds).flatMap(([k, tld]): [string, string][] =>
     tld.$ !== "Def" || tld.i === undefined || tld.b === true
-      || k.startsWith("0x") ? [] : tld.i.map((f) =>
-      [f.startsWith(dir) ? f.slice(dir.length) : f, f]))];
+      || k.startsWith("0x") ? [] : tld.i.map((f): [string, string] =>
+      [slash(f).startsWith(dir) ? slash(f).slice(dir.length) : slash(f), f]))];
   const ups = raws.map(([p]) => path.posix.normalize(p).split("/")
     .filter((s) => s === "..").length);
-  const anc = fs.realpathSync(path.dirname(file)).split("/")
-    .slice(-Math.max(0, ...ups) || Infinity);
+  const anc = here.split("/").slice(-Math.max(0, ...ups) || Infinity);
   const files: Record<string, string> = {};
   for (const [raw, real] of raws) {
     const p = path.posix.join(...anc, raw);
@@ -990,10 +1018,10 @@ async function book_read(file: string, base?: Bend.Book,
     seen.set(BASE, "");
   }
   try {
-    await Bend.book_load(book, file, "", seen);
+    await Bend.book_load(book, file.replaceAll(path.sep, "/"), "", seen);
     const laws = path.join(path.dirname(file), "LAWS.bend");
     if (path.basename(file) === "PROOF.bend" && fs.existsSync(laws)
-      && !seen.has(fs.realpathSync(laws))) {
+      && !seen.has(fs.realpathSync(laws).replaceAll(path.sep, "/"))) {
       throw "Error: PROOF.bend must import ./LAWS.bend";
     }
     Bend.book_valid(book, base?.order.length ?? 0);
