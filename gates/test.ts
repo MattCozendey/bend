@@ -11,7 +11,9 @@
 // the compiler refuses to print (a function, a Type, an erased or dependent
 // field) is checked and interpreted only; a foreign def with no twin for a
 // lane drops that lane; any other build failure fails its lanes. Meanwhile,
-// here, one process compiles four of them over and over (state_run).
+// here, one process compiles four of them over and over (state_run). Words
+// on the command line keep the tests whose name holds one; on Windows the
+// shards run on this machine (lib.LOCAL), without the _posix tests.
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -255,9 +257,13 @@ async function state_run(): Promise<Fail[]> {
 // ====
 
 if (import.meta.main) {
+  // words on the command line keep the tests whose name holds one
+  const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
   const tests = fs.readdirSync(TESTS).sort().flatMap((dir) =>
     fs.readdirSync(path.join(TESTS, dir)).filter((f) => f.endsWith(".bend"))
-      .sort().map((f) => test_read(dir, f)));
+      .sort().map((f) => test_read(dir, f))).filter((t) => (only.length === 0
+      || only.some((w) => t.name.includes(w)))
+      && !(lib.LOCAL && t.name.endsWith("_posix")));
   const state = state_run();
   const nodes = await lib.node_lock();
   // Every test's source goes to every shard: a test may import another,
