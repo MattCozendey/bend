@@ -15,8 +15,8 @@ self.onmessage = async ({ data }) => {
   try {
     got = await run(data);
   } catch (e) {
-    got = { fail: errno[e] ?? (typeof e?.errno === "number"
-      ? Math.abs(e.errno) : errno.EIO) };
+    got = { fail: errno[e] ?? errno[e?.code]
+      ?? (typeof e?.errno === "number" ? Math.abs(e.errno) : errno.EIO) };
   }
   port.postMessage(got);
   Atomics.store(flag, 0, 1);

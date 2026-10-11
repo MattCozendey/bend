@@ -10,7 +10,7 @@ function file_write_buffer(file, b) {
     }
     return io_tup(file, io_done({ $: CID(Unit) }));
   } catch (e) {
-    return io_tup(file, io_fail(Math.abs(e.errno ?? 5)));
+    return io_tup(file, io_fail(io_code(e)));
   }
 }
 

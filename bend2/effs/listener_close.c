@@ -2,7 +2,7 @@
 // ========
 
 Term listener_close_run(Env e, Term* f, IoWork* w) {
-  close((int)io_hand_v(f[0]));
+  sock_close((int)io_hand_v(f[0]));
   return term_pak(CID(Unit), 0);
 }
 

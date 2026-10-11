@@ -3,10 +3,11 @@
 # the server sends 64 KiB chunks to each until the send fails, so 70
 # senders sit on full sockets at once, more than the 64 helper threads.
 # A send that would block parks its computation until the socket is
-# writable, so main's print lands once every client is accepted and a
-# File.open (a helper job) answers at once. Before this, the JS lane's
-# send blocked the loop thread outright and the C lane's send held a
-# helper, and the canary waited until the holders let go 1.5 s later.
+# writable, so main's print lands once every client is accepted and an
+# IO.random_u32 (a helper job) answers at once. Before this, the JS
+# lane's send blocked the loop thread outright and the C lane's send
+# held a helper, and the canary waited until the holders let go 1.5 s
+# later.
 # The holders still sit, so main ends the process with IO.die code 0.
 import Base
 
@@ -69,10 +70,6 @@ def holders(port: U32, n: Nat) -> IO(Unit):
         Unit <- IO.spawn(Unit, hold.got(r))
         holders(pt, p)
 
-def canary.read(m: File & Result<&1, &1, (U32 & String), String>) -> IO(Unit):
-  (f, r) = m
-  File.close(f)
-
 def canary.judge(left: Nat) -> IO(Unit):
   match left:
     case 0n:
@@ -83,9 +80,7 @@ def canary.judge(left: Nat) -> IO(Unit):
 def canary() -> IO(Unit):
   do IO<Unit>:
     t0 : Nat <- IO.now()
-    f : File <- IO.try(File, File.open("/etc/hosts", "r"))
-    m : File & Result<&1, &1, (U32 & String), String> <- File.read(f, 16)
-    Unit <- canary.read(m)
+    r : Result<&1, &1, (U32 & String), U32> <- IO.random_u32()
     t1 : Nat <- IO.now()
     canary.judge(Nat.sub(500n, Nat.sub(t1, t0)))
 
