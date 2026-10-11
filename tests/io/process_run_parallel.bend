@@ -4,7 +4,7 @@ import Base
 
 def start(input: String) -> IO(Result<&1, &1, U32 & String,
   U32 & (String & String)>):
-  Process.run("/bin/cat", [], input, 128, 1000)
+  Process.run("cat", [], input, 128, 1000)
 
 def answer(r: Result<&1, &1, U32 & String, U32 & (String & String)>,
   want: String) -> Bool:
