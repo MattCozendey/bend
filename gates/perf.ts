@@ -27,6 +27,7 @@
 
 import * as child from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import * as lib from "./_lib";
@@ -57,13 +58,26 @@ const RUNTIME = path.join(lib.ROOT, "bench", "runtime");
 
 const CHECKER = path.join(lib.ROOT, "bench", "checker");
 
-const HW = "apple_m4";
+// The cells' host: a mini (the apple_m4 pins, a Metal lane, BSD time), or
+// this Windows machine (lib.LOCAL: its pins by CPU, no GPU lane, LLVM's
+// clang; tm is posix_spawn, so its cells do not build there yet).
+const HOST = lib.LOCAL ? {
+  hw: "windows_" + os.cpus()[0].model.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, ""),
+  modes: 2, cc: "\"$PROGRAMFILES/LLVM/bin/clang\" -std=c11 -O3", libs: "",
+  exe: "cell.exe",
+} : {
+  hw: "apple_m4", modes: 3, cc: "cc -std=c11 -O3", libs: " -lpthread",
+  exe: "cell",
+};
 
-export const MODES = ["SEQ-CPU", "PAR-CPU", "PAR-GPU"];
+const HW = HOST.hw;
 
-export const CC = "cc -std=c11 -O3";
+export const MODES = ["SEQ-CPU", "PAR-CPU", "PAR-GPU"].slice(0, HOST.modes);
 
-export const BUILD = [CC + " main.c -lpthread", CC + " main.c -lpthread",
+export const CC = HOST.cc;
+
+export const BUILD = [CC + " main.c" + HOST.libs, CC + " main.c" + HOST.libs,
   CC + " -DBEND_METAL=1 -x objective-c -fobjc-arc main.c -lpthread"
   + " -framework Metal -framework Foundation"];
 
@@ -219,8 +233,8 @@ function pin_read(): [Map<string, Pin>, Map<string, number>] {
   const num = (c: string): number => Number(/[\d.]+/.exec(c)?.[0] ?? 0);
   for (const [b, c] of rows(path.join(RUNTIME, "_pin_", HW + ".txt"))) {
     const cell = (i: number): number[] => c[i].split(/\s+/).map(num);
-    pins.set(b, { comp: num(c[0]), secs: [1, 2, 3].map((i) => cell(i)[0]),
-      mems: [1, 2, 3].map((i) => cell(i)[1]), out: c[4] });
+    pins.set(b, { comp: num(c[0]), secs: MODES.map((_, i) => cell(i + 1)[0]),
+      mems: MODES.map((_, i) => cell(i + 1)[1]), out: c[MODES.length + 1] });
   }
   for (const [b, c] of rows(path.join(CHECKER, "_pin_", HW + ".txt"))) {
     cpins.set(b, num(c[0]));
@@ -263,14 +277,15 @@ function pin_write(cells: Cell[], chks: Chk[]): void {
 // Every runtime cell gets the one pack of bench/runtime and builds its
 // bench out of it.
 function cell_script(c: Cell): string {
-  const run = "./cell " + FLAGS[c.mode].replace("$gm", MEMORY[c.bench] ?? "on");
+  const run = "./" + HOST.exe + " " + FLAGS[c.mode].replace("$gm",
+    MEMORY[c.bench] ?? "on");
   const src = "runtime/" + c.bench + "/main.bend";
   return `d=$HOME/bend-perf/${c.bench}-${String(c.mode)}; rm -rf $d;`
     + ` mkdir -p $d; cd $d; tar -xzf -; ${THREADS} ${lib.BUN} bend2/main.ts`
     + ` ${src} -o main > /dev/null 2>&1; t0=$(${CLOCK}); ${lib.BUN}`
     + ` bend2/main.ts ${src} -o main > build.txt 2>&1; b=$?;`
     + ` t1=$(${CLOCK}); [ $b = 0 ] && { ${lib.BUN} bend2/main.ts ${src}`
-    + ` -o main.c >> build.txt 2>&1 && ${BUILD[c.mode]} -o cell >> build.txt`
+    + ` -o main.c >> build.txt 2>&1 && ${BUILD[c.mode]} -o ${HOST.exe} >> build.txt`
     + ` 2>&1; b=$?; }; echo "${MARK} built $b $t0 $t1"; cat build.txt;`
     + ` if [ $b = 0 ]; then cat > tm.c <<'TM'\n${TM}\nTM\n ${CC} tm.c -o tm`
     + ` && ./tm warm.txt ${run} > /dev/null 2>&1; n=1; awk '$2 < ${SHORT}`
@@ -342,12 +357,20 @@ async function chk_run(c: Chk, node: number): Promise<void> {
 // ====
 
 if (import.meta.main) {
+  // words on the command line keep the benches whose name holds one; a pin
+  // writes the whole table, so it runs them all
+  const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+  const kept = (b: string): boolean => only.length === 0
+    || only.some((w) => b.includes(w));
+  if (PIN && only.length > 0) {
+    throw new Error("--pin runs every bench: drop " + only.join(" "));
+  }
   const benches = fs.readdirSync(RUNTIME).filter((f) => !f.startsWith("_"))
-    .sort();
+    .filter(kept).sort();
   const fresh = (): Cell[] => benches.flatMap((bench) => MODES.map((_, mode) =>
     ({ bench, mode, secs: null, mem: null, comp: null, out: "", note: "" })));
   const chk_fresh = (): Chk[] => fs.readdirSync(CHECKER)
-    .filter((f) => !f.startsWith("_")).sort()
+    .filter((f) => !f.startsWith("_")).filter(kept).sort()
     .map((bench) => ({ bench, secs: null, note: "" }));
   let cells = fresh();
   let chks = chk_fresh();

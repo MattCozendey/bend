@@ -7,7 +7,7 @@ function file_open_with(name, mode) {
     return io_fail(22);
   }
   if (name.includes(0)) {
-    return io_fail(process.platform === "darwin" ? 92 : 84);
+    return io_fail({ darwin: 92, win32: 42 }[process.platform] ?? 84);
   }
   if (!["r", "r+", "w", "a", "x"].includes(mode)) {
     return io_fail(22);
@@ -18,7 +18,7 @@ function file_open_with(name, mode) {
       mode === "x" ? "wx" : mode, 0o644);
     return io_done(fd);
   } catch (e) {
-    return io_fail(-e.errno);
+    return io_fail(io_code(e));
   }
 }
 

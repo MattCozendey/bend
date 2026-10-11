@@ -10,7 +10,11 @@ static void file_size_call(IoWork* w) {
   int n = fstat((int)w->hand, &st);
   io_sys_end(w, n);
   if (n == 0) {
+#ifdef _WIN32
+    w->code = (u64)st.st_size > UINT32_MAX ? EOVERFLOW : 0;
+#else
     w->code = st.st_size > (off_t)UINT32_MAX ? EOVERFLOW : 0;
+#endif
     w->word = (u32)st.st_size;
   }
 }
