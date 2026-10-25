@@ -956,8 +956,9 @@ function book_promises(book: Bend.Book): Array<[string, string[]]> {
       for (const c of t.$ === "ADT" ? [t, ...t.c] : [t]) {
         term_refs(Bend.term_lower(c.T), rs);
       }
-      if (t.$ === "Def" && t.e !== undefined) {
-        term_refs(t.e, rs);
+      // a def --trust skipped has no checked body: its parsed one names the same
+      if (t.$ === "Def" && (t.e ?? t.v) !== null) {
+        term_refs(t.e ?? Bend.term_lower(t.v as Bend.HTerm), rs);
       }
       for (const r of rs) {
         (uses[r] ??= []).push(k);
