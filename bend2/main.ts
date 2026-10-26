@@ -976,12 +976,14 @@ function book_promises(book: Bend.Book): Array<[string, string[]]> {
   });
 }
 
-// term_refs adds to out the names a term (a span skipped) refers to.
-function term_refs(t: object, out: Set<string>): void {
+// term_refs adds to out the names a term (a span skipped) refers to, and
+// with ctrs its constructors (built or matched) too.
+function term_refs(t: object, out: Set<string>, ctrs = false): void {
   const seen = new Set([t]);
   for (const todo = [t]; todo.length > 0;) {
     const x = todo.pop() as Record<string, unknown>;
-    if ((x.$ === "Ref" || x.$ === "ADT") && typeof x.k === "string") {
+    if ((x.$ === "Ref" || x.$ === "ADT" || ctrs && (x.$ === "Ctr" || x.$ === "Mat"))
+      && typeof x.k === "string") {
       out.add(x.k);
     }
     for (const f in x) {
@@ -1057,16 +1059,24 @@ class Check_Fail {
 // book_trust moves what --trust skips to the front of the order and returns
 // its length, which book_valid takes as validated: Base, and each file a glob
 // names by its path from the entry (lib/a.bend), unless its entries name a
-// checked file's defs, whose bodies its check would read. So the front is
-// closed under references, and every entry still follows what it names.
-// book_valid counts no TODO in the front, so its TODOs are counted here.
+// checked file's defs, constructors or laws, whose bodies its check would
+// read. So the front is closed under references, and every entry still
+// follows what it names. A trusted fill stays checked, in place, when a
+// checked entry between its law and it sees the law stuck. book_valid
+// counts no TODO in the front, so its TODOs are counted here.
 function book_trust(book: Bend.Book, file: string,
   seen: Map<string, string | null>, n0: number, globs: string[]): number {
   const ns = new Map([...seen].filter(([real]) => real !== BASE)
     .map(([real, n]) => [n ?? "", real]));
-  // a constructor is no tld: its prefix names its file (bare: Base's)
-  const owner = (k: string): string => book.tlds[k]?.b === true ? BASE
-    : ns.get(k.includes(":") ? k.slice(0, k.indexOf(":")) : "") ?? BASE;
+  // a constructor is no tld: its type's file is its file
+  const typ = new Map(Object.entries(book.tlds).flatMap(([T, t]) =>
+    t.$ === "ADT" ? t.c.map((c): [string, string] => [c.k, T]) : []));
+  const owner = (k: string): string => {
+    const T = typ.get(k) ?? k;
+    return book.tlds[T]?.b === true ? BASE
+      : ns.get(T.includes(":") ? T.slice(0, T.indexOf(":")) : "") ?? BASE;
+  };
+  const gs = globs.map((g) => new Bun.Glob(g));
   const name = (real: string): string => real === BASE ? "Base"
     : seen.get(real) ? seen.get(real) + ".bend" : path.basename(file);
   // a file's entries are contiguous (its imports load first; the entry's
@@ -1087,18 +1097,20 @@ function book_trust(book: Bend.Book, file: string,
   const at = own.map((o, i) => o ?? (near(i, -1) === near(i, 1) ? near(i, -1) : null));
   // only a named file's references matter (Base names Base alone)
   const refs = new Map([...seen.keys()].filter((real) => real !== BASE
-    && globs.some((g) => new Bun.Glob(g).match(name(real))))
+    && gs.some((g) => g.match(name(real))))
     .map((real) => [real, new Set<string>()]));
   book.order.forEach((k, i) => {
     const t  = book.tlds[k];
     const rs = refs.get(at[i] ?? "");
     if (rs !== undefined && first.get(k) === i) {
       for (const c of t.$ === "ADT" ? [t, ...t.c] : [t]) {
-        term_refs(Bend.term_lower(c.T), rs);
+        term_refs(Bend.term_lower(c.T), rs, true);
       }
+    } else if (rs !== undefined) {
+      rs.add(k);
     }
     if (rs !== undefined && last.get(k) === i && t.$ === "Def" && t.v !== null) {
-      term_refs(Bend.term_lower(t.v), rs);
+      term_refs(Bend.term_lower(t.v), rs, true);
     }
   });
   const trust = new Set([BASE, ...refs.keys()]);
@@ -1117,10 +1129,12 @@ function book_trust(book: Bend.Book, file: string,
     .map(name).join(" ") || "nothing") + "\n");
   const front: string[] = [];
   const rest: string[] = [];
+  let chk = -1; // the last entry kept checked
   book.order.forEach((k, i) => {
     const t = book.tlds[k];
-    if (at[i] === null || !trust.has(at[i])) {
+    if (at[i] === null || !trust.has(at[i]) || first.get(k)! < chk) {
       rest.push(k);
+      chk = i;
     } else {
       front.push(k);
       if (last.get(k) === i && t.$ === "Def" && t.v === null && t.b !== true && !t.i) {
