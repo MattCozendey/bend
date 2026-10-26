@@ -1031,15 +1031,14 @@ async function book_read(file: string, base?: Bend.Book,
     seen.set(BASE, "");
   }
   try {
-    const mods = new Map<string, Bend.Mod>();
-    await Bend.book_load(book, file, "", seen, undefined, undefined, mods);
+    const n0 = await Bend.book_load(book, file, "", seen);
     const laws = path.join(path.dirname(file), "LAWS.bend");
     if (path.basename(file) === "PROOF.bend" && fs.existsSync(laws)
       && !seen.has(fs.realpathSync(laws))) {
       throw "Error: PROOF.bend must import ./LAWS.bend";
     }
-    Bend.book_valid(book, trust.length === 0 ? (i) => i < (base?.order.length ?? 0)
-      : book_trust(file, seen, mods, trust));
+    Bend.book_valid(book, trust.length === 0 ? base?.order.length ?? 0
+      : book_trust(book, file, seen, n0, trust));
     if (book.hols > 0) {
       throw "Error: " + String(book.hols) + " TODO" + (book.hols === 1 ? "" : "s")
         + " found.\nThe code is incomplete, and not a valid proof yet.";
@@ -1055,26 +1054,82 @@ class Check_Fail {
   constructor(readonly why: unknown) {}
 }
 
-// book_trust is what --trust skips: Base, and each file a glob names by its
-// path from the entry (lib/a.bend), unless it imports a checked file, whose
-// bodies its check would read. mods holds imports first, so one pass does.
-function book_trust(file: string, seen: Map<string, string | null>,
-  mods: Map<string, Bend.Mod>, globs: string[]): (i: number) => boolean {
+// book_trust moves what --trust skips to the front of the order and returns
+// its length, which book_valid takes as validated: Base, and each file a glob
+// names by its path from the entry (lib/a.bend), unless its entries name a
+// checked file's defs, whose bodies its check would read. So the front is
+// closed under references, and every entry still follows what it names.
+// book_valid counts no TODO in the front, so its TODOs are counted here.
+function book_trust(book: Bend.Book, file: string,
+  seen: Map<string, string | null>, n0: number, globs: string[]): number {
+  const ns = new Map([...seen].filter(([real]) => real !== BASE)
+    .map(([real, n]) => [n ?? "", real]));
+  // a constructor is no tld: its prefix names its file (bare: Base's)
+  const owner = (k: string): string => book.tlds[k]?.b === true ? BASE
+    : ns.get(k.includes(":") ? k.slice(0, k.indexOf(":")) : "") ?? BASE;
   const name = (real: string): string => real === BASE ? "Base"
     : seen.get(real) ? seen.get(real) + ".bend" : path.basename(file);
-  const trust = new Set<string>();
-  for (const [real, { deps }] of mods) {
-    const named = real === BASE || globs.some((g) => new Bun.Glob(g).match(name(real)));
-    const dep = deps.find((d) => !trust.has(d));
-    if (named && dep !== undefined) {
-      cli_say(2, "checking " + name(real) + ": it imports " + name(dep) + "\n");
-    } else if (named) {
-      trust.add(real);
+  // a file's entries are contiguous (its imports load first; the entry's
+  // start at n0), so a name's later entry (a law's fill) is the file's whose
+  // first entries surround it, or no file's (checked) if they differ
+  const first = new Map([...book.order.entries()].reverse().map(([i, k]) => [k, i]));
+  const last  = new Map(book.order.map((k, i) => [k, i]));
+  const own   = book.order.map((k, i) => i >= n0 ? ns.get("")!
+    : first.get(k) === i ? owner(k) : null);
+  const near  = (i: number, d: number): string | null => {
+    for (; i >= 0 && i < own.length; i += d) {
+      if (own[i] !== null) {
+        return own[i];
+      }
+    }
+    return null;
+  };
+  const at = own.map((o, i) => o ?? (near(i, -1) === near(i, 1) ? near(i, -1) : null));
+  // only a named file's references matter (Base names Base alone)
+  const refs = new Map([...seen.keys()].filter((real) => real !== BASE
+    && globs.some((g) => new Bun.Glob(g).match(name(real))))
+    .map((real) => [real, new Set<string>()]));
+  book.order.forEach((k, i) => {
+    const t  = book.tlds[k];
+    const rs = refs.get(at[i] ?? "");
+    if (rs !== undefined && first.get(k) === i) {
+      for (const c of t.$ === "ADT" ? [t, ...t.c] : [t]) {
+        term_refs(Bend.term_lower(c.T), rs);
+      }
+    }
+    if (rs !== undefined && last.get(k) === i && t.$ === "Def" && t.v !== null) {
+      term_refs(Bend.term_lower(t.v), rs);
+    }
+  });
+  const trust = new Set([BASE, ...refs.keys()]);
+  for (let more = true; more;) {
+    more = false;
+    for (const real of [...trust].filter((r) => r !== BASE)) {
+      const dep = [...refs.get(real)!].map(owner).find((d) => !trust.has(d));
+      if (dep !== undefined) {
+        cli_say(2, "checking " + name(real) + ": it uses " + name(dep) + "\n");
+        trust.delete(real);
+        more = true;
+      }
     }
   }
-  cli_say(2, "trusted, not checked: " + ([...trust].map(name).join(" ") || "nothing") + "\n");
-  const at = [...mods].filter(([real]) => trust.has(real));
-  return (i) => at.some(([, m]) => m.lo <= i && i < m.hi);
+  cli_say(2, "trusted, not checked: " + ([...trust].filter((r) => r !== BASE)
+    .map(name).join(" ") || "nothing") + "\n");
+  const front: string[] = [];
+  const rest: string[] = [];
+  book.order.forEach((k, i) => {
+    const t = book.tlds[k];
+    if (at[i] === null || !trust.has(at[i])) {
+      rest.push(k);
+    } else {
+      front.push(k);
+      if (last.get(k) === i && t.$ === "Def" && t.v === null && t.b !== true && !t.i) {
+        book.hols += 1;
+      }
+    }
+  });
+  book.order = [...front, ...rest];
+  return front.length;
 }
 
 function book_seed(base: Bend.Book): Bend.Book {
