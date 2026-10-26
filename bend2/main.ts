@@ -1068,16 +1068,18 @@ function book_trust(book: Bend.Book, file: string,
   seen: Map<string, string | null>, n0: number, globs: string[]): number {
   const ns = new Map([...seen].filter(([real]) => real !== BASE)
     .map(([real, n]) => [n ?? "", real]));
-  // a constructor is no tld: its type's file is its file
+  // a constructor is no tld: its type's file is its file; a name of no
+  // file loaded is "?", never trusted
   const typ = new Map(Object.entries(book.tlds).flatMap(([T, t]) =>
     t.$ === "ADT" ? t.c.map((c): [string, string] => [c.k, T]) : []));
   const owner = (k: string): string => {
     const T = typ.get(k) ?? k;
     return book.tlds[T]?.b === true ? BASE
-      : ns.get(T.includes(":") ? T.slice(0, T.indexOf(":")) : "") ?? BASE;
+      : ns.get(T.includes(":") ? T.slice(0, T.indexOf(":")) : "") ?? "?";
   };
   const gs = globs.map((g) => new Bun.Glob(g));
-  const name = (real: string): string => real === BASE ? "Base"
+  const name = (real: string): string => real === "?" ? "a name or law fill of no known file"
+    : real === BASE ? "Base"
     : seen.get(real) ? seen.get(real) + ".bend" : path.basename(file);
   // a file's entries are contiguous (its imports load first; the entry's
   // start at n0), so a name's later entry (a law's fill) is the file's whose
@@ -1117,7 +1119,9 @@ function book_trust(book: Bend.Book, file: string,
   for (let more = true; more;) {
     more = false;
     for (const real of [...trust].filter((r) => r !== BASE)) {
-      const dep = [...refs.get(real)!].map(owner).find((d) => !trust.has(d));
+      // a law is its file's, and its fill's (which unfolds it for later files)
+      const dep = [...refs.get(real)!].flatMap((r) => last.get(r) === first.get(r)
+        ? [owner(r)] : [owner(r), at[last.get(r)!] ?? "?"]).find((d) => !trust.has(d));
       if (dep !== undefined) {
         cli_say(2, "checking " + name(real) + ": it uses " + name(dep) + "\n");
         trust.delete(real);
