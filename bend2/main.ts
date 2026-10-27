@@ -1070,11 +1070,8 @@ async function book_read(file: string, base?: Bend.Book,
       && !seen.has(fs.realpathSync(laws))) {
       throw "Error: PROOF.bend must import ./LAWS.bend";
     }
-    // --trust validates a reordered book; what reads it later sees the order read
-    const order = book.order;
     Bend.book_valid(book, trust.length === 0 ? base?.order.length ?? 0
       : book_trust(book, file, seen, trust));
-    book.order = order;
     if (book.hols > 0) {
       throw "Error: " + String(book.hols) + " TODO" + (book.hols === 1 ? "" : "s")
         + " found.\nThe code is incomplete, and not a valid proof yet.";
@@ -1090,24 +1087,16 @@ class Check_Fail {
   constructor(readonly why: unknown) {}
 }
 
-// book_trust moves what --trust skips to the front of the order and returns
-// its length, which book_valid takes as validated: Base, and each file a glob
-// names by its path from the entry (lib/a.bend; a !glob excludes), unless it
-// uses what a checked file declares or fills (a law unfolds after its fill,
-// even for a file that never imports the filler): its check would read those
-// bodies. So the front is closed under uses. Types and ADTs are declared up
-// front, so only a body moves with its event: a trusted one stays checked in
-// place when a checked entry before it might reach it. A name with a
-// namespace is reached only after its file is read (by import, or through a
-// body that names it), so a fill stays when a checked entry lies between its
-// law and it; a bare one is reached by sugar and literals from anywhere, so a
-// Base body stays after any checked entry, and the entry's too without Base
-// (with it, sugar names Base's, and Base's names are taken). So an entry of a
-// file not trusted sees what it saw. book_valid counts no TODO in the front,
-// so its TODOs are counted here. A file is its namespace ("" the entry's);
-// "?" is no file, never trusted.
+// book_trust returns the entries --trust skips, which book_valid takes as
+// validated where they stand: Base, and each file a glob names by its path
+// from the entry (lib/a.bend; a !glob excludes), unless it uses what a
+// checked file declares or fills (a law unfolds after its fill, even for a
+// file that never imports the filler), or a named hole: its check would
+// read those bodies, and a hole fails every check. So the trusted files are
+// closed under uses. A file is its namespace ("" the entry's); "?" is no
+// file, never trusted.
 function book_trust(book: Bend.Book, file: string,
-  seen: Map<string, string | null>, globs: string[]): number {
+  seen: Map<string, string | null>, globs: string[]): (i: number) => boolean {
   const nss = new Set([...seen].filter(([real]) => real !== BASE).map(([, n]) => n ?? ""));
   // a constructor ("{" and its name) is its type's
   const fam = new Map(Object.entries(book.tlds).flatMap(([T, t]) =>
@@ -1126,7 +1115,7 @@ function book_trust(book: Bend.Book, file: string,
   // a law's fill is the file its body was read from (Base fills Base's alone)
   const at = book.order.map((k, i) => {
     const t = book.tlds[k];
-    return first.get(k) === i ? owner(k) : t.b === true ? BASE
+    return first.get(k) === i || t.b === true ? owner(k)
       : t.$ === "Def" ? t.v?.s?.file.ns ?? "?" : "?";
   });
   // what an entry names: its declaration first, its body last (a fill its law)
@@ -1151,14 +1140,15 @@ function book_trust(book: Bend.Book, file: string,
   const matches = (p: string): boolean => (all || gs.some(([no, g]) => !no && g.match(p)))
     && !gs.some(([no, g]) => no && g.match(p));
   // a hub file is its hash's, and each name@version kept for that hash
-  const lib = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib"), "names");
+  const lib = path.join(Bend.BEND_LIB, "names");
   const pkgs = new Map<string, string[]>();
   for (const nv of [...nss].some((f) => f.startsWith("0x")) && fs.existsSync(lib) ? fs.readdirSync(lib) : []) {
     const h = fs.readFileSync(path.join(lib, nv), "utf8").trim();
     pkgs.set(h, [...pkgs.get(h) ?? [], nv]);
   }
-  const names = (f: string): string[] => [name(f), ...(pkgs.get(f.split("/")[0]) ?? [])
-    .map((nv) => nv + f.slice(f.indexOf("/")) + ".bend")];
+  const alias = new Map([...nss].map((f) => [f, [name(f), ...(pkgs.get(f.split("/")[0]) ?? [])
+    .map((nv) => nv + f.slice(f.indexOf("/")) + ".bend")]]));
+  const names = (f: string): string[] => alias.get(f) ?? [name(f)];
   const named = (f: string): boolean => names(f).some(matches);
   // base.bend as the entry is Base itself, trusted only when named
   const root = fs.realpathSync(file) === BASE;
@@ -1191,37 +1181,9 @@ function book_trust(book: Bend.Book, file: string,
       todo.push(...[...need].filter(([g, ds]) => trust.has(g) && ds.has(f)).map(([g]) => g));
     }
   }
-  const front: string[] = [];
-  const rest: string[] = [];
-  const pins = new Set<string>();
-  let chk = -1; // the last entry kept checked
-  let who = ""; // the file of the last entry not trusted
-  book.order.forEach((k, i) => {
-    const t = book.tlds[k];
-    const pin = trust.has(at[i]) && last.get(k) === i && t.$ === "Def" && t.v !== null
-      && (k.includes(":") ? first.get(k)! < chk
-        : chk >= 0 && (at[i] === BASE || !seen.has(BASE)));
-    if (!trust.has(at[i]) || pin) {
-      if (pin && !pins.has(at[i])) {
-        pins.add(at[i]);
-        cli_say(2, "checking " + Bend.name_key(k) + " in " + name(at[i]) + ": "
-          + name(who) + ", before it, might name it"
-          + (at[i] === BASE ? " (import Base first to trust it)" : "") + "\n");
-      }
-      who = pin ? who : at[i];
-      rest.push(k);
-      chk = i;
-    } else {
-      front.push(k);
-      if (last.get(k) === i && t.$ === "Def" && t.v === null && t.b !== true && !t.i) {
-        book.hols += 1;
-      }
-    }
-  });
   cli_say(2, "trusted, not checked: " + ([...trust].filter((f) => f !== BASE || seen.has(BASE) || root)
-    .map((f) => names(f).at(-1) + (pins.has(f) ? " (in part)" : "")).join(" ") || "nothing") + "\n");
-  book.order = [...front, ...rest];
-  return front.length;
+    .map((f) => names(f).at(-1)).join(" ") || "nothing") + "\n");
+  return (i) => trust.has(at[i]);
 }
 
 function book_seed(base: Bend.Book): Bend.Book {

@@ -895,7 +895,7 @@ export const BEND_DIR = import.meta.url.startsWith("file:///$bunfs/")
   ? path.join(path.dirname(fs.realpathSync(process.execPath)), "..", "bend2")
   : url.fileURLToPath(new URL(".", import.meta.url));
 export const BASE_BEND = fs.realpathSync(path.join(BEND_DIR, "base.bend"));
-const BEND_LIB = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib"));
+export const BEND_LIB = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib"));
 export const BEND_HUB   = process.env.BEND_HUB ?? "https://hub.bend-lang.com";
 
 export const NAMED = /^([a-z][a-z0-9-]{0,63})@((?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){3})$/;
@@ -3794,8 +3794,9 @@ export function def_inst(book: Book, lhs: LHS, tm: Extract<HTerm, { $: "Ref" }>,
 
 // Valid
 // =====
-// book_valid throws the first Err (its first done entries are taken
-// as validated: a harness resumes past a seeded base); an order entry
+// book_valid throws the first Err (the entries done skips, its first
+// done or the indices it holds, are taken as validated: a harness
+// resumes past a seeded base, --trust skips files in place); an order entry
 // is an event. every def declares (bodiless) up front and defines at
 // its event (a law: type checked at its law, defined at its fill), so
 // it is visible and stuck before, and unfolds after; an ADT declares
@@ -3819,7 +3820,8 @@ export function def_inst(book: Book, lhs: LHS, tm: Extract<HTerm, { $: "Ref" }>,
 // (infer-ref) while the caller is declared; it stays outside the order
 // (a seeded book keeps it), so it is no claim.
 
-export function book_valid(book: Book, done: number = 0): void {
+export function book_valid(book: Book, done: number | ((i: number) => boolean) = 0): void {
+  const skip = typeof done === "number" ? (i: number) => i < done : done;
   const tlds = book.tlds;
   const last = new Map<Name, number>();
   for (let i = 0; i < book.order.length; i++) {
@@ -3835,7 +3837,7 @@ export function book_valid(book: Book, done: number = 0): void {
     const tld = tlds[k];
     const fin = last.get(k) === i;
     if (tld.$ === "ADT") {
-      if (i >= done) {
+      if (!skip(i)) {
         term_check(book, { t: Ref(k), n: 0, def: k, qs: [] }, tld.T, None(), Typ(Qua(Lone())), ctx_nil(), 0);
         const { doms, ret: kind } = tele_unbind(book, tld.T);
         if (kind.$ !== "Typ") {
@@ -3873,10 +3875,10 @@ export function book_valid(book: Book, done: number = 0): void {
       }
       continue;
     }
-    if (i >= done) {
-      if (fin && tld.v === null && tld.b !== true && !tld.i) {
-        book.hols += 1;
-      }
+    if (fin && tld.v === null && tld.b !== true && !tld.i) {
+      book.hols += 1;
+    }
+    if (!skip(i)) {
       term_check(book, { t: Ref(k), n: 0, def: k, qs: [], u: tld.u }, tld.T, None(), Typ(Qua(Lone())), ctx_nil(), 0);
       if (tld.i) {
         let tel = term_strip(tld.T);
