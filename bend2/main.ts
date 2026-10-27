@@ -1080,13 +1080,17 @@ class Check_Fail {
 // names by its path from the entry (lib/a.bend; a !glob excludes), unless it
 // uses what a checked file declares or fills (a law unfolds after its fill,
 // even for a file that never imports the filler): its check would read those
-// bodies. So the front is closed under uses. A trusted entry that a checked
-// entry before it can reach (by name, or through a trusted body it names)
-// stays checked in place: a law's fill, or a bare name, which sugar and
-// literals name with no import. So an entry of a file not trusted sees what
-// it saw. book_valid counts no TODO in the front, so its TODOs are counted
-// here. A file is its namespace ("" the entry's); "?" is no file, never
-// trusted.
+// bodies. So the front is closed under uses. Types and ADTs are declared up
+// front, so only a body moves with its event: a trusted one stays checked in
+// place when a checked entry before it might reach it. A name with a
+// namespace is reached only after its file is read (by import, or through a
+// body that names it), so a fill stays when a checked entry lies between its
+// law and it; a bare one is reached by sugar and literals from anywhere, so a
+// Base body stays after any checked entry, and the entry's too without Base
+// (with it, sugar names Base's, and Base's names are taken). So an entry of a
+// file not trusted sees what it saw. book_valid counts no TODO in the front,
+// so its TODOs are counted here. A file is its namespace ("" the entry's);
+// "?" is no file, never trusted.
 function book_trust(book: Bend.Book, file: string,
   seen: Map<string, string | null>, globs: string[]): number {
   const nss = new Set([...seen].filter(([real]) => real !== BASE).map(([, n]) => n ?? ""));
@@ -1125,11 +1129,17 @@ function book_trust(book: Bend.Book, file: string,
   };
   const name = (f: string): string => f === "?" ? "an unknown name or a foreign fill"
     : f === BASE ? "Base" : f === "" ? path.basename(file) : f + ".bend";
+  // a !glob excludes; with only those, the rest is named
   const gs = globs.map((g) => [g.startsWith("!"), new Bun.Glob(g.replace(/^!?(\.\/)?/, ""))] as const);
-  const named = (f: string): boolean => gs.some(([no, g]) => !no && g.match(name(f)))
-    && !gs.some(([no, g]) => no && g.match(name(f)));
+  const all = gs.every(([no]) => no);
+  const matches = (p: string): boolean => (all || gs.some(([no, g]) => !no && g.match(p)))
+    && !gs.some(([no, g]) => no && g.match(p));
+  const named = (f: string): boolean => matches(name(f));
+  // base.bend as the entry is Base itself, trusted only when named
+  const root = fs.realpathSync(file) === BASE;
+  const paths = [...nss].map(name).concat(root ? [path.basename(file)] : []);
   globs.forEach((g, j) => {
-    if (![...nss].some((f) => gs[j][1].match(name(f)))) {
+    if (!paths.some((p) => gs[j][1].match(p))) {
       cli_say(2, "bend: --trust " + g + " names no file (a glob matches"
         + " paths from the entry's directory)\n");
     }
@@ -1145,7 +1155,7 @@ function book_trust(book: Bend.Book, file: string,
   // a law is its file's, and its fill's
   const deps = (r: string): string[] => first.get(r) === last.get(r) ? [owner(r)]
     : [owner(r), at[last.get(r)!]];
-  const trust = new Set([BASE, ...uses.keys()]);
+  const trust = new Set((!root || matches(path.basename(file)) ? [BASE] : []).concat([...uses.keys()]));
   for (let more = true; more;) {
     more = false;
     for (const [f, us] of uses) {
@@ -1157,44 +1167,25 @@ function book_trust(book: Bend.Book, file: string,
       }
     }
   }
-  // seen: what the checked entries so far reach, and from which file; only
-  // tracked while a trusted entry is still to come
-  let end = -1;
-  at.forEach((f, i) => end = trust.has(f) ? i : end);
-  const reach = new Map<string, string>();
-  const see = (rs: Set<string>, by: string, upto: number): void => {
-    for (const todo = [...rs].map(tld); todo.length > 0;) {
-      const k = todo.pop()!;
-      if (!reach.has(k)) {
-        reach.set(k, by);
-        // a trusted body already in front unfolds for the checked entry
-        const j = last.get(k);
-        if (j !== undefined && j < upto && trust.has(at[j])) {
-          const out = new Set<string>();
-          refs(k, j, out);
-          todo.push(...[...out].map(tld));
-        }
-      }
-    }
-  };
   const front: string[] = [];
   const rest: string[] = [];
-  const pins = new Map<string, string>();
+  const pins = new Set<string>();
+  let chk = -1; // the last entry kept checked
+  let who = ""; // the file of the last entry not trusted
   book.order.forEach((k, i) => {
     const t = book.tlds[k];
-    const pin = trust.has(at[i]) ? reach.get(k) : undefined;
-    if (!trust.has(at[i]) || pin !== undefined) {
-      if (pin !== undefined && !pins.has(at[i])) {
-        pins.set(at[i], pin);
-        cli_say(2, "checking " + k + " in " + name(at[i]) + ": " + name(pin)
-          + ", before it, can name it\n");
+    const pin = trust.has(at[i]) && last.get(k) === i && t.$ === "Def" && t.v !== null
+      && (k.includes(":") ? first.get(k)! < chk
+        : chk >= 0 && (at[i] === BASE || !seen.has(BASE)));
+    if (!trust.has(at[i]) || pin) {
+      if (pin && !pins.has(at[i])) {
+        pins.add(at[i]);
+        cli_say(2, "checking " + Bend.name_key(k) + " in " + name(at[i]) + ": "
+          + name(who) + ", before it, might name it\n");
       }
+      who = pin ? who : at[i];
       rest.push(k);
-      if (i < end) {
-        const out = new Set<string>();
-        refs(k, i, out);
-        see(out, pin ?? at[i], i);
-      }
+      chk = i;
     } else {
       front.push(k);
       if (last.get(k) === i && t.$ === "Def" && t.v === null && t.b !== true && !t.i) {
@@ -1202,7 +1193,7 @@ function book_trust(book: Bend.Book, file: string,
       }
     }
   });
-  cli_say(2, "trusted, not checked: " + ([...trust].filter((f) => f !== BASE || seen.has(BASE))
+  cli_say(2, "trusted, not checked: " + ([...trust].filter((f) => f !== BASE || seen.has(BASE) || root)
     .map((f) => name(f) + (pins.has(f) ? " (in part)" : "")).join(" ") || "nothing") + "\n");
   book.order = [...front, ...rest];
   return front.length;
