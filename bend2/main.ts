@@ -954,11 +954,11 @@ function book_promises(book: Bend.Book): Array<[string, string[]]> {
     if (t !== undefined) {
       const rs = new Set<string>();
       for (const c of t.$ === "ADT" ? [t, ...t.c] : [t]) {
-        term_refs(Bend.term_lower(c.T), rs);
+        term_refs(term_low(c.T), rs);
       }
       // a def --trust skipped has no checked body: its parsed one names the same
       if (t.$ === "Def" && (t.e ?? t.v) !== null) {
-        term_refs(t.e ?? Bend.term_lower(t.v as Bend.HTerm), rs);
+        term_refs(t.e ?? term_low(t.v as Bend.HTerm), rs);
       }
       for (const r of rs) {
         (uses[r] ??= []).push(k);
@@ -976,9 +976,19 @@ function book_promises(book: Bend.Book): Array<[string, string[]]> {
   });
 }
 
+// term_low lowers a parsed term once: --trust and book_promises both walk it
+const LOWS = new WeakMap<Bend.HTerm, Bend.LTerm>();
+function term_low(t: Bend.HTerm): Bend.LTerm {
+  let out = LOWS.get(t);
+  if (out === undefined) {
+    LOWS.set(t, out = Bend.term_lower(t));
+  }
+  return out;
+}
+
 // term_refs adds to out the names a term (a span skipped) refers to, and
 // with ctrs its constructors too, built, matched or a literal's, as "{" and
-// the constructor's name.
+// the constructor's name, and its named holes, as "?" and the hole's name.
 function term_refs(t: object, out: Set<string>, ctrs = false): void {
   const seen = new Set([t]);
   for (const todo = [t]; todo.length > 0;) {
@@ -989,6 +999,8 @@ function term_refs(t: object, out: Set<string>, ctrs = false): void {
       out.add("{" + x.k);
     } else if (ctrs && x.$ === "Lit") {
       lit_refs(x.k as string).forEach((k) => out.add(k));
+    } else if (ctrs && x.$ === "Hol" && x.k !== "TODO") {
+      out.add("?" + x.k);
     }
     for (const f in x) {
       const v = x[f];
@@ -1101,11 +1113,12 @@ function book_trust(book: Bend.Book, file: string,
   const fam = new Map(Object.entries(book.tlds).flatMap(([T, t]) =>
     t.$ === "ADT" ? t.c.map((c): [string, string] => ["{" + c.k, T]) : []));
   const tld = (r: string): string => fam.get(r) ?? r;
-  // a name is its namespace's; a bare one is the entry's or Base's
+  // a name is its namespace's; a bare one is the entry's or Base's; a hole
+  // ("?" and its name) fails every check, so it is never trusted
   const owner = (r: string): string => {
     const k = tld(r);
     const t = book.tlds[k];
-    return t === undefined ? "?" : k.includes(":") ? k.slice(0, k.indexOf(":"))
+    return t === undefined ? (k.startsWith("?") ? k : "?") : k.includes(":") ? k.slice(0, k.indexOf(":"))
       : t.b === true ? BASE : "";
   };
   const first = new Map(book.order.map((k, i): [string, number] => [k, i]).reverse());
@@ -1123,29 +1136,36 @@ function book_trust(book: Bend.Book, file: string,
       out.add(k);
     } else {
       for (const c of t.$ === "ADT" ? [t, ...t.c] : [t]) {
-        term_refs(Bend.term_lower(c.T), out, true);
+        term_refs(term_low(c.T), out, true);
       }
     }
     if (last.get(k) === i && t.$ === "Def" && t.v !== null) {
-      term_refs(Bend.term_lower(t.v), out, true);
+      term_refs(term_low(t.v), out, true);
     }
   };
   const name = (f: string): string => f === "?" ? "an unknown name or a foreign fill"
-    : f === BASE ? "Base" : f === "" ? path.basename(file) : f + ".bend";
+    : f.startsWith("?") ? "the hole " + f : f === BASE ? "Base" : f === "" ? path.basename(file) : f + ".bend";
   // a !glob excludes; with only those, the rest is named
   const gs = globs.map((g) => [g.startsWith("!"), new Bun.Glob(g.replace(/^!?(\.\/)?/, ""))] as const);
   const all = gs.every(([no]) => no);
   const matches = (p: string): boolean => (all || gs.some(([no, g]) => !no && g.match(p)))
     && !gs.some(([no, g]) => no && g.match(p));
-  const named = (f: string): boolean => matches(name(f));
+  // a hub file is its hash's, and each name@version kept for that hash
+  const lib = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib"), "names");
+  const pkgs = new Map<string, string[]>();
+  for (const nv of [...nss].some((f) => f.startsWith("0x")) && fs.existsSync(lib) ? fs.readdirSync(lib) : []) {
+    const h = fs.readFileSync(path.join(lib, nv), "utf8").trim();
+    pkgs.set(h, [...pkgs.get(h) ?? [], nv]);
+  }
+  const names = (f: string): string[] => [name(f), ...(pkgs.get(f.split("/")[0]) ?? [])
+    .map((nv) => nv + f.slice(f.indexOf("/")) + ".bend")];
+  const named = (f: string): boolean => names(f).some(matches);
   // base.bend as the entry is Base itself, trusted only when named
   const root = fs.realpathSync(file) === BASE;
-  const paths = [...nss].map(name).concat(root ? [path.basename(file)] : []);
-  // a !glob only forces a check, so one that names no file is a mistake
+  const paths = [...nss].flatMap(names).concat(root ? [path.basename(file)] : []);
   globs.forEach((g, j) => {
     if (!paths.some((p) => gs[j][1].match(p))) {
-      const say = gs[j][0] ? cli_fail : (m: string) => cli_say(2, "bend: " + m + "\n");
-      say("--trust " + g + " names no file (a glob matches paths from the entry's directory)");
+      cli_say(2, "bend: --trust " + g + " names no file (a glob matches paths from the entry's directory)\n");
     }
   });
   // only a named file's uses matter (Base uses Base alone)
@@ -1159,16 +1179,16 @@ function book_trust(book: Bend.Book, file: string,
   // a law is its file's, and its fill's
   const deps = (r: string): string[] => first.get(r) === last.get(r) ? [owner(r)]
     : [owner(r), at[last.get(r)!]];
+  const need = new Map([...uses].map(([f, us]) => [f, new Set([...us].flatMap(deps))]));
   const trust = new Set((!root || matches(path.basename(file)) ? [BASE] : []).concat([...uses.keys()]));
-  for (let more = true; more;) {
-    more = false;
-    for (const [f, us] of uses) {
-      const dep = trust.has(f) ? [...us].flatMap(deps).find((d) => !trust.has(d)) : undefined;
-      if (dep !== undefined) {
-        cli_say(2, "checking " + name(f) + ": it uses " + name(dep) + "\n");
-        trust.delete(f);
-        more = true;
-      }
+  // a file checked unsettles the trusted files that need it
+  for (const todo = [...need.keys()]; todo.length > 0;) {
+    const f = todo.shift()!;
+    const dep = trust.has(f) ? [...need.get(f)!].find((d) => !trust.has(d)) : undefined;
+    if (dep !== undefined) {
+      cli_say(2, "checking " + name(f) + ": it uses " + name(dep) + "\n");
+      trust.delete(f);
+      todo.push(...[...need].filter(([g, ds]) => trust.has(g) && ds.has(f)).map(([g]) => g));
     }
   }
   const front: string[] = [];
@@ -1185,7 +1205,8 @@ function book_trust(book: Bend.Book, file: string,
       if (pin && !pins.has(at[i])) {
         pins.add(at[i]);
         cli_say(2, "checking " + Bend.name_key(k) + " in " + name(at[i]) + ": "
-          + name(who) + ", before it, might name it\n");
+          + name(who) + ", before it, might name it"
+          + (at[i] === BASE ? " (import Base first to trust it)" : "") + "\n");
       }
       who = pin ? who : at[i];
       rest.push(k);
@@ -1198,7 +1219,7 @@ function book_trust(book: Bend.Book, file: string,
     }
   });
   cli_say(2, "trusted, not checked: " + ([...trust].filter((f) => f !== BASE || seen.has(BASE) || root)
-    .map((f) => name(f) + (pins.has(f) ? " (in part)" : "")).join(" ") || "nothing") + "\n");
+    .map((f) => names(f).at(-1) + (pins.has(f) ? " (in part)" : "")).join(" ") || "nothing") + "\n");
   book.order = [...front, ...rest];
   return front.length;
 }
