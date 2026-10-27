@@ -312,9 +312,10 @@ async function cli_file(args: string[]): Promise<void> {
       return await cli_checkup(file);
     }
     const seen = new Map<string, string | null>();
-    const book = await book_read(file, undefined, seen, trust);
+    const trusted: string[] = [];
+    const book = await book_read(file, undefined, seen, trust, trusted);
     if (only || verdict) {
-      process.exitCode = cli_verdict(book, verdict);
+      process.exitCode = cli_verdict(book, verdict, trusted);
       return;
     }
     if (outs.length === 0) {
@@ -901,8 +902,9 @@ async function pow_mine(hash: string, bytes: number): Promise<number> {
 // when BendTT checks every def too; else FAIL and why. A kernel failure is
 // a mismatch: bend2 accepted what the kernel rejects; it shows the why.
 // When none of those is a law or a def of the file, no law or proof uses
-// them: they come in through imports, and a hint names them.
-function cli_verdict(book: Bend.Book, kernel: boolean): number {
+// them: they come in through imports, and a hint names them. PASS names
+// the files --trust took unchecked.
+function cli_verdict(book: Bend.Book, kernel: boolean, trusted: string[] = []): number {
   const bad = book_promises(book);
   const n   = new Set(bad.flatMap(([, ks]) => ks)).size;
   if (n !== 0) {
@@ -923,7 +925,8 @@ function cli_verdict(book: Bend.Book, kernel: boolean): number {
     cli_say(2, FAIL + "\n" + why + "\n" + MISMATCH + "\n");
     return 1;
   }
-  cli_say(1, PASS + "\n" + (kernel ? "" : HINT + "\n"));
+  cli_say(1, PASS + (trusted.length === 0 ? "" : ", TRUSTING " + trusted.join(" "))
+    + "\n" + (kernel ? "" : HINT + "\n"));
   return 0;
 }
 
@@ -1058,7 +1061,8 @@ function cli_fail(msg: string): never {
 // ====
 
 async function book_read(file: string, base?: Bend.Book,
-  seen = new Map<string, string | null>(), trust: string[] = []): Promise<Bend.Book> {
+  seen = new Map<string, string | null>(), trust: string[] = [],
+  trusted: string[] = []): Promise<Bend.Book> {
   const book = base === undefined ? Bend.book_nil() : book_seed(base);
   if (base !== undefined) {
     seen.set(BASE, "");
@@ -1071,7 +1075,7 @@ async function book_read(file: string, base?: Bend.Book,
       throw "Error: PROOF.bend must import ./LAWS.bend";
     }
     Bend.book_valid(book, trust.length === 0 ? base?.order.length ?? 0
-      : book_trust(book, file, seen, trust));
+      : book_trust(book, file, seen, trust, trusted));
     if (book.hols > 0) {
       throw "Error: " + String(book.hols) + " TODO" + (book.hols === 1 ? "" : "s")
         + " found.\nThe code is incomplete, and not a valid proof yet.";
@@ -1093,10 +1097,10 @@ class Check_Fail {
 // checked file declares or fills (a law unfolds after its fill, even for a
 // file that never imports the filler), or a named hole: its check would
 // read those bodies, and a hole fails every check. So the trusted files are
-// closed under uses. A file is its namespace ("" the entry's); "?" is no
-// file, never trusted.
+// closed under uses; out gets their names. A file is its namespace ("" the
+// entry's); "?" is no file, never trusted.
 function book_trust(book: Bend.Book, file: string,
-  seen: Map<string, string | null>, globs: string[]): (i: number) => boolean {
+  seen: Map<string, string | null>, globs: string[], out: string[]): (i: number) => boolean {
   const nss = new Set([...seen].filter(([real]) => real !== BASE).map(([, n]) => n ?? ""));
   // a constructor ("{" and its name) is its type's
   const fam = new Map(Object.entries(book.tlds).flatMap(([T, t]) =>
@@ -1181,8 +1185,8 @@ function book_trust(book: Bend.Book, file: string,
       todo.push(...[...need].filter(([g, ds]) => trust.has(g) && ds.has(f)).map(([g]) => g));
     }
   }
-  cli_say(2, "trusted, not checked: " + ([...trust].filter((f) => f !== BASE || seen.has(BASE) || root)
-    .map((f) => names(f).at(-1)).join(" ") || "nothing") + "\n");
+  out.push(...[...trust].filter((f) => f !== BASE || seen.has(BASE) || root).map((f) => names(f).at(-1)!));
+  cli_say(2, "trusted, not checked: " + (out.join(" ") || "nothing") + "\n");
   return (i) => trust.has(at[i]);
 }
 
