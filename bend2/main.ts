@@ -1058,8 +1058,11 @@ async function book_read(file: string, base?: Bend.Book,
       && !seen.has(fs.realpathSync(laws))) {
       throw "Error: PROOF.bend must import ./LAWS.bend";
     }
+    // --trust validates a reordered book; what reads it later sees the order read
+    const order = book.order;
     Bend.book_valid(book, trust.length === 0 ? base?.order.length ?? 0
       : book_trust(book, file, seen, trust));
+    book.order = order;
     if (book.hols > 0) {
       throw "Error: " + String(book.hols) + " TODO" + (book.hols === 1 ? "" : "s")
         + " found.\nThe code is incomplete, and not a valid proof yet.";
@@ -1138,10 +1141,11 @@ function book_trust(book: Bend.Book, file: string,
   // base.bend as the entry is Base itself, trusted only when named
   const root = fs.realpathSync(file) === BASE;
   const paths = [...nss].map(name).concat(root ? [path.basename(file)] : []);
+  // a !glob only forces a check, so one that names no file is a mistake
   globs.forEach((g, j) => {
     if (!paths.some((p) => gs[j][1].match(p))) {
-      cli_say(2, "bend: --trust " + g + " names no file (a glob matches"
-        + " paths from the entry's directory)\n");
+      const say = gs[j][0] ? cli_fail : (m: string) => cli_say(2, "bend: " + m + "\n");
+      say("--trust " + g + " names no file (a glob matches paths from the entry's directory)");
     }
   });
   // only a named file's uses matter (Base uses Base alone)
