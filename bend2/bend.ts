@@ -3820,9 +3820,9 @@ export function def_inst(book: Book, lhs: LHS, tm: Extract<HTerm, { $: "Ref" }>,
 
 // Valid
 // =====
-// book_valid throws the first Err (the entries done skips, its first
-// done or the indices it holds, are taken as validated: a harness
-// resumes past a seeded base, --trust skips files in place); an order entry
+// book_valid throws the first Err (done skips entries, its first done
+// or those it holds for, taken as validated, their TODOs still counted:
+// a harness resumes past a seeded base); an order entry
 // is an event. every def declares (bodiless) up front and defines at
 // its event (a law: type checked at its law, defined at its fill), so
 // it is visible and stuck before, and unfolds after; an ADT declares

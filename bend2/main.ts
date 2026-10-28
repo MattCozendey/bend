@@ -295,7 +295,8 @@ async function cli_file(args: string[]): Promise<void> {
   }
   // args go to a plain run only: any option (all start with -) refuses them
   if (argv.length !== 0 && args.some((a) => a.startsWith("-") && a !== "--")) {
-    cli_fail("arguments go to a run: bend <file.bend> [args]");
+    cli_fail("arguments go to a run: bend <file.bend> [args]"
+      + (trust.length === 0 ? "" : " (quote a --trust glob, or the shell expands it)"));
   }
   if (checkup && outs.length !== 0) {
     cli_fail("--checkup takes no -o: a binary holds one main, so build each"
@@ -1122,24 +1123,24 @@ function book_trust(book: Bend.Book, file: string,
   };
   const first = new Map(book.order.map((k, i): [string, number] => [k, i]).reverse());
   const last  = new Map(book.order.map((k, i) => [k, i]));
-  // a law's fill is the file its body was read from (Base fills Base's alone)
+  // a law's fill (only a fill repeats) is the file its body was read from
+  // (Base fills Base's alone)
   const at = book.order.map((k, i) => {
     const t = book.tlds[k];
-    return first.get(k) === i || t.b === true ? owner(k)
-      : t.$ === "Def" ? t.v?.s?.file.ns ?? "?" : "?";
+    return first.get(k) === i || t.b === true ? owner(k) : (t as Bend.Def).v?.s?.file.ns ?? "?";
   });
   // what an entry names: its declaration first, its body last (a fill its law)
-  const refs = (k: string, i: number, out: Set<string>): void => {
+  const refs = (k: string, i: number, us: Set<string>): void => {
     const t = book.tlds[k];
     if (first.get(k) !== i) {
-      out.add(k);
+      us.add(k);
     } else {
       for (const c of t.$ === "ADT" ? [t, ...t.c] : [t]) {
-        term_refs(term_low(c.T), out, true);
+        term_refs(term_low(c.T), us, true);
       }
     }
     if (last.get(k) === i && t.$ === "Def" && t.v !== null) {
-      term_refs(term_low(t.v), out, true);
+      term_refs(term_low(t.v), us, true);
     }
   };
   const name = (f: string): string => f === "?" ? "an unknown name or a foreign fill"
@@ -1153,8 +1154,12 @@ function book_trust(book: Bend.Book, file: string,
   const lib = path.join(Bend.BEND_LIB, "names");
   const pkgs = new Map<string, string[]>();
   for (const nv of [...nss].some((f) => f.startsWith("0x")) && fs.existsSync(lib) ? fs.readdirSync(lib) : []) {
-    const h = fs.readFileSync(path.join(lib, nv), "utf8").trim();
-    pkgs.set(h, [...pkgs.get(h) ?? [], nv]);
+    try {
+      const h = fs.readFileSync(path.join(lib, nv), "utf8").trim();
+      pkgs.set(h, [...pkgs.get(h) ?? [], nv]);
+    } catch {
+      // not a name the loader kept: no alias
+    }
   }
   const alias = new Map([...nss].map((f) => [f, [name(f), ...(pkgs.get(f.split("/")[0]) ?? [])
     .map((nv) => nv + f.slice(f.indexOf("/")) + ".bend")]]));
@@ -1163,9 +1168,12 @@ function book_trust(book: Bend.Book, file: string,
   // base.bend as the entry is Base itself, trusted only when named
   const root = fs.realpathSync(file) === BASE;
   const paths = [...nss].flatMap(names).concat(root ? [path.basename(file)] : []);
+  // with only !globs a typo would trust every file, so it fails; next to a
+  // glob it only warns, as an exclusion may name a file this entry skips
   globs.forEach((g, j) => {
     if (!paths.some((p) => gs[j][1].match(p))) {
-      cli_say(2, "bend: --trust " + g + " names no file (a glob matches paths from the entry's directory)\n");
+      const say = all ? cli_fail : (m: string) => cli_say(2, "bend: " + m + "\n");
+      say("--trust " + g + " names no file (a glob matches paths from the entry's directory)");
     }
   });
   // only a named file's uses matter (Base uses Base alone)
