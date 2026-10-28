@@ -933,7 +933,8 @@ function cli_verdict(book: Bend.Book, kernel: boolean, trusted: string[] = []): 
     return 1;
   }
   cli_say(1, PASS + (trusted.length === 0 ? "" : ", TRUSTING " + trusted.join(" "))
-    + "\n" + (kernel ? "" : HINT + "\n"));
+    + "\n" + (kernel ? "" : (trusted.length === 0 ? HINT
+      : HINT.replace("--verdict", "--verdict, without --trust,")) + "\n"));
   return 0;
 }
 
