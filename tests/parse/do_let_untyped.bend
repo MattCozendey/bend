@@ -1,5 +1,5 @@
-# a do-block let written without its type: the pattern error gets a note
-# that a let names its type (#1787)
+# a do-block let written without its type is refused at its `=`, with
+# the typed form (#1787)
 import Base
 
 def main() -> IO(Unit):
@@ -9,12 +9,11 @@ def main() -> IO(Unit):
 
 #|SOME PROOFS FAIL
 #|Error:
-#|- expected : a pattern (a binder or a constructor)
-#|- observed : {x : IO(Unit)}
+#|- expected : a do-block let with its type (write "x : T = ...")
+#|- observed : '='
 #|Location:
 #|6 |   do IO<Unit>:
 #|7>|     x = 1
-#|  |     ^
+#|  |       ^
 #|8 |     IO.print(U32.show(x))
-#|Note: in a do-block, a let names its type: x : A = v.
 #|exit 1
