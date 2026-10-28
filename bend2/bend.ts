@@ -900,8 +900,10 @@ export const BEND_DIR = import.meta.url.startsWith("file:///$bunfs/")
   ? path.join(path.dirname(fs.realpathSync(process.execPath)), "..", "bend2")
   : url.fileURLToPath(new URL(".", import.meta.url));
 export const BASE_BEND = fs.realpathSync(path.join(BEND_DIR, "base.bend"));
-export const BEND_LIB = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib"));
+const BEND_LIB = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib"));
 export const BEND_HUB   = process.env.BEND_HUB ?? "https://hub.bend-lang.com";
+// HUB_NAMES maps a hub hash to the name@versions its imports spelled
+export const HUB_NAMES = new Map<string, Set<string>>();
 
 export const NAMED = /^([a-z][a-z0-9-]{0,63})@((?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){3})$/;
 
@@ -1000,6 +1002,9 @@ export async function book_load(book: Book, file: string, ns: string, seen: Map<
     const bad = () => Err(book, ctx_nil(), "an import path of plain names (letters, digits, _ and -; the hub's files import the hub's)", "'" + m[1] + "'", sp);
     const nv  = /^([^/]*@[^/]*)\//.exec(m[1]);
     const as  = nv === null ? m[1] : await name_hash(book, nv[1], sp) + m[1].slice(nv[1].length);
+    if (nv !== null) {
+      HUB_NAMES.set(as.split("/")[0], (HUB_NAMES.get(as.split("/")[0]) ?? new Set()).add(nv[1]));
+    }
     const rel = path.posix.normalize(as);
     if (!ok(as.replace(/^\.\//, "").slice(0, -5), hub(as))) {
       throw bad();

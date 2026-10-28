@@ -1152,23 +1152,9 @@ function book_trust(book: Bend.Book, file: string,
   const all = gs.every(([no]) => no);
   const matches = (ps: string[]): boolean => (all || gs.some(([no, g]) => !no && ps.some((p) => g.match(p))))
     && !gs.some(([no, g]) => no && ps.some((p) => g.match(p)));
-  // a hub file is its hash's, and each name@version kept for that hash
-  const lib = path.join(Bend.BEND_LIB, "names");
-  const pkgs = new Map<string, string[]>();
-  try {
-    for (const nv of [...nss].some((f) => f.startsWith("0x")) ? fs.readdirSync(lib) : []) {
-      try {
-        const h = fs.readFileSync(path.join(lib, nv), "utf8").trim();
-        pkgs.set(h, [...pkgs.get(h) ?? [], nv]);
-      } catch {
-        // not a name the loader kept: no alias
-      }
-    }
-  } catch {
-    // no names kept: hashes alone
-  }
-  const alias = new Map([...nss].map((f) => [f, [name(f), ...(pkgs.get(f.split("/")[0]) ?? [])
-    .map((nv) => nv + f.slice(f.indexOf("/")) + ".bend")]]));
+  // a hub file is its hash's, and each name@version an import spelled it as
+  const alias = new Map([...nss].map((f) => [f, [name(f), ...Bend.HUB_NAMES.get(f.split("/")[0]) ?? []]
+    .map((nv, j) => j === 0 ? nv : nv + f.slice(f.indexOf("/")) + ".bend")]));
   const names = (f: string): string[] => alias.get(f) ?? [name(f)];
   const named = (f: string): boolean => matches(names(f));
   // base.bend as the entry is Base itself, trusted only when named
@@ -1204,8 +1190,7 @@ function book_trust(book: Bend.Book, file: string,
       todo.push(...[...need].filter(([g, ds]) => trust.has(g) && ds.has(f)).map(([g]) => g));
     }
   }
-  out.push(...[...trust].filter((f) => f !== BASE || seen.has(BASE) || root).map((f) => names(f).at(-1)!));
-  cli_say(2, "trusted, not checked: " + (out.join(" ") || "nothing") + "\n");
+  out.push(...[...trust].filter((f) => f !== BASE || seen.has(BASE)).map((f) => names(f).at(-1)!));
   return (i) => trust.has(at[i]);
 }
 
