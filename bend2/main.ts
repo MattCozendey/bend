@@ -1146,17 +1146,17 @@ function book_trust(book: Bend.Book, file: string,
   };
   const name = (f: string): string => f === "?" ? "an unknown name or a foreign fill"
     : f.startsWith("?") ? "the hole " + f : f === BASE ? "Base" : f === "" ? path.basename(file) : f + ".bend";
-  // a !glob excludes a file by any of its paths; with only those, the rest
-  // is named
+  // a !glob excludes a file by any of its paths; with only those, every
+  // import left is named, and the entry only by a glob that names it
   const gs = globs.map((g) => [g.startsWith("!"), new Bun.Glob(g.replace(/^!?(\.\/)?/, ""))] as const);
   const all = gs.every(([no]) => no);
-  const matches = (ps: string[]): boolean => (all || gs.some(([no, g]) => !no && ps.some((p) => g.match(p))))
+  const matches = (ps: string[], rest = all): boolean => (rest || gs.some(([no, g]) => !no && ps.some((p) => g.match(p))))
     && !gs.some(([no, g]) => no && ps.some((p) => g.match(p)));
   // a hub file is its hash's, and each name@version an import spelled it as
   const alias = new Map([...nss].map((f) => [f, [name(f), ...Bend.HUB_NAMES.get(f.split("/")[0]) ?? []]
     .map((nv, j) => j === 0 ? nv : nv + f.slice(f.indexOf("/")) + ".bend")]));
   const names = (f: string): string[] => alias.get(f) ?? [name(f)];
-  const named = (f: string): boolean => matches(names(f));
+  const named = (f: string): boolean => matches(names(f), all && f !== "");
   // base.bend as the entry is Base itself, trusted only when named
   const root = fs.realpathSync(file) === BASE;
   const paths = [...nss].flatMap(names).concat(root ? [path.basename(file)] : []);
@@ -1179,7 +1179,7 @@ function book_trust(book: Bend.Book, file: string,
       us.forEach((r) => deps(r, i).forEach((d) => ds.add(d)));
     }
   });
-  const trust = new Set((!root || matches([path.basename(file)]) ? [BASE] : []).concat([...need.keys()]));
+  const trust = new Set((!root || matches([path.basename(file)], false) ? [BASE] : []).concat([...need.keys()]));
   // a file checked unsettles the trusted files that need it
   for (const todo = [...need.keys()]; todo.length > 0;) {
     const f = todo.shift()!;
