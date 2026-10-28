@@ -1145,56 +1145,60 @@ function book_trust(book: Bend.Book, file: string,
   };
   const name = (f: string): string => f === "?" ? "an unknown name or a foreign fill"
     : f.startsWith("?") ? "the hole " + f : f === BASE ? "Base" : f === "" ? path.basename(file) : f + ".bend";
-  // a !glob excludes; with only those, the rest is named
+  // a !glob excludes a file by any of its paths; with only those, the rest
+  // is named
   const gs = globs.map((g) => [g.startsWith("!"), new Bun.Glob(g.replace(/^!?(\.\/)?/, ""))] as const);
   const all = gs.every(([no]) => no);
-  const matches = (p: string): boolean => (all || gs.some(([no, g]) => !no && g.match(p)))
-    && !gs.some(([no, g]) => no && g.match(p));
+  const matches = (ps: string[]): boolean => (all || gs.some(([no, g]) => !no && ps.some((p) => g.match(p))))
+    && !gs.some(([no, g]) => no && ps.some((p) => g.match(p)));
   // a hub file is its hash's, and each name@version kept for that hash
   const lib = path.join(Bend.BEND_LIB, "names");
   const pkgs = new Map<string, string[]>();
-  for (const nv of [...nss].some((f) => f.startsWith("0x")) && fs.existsSync(lib) ? fs.readdirSync(lib) : []) {
-    try {
-      const h = fs.readFileSync(path.join(lib, nv), "utf8").trim();
-      pkgs.set(h, [...pkgs.get(h) ?? [], nv]);
-    } catch {
-      // not a name the loader kept: no alias
+  try {
+    for (const nv of [...nss].some((f) => f.startsWith("0x")) ? fs.readdirSync(lib) : []) {
+      try {
+        const h = fs.readFileSync(path.join(lib, nv), "utf8").trim();
+        pkgs.set(h, [...pkgs.get(h) ?? [], nv]);
+      } catch {
+        // not a name the loader kept: no alias
+      }
     }
+  } catch {
+    // no names kept: hashes alone
   }
   const alias = new Map([...nss].map((f) => [f, [name(f), ...(pkgs.get(f.split("/")[0]) ?? [])
     .map((nv) => nv + f.slice(f.indexOf("/")) + ".bend")]]));
   const names = (f: string): string[] => alias.get(f) ?? [name(f)];
-  const named = (f: string): boolean => names(f).some(matches);
+  const named = (f: string): boolean => matches(names(f));
   // base.bend as the entry is Base itself, trusted only when named
   const root = fs.realpathSync(file) === BASE;
   const paths = [...nss].flatMap(names).concat(root ? [path.basename(file)] : []);
-  // with only !globs a typo would trust every file, so it fails; next to a
-  // glob it only warns, as an exclusion may name a file this entry skips
+  // an exclusion may name a file this entry skips, so it only warns
   globs.forEach((g, j) => {
     if (!paths.some((p) => gs[j][1].match(p))) {
-      const say = all ? cli_fail : (m: string) => cli_say(2, "bend: " + m + "\n");
-      say("--trust " + g + " names no file (a glob matches paths from the entry's directory)");
+      cli_say(2, "bend: --trust " + g + " names no file (a glob matches paths from the entry's directory)\n");
     }
   });
-  // only a named file's uses matter (Base uses Base alone)
-  const uses = new Map([...nss].filter(named).map((f) => [f, new Set<string>()]));
+  // a law is its file's, and its fill's once filled
+  const deps = (r: string, i: number): string[] => first.get(r) === last.get(r) || last.get(r)! > i
+    ? [owner(r)] : [owner(r), at[last.get(r)!]];
+  // the files a named file needs (Base needs Base alone)
+  const need = new Map([...nss].filter(named).map((f) => [f, new Set<string>()]));
   book.order.forEach((k, i) => {
-    const us = uses.get(at[i]);
-    if (us !== undefined) {
+    const ds = need.get(at[i]);
+    if (ds !== undefined) {
+      const us = new Set<string>();
       refs(k, i, us);
+      us.forEach((r) => deps(r, i).forEach((d) => ds.add(d)));
     }
   });
-  // a law is its file's, and its fill's
-  const deps = (r: string): string[] => first.get(r) === last.get(r) ? [owner(r)]
-    : [owner(r), at[last.get(r)!]];
-  const need = new Map([...uses].map(([f, us]) => [f, new Set([...us].flatMap(deps))]));
-  const trust = new Set((!root || matches(path.basename(file)) ? [BASE] : []).concat([...uses.keys()]));
+  const trust = new Set((!root || matches([path.basename(file)]) ? [BASE] : []).concat([...need.keys()]));
   // a file checked unsettles the trusted files that need it
   for (const todo = [...need.keys()]; todo.length > 0;) {
     const f = todo.shift()!;
     const dep = trust.has(f) ? [...need.get(f)!].find((d) => !trust.has(d)) : undefined;
     if (dep !== undefined) {
-      cli_say(2, "checking " + name(f) + ": it uses " + name(dep) + "\n");
+      cli_say(2, "checking " + names(f).at(-1) + ": it uses " + names(dep).at(-1) + "\n");
       trust.delete(f);
       todo.push(...[...need].filter(([g, ds]) => trust.has(g) && ds.has(f)).map(([g]) => g));
     }
