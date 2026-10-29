@@ -2750,6 +2750,12 @@ def Array.get.at(-T: Data, i: U32, an: Array<T> & U32) -> Array<T> & T:
 def Array.get(-T: Data, a: Array<T>, +i: U32) -> Array<T> & T:
   Array.get.at(T, i, Array.size(T, a))
 
+# A read at an index the caller promises is below the block's capacity: it
+# skips the wrap mask. @unsafe, like Array.fork; only reads.
+@unsafe
+def Array.get_unchecked(-T: Data, a: Array<T>, +i: U32) -> Array<T> & T:
+  Array.get(T, a, i)
+
 def Array.to_list.go(~T: Type, a: Array<T>, acc: List<T>) -> List<T>:
   match a:
     case ALeaf{x}:
