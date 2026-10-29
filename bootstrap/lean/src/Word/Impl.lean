@@ -78,14 +78,14 @@ def mulJump : Jump where
 
 -- fromNatJump ts: for a call of T.from_nat on a Nat, for a type T of width
 -- w in ts, the T whose word is that Nat's bits
-def fromNatJump (ts : List (String × Nat)) : Jump :=
-  let names := ts.map (·.1 ++ ".from_nat")
-  ⟨names.contains, fun
+def fromNatJump (ts : List (String × Nat)) : Jump where
+  takes := (ts.map (·.1 ++ ".from_nat")).contains
+  go
     | App Q1 (Ref k) n => do
       let (T, w) ← ts.find? fun (T, _) => k == T ++ ".from_nat"
       let m ← decNat n
       some (boxT T (wordT (fromNatBits w m)))
-    | _ => none⟩
+    | _ => none
 
 theorem jump1_inv (h : (jump1 k f).go t = some u) :
     ∃ bs, t = callT k [Bytes.nat bs.length, wordT bs] ∧ u = f bs := by
