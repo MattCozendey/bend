@@ -90,20 +90,19 @@ theorem goodArgs_values : ∀ {xs : List (Quan × Val)}, GoodArgs bk xs → Valu
 
 theorem ofData_sound (h : ofData t = some v) : v.rb = t ∧ Good bk v ∧ v.live := by
   induction t generalizing v with
-  | Lab => cases h; exact ⟨rfl, trivial, rfl⟩
-  | Rfl => cases h; exact ⟨rfl, trivial, rfl⟩
+  | Lab | Rfl => cases h; exact ⟨rfl, trivial, rfl⟩
   | Tup q a b iha ihb =>
     simp only [ofData] at h
     split at h
     · rename_i a' b' ha hb
       cases h
-      have ⟨rb, gb, lb⟩ := ihb hb
+      have ⟨eb, gb, lb⟩ := ihb hb
       split at ha
-      · have ⟨ra, ga, la⟩ := iha ha
-        exact ⟨by simp [Val.rb, ra, rb], ⟨ga, fun _ => la, gb, lb⟩, rfl⟩
+      · have ⟨ea, ga, la⟩ := iha ha
+        exact ⟨by simp [Val.rb, ea, eb], ⟨ga, fun _ => la, gb, lb⟩, rfl⟩
       · rename_i l
         cases ha
-        exact ⟨by simp [Val.rb, rb_nil, rb], ⟨trivial, fun l' => absurd l' l, gb, lb⟩, rfl⟩
+        exact ⟨by simp [Val.rb, rb_nil, eb], ⟨trivial, fun l' => absurd l' l, gb, lb⟩, rfl⟩
     · simp at h
   | _ => simp [ofData] at h
 
@@ -156,16 +155,17 @@ theorem one_plug (g : GoodFrames bk fs) (h : Eval bk t t') : Plus bk (plug fs t)
 -- =====
 
 -- leafT o: the inner result o of walk, as Interp.walk gives it
-def leafT : Option (Term × List Val × List (Quan × Val)) → Option Term
+def leafT : Option Leaf → Option Term
   | none => none
   | some (t, e, rest) => some (spine (sub (Env.sub (Val.rbs e)) t) (Val.rbArgs rest))
 
--- GoodLeaf bk o: the environment and the arguments of the leaf o are good
-def GoodLeaf (bk : Book) : Option (Term × List Val × List (Quan × Val)) → Prop
+-- GoodLeaf bk o: when the inner result o of walk is a leaf, its
+-- environment and its arguments are good
+def GoodLeaf (bk : Book) : Option Leaf → Prop
   | none => True
   | some (_, e, rest) => Goods bk e ∧ GoodArgs bk rest
 
-theorem fld_live : (Quan.fld r q).live = true → r.live = true := by
+theorem live_of_fld : (Quan.fld r q).live = true → r.live = true := by
   cases r <;> cases q <;> simp [Quan.fld, Quan.live]
 
 theorem walk_sound (ge : Goods bk e) (gx : GoodArgs bk xs) : walk t e xs = some o →
@@ -191,7 +191,7 @@ theorem walk_sound (ge : Goods bk e) (gx : GoodArgs bk xs) : walk t e xs = some 
       case tup r a b =>
         simp only [walk, Interp.walk, Val.rbArgs, Val.rb]; split
         · obtain ⟨⟨ga, la, gb, lb⟩, _, gxs⟩ := gx
-          exact ih ge ⟨ga, fun l => la (fld_live l), gb, fun _ => lb, gxs⟩
+          exact ih ge ⟨ga, fun l => la (live_of_fld l), gb, fun _ => lb, gxs⟩
         · simp
       all_goals simp [walk]
   | Mat k h m ihh ihm =>
@@ -278,11 +278,11 @@ theorem tryCall_sound (hj : Jump.Sound bk jump) (gx : GoodArgs bk xs)
       split at h
       · rename_i hw
         cases h
-        have w := Interp.walk_sound (bk := bk) (walk_sound (show Goods bk [] from trivial) gx hw).1
+        have w := Interp.walk_sound (bk := bk) (walk_sound (e := []) trivial gx hw).1
         exact ⟨⟨⟨gx, .call hd (goodArgs_values gx) w⟩, rfl, gs⟩, .inl ⟨rfl, rfl⟩⟩
       · rename_i t e rest hw
         cases h
-        obtain ⟨w, ge, gr⟩ := walk_sound (show Goods bk [] from trivial) gx hw
+        obtain ⟨w, ge, gr⟩ := walk_sound (e := []) trivial gx hw
         refine ⟨⟨ge, goodFrames_appVs gr gs⟩, .inr ?_⟩
         simp only [decode, plug_appVs]
         exact one_plug gs (.call hd (goodArgs_values gx) (Interp.walk_sound w))
@@ -312,7 +312,7 @@ theorem apply_sound (hj : Jump.Sound bk jump) (gf : Good bk f)
       cases h
       have vx := good_value gx rfl
       obtain ⟨ga, la, gb, lb⟩ := gx
-      refine ⟨⟨gf.1, ⟨⟨ga, fun l' => la (fld_live l')⟩,
+      refine ⟨⟨gf.1, ⟨⟨ga, fun l' => la (live_of_fld l')⟩,
         ⟨gb, fun _ => lb⟩, gs⟩⟩, .inr ?_⟩
       simp only [decode, plug, Val.rb, Term.sub]
       exact one_plug gs (.split l vx)

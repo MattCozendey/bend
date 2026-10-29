@@ -48,8 +48,8 @@ def Val.rbArgs : List (Quan × Val) → List Arg
   | (q, v) :: xs => (q, v.rb) :: Val.rbArgs xs
 end
 
--- ofData t: t as a value, for a jump result, or none when t is not plain
--- data. A dead (q=0) field becomes a dead term.
+-- ofData t: t as a value, or none when t is not plain data. A dead (q=0)
+-- field becomes a dead term.
 def ofData : Term → Option Val
   | Lab k => some (.lab k)
   | Rfl => some .rfl
@@ -71,11 +71,12 @@ def Val.isData : Val → Bool
   | .tup q a b => (!q.live || Val.isData a) && Val.isData b
   | _ => false
 
--- walk t e xs: Interp.walk on values. It gives a leaf as (u, e', ys): the
--- term u under e', applied to ys. It can give none where Interp.walk does
--- not.
-def walk : Term → List Val → List (Quan × Val) →
-    Option (Option (Term × List Val × List (Quan × Val)))
+-- Leaf: (u, e', ys), the term u under e', applied to ys
+abbrev Leaf := Term × List Val × List (Quan × Val)
+
+-- walk t e xs: Interp.walk on values. It can give none where Interp.walk
+-- does not.
+def walk : Term → List Val → List (Quan × Val) → Option (Option Leaf)
   | Lam _ _, _, [] => some none
   | Lam p f, e, (q, x) :: xs =>
     if p.live = q.live ∧ (p = Q2 → Val.isData x = true) then walk f (x :: e) xs else none
@@ -148,8 +149,8 @@ def decode : St → Term
 -- =====
 
 -- tryCall bk jump k xs fs: the state after the call of def k on the values
--- xs, with the frames fs. It tries the jump first, and takes only a result
--- that is plain data.
+-- xs, with the frames fs. It tries the jump first. When the jump gives a
+-- result that is not plain data, tryCall gives none.
 def tryCall (bk : Book) (jump : Jump) (k : String) (xs : List (Quan × Val))
     (fs : List Frame) : Option St :=
   match (if jump.takes k then jump.go (spine (Ref k) (Val.rbArgs xs)) else none) with
