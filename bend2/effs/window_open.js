@@ -9,7 +9,8 @@ function window_open(title, width, height) {
   if (width < 1 || height < 1 || width > 16384 || height > 16384) {
     return io_fail(22);
   }
-  const code = process.platform === "darwin" ? 45 : 95;
+  const code = process.platform === "darwin" ? 45
+    : process.platform === "win32" ? 129 : 95;
   const text = "Window.open: no display (build a native binary with bend <file> -o <out> and run it from a desktop session)";
   return { $: CID(Fail), error: io_tup(code, text) };
 }

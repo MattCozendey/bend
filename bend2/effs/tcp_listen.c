@@ -14,13 +14,15 @@ Term tcp_listen_run(Env e, Term* f, IoWork* w) {
   if (fd < 0) {
     return io_fail(e, (uint32_t)errno, NULL);
   }
+#ifndef _WIN32  // there SO_REUSEADDR lets a second socket take the port
   int one = 1;
   setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+#endif
   int bound = bind(fd, (struct sockaddr*)&at, sizeof(at));
   if (bound < 0 || listen(fd, 512) < 0
     || fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
     uint32_t code = (uint32_t)errno;
-    close(fd);
+    sock_close(fd);
     return io_fail(e, code, NULL);
   }
   return io_done(e, io_hand(fd));
