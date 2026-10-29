@@ -17,9 +17,11 @@ meaning to preserve.
 
 0. Done (a69359d5). A Lake project in `lean/`, on Lean v4.34.0 as
    `--verdict` uses. `src/Kernel.lean` is `bend2/bendtt.lean` minus its
-   Main section, regenerated on every build so this project can declare
-   its own `main`. The build fails unless that section (`Kernel.cut` in
-   `lakefile.lean`) appears once, unchanged.
+   Main section, so this project can declare its own `main`. The copy is
+   committed, because Lake reads module headers before it runs any target.
+   Every build fails unless the copy is exactly that text, and unless that
+   section (`Kernel.cut` in `lakefile.lean`) appears once, unchanged.
+   `lake run regen` writes the copy.
 1. The contract: `src/Contract/Spec.lean`. Status: reviewed and pinned.
    - It holds definitions and claims only. Write it before compiler code.
    - Claim `correct`: when `compile` accepts def k of a checked book, def k
@@ -28,7 +30,9 @@ meaning to preserve.
    - Claim `total`: `compile` accepts each `Pure` def of a checked book. So
      `correct` is not empty.
    - Claim `bytes`: bytes go in and out without change.
-   - Claim `cli`: a result from the CLI is the result of the def it runs.
+   - Claim `cli`: a result from the CLI is the result of the def it runs,
+     at any fuel. For each `Pure` def of a checked book, some fuel gives a
+     result.
    - Claim `laws`: each law that a proof shows about a def holds about the
      value that `Eval` reaches. So a law proven in Bend holds about the
      result that the CLI shows.
@@ -85,8 +89,9 @@ Now: a U32 sum over 256 input bytes takes 0.33 s, and over 4096 bytes
 4. Word jumps. A call of base's word code goes to its result in one step,
    for each width. The proof shows that `Eval` reaches the same result.
    - A jump runs only when the book's defs equal `Word/Ref.lean`, a
-     generated copy of base's code. Else it does not run, and the result
-     stays correct.
+     generated copy of base's code (`scripts/GenRef.lean` makes it from
+     `scripts/ref.bend`). Else it does not run, and the result stays
+     correct.
    - Status: done for each family: add, sub, not, and, or, xor, inc,
      to_nat, cmp, shl, shr, mul. One file of proofs per family in `Word/`,
      `Word/Shared.lean` for what they share, and `Word/Impl.lean` for the
@@ -129,8 +134,12 @@ How the compiler stays correct as it grows.
 3. What runs is what is proven: claim `cli` is about the function that
    main calls. Outside the proofs: Lean's IO, the kernel's parser (as
    `--verdict`), and printing a result that is not bytes.
-4. The spec is tracked: Step 0 imports the kernel in place, so a change to
-   `Eval` rechecks every proof.
+4. The spec is tracked: the kernel copy must equal `bend2/bendtt.lean`
+   minus its Main section, so a change to `Eval` rechecks every proof. The
+   build check is our own code, so check the copy by hand too: this diff
+   must show only the `main` section.
+
+       diff bend2/bendtt.lean <(tail -n +4 bootstrap/lean/src/Kernel.lean)
 5. No vacuity: a proven `compile_total` needs no tests. `Pure` is reviewed
    as part of the contract.
 
