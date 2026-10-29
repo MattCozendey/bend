@@ -39,49 +39,41 @@ theorem shlBits_length : (shlBits bs).length = bs.length := by
 -- Shl
 -- ===
 
-structure HasShl (bk : Book) : Prop where
-  shl : HasRef bk "Word.shl" R.Word.shl
-  put : HasRef bk "Word.shl.put" R.Word.shl.put
+def shlCode : List (String × Term) :=
+  [("Word.shl", R.Word.shl), ("Word.shl.put", R.Word.shl.put)]
 
-def hasShl (bk : Book) : Bool :=
-  hasRef bk "Word.shl" R.Word.shl && hasRef bk "Word.shl.put" R.Word.shl.put
-
-theorem hasShl_sound (h : hasShl bk = true) : HasShl bk := by
-  simp only [hasShl, Bool.and_eq_true] at h
-  exact ⟨hasRef_sound h.1, hasRef_sound h.2⟩
-
-theorem put_round (H : HasShl bk) (j : Nat) (t : List Bool) (c b : Bool) :
+theorem put_round (H : HasRefs bk shlCode) (j : Nat) (t : List Bool) (c b : Bool) :
     Evals bk (callT "Word.shl.put" [boxT "Succ" (Bytes.nat j), bitT c, cellT (bitT b) (wordT t)])
       (cellT (bitT c) (callT "Word.shl.put" [Bytes.nat j, bitT b, wordT t])) := by
-  obtain ⟨_, hp, hpv⟩ := H.put
+  obtain ⟨-, ⟨_, hp, hpv⟩, -⟩ := H
   apply stepUntil_sound (stop := cellEnd "Word.shl.put") (n := 100)
   cases c <;> cases b <;> word_simp [hp, hpv, R.Word.shl.put]
 
-theorem put_round0 (H : HasShl bk) (c : Bool) :
+theorem put_round0 (H : HasRefs bk shlCode) (c : Bool) :
     Evals bk (callT "Word.shl.put" [Bytes.nat 0, bitT c, wordT []]) (wordT []) := by
-  obtain ⟨_, hp, hpv⟩ := H.put
+  obtain ⟨-, ⟨_, hp, hpv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   cases c <;> word_simp [hp, hpv, R.Word.shl.put, wordT, Bytes.nat]
 
-theorem put_evals (H : HasShl bk) : ∀ (c : Bool) (bs : List Bool),
+theorem put_evals (H : HasRefs bk shlCode) : ∀ (c : Bool) (bs : List Bool),
     Evals bk (callT "Word.shl.put" [Bytes.nat bs.length, bitT c, wordT bs]) (wordT (putBits c bs))
   | c, [] => put_round0 H c
   | c, b :: bs => evals_trans (put_round H bs.length bs c b) (evals_rest (put_evals H b bs))
 
-theorem shl_round (H : HasShl bk) (j : Nat) (t : List Bool) (b : Bool) :
+theorem shl_round (H : HasRefs bk shlCode) (j : Nat) (t : List Bool) (b : Bool) :
     Evals bk (callT "Word.shl" [boxT "Succ" (Bytes.nat j), cellT (bitT b) (wordT t)])
       (cellT (bitT false) (callT "Word.shl.put" [Bytes.nat j, bitT b, wordT t])) := by
-  obtain ⟨_, hs, hsv⟩ := H.shl
+  obtain ⟨⟨_, hs, hsv⟩, -⟩ := H
   apply stepUntil_sound (stop := cellEnd "Word.shl.put") (n := 100)
   cases b <;> word_simp [hs, hsv, R.Word.shl]
 
-theorem shl_round0 (H : HasShl bk) :
+theorem shl_round0 (H : HasRefs bk shlCode) :
     Evals bk (callT "Word.shl" [Bytes.nat 0, wordT []]) (wordT []) := by
-  obtain ⟨_, hs, hsv⟩ := H.shl
+  obtain ⟨⟨_, hs, hsv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hs, hsv, R.Word.shl, wordT, Bytes.nat]
 
-theorem shl_evals (H : HasShl bk) : ∀ bs : List Bool,
+theorem shl_evals (H : HasRefs bk shlCode) : ∀ bs : List Bool,
     Evals bk (callT "Word.shl" [Bytes.nat bs.length, wordT bs]) (wordT (shlBits bs))
   | [] => shl_round0 H
   | b :: bs => evals_trans (shl_round H bs.length bs b) (evals_rest (put_evals H b bs))
@@ -89,49 +81,41 @@ theorem shl_evals (H : HasShl bk) : ∀ bs : List Bool,
 -- Shr
 -- ===
 
-structure HasShr (bk : Book) : Prop where
-  shr : HasRef bk "Word.shr" R.Word.shr
-  pad : HasRef bk "Word.shr.pad" R.Word.shr.pad
+def shrCode : List (String × Term) :=
+  [("Word.shr", R.Word.shr), ("Word.shr.pad", R.Word.shr.pad)]
 
-def hasShr (bk : Book) : Bool :=
-  hasRef bk "Word.shr" R.Word.shr && hasRef bk "Word.shr.pad" R.Word.shr.pad
-
-theorem hasShr_sound (h : hasShr bk = true) : HasShr bk := by
-  simp only [hasShr, Bool.and_eq_true] at h
-  exact ⟨hasRef_sound h.1, hasRef_sound h.2⟩
-
-theorem pad_round (H : HasShr bk) (j : Nat) (t : List Bool) (b : Bool) :
+theorem pad_round (H : HasRefs bk shrCode) (j : Nat) (t : List Bool) (b : Bool) :
     Evals bk (callT "Word.shr.pad" [boxT "Succ" (Bytes.nat j), cellT (bitT b) (wordT t)])
       (cellT (bitT b) (callT "Word.shr.pad" [Bytes.nat j, wordT t])) := by
-  obtain ⟨_, hp, hpv⟩ := H.pad
+  obtain ⟨-, ⟨_, hp, hpv⟩, -⟩ := H
   apply stepUntil_sound (stop := cellEnd "Word.shr.pad") (n := 100)
   cases b <;> word_simp [hp, hpv, R.Word.shr.pad]
 
-theorem pad_round0 (H : HasShr bk) :
+theorem pad_round0 (H : HasRefs bk shrCode) :
     Evals bk (callT "Word.shr.pad" [Bytes.nat 0, wordT []]) (wordT [false]) := by
-  obtain ⟨_, hp, hpv⟩ := H.pad
+  obtain ⟨-, ⟨_, hp, hpv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hp, hpv, R.Word.shr.pad, wordT, Bytes.nat]
 
-theorem pad_evals (H : HasShr bk) : ∀ bs : List Bool,
+theorem pad_evals (H : HasRefs bk shrCode) : ∀ bs : List Bool,
     Evals bk (callT "Word.shr.pad" [Bytes.nat bs.length, wordT bs]) (wordT (padBits bs))
   | [] => pad_round0 H
   | b :: bs => evals_trans (pad_round H bs.length bs b) (evals_rest (pad_evals H bs))
 
-theorem shr_round (H : HasShr bk) (j : Nat) (t : List Bool) (b : Bool) :
+theorem shr_round (H : HasRefs bk shrCode) (j : Nat) (t : List Bool) (b : Bool) :
     Evals bk (callT "Word.shr" [boxT "Succ" (Bytes.nat j), cellT (bitT b) (wordT t)])
       (callT "Word.shr.pad" [Bytes.nat j, wordT t]) := by
-  obtain ⟨_, hs, hsv⟩ := H.shr
+  obtain ⟨⟨_, hs, hsv⟩, -⟩ := H
   apply stepUntil_sound (stop := headIs "Word.shr.pad") (n := 100)
   cases b <;> word_simp [hs, hsv, R.Word.shr]
 
-theorem shr_round0 (H : HasShr bk) :
+theorem shr_round0 (H : HasRefs bk shrCode) :
     Evals bk (callT "Word.shr" [Bytes.nat 0, wordT []]) (wordT []) := by
-  obtain ⟨_, hs, hsv⟩ := H.shr
+  obtain ⟨⟨_, hs, hsv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hs, hsv, R.Word.shr, wordT, Bytes.nat]
 
-theorem shr_evals (H : HasShr bk) : ∀ bs : List Bool,
+theorem shr_evals (H : HasRefs bk shrCode) : ∀ bs : List Bool,
     Evals bk (callT "Word.shr" [Bytes.nat bs.length, wordT bs]) (wordT (shrBits bs))
   | [] => shr_round0 H
   | b :: bs => evals_trans (shr_round H bs.length bs b) (pad_evals H bs)

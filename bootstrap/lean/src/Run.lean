@@ -37,7 +37,7 @@ def run (bk : Book) (jump : Jump) (n : Nat) (t : Term) : Option Obs :=
 def compiler : Compiler where
   Code := Book × String
   compile bk k := if Contract.Pure bk k = true then .ok (bk, k) else .error "the def is not Pure"
-  run n code := run code.1 (Word.jump (Word.found code.1)) n (Ref code.2)
+  run n code := run code.1 (Word.jump code.1) n (Ref code.2)
 
 -- Runs
 -- ====
@@ -206,7 +206,7 @@ theorem claim_correct : Claim.correct compiler := by
     cases hcomp
     obtain ⟨wt, lv⟩ := book_check bk hc
     obtain ⟨d, hd, R, K⟩ := pure_facts lv.1 hp
-    have hj : Jump.Sound bk (Word.jump (Word.found bk)) := Word.jump_sound
+    have hj : Jump.Sound bk (Word.jump bk) := Word.jump_sound
     have acc := halts bk (Ref k) lv (fun _ => rfl) (live_ref hd)
     obtain ⟨n, v, ev, sv, rv⟩ := run_ends hj acc
     have vv := final_value wt lv R ev sv

@@ -18,29 +18,29 @@ def incBits : List Bool → List Bool
   | false :: bs => true :: bs
   | true :: bs => false :: incBits bs
 
-def hasInc (bk : Book) : Bool := hasRef bk "Word.inc" R.Word.inc
+def incCode : List (String × Term) := [("Word.inc", R.Word.inc)]
 
-theorem inc_round0 (H : HasRef bk "Word.inc" R.Word.inc) :
+theorem inc_round0 (H : HasRefs bk incCode) :
     Evals bk (callT "Word.inc" [Bytes.nat 0, wordT []]) (wordT []) := by
-  obtain ⟨_, hi, hiv⟩ := H
+  obtain ⟨⟨_, hi, hiv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hi, hiv, R.Word.inc, wordT, Bytes.nat]
 
-theorem inc_round_f (H : HasRef bk "Word.inc" R.Word.inc) (j : Nat) (t : List Bool) :
+theorem inc_round_f (H : HasRefs bk incCode) (j : Nat) (t : List Bool) :
     Evals bk (callT "Word.inc" [boxT "Succ" (Bytes.nat j), cellT (bitT false) (wordT t)])
       (cellT (bitT true) (wordT t)) := by
-  obtain ⟨_, hi, hiv⟩ := H
+  obtain ⟨⟨_, hi, hiv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 100)
   word_simp [hi, hiv, R.Word.inc]
 
-theorem inc_round_t (H : HasRef bk "Word.inc" R.Word.inc) (j : Nat) (t : List Bool) :
+theorem inc_round_t (H : HasRefs bk incCode) (j : Nat) (t : List Bool) :
     Evals bk (callT "Word.inc" [boxT "Succ" (Bytes.nat j), cellT (bitT true) (wordT t)])
       (cellT (bitT false) (callT "Word.inc" [Bytes.nat j, wordT t])) := by
-  obtain ⟨_, hi, hiv⟩ := H
+  obtain ⟨⟨_, hi, hiv⟩, -⟩ := H
   apply stepUntil_sound (stop := cellEnd "Word.inc") (n := 100)
   word_simp [hi, hiv, R.Word.inc]
 
-theorem inc_evals (H : HasRef bk "Word.inc" R.Word.inc) : ∀ bs : List Bool,
+theorem inc_evals (H : HasRefs bk incCode) : ∀ bs : List Bool,
     Evals bk (callT "Word.inc" [Bytes.nat bs.length, wordT bs]) (wordT (incBits bs))
   | [] => inc_round0 H
   | false :: bs => inc_round_f H bs.length bs
@@ -54,40 +54,32 @@ def toNatBits : List Bool → Nat
   | false :: bs => 2 * toNatBits bs
   | true :: bs => 2 * toNatBits bs + 1
 
-structure HasToNat (bk : Book) : Prop where
-  word : HasRef bk "Word.to_nat" R.Word.to_nat
-  double : HasRef bk "Nat.double" R.Nat.double
-
-def hasToNat (bk : Book) : Bool :=
-  hasRef bk "Word.to_nat" R.Word.to_nat && hasRef bk "Nat.double" R.Nat.double
-
-theorem hasToNat_sound (h : hasToNat bk = true) : HasToNat bk := by
-  simp only [hasToNat, Bool.and_eq_true] at h
-  exact ⟨hasRef_sound h.1, hasRef_sound h.2⟩
+def toNatCode : List (String × Term) :=
+  [("Word.to_nat", R.Word.to_nat), ("Nat.double", R.Nat.double)]
 
 -- boxEnd p t: t is a boxT, and p is true for its field
 def boxEnd (p : Term → Bool) : Term → Bool
   | Tup _ (Lab _) (Tup _ x (Lab "()")) => p x
   | _ => false
 
-theorem double_isValue (H : HasToNat bk) : isValue bk (Ref "Nat.double") = true := by
-  obtain ⟨_, hd, hdv⟩ := H.double
+theorem double_isValue (H : HasRefs bk toNatCode) : isValue bk (Ref "Nat.double") = true := by
+  obtain ⟨-, ⟨_, hd, hdv⟩, -⟩ := H
   word_simp [hd, hdv, R.Nat.double]
 
-theorem double_round (H : HasToNat bk) (v : Nat) :
+theorem double_round (H : HasRefs bk toNatCode) (v : Nat) :
     Evals bk (callT "Nat.double" [boxT "Succ" (Bytes.nat v)])
       (boxT "Succ" (boxT "Succ" (callT "Nat.double" [Bytes.nat v]))) := by
-  obtain ⟨_, hd, hdv⟩ := H.double
+  obtain ⟨-, ⟨_, hd, hdv⟩, -⟩ := H
   apply stepUntil_sound (stop := boxEnd (boxEnd (headIs "Nat.double"))) (n := 50)
   word_simp [boxEnd, hd, hdv, R.Nat.double]
 
-theorem double_round0 (H : HasToNat bk) :
+theorem double_round0 (H : HasRefs bk toNatCode) :
     Evals bk (callT "Nat.double" [Bytes.nat 0]) (Bytes.nat 0) := by
-  obtain ⟨_, hd, hdv⟩ := H.double
+  obtain ⟨-, ⟨_, hd, hdv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hd, hdv, R.Nat.double, Bytes.nat]
 
-theorem double_evals (H : HasToNat bk) : ∀ v : Nat,
+theorem double_evals (H : HasRefs bk toNatCode) : ∀ v : Nat,
     Evals bk (callT "Nat.double" [Bytes.nat v]) (Bytes.nat (2 * v))
   | 0 => double_round0 H
   | v + 1 => by
@@ -96,27 +88,27 @@ theorem double_evals (H : HasToNat bk) : ∀ v : Nat,
     rw [e]
     exact evals_trans (double_round H v) (evals_box "Succ" (evals_box "Succ" (double_evals H v)))
 
-theorem toNat_round0 (H : HasToNat bk) :
+theorem toNat_round0 (H : HasRefs bk toNatCode) :
     Evals bk (callT "Word.to_nat" [Bytes.nat 0, wordT []]) (Bytes.nat 0) := by
-  obtain ⟨_, hw, hwv⟩ := H.word
+  obtain ⟨⟨_, hw, hwv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hw, hwv, R.Word.to_nat, wordT, Bytes.nat]
 
-theorem toNat_round_f (H : HasToNat bk) (j : Nat) (t : List Bool) :
+theorem toNat_round_f (H : HasRefs bk toNatCode) (j : Nat) (t : List Bool) :
     Evals bk (callT "Word.to_nat" [boxT "Succ" (Bytes.nat j), cellT (bitT false) (wordT t)])
       (callT "Nat.double" [callT "Word.to_nat" [Bytes.nat j, wordT t]]) := by
-  obtain ⟨_, hw, hwv⟩ := H.word
+  obtain ⟨⟨_, hw, hwv⟩, -⟩ := H
   apply stepUntil_sound (stop := headIs "Nat.double") (n := 100)
   word_simp [hw, hwv, R.Word.to_nat]
 
-theorem toNat_round_t (H : HasToNat bk) (j : Nat) (t : List Bool) :
+theorem toNat_round_t (H : HasRefs bk toNatCode) (j : Nat) (t : List Bool) :
     Evals bk (callT "Word.to_nat" [boxT "Succ" (Bytes.nat j), cellT (bitT true) (wordT t)])
       (boxT "Succ" (callT "Nat.double" [callT "Word.to_nat" [Bytes.nat j, wordT t]])) := by
-  obtain ⟨_, hw, hwv⟩ := H.word
+  obtain ⟨⟨_, hw, hwv⟩, -⟩ := H
   apply stepUntil_sound (stop := boxEnd (headIs "Nat.double")) (n := 100)
   word_simp [boxEnd, hw, hwv, R.Word.to_nat]
 
-theorem toNat_evals (H : HasToNat bk) : ∀ bs : List Bool,
+theorem toNat_evals (H : HasRefs bk toNatCode) : ∀ bs : List Bool,
     Evals bk (callT "Word.to_nat" [Bytes.nat bs.length, wordT bs]) (Bytes.nat (toNatBits bs))
   | [] => toNat_round0 H
   | false :: bs =>
@@ -167,18 +159,12 @@ theorem incN_length : (incN n bs).length = bs.length := by
 -- fromNatBits w n: the word of T.from_nat n at width w, that is n mod 2^w
 def fromNatBits (w n : Nat) : List Bool := incN n (List.replicate w false)
 
-structure HasFromNat (bk : Book) (T : String) (w : Nat) : Prop where
-  fromNat : HasRef bk (T ++ ".from_nat") (fromNatRef T)
-  inc : HasRef bk (T ++ ".inc") (incRef T w)
-  lit0 : HasRef bk (T ++ ".lit0") (lit0Ref T w)
-  word : HasRef bk "Word.inc" R.Word.inc
+def fromNatCode (T : String) (w : Nat) : List (String × Term) :=
+  (T ++ ".from_nat", fromNatRef T) :: (T ++ ".inc", incRef T w) :: (T ++ ".lit0", lit0Ref T w) ::
+    incCode
 
-def hasFromNat (bk : Book) (T : String) (w : Nat) : Bool :=
-  hasRef bk (T ++ ".from_nat") (fromNatRef T) && hasRef bk (T ++ ".inc") (incRef T w) &&
-  hasRef bk (T ++ ".lit0") (lit0Ref T w) && hasInc bk
-
--- fromNatTypes bk: each (T, w) for which hasFromNat holds, where T.from_nat
--- is a def of bk and w is the width of T.lit0's word
+-- fromNatTypes bk: each (T, w) such that bk has fromNatCode T w, where
+-- T.from_nat is a def of bk and w is the width of T.lit0's word
 def fromNatTypes (bk : Book) : List (String × Nat) :=
   let found := bk.defs.filterMap fun d => do
     let T := (← d.k.dropSuffix? ".from_nat").toString
@@ -186,12 +172,10 @@ def fromNatTypes (bk : Book) : List (String × Nat) :=
     match l.v with
     | Tup Q1 (Lab _) (Tup Q1 x (Lab "()")) => (decWord x).map fun bs => (T, bs.length)
     | _ => none
-  found.filter fun (T, w) => hasFromNat bk T w
+  found.filter fun (T, w) => hasRefs bk (fromNatCode T w)
 
-theorem fromNatTypes_sound (h : (T, w) ∈ fromNatTypes bk) : HasFromNat bk T w := by
-  have ok := (List.mem_filter.1 h).2
-  simp only [hasFromNat, Bool.and_eq_true] at ok
-  exact ⟨hasRef_sound ok.1.1.1, hasRef_sound ok.1.1.2, hasRef_sound ok.1.2, hasRef_sound ok.2⟩
+theorem fromNatTypes_sound (h : (T, w) ∈ fromNatTypes bk) : HasRefs bk (fromNatCode T w) :=
+  hasRefs_sound (List.mem_filter.1 h).2
 
 theorem sub_nat : ∀ n : Nat, Term.sub s (Bytes.nat n) = Bytes.nat n
   | 0 => rfl
@@ -201,10 +185,9 @@ theorem sub_word : ∀ bs : List Bool, Term.sub s (wordT bs) = wordT bs
   | [] => rfl
   | b :: bs => by cases b <;> simp [wordT, cellT, bitT, labT, Term.sub, sub_word bs]
 
-theorem fromNat_round0 (H : HasFromNat bk T w) :
+theorem fromNat_round0 (H : HasRefs bk (fromNatCode T w)) :
     Evals bk (callT (T ++ ".from_nat") [Bytes.nat 0]) (lit0Ref T w) := by
-  obtain ⟨_, hf, hfv⟩ := H.fromNat
-  obtain ⟨_, hl, hlv⟩ := H.lit0
+  obtain ⟨⟨_, hf, hfv⟩, -, ⟨_, hl, hlv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hf, hfv, hl, hlv, fromNatRef, lit0Ref, Bytes.nat, sub_word]
 
@@ -213,31 +196,34 @@ def callEnd : Term → Bool
   | App _ _ (App _ _ _) => true
   | _ => false
 
-theorem fromNat_round (H : HasFromNat bk T w) (n : Nat) :
+theorem fromNat_round (H : HasRefs bk (fromNatCode T w)) (n : Nat) :
     Evals bk (callT (T ++ ".from_nat") [boxT "Succ" (Bytes.nat n)])
       (callT (T ++ ".inc") [callT (T ++ ".from_nat") [Bytes.nat n]]) := by
-  obtain ⟨_, hf, hfv⟩ := H.fromNat
+  obtain ⟨⟨_, hf, hfv⟩, -⟩ := H
   apply stepUntil_sound (stop := callEnd) (n := 10)
   word_simp [callEnd, hf, hfv, fromNatRef]
 
-theorem boxInc_isValue (H : HasFromNat bk T w) : isValue bk (Ref (T ++ ".inc")) = true := by
-  obtain ⟨_, hi, hiv⟩ := H.inc
+theorem boxInc_isValue (H : HasRefs bk (fromNatCode T w)) :
+    isValue bk (Ref (T ++ ".inc")) = true := by
+  obtain ⟨-, ⟨_, hi, hiv⟩, -⟩ := H
   word_simp [hi, hiv, incRef]
 
-theorem boxInc_round (H : HasFromNat bk T w) (bs : List Bool) :
+theorem boxInc_round (H : HasRefs bk (fromNatCode T w)) (bs : List Bool) :
     Evals bk (callT (T ++ ".inc") [boxT T (wordT bs)])
       (boxT T (callT "Word.inc" [Bytes.nat w, wordT bs])) := by
-  obtain ⟨_, hi, hiv⟩ := H.inc
+  obtain ⟨-, ⟨_, hi, hiv⟩, -⟩ := H
   apply stepUntil_sound (stop := boxEnd (headIs "Word.inc")) (n := 20)
   word_simp [boxEnd, hi, hiv, incRef, sub_nat]
 
-theorem boxInc_evals (H : HasFromNat bk T w) (bs : List Bool) (len : bs.length = w) :
+theorem boxInc_evals (H : HasRefs bk (fromNatCode T w)) (bs : List Bool)
+    (len : bs.length = w) :
     Evals bk (callT (T ++ ".inc") [boxT T (wordT bs)]) (boxT T (wordT (incBits bs))) := by
-  have e := inc_evals H.word bs
-  rw [len] at e
-  exact evals_trans (boxInc_round H bs) (evals_box T e)
+  refine evals_trans (boxInc_round H bs) (evals_box T ?_)
+  obtain ⟨-, -, -, H⟩ := H
+  subst len
+  exact inc_evals H bs
 
-theorem fromNat_evals (H : HasFromNat bk T w) : ∀ n : Nat,
+theorem fromNat_evals (H : HasRefs bk (fromNatCode T w)) : ∀ n : Nat,
     Evals bk (callT (T ++ ".from_nat") [Bytes.nat n]) (boxT T (wordT (fromNatBits w n)))
   | 0 => fromNat_round0 H
   | n + 1 => by

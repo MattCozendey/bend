@@ -36,48 +36,31 @@ theorem adcBits_length : ∀ (as bs : List Bool) (f c : Bool), as.length = bs.le
     rw [adcBits_length as bs f _ (by simpa using h)]
   | [], _ :: _, _, _, h | _ :: _, [], _, _, h => by simp at h
 
-structure HasAdd (bk : Book) : Prop where
-  group : HasRef bk "Word.adc.group" R.Word.adc.group
-  fullAdd : HasRef bk "Bool.full_add" R.Bool.full_add
-  xor : HasRef bk "Bool.xor" R.Bool.xor
-  and : HasRef bk "Bool.and" R.Bool.and
-  or : HasRef bk "Bool.or" R.Bool.or
-  not : HasRef bk "Bool.not" R.Bool.not
+def addCode : List (String × Term) :=
+  [("Word.adc.group", R.Word.adc.group), ("Bool.full_add", R.Bool.full_add),
+    ("Bool.xor", R.Bool.xor), ("Bool.and", R.Bool.and), ("Bool.or", R.Bool.or),
+    ("Bool.not", R.Bool.not)]
 
-def hasAdd (bk : Book) : Bool :=
-  hasRef bk "Word.adc.group" R.Word.adc.group && hasRef bk "Bool.full_add" R.Bool.full_add &&
-  hasRef bk "Bool.xor" R.Bool.xor && hasRef bk "Bool.and" R.Bool.and &&
-  hasRef bk "Bool.or" R.Bool.or && hasRef bk "Bool.not" R.Bool.not
-
-theorem hasAdd_sound (h : hasAdd bk = true) : HasAdd bk := by
-  simp only [hasAdd, Bool.and_eq_true] at h
-  exact ⟨hasRef_sound h.1.1.1.1.1, hasRef_sound h.1.1.1.1.2, hasRef_sound h.1.1.1.2,
-    hasRef_sound h.1.1.2, hasRef_sound h.1.2, hasRef_sound h.2⟩
-
-theorem add_round (H : HasAdd bk) (j : Nat) (as bs : List Bool) (f a b c : Bool) :
+theorem add_round (H : HasRefs bk addCode) (j : Nat) (as bs : List Bool) (f a b c : Bool) :
     Evals bk (groupCall (boxT "Succ" (Bytes.nat j)) (cellT (bitT a) (wordT as))
         (cellT (bitT b) (wordT bs)) (bitT f) (bitT c))
       (cellT (bitT (fullAdd a (if f then !b else b) c).1)
         (groupCall (Bytes.nat j) (wordT as) (wordT bs) (bitT f)
           (bitT (fullAdd a (if f then !b else b) c).2))) := by
-  obtain ⟨_, hg, hgv⟩ := H.group
-  obtain ⟨_, hf, hfv⟩ := H.fullAdd
-  obtain ⟨_, hx, hxv⟩ := H.xor
-  obtain ⟨_, ha, hav⟩ := H.and
-  obtain ⟨_, ho, hov⟩ := H.or
-  obtain ⟨_, ht, htv⟩ := H.not
+  obtain ⟨⟨_, hg, hgv⟩, ⟨_, hf, hfv⟩, ⟨_, hx, hxv⟩, ⟨_, ha, hav⟩, ⟨_, ho, hov⟩, ⟨_, ht, htv⟩,
+    -⟩ := H
   apply stepUntil_sound (stop := cellEnd "Word.adc.group") (n := 200)
   cases f <;> cases a <;> cases b <;> cases c <;>
     word_simp [hg, hgv, hf, hfv, hx, hxv, ha, hav, ho, hov, ht, htv, R.Word.adc.group,
       R.Bool.full_add, R.Bool.xor, R.Bool.and, R.Bool.or, R.Bool.not, groupCall, fullAdd]
 
-theorem add_round0 (H : HasAdd bk) (f c : Bool) :
+theorem add_round0 (H : HasRefs bk addCode) (f c : Bool) :
     Evals bk (groupCall (Bytes.nat 0) (wordT []) (wordT []) (bitT f) (bitT c)) (wordT []) := by
-  obtain ⟨_, hg, hgv⟩ := H.group
+  obtain ⟨⟨_, hg, hgv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   cases f <;> cases c <;> word_simp [hg, hgv, R.Word.adc.group, groupCall, wordT, Bytes.nat]
 
-theorem group_evals (H : HasAdd bk) : ∀ (as bs : List Bool) (f c : Bool),
+theorem group_evals (H : HasRefs bk addCode) : ∀ (as bs : List Bool) (f c : Bool),
     as.length = bs.length →
     Evals bk (groupCall (Bytes.nat as.length) (wordT as) (wordT bs) (bitT f) (bitT c))
       (wordT (adcBits f as bs c))
@@ -94,7 +77,7 @@ theorem add_group (ha : HasRef bk "Word.add" R.Word.add) (k : Nat) (as bs : List
   apply stepUntil_sound (stop := headIs "Word.adc.group") (n := 10)
   word_simp [h, hv, R.Word.add, groupCall]
 
-theorem add_evals (H : HasAdd bk) (ha : HasRef bk "Word.add" R.Word.add)
+theorem add_evals (H : HasRefs bk addCode) (ha : HasRef bk "Word.add" R.Word.add)
     (as bs : List Bool) (len : as.length = bs.length) :
     Evals bk (callT "Word.add" [Bytes.nat as.length, wordT as, wordT bs])
       (wordT (adcBits false as bs false)) :=

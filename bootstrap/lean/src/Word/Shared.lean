@@ -50,6 +50,26 @@ def hasRef (bk : Book) (k : String) (r : Term) : Bool := (bk.get k).map (·.v) =
 theorem hasRef_sound (h : hasRef bk k r = true) : HasRef bk k r := by
   simp only [hasRef, beq_iff_eq, Option.map_eq_some_iff] at h; exact h
 
+-- HasRefs bk ps: for each (k, r) in ps, def k of bk has the body r. A
+-- family's xCode lists its defs with the bodies that its proofs know.
+def HasRefs (bk : Book) : List (String × Term) → Prop
+  | [] => True
+  | (k, r) :: ps => HasRef bk k r ∧ HasRefs bk ps
+
+def hasRefs (bk : Book) (ps : List (String × Term)) : Bool := ps.all fun p => hasRef bk p.1 p.2
+
+theorem hasRefs_sound (h : hasRefs bk ps = true) : HasRefs bk ps := by
+  induction ps with
+  | nil => trivial
+  | cons p ps ih =>
+    simp only [hasRefs, List.all_cons, Bool.and_eq_true] at h
+    exact ⟨hasRef_sound h.1, ih h.2⟩
+
+theorem HasRefs.append : HasRefs bk (ps ++ qs) → HasRefs bk ps ∧ HasRefs bk qs := by
+  induction ps with
+  | nil => exact fun h => ⟨trivial, h⟩
+  | cons p ps ih => exact fun ⟨h, hs⟩ => ⟨⟨h, (ih hs).1⟩, (ih hs).2⟩
+
 -- Values
 -- ======
 
@@ -171,6 +191,12 @@ def decNat : Term → Option Nat
   | Tup Q1 (Lab "Succ") (Tup Q1 n (Lab "()")) => (decNat n).map (· + 1)
   | _ => none
 
+-- bind_simp at h: splits the Option binds and the ifs of a decode in h into
+-- facts
+macro "bind_simp" "at" h:ident : tactic =>
+  `(tactic| simp only [Option.ite_none_right_eq_some, Option.bind_eq_bind,
+    Option.bind_eq_some_iff, Option.pure_def, Option.some.injEq] at $h:ident)
+
 theorem decBit_sound (h : decBit t = some b) : t = bitT b := by
   unfold decBit at h
   split at h <;> simp_all [bitT, labT]
@@ -179,14 +205,9 @@ theorem decWord_sound (h : decWord t = some bs) : t = wordT bs := by
   fun_induction decWord t generalizing bs with
   | case1 => cases h; rfl
   | case2 hd tl ih =>
-    cases hb : decBit hd with
-    | none => simp [hb] at h
-    | some b =>
-      cases ht : decWord tl with
-      | none => simp [hb, ht] at h
-      | some bs' =>
-        simp [hb, ht] at h; subst h
-        simp [wordT, cellT, decBit_sound hb, ih ht]
+    bind_simp at h
+    obtain ⟨b, hb, bs', ht, rfl⟩ := h
+    rw [decBit_sound hb, ih ht]; rfl
   | case3 => simp at h
 
 theorem decNat_sound (h : decNat t = some n) : t = Bytes.nat n := by
