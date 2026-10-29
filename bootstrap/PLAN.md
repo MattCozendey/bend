@@ -59,8 +59,7 @@ meaning.
      runs a target. `lake run regen` writes it.
    - Each build fails unless the copy is exactly that text, and unless that
      section (`Kernel.cut` in `lakefile.lean`) occurs once, unchanged.
-1. The contract: `src/Contract/Spec.lean`. Status: pinned. The change to
-   `bootstrap.run` (it names `bootstrap.input`) waits on review.
+1. The contract: `src/Contract/Spec.lean`. Status: reviewed and pinned.
    - It holds definitions and claims only. It came before the interpreter
      code. It has the exact text of each claim.
    - Claim 1, `correct`: when `compile` accepts def k of a checked book, k
