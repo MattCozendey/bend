@@ -13,7 +13,7 @@ It covers pure code over datatypes, U32 included at its bit-level meaning.
 F32 and effects are out: BendTT keeps them opaque, so `Eval` gives them no
 meaning to preserve.
 
-## Steps
+## The trusted compiler
 
 0. Done (a69359d5). A Lake project in this folder, on Lean v4.34.0 as
    `--verdict` uses. `Bootstrap/Kernel.lean` is `bend2/bendtt.lean` minus
@@ -38,9 +38,45 @@ meaning to preserve.
    t u` and `(∃ u, Eval bk t u) → step t ≠ none`, then close both claims
    with the kernel's `halts`, `progress` and `sr`. The CLI parses with
    `Book.parse`, checks with `Book.check`, runs and prints.
-3. The environment machine: closures instead of substitution. The meaning
-   stays the same, so it is within the spec. It gets its own simulation
-   lemma, composed into the claims, which do not change.
+
+This completes the trusted compiler. Its `compile` passes the book through,
+so it is a trusted interpreter: everything below is speed or new meaning.
+
+## Speed
+
+These change how a program runs, not what it means: the claims stay as
+they are. Each is optional, since slow is fine, and each that is done needs
+its own proof that it preserves the claims, composed into them. Each waits
+on a decision.
+
+1. The environment machine: closures instead of substitution. Actual
+   compilation starts here.
+2. Labels and case trees as integer switches. `Eval` matches labels by
+   name; numbering them is a representation choice.
+3. Native 32-bit words. Replace base's bit-level U32 (`Word(32n)` and the
+   defs over it) with Lean's `UInt32`. The meaning stays base's: the proof
+   shows each of base's elaborated word defs (`Word.add`, ...) equals its
+   `BitVec` operation, which ties the compiler to how `base.bend`
+   elaborates.
+4. Erase dead parts (types, q=0 arguments and lets, annotations). `Eval`
+   never runs them, so the machine can carry them as inert syntax; erasing
+   them saves time and memory. `Rwt` needs its own argument: its proof is
+   evaluated at run time.
+
+## Beyond the spec
+
+These need a meaning `Eval` does not give, so the claims grow: the meaning
+is written and reviewed before any compiler work. Each waits on a decision.
+
+1. Effects. No spec exists: BendTT keeps every effect opaque, and the C
+   and JS in `bend2/effs/` are the de facto semantics. Needs a spec per
+   effect, a Lean driver (its pure conversions proven, Lean's IO trusted,
+   the OS assumed), and a single-threaded scheduler for `IO.spawn` and
+   `Chan.*`, which is fair because pure code between effects halts.
+2. F32. Its ops are base laws with no body, so the kernel knows only their
+   types. Needs a spec, as software floating point over `Word(32n)`:
+   in Lean, outside `--verdict`, or as bodies in `base.bend`, which
+   `--verdict` then backs and comp.ts's native floats must match.
 
 ## Guards
 
@@ -60,38 +96,10 @@ How the compiler stays correct as it grows.
 5. No vacuity: a proven `compile_total` needs no tests. `Pure` is reviewed
    as part of the contract.
 
-## TBD
+## Tests
 
-Each item waits on a decision.
-
-### Passes beyond the spec
-
-`Eval` fixes what a program means; these change how it runs, in ways the
-spec does not describe.
-
-1. Labels and case trees as integer switches. `Eval` matches labels by
-   name; numbering them is a representation choice.
-2. Native 32-bit words. Replace base's bit-level U32 (`Word(32n)` and the
-   defs over it) with Lean's `UInt32`. Needs a proof that each of base's
-   elaborated word defs (`Word.add`, ...) equals its `BitVec` operation,
-   which ties the compiler to how `base.bend` elaborates.
-3. Effects. No spec exists: BendTT keeps every effect opaque, and the C
-   and JS in `bend2/effs/` are the de facto semantics. Needs a spec per
-   effect, a Lean driver (its pure conversions proven, Lean's IO trusted,
-   the OS assumed), and a single-threaded scheduler for `IO.spawn` and
-   `Chan.*`, which is fair because pure code between effects halts.
-
-### Optional
-
-4. Erase dead parts (types, q=0 arguments and lets, annotations). Not
-   needed for correctness: `Eval` never runs them, so the machine can
-   carry them as inert syntax. Only a speed and memory gain. If done,
-   `Rwt` needs its own argument: its proof is evaluated at run time.
-
-### Tests
-
-5. Tests for what the proofs do not cover: reading the `.bendtt` file,
-   printing the result, and the elaborator (`safe.ts`). Run the subset's
-   tests through `bend -o` and the compiler a few at a time, never the
-   full suite, and compare each file's `#|` lines. A mismatch is a glue or
-   elaborator bug, or a comp.ts bug.
+TBD. Tests for what the proofs do not cover: reading the `.bendtt` file,
+printing the result, and the elaborator (`safe.ts`). Run the subset's
+tests through `bend -o` and the compiler a few at a time, never the full
+suite, and compare each file's `#|` lines. A mismatch is a glue or
+elaborator bug, or a comp.ts bug.
