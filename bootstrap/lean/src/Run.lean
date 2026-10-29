@@ -4,11 +4,11 @@ import Word.Impl
 -- Run
 -- ===
 --
--- The interpreter as a Contract.Compiler: its code is the book and the def to
--- run. The environment machine runs it until it stops (Machine.run);
--- runSteps then steps the term where it stopped until no step fits. Each of
--- its steps is one walk (scanWith). A call of base's word code jumps to its
--- result (Word.jump). This file proves claims 1 (correct) and 2 (total).
+-- The interpreter as a Contract.Compiler. Its code is the book and the def to
+-- run. The environment machine (Machine.run) runs it until the machine stops.
+-- Then runSteps steps the term until no step fits. Each step is one walk
+-- (scanWith). A call of base's word code jumps to its result (Word.jump).
+-- This file proves claims 1 (correct) and 2 (total).
 
 open Quan Term Contract
 
@@ -152,7 +152,7 @@ theorem data_pars (h : Data t) (p : Pars bk t c) : observe c = observe t := by
 theorem sees_self (hcl : Book.Closed bk) : Sees bk bk :=
   fun k d h => ⟨d.o, by cases d; exact h, hcl k d h⟩
 
--- a Pure def of a checked book: its type is Data, and Ref k has it
+-- a Pure def of a closed book: its type is Data, and Ref k has that type
 theorem pure_facts (hcl : Book.Closed bk) (hp : Contract.Pure bk k = true) :
     ∃ d, bk.get k = some d ∧ Typed bk [] (Ref k) d.T ∧ Typed bk [] d.T T2 := by
   unfold Contract.Pure at hp
