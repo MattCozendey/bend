@@ -19,67 +19,78 @@ namespace Interp.Word
 -- Shapes
 -- ======
 
--- jump1 k f t: when t is a call of def k on a width and a word of that
--- width, f of the word's bits
-def jump1 (k : String) (f : List Bool → Term) : Term → Option Term
-  | App Q1 (App Q1 (Ref j) n) w =>
-    if j = k then do
-      let m ← decNat n
-      let bs ← decWord w
-      if bs.length = m then some (f bs) else none
-    else none
-  | _ => none
+-- jump1 k f: for a call of def k on a width and a word of that width, f of
+-- the word's bits
+def jump1 (k : String) (f : List Bool → Term) : Jump where
+  takes := (· == k)
+  go
+    | App Q1 (App Q1 (Ref j) n) w =>
+      if j = k then do
+        let m ← decNat n
+        let bs ← decWord w
+        if bs.length = m then some (f bs) else none
+      else none
+    | _ => none
 
--- jump2 k f t: when t is a call of def k on a width and two words of that
--- width, f of the words' bits
-def jump2 (k : String) (f : List Bool → List Bool → Term) : Term → Option Term
-  | App Q1 (App Q1 (App Q1 (Ref j) n) a) b =>
-    if j = k then do
+-- jump2 k f: for a call of def k on a width and two words of that width, f
+-- of the words' bits
+def jump2 (k : String) (f : List Bool → List Bool → Term) : Jump where
+  takes := (· == k)
+  go
+    | App Q1 (App Q1 (App Q1 (Ref j) n) a) b =>
+      if j = k then do
+        let m ← decNat n
+        let as ← decWord a
+        let bs ← decWord b
+        if as.length = m ∧ bs.length = m then some (f as bs) else none
+      else none
+    | _ => none
+
+-- groupJump: for a call of Word.adc.group on a width, two words of that
+-- width and two Bools, the word that adcBits gives
+def groupJump : Jump where
+  takes := (· == "Word.adc.group")
+  go
+    | App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (Ref "Word.adc.group") n) a) b) f)
+        (Tup Q1 (Lab "Word.adc") (Lab "()"))) c => do
       let m ← decNat n
       let as ← decWord a
       let bs ← decWord b
-      if as.length = m ∧ bs.length = m then some (f as bs) else none
-    else none
-  | _ => none
+      let fb ← decBit f
+      let cb ← decBit c
+      if as.length = m ∧ bs.length = m then some (wordT (adcBits fb as bs cb)) else none
+    | _ => none
 
--- groupJump t: when t is a call of Word.adc.group on a width, two words of
--- that width and two Bools, the word that adcBits gives
-def groupJump : Term → Option Term
-  | App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (Ref "Word.adc.group") n) a) b) f)
-      (Tup Q1 (Lab "Word.adc") (Lab "()"))) c => do
-    let m ← decNat n
-    let as ← decWord a
-    let bs ← decWord b
-    let fb ← decBit f
-    let cb ← decBit c
-    if as.length = m ∧ bs.length = m then some (wordT (adcBits fb as bs cb)) else none
-  | _ => none
+-- mulJump: for a call of Word.mul.go on words, the word that mulGoBits
+-- gives
+def mulJump : Jump where
+  takes := (· == "Word.mul.go")
+  go
+    | App Q1 (App Q2 (App Q1 (App Q1 (App Q2 (Ref "Word.mul.go") n) m) a) b) acc => do
+      let k ← decNat n
+      let j ← decNat m
+      let as ← decWord a
+      let bs ← decWord b
+      let cs ← decWord acc
+      if as.length = j ∧ bs.length = k ∧ cs.length = k then some (wordT (mulGoBits as bs cs))
+      else none
+    | _ => none
 
--- mulJump t: when t is a call of Word.mul.go on words, the word that
--- mulGoBits gives
-def mulJump : Term → Option Term
-  | App Q1 (App Q2 (App Q1 (App Q1 (App Q2 (Ref "Word.mul.go") n) m) a) b) acc => do
-    let k ← decNat n
-    let j ← decNat m
-    let as ← decWord a
-    let bs ← decWord b
-    let cs ← decWord acc
-    if as.length = j ∧ bs.length = k ∧ cs.length = k then some (wordT (mulGoBits as bs cs))
-    else none
-  | _ => none
+-- fromNatJump ts: for a call of T.from_nat on a Nat, for a type T of width
+-- w in ts, the T whose word is that Nat's bits
+def fromNatJump (ts : List (String × Nat)) : Jump :=
+  let names := ts.map (·.1 ++ ".from_nat")
+  ⟨names.contains, fun
+    | App Q1 (Ref k) n => do
+      let (T, w) ← ts.find? fun (T, _) => k == T ++ ".from_nat"
+      let m ← decNat n
+      some (boxT T (wordT (fromNatBits w m)))
+    | _ => none⟩
 
--- fromNatJump ts t: when t is a call of T.from_nat on a Nat, for a type T
--- of width w in ts, the T whose word is that Nat's bits
-def fromNatJump (ts : List (String × Nat)) : Term → Option Term
-  | App Q1 (Ref k) n => do
-    let (T, w) ← ts.find? fun (T, _) => k == T ++ ".from_nat"
-    let m ← decNat n
-    some (boxT T (wordT (fromNatBits w m)))
-  | _ => none
-
-theorem jump1_inv (h : jump1 k f t = some u) :
+theorem jump1_inv (h : (jump1 k f).go t = some u) :
     ∃ bs, t = callT k [Bytes.nat bs.length, wordT bs] ∧ u = f bs := by
   unfold jump1 at h
+  dsimp only at h
   split at h
   · rename_i j n w
     split at h
@@ -99,10 +110,11 @@ theorem jump1_inv (h : jump1 k f t = some u) :
     · simp at h
   · simp at h
 
-theorem jump2_inv (h : jump2 k f t = some u) :
+theorem jump2_inv (h : (jump2 k f).go t = some u) :
     ∃ as bs, as.length = bs.length ∧ t = callT k [Bytes.nat as.length, wordT as, wordT bs] ∧
       u = f as bs := by
   unfold jump2 at h
+  dsimp only at h
   split at h
   · rename_i j n a b
     split at h
@@ -126,11 +138,12 @@ theorem jump2_inv (h : jump2 k f t = some u) :
     · simp at h
   · simp at h
 
-theorem groupJump_inv (h : groupJump t = some u) :
+theorem groupJump_inv (h : groupJump.go t = some u) :
     ∃ as bs f c, as.length = bs.length ∧
       t = groupCall (Bytes.nat as.length) (wordT as) (wordT bs) (bitT f) (bitT c) ∧
       u = wordT (adcBits f as bs c) := by
   unfold groupJump at h
+  dsimp only at h
   split at h
   · rename_i n a b f c
     cases hm : decNat n with
@@ -153,15 +166,17 @@ theorem groupJump_inv (h : groupJump t = some u) :
     · rename_i len
       cases h
       refine ⟨as, bs, fb, cb, len.1.trans len.2.symm, ?_, rfl⟩
-      rw [decNat_sound hm, decWord_sound ha, decWord_sound hb, decBit_sound hf, decBit_sound hc, ← len.1]; rfl
+      rw [decNat_sound hm, decWord_sound ha, decWord_sound hb, decBit_sound hf, decBit_sound hc,
+        ← len.1]; rfl
     · simp at h
   · simp at h
 
-theorem mulJump_inv (h : mulJump t = some u) :
+theorem mulJump_inv (h : mulJump.go t = some u) :
     ∃ as bs cs, cs.length = bs.length ∧
       t = goCall (Bytes.nat bs.length) (Bytes.nat as.length) (wordT as) (wordT bs) (wordT cs) ∧
       u = wordT (mulGoBits as bs cs) := by
   unfold mulJump at h
+  dsimp only at h
   split at h
   · rename_i n m a b acc
     cases hn : decNat n with
@@ -184,15 +199,16 @@ theorem mulJump_inv (h : mulJump t = some u) :
     · rename_i len
       cases h
       refine ⟨as, bs, cs, len.2.2.trans len.2.1.symm, ?_, rfl⟩
-      rw [decNat_sound hn, decNat_sound hm, decWord_sound ha, decWord_sound hb, decWord_sound hc, ← len.1,
-        ← len.2.1]; rfl
+      rw [decNat_sound hn, decNat_sound hm, decWord_sound ha, decWord_sound hb, decWord_sound hc,
+        ← len.1, ← len.2.1]; rfl
     · simp at h
   · simp at h
 
-theorem fromNatJump_inv (h : fromNatJump ts t = some u) :
+theorem fromNatJump_inv (h : (fromNatJump ts).go t = some u) :
     ∃ T w n, (T, w) ∈ ts ∧ t = callT (T ++ ".from_nat") [Bytes.nat n] ∧
       u = boxT T (wordT (fromNatBits w n)) := by
   unfold fromNatJump at h
+  dsimp only at h
   split at h
   · rename_i k n
     cases hf : ts.find? (fun (T, _) => k == T ++ ".from_nat") with
@@ -229,15 +245,12 @@ def found (bk : Book) : Found :=
   ⟨hasAdd bk, hasNot bk, hasBit bk .and, hasBit bk .or, hasBit bk .xor, hasInc bk, hasToNat bk,
     hasCmp bk, hasShl bk, hasShr bk, hasMul bk, fromNatTypes bk⟩
 
-def bitJump (o : BitOp) : Term → Option Term :=
+def bitJump (o : BitOp) : Jump :=
   jump2 o.word fun as bs => wordT (List.zipWith o.op as bs)
 
--- jump found: the first jump of a family that found has. It takes base's
--- word defs, and T.from_nat for a one-word type T.
-def jump (found : Found) : Jump where
-  takes k := k ∈ ["Word.adc.group", "Word.not", "Word.and", "Word.or", "Word.xor", "Word.inc",
-    "Word.to_nat", "Word.cmp", "Word.shl", "Word.shr", "Word.mul.go"] || k.endsWith ".from_nat"
-  go t := [ (found.add, groupJump),
+-- the jump of each family, and whether found has it
+def families (found : Found) : List (Bool × Jump) :=
+  [ (found.add, groupJump),
     (found.not, jump1 "Word.not" fun bs => wordT (bs.map (!·))),
     (found.and, bitJump .and),
     (found.or, bitJump .or),
@@ -248,9 +261,16 @@ def jump (found : Found) : Jump where
     (found.shl, jump1 "Word.shl" fun bs => wordT (shlBits bs)),
     (found.shr, jump1 "Word.shr" fun bs => wordT (shrBits bs)),
     (found.mul, mulJump),
-    (!found.fromNat.isEmpty, fromNatJump found.fromNat) ].findSome? fun (on, j) => if on then j t else none
+    (!found.fromNat.isEmpty, fromNatJump found.fromNat) ]
 
-theorem bitJump_sound (H : HasBit bk o) (h : bitJump o t = some u) : Plus bk t u := by
+-- jump found: the first jump of a family that found has. It takes what
+-- those jumps take.
+def jump (found : Found) : Jump :=
+  let js := families found
+  ⟨fun k => js.any fun (on, j) => on && j.takes k,
+    fun t => js.findSome? fun (on, j) => if on then j.go t else none⟩
+
+theorem bitJump_sound (H : HasBit bk o) (h : (bitJump o).go t = some u) : Plus bk t u := by
   obtain ⟨as, bs, len, rfl, rfl⟩ := jump2_inv h
   exact plus_tup (bit_evals H as bs len) word_tup
 
@@ -260,7 +280,7 @@ theorem jump_sound : Jump.Sound bk (jump (found bk)) := by
   cases hon : on
   · simp [hon] at hj
   simp only [hon, ite_true] at hj
-  simp only [found, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at mem
+  simp only [families, found, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at mem
   rcases mem with ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ |
     ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ <;> rw [hon] at e
   · obtain ⟨as, bs, f, c, len, rfl, rfl⟩ := groupJump_inv hj

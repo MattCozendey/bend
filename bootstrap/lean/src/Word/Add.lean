@@ -50,8 +50,8 @@ def hasAdd (bk : Book) : Bool :=
 
 theorem hasAdd_sound (h : hasAdd bk = true) : HasAdd bk := by
   simp only [hasAdd, Bool.and_eq_true] at h
-  exact ⟨hasRef_sound h.1.1.1.1.1, hasRef_sound h.1.1.1.1.2, hasRef_sound h.1.1.1.2, hasRef_sound h.1.1.2,
-    hasRef_sound h.1.2, hasRef_sound h.2⟩
+  exact ⟨hasRef_sound h.1.1.1.1.1, hasRef_sound h.1.1.1.1.2, hasRef_sound h.1.1.1.2,
+    hasRef_sound h.1.1.2, hasRef_sound h.1.2, hasRef_sound h.2⟩
 
 -- one round: a call on two word cells gives a cell of the result, with the
 -- call on the rests as its rest

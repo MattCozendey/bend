@@ -169,7 +169,8 @@ def leafT : Option (Term × List Val × List (Quan × Val)) → Option Term
 theorem fld_live : (Quan.fld r q).live = true → r.live = true := by
   cases r <;> cases q <;> simp [Quan.fld, Quan.live]
 
-theorem walk_sound : walk t e xs = some o → Interp.walk t (Val.rbs e) (Val.rbArgs xs) = some (leafT o) := by
+theorem walk_sound :
+    walk t e xs = some o → Interp.walk t (Val.rbs e) (Val.rbArgs xs) = some (leafT o) := by
   induction t generalizing e xs o with
   | Lam p f ih =>
     cases xs with
@@ -357,7 +358,8 @@ theorem apply_sound (hj : Jump.Sound bk jump) (gf : Good bk f) (lf : f.live)
       cases h
       refine ⟨⟨⟨gx, gf.1⟩, gs⟩, .inr ?_⟩
       simp only [decode, Val.rbs, env_inst, Val.rb, Term.sub]
-      exact one_plug gs (.beta c.1 (fun l => good_value gx (lx l)) (fun e => Val.isData_sound (c.2 e)))
+      exact one_plug gs
+        (.beta c.1 (fun l => good_value gx (lx l)) (fun e => Val.isData_sound (c.2 e)))
     · simp at h
   · rename_i hh e r a b
     split at h

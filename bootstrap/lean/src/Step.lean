@@ -656,7 +656,8 @@ theorem scanWith_eq : scanWith bk Jump.never t = (step bk t, isValue bk t, isArg
 -- Plus bk t u: t becomes u in one or more Eval steps
 def Plus (bk : Book) (t u : Term) : Prop := ∃ m, Eval bk t m ∧ Contract.Evals bk m u
 
-theorem evals_trans (h1 : Contract.Evals bk a b) (h2 : Contract.Evals bk b c) : Contract.Evals bk a c := by
+theorem evals_trans (h1 : Contract.Evals bk a b) (h2 : Contract.Evals bk b c) :
+    Contract.Evals bk a c := by
   induction h1 with
   | refl => exact h2
   | step e _ ih => exact .step e (ih h2)
@@ -803,7 +804,8 @@ theorem scanWith_sound (hj : Jump.Sound bk jump) :
   | _ => simp [scanWith]
 
 -- scanWith with a jump gives no step only where it gives none with no jump
-theorem scanWith_none_nojump : (scanWith bk jump t).1 = none → (scanWith bk Jump.never t).1 = none := by
+theorem scanWith_none_nojump :
+    (scanWith bk jump t).1 = none → (scanWith bk Jump.never t).1 = none := by
   induction t with
   | App q f x ihf ihx =>
     have vf := scanWith_snd (bk := bk) (jump := jump) (t := f)
