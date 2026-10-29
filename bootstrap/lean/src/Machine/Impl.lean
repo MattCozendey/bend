@@ -5,9 +5,9 @@ import Step
 --
 -- The environment machine. It runs a term without substitution: a variable
 -- reads its value from an environment, and a function value is its code
--- with its environment. It keeps its place in the term with a stack of
--- frames, so it never walks the term from the top again. decode gives the
--- term that a machine state stands for.
+-- with its environment. In a step, only a jump reads values back to terms
+-- (Val.rb). A stack of frames holds the position of the machine in the term,
+-- so no step walks the term from the top.
 
 open Quan Term Contract
 
@@ -18,8 +18,8 @@ namespace Interp.Machine
 
 -- a value of the machine
 -- - clo t e: a λ, a λ-match or a type t, with the values e of its variables
--- - dead t e: a dead term t (q=0), with e. The machine never runs it.
--- - lab, rfl, tup: plain data
+-- - dead t e: a dead (q=0) term t, with e. The machine never runs it.
+-- - lab, rfl, tup: a label, Rfl, and a pair of values
 -- - call k xs: a call of def k on xs whose case tree needs more arguments
 inductive Val where
   | clo (t : Term) (e : List Val)
@@ -48,29 +48,29 @@ def Val.rbArgs : List (Quan × Val) → List Arg
   | (q, v) :: xs => (q, v.rb) :: Val.rbArgs xs
 end
 
--- ofData t: t as a value, for a result of a word jump (plain data). A
--- dead field (q=0) stays a dead term.
+-- ofData t: the plain data t as a value, for a jump result. A dead (q=0)
+-- field becomes a dead term.
 def ofData : Term → Val
   | Lab k => .lab k
   | Rfl => .rfl
   | Tup q a b => .tup q (if q.live then ofData a else .dead a []) (ofData b)
   | t => .clo t []
 
--- v.live: v is no dead term
+-- v.live: v is not a dead term
 def Val.live : Val → Bool
   | .dead .. => false
   | _ => true
 
--- Val.isData v: v is plain data. It is false for each closure.
+-- Val.isData v: v is plain data
 def Val.isData : Val → Bool
   | .lab _ => true
   | .rfl => true
   | .tup q a b => (!q.live || Val.isData a) && Val.isData b
   | _ => false
 
--- walk t e xs: walk, on values. some none: the tree needs more arguments.
--- some (some (t, e, xs)): the walk leaves the tree at t, with e and the
--- rest xs.
+-- walk t e xs: Interp.walk on values. It gives a leaf as (u, e', ys): the
+-- term u under e', applied to ys. It can give none where Interp.walk does
+-- not.
 def walk : Term → List Val → List (Quan × Val) →
     Option (Option (Term × List Val × List (Quan × Val)))
   | Lam _ _, _, [] => some none
@@ -97,14 +97,14 @@ def walk : Term → List Val → List (Quan × Val) →
 -- States
 -- ======
 
--- a frame: what to do with the value of the current term
--- - appF q x e: it is the function of App q _ x
--- - appX q f: it is the argument of App q f _, and f is a value
--- - appV q a: it is the function of App q _ a, and a is a value
--- - letV q f e: it is the value of Let q _ f
--- - tupA q b e, tupB q a: it is the first or second field of a pair
--- - rwt P f e: it is the proof of Rwt _ P f
--- - minA b e, minB a: it is the first or second side of a meet
+-- a frame: what the current value is in the term around it
+-- - appF q x e: the function of App q _ x
+-- - appX q f: the argument of App q f _, where f is a value
+-- - appV q a: the function of App q _ a, where a is a value
+-- - letV q f e: the bound value of Let q _ f
+-- - tupA q b e, tupB q a: the first or second field of a pair
+-- - rwt P f e: the proof of Rwt _ P f
+-- - minA b e, minB a: the first or second side of a meet
 inductive Frame where
   | appF (q : Quan) (x : Term) (e : List Val)
   | appX (q : Quan) (f : Val)
@@ -116,12 +116,13 @@ inductive Frame where
   | minA (b : Term) (e : List Val)
   | minB (a : Val)
 
--- a state: run t with e, or return v, then the frames k
+-- a state: run t under e, or return v, then the frames k
 inductive St where
   | eval (t : Term) (e : List Val) (k : List Frame)
   | ret (v : Val) (k : List Frame)
 
--- plug k t: the term with t in the place of the frames k
+-- plug k t: the term that the frames k make around t. The first frame is
+-- the innermost.
 def plug : List Frame → Term → Term
   | [], t => t
   | .appF q x e :: k, t => plug k (App q t (sub (Env.sub (Val.rbs e)) x))
@@ -135,6 +136,7 @@ def plug : List Frame → Term → Term
   | .minA b e :: k, t => plug k (.Min t (sub (Env.sub (Val.rbs e)) b))
   | .minB a :: k, t => plug k (.Min a.rb t)
 
+-- decode s: the term that the state s stands for
 def decode : St → Term
   | .eval t e k => plug k (sub (Env.sub (Val.rbs e)) t)
   | .ret v k => plug k v.rb
@@ -142,7 +144,9 @@ def decode : St → Term
 -- Steps
 -- =====
 
--- tryCall bk jump k xs fs: a call of def k on the values xs, then fs
+-- tryCall bk jump k xs fs: the state after the call of def k on the values
+-- xs, with the frames fs. It tries the jump first, and takes only a result
+-- that is plain data.
 def tryCall (bk : Book) (jump : Jump) (k : String) (xs : List (Quan × Val))
     (fs : List Frame) : Option St :=
   match (if jump.takes k then jump.go (spine (Ref k) (Val.rbArgs xs)) else none) with
@@ -156,7 +160,8 @@ def tryCall (bk : Book) (jump : Jump) (k : String) (xs : List (Quan × Val))
       | none => none
     | none => none
 
--- apply bk jump f x fs: the value f applied to x, then fs
+-- apply bk jump f q x fs: the state after the value f takes x at the
+-- quantity q, with the frames fs
 def apply (bk : Book) (jump : Jump) (f : Val) (q : Quan) (x : Val)
     (fs : List Frame) : Option St :=
   match f, x with
@@ -171,51 +176,57 @@ def apply (bk : Book) (jump : Jump) (f : Val) (q : Quan) (x : Val)
   | .call k xs, x => tryCall bk jump k (xs ++ [(q, x)]) fs
   | _, _ => none
 
+-- stepEval bk jump t e fs: the step from the state .eval t e fs
+def stepEval (bk : Book) (jump : Jump) (t : Term) (e : List Val) (fs : List Frame) :
+    Option St :=
+  match t with
+  | Var i =>
+    match e[i]? with
+    | some (.dead ..) => none
+    | some v => some (.ret v fs)
+    | none => none
+  | Ref k => tryCall bk jump k [] fs
+  | Ann x _ => some (.eval x e fs)
+  | Let q v f =>
+    if q.live then some (.eval v e (.letV q f e :: fs)) else some (.eval f (.dead v e :: e) fs)
+  | Tup q a b =>
+    if q.live then some (.eval a e (.tupA q b e :: fs))
+    else some (.eval b e (.tupB q (.dead a e) :: fs))
+  | App q f x => some (.eval f e (.appF q x e :: fs))
+  | Rwt p P f => some (.eval p e (.rwt P f e :: fs))
+  | .Min a b => some (.eval a e (.minA b e :: fs))
+  | Lab j => some (.ret (.lab j) fs)
+  | Rfl => some (.ret .rfl fs)
+  | _ => some (.ret (.clo t e) fs)
+
+-- stepRet bk jump v fr fs: the step from the state .ret v (fr :: fs)
+def stepRet (bk : Book) (jump : Jump) (v : Val) (fr : Frame) (fs : List Frame) : Option St :=
+  match fr with
+  | .appF q x e =>
+    if q.live then some (.eval x e (.appX q v :: fs)) else apply bk jump v q (.dead x e) fs
+  | .appX q f => apply bk jump f q v fs
+  | .appV q a => apply bk jump v q a fs
+  | .letV q f e => if q = Q2 → Val.isData v = true then some (.eval f (v :: e) fs) else none
+  | .tupA q b e => some (.eval b e (.tupB q v :: fs))
+  | .tupB q a => some (.ret (.tup q a v) fs)
+  | .rwt _ f e =>
+    match v with
+    | .rfl => some (.eval f e fs)
+    | _ => none
+  | .minA b e => some (.eval b e (.minB v :: fs))
+  | .minB a =>
+    match a, v with
+    | .lab i, .lab j =>
+      if i ∈ QS ∧ j ∈ QS then some (.eval (qmin (Lab i) (Lab j)) [] fs) else none
+    | _, _ => none
+
 -- step bk jump s: one step of the machine, or none when it stops
 def step (bk : Book) (jump : Jump) : St → Option St
-  | .eval t e fs =>
-    match t with
-    | Var i =>
-      match e[i]? with
-      | some (.dead ..) => none
-      | some v => some (.ret v fs)
-      | none => none
-    | Ref k => tryCall bk jump k [] fs
-    | Ann x _ => some (.eval x e fs)
-    | Let q v f =>
-      if q.live then some (.eval v e (.letV q f e :: fs)) else some (.eval f (.dead v e :: e) fs)
-    | Tup q a b =>
-      if q.live then some (.eval a e (.tupA q b e :: fs))
-      else some (.eval b e (.tupB q (.dead a e) :: fs))
-    | App q f x => some (.eval f e (.appF q x e :: fs))
-    | Rwt p P f => some (.eval p e (.rwt P f e :: fs))
-    | .Min a b => some (.eval a e (.minA b e :: fs))
-    | Lab j => some (.ret (.lab j) fs)
-    | Rfl => some (.ret .rfl fs)
-    | _ => some (.ret (.clo t e) fs)
+  | .eval t e fs => stepEval bk jump t e fs
   | .ret _ [] => none
-  | .ret v (fr :: fs) =>
-    match fr with
-    | .appF q x e =>
-      if q.live then some (.eval x e (.appX q v :: fs)) else apply bk jump v q (.dead x e) fs
-    | .appX q f => apply bk jump f q v fs
-    | .appV q a => apply bk jump v q a fs
-    | .letV q f e => if q = Q2 → Val.isData v = true then some (.eval f (v :: e) fs) else none
-    | .tupA q b e => some (.eval b e (.tupB q v :: fs))
-    | .tupB q a => some (.ret (.tup q a v) fs)
-    | .rwt _ f e =>
-      match v with
-      | .rfl => some (.eval f e fs)
-      | _ => none
-    | .minA b e => some (.eval b e (.minB v :: fs))
-    | .minB a =>
-      match a, v with
-      | .lab i, .lab j =>
-        if i ∈ QS ∧ j ∈ QS then some (.eval (qmin (Lab i) (Lab j)) [] fs) else none
-      | _, _ => none
+  | .ret v (fr :: fs) => stepRet bk jump v fr fs
 
--- run bk jump n s: at most n machine steps from s; the state where it
--- stops, and the fuel left
+-- run bk jump n s: the state after at most n steps from s, and the fuel left
 def run (bk : Book) (jump : Jump) : Nat → St → St × Nat
   | 0, s => (s, 0)
   | n + 1, s =>

@@ -3,9 +3,9 @@ import Machine.Impl
 -- Machine.Spec
 -- ============
 --
--- The proof that the machine runs Eval. Each step either keeps the term
--- that the state stands for (decode) and makes a measure (μ) smaller, or
--- makes one or more Eval steps on it (step_sound).
+-- The proof that the machine runs Eval. Each step is StepSound
+-- (step_sound). So a run makes only Eval steps (run_sound), and where Eval
+-- ends, the machine stops (run_ends).
 
 open Quan Term Contract
 
@@ -58,8 +58,8 @@ theorem plug_appVs : ∀ (rest : List (Quan × Val)) (fs : List Frame) (t : Term
 -- ==========
 
 mutual
--- Good bk v: each closure and call in v reads back to a value, and each
--- live field is no dead term
+-- Good bk v: outside dead terms, each closure and call in v reads back to a
+-- value, and no live field or live argument is a dead term
 def Good (bk : Book) : Val → Prop
   | .clo t e => Goods bk e ∧ Value bk (Val.rb (.clo t e))
   | .dead _ _ => True
@@ -128,7 +128,7 @@ def GoodFrames (bk : Book) : List Frame → Prop
   | [] => True
   | f :: fs => GoodFrame bk f ∧ GoodFrames bk fs
 
--- Inv bk s: the invariant of each state the machine reaches
+-- Inv bk s: the invariant of each state that the machine reaches
 def Inv (bk : Book) : St → Prop
   | .eval _ e fs => Goods bk e ∧ GoodFrames bk fs
   | .ret v fs => Good bk v ∧ v.live ∧ GoodFrames bk fs
@@ -136,7 +136,7 @@ def Inv (bk : Book) : St → Prop
 -- Contexts
 -- ========
 
--- an Eval step in the place of the frames is an Eval step of the whole
+-- an Eval step inside good frames is an Eval step of the whole term
 theorem eval_plug : ∀ {fs : List Frame} {t t' : Term}, GoodFrames bk fs → Eval bk t t' →
     Eval bk (plug fs t) (plug fs t')
   | [], _, _, _, h => h
@@ -161,7 +161,7 @@ theorem one_plug (g : GoodFrames bk fs) (h : Eval bk t t') : Plus bk (plug fs t)
 -- Walks
 -- =====
 
--- the term that a result of walk stands for
+-- leafT o: the inner result o of walk, as Interp.walk gives it
 def leafT : Option (Term × List Val × List (Quan × Val)) → Option Term
   | none => none
   | some (t, e, rest) => some (spine (sub (Env.sub (Val.rbs e)) t) (Val.rbArgs rest))
@@ -181,7 +181,7 @@ theorem walk_sound :
       · rename_i c
         have c' : p.live = q.live ∧ (p = Q2 → isData x.rb = true) :=
           ⟨c.1, fun e => isData_iff.2 (Val.isData_sound (c.2 e))⟩
-        rw [ite_yes c']; exact ih
+        rw [ite_eq_left c']; exact ih
       · simp
   | Prj h ih =>
     cases xs with
@@ -288,7 +288,8 @@ theorem goodFrames_appVs : ∀ {rest : List (Quan × Val)}, GoodArgs bk rest →
 -- Measure
 -- =======
 
--- pend f: the bookkeeping steps that frame f still owes
+-- pend f: a bound on the bookkeeping steps that the frame f still needs. A
+-- bookkeeping step keeps the decoded term.
 noncomputable def pend : Frame → Nat
   | .appF _ x _ => 3 * sizeOf x + 2
   | .appX .. => 1
@@ -300,7 +301,8 @@ noncomputable def pend : Frame → Nat
   | .minA b _ => 3 * sizeOf b + 2
   | .minB _ => 1
 
--- μ s: a bound on the bookkeeping steps from s to its next Eval step
+-- μ s: a bound on the bookkeeping steps from s before the next Eval step.
+-- Each term node needs at most 3.
 noncomputable def μ : St → Nat
   | .eval t _ fs => 3 * sizeOf t + (fs.map pend).sum
   | .ret _ fs => (fs.map pend).sum
@@ -308,10 +310,14 @@ noncomputable def μ : St → Nat
 -- Calls
 -- =====
 
+-- PlugSound bk fs t s': as StepSound, from the term plug fs t. When s' stands
+-- for that same term, its μ is only the part for fs.
+def PlugSound (bk : Book) (fs : List Frame) (t : Term) (s' : St) : Prop :=
+  Inv bk s' ∧ ((decode s' = plug fs t ∧ μ s' = (fs.map pend).sum) ∨ Plus bk (plug fs t) (decode s'))
+
 theorem tryCall_sound (hj : Jump.Sound bk jump) (gx : GoodArgs bk xs)
     (gs : GoodFrames bk fs) (h : tryCall bk jump k xs fs = some s') :
-    Inv bk s' ∧ ((decode s' = plug fs (spine (Ref k) (Val.rbArgs xs)) ∧ μ s' = (fs.map pend).sum) ∨
-      Plus bk (plug fs (spine (Ref k) (Val.rbArgs xs))) (decode s')) := by
+    PlugSound bk fs (spine (Ref k) (Val.rbArgs xs)) s' := by
   unfold tryCall at h
   split at h
   · rename_i u hu
@@ -345,11 +351,9 @@ theorem tryCall_sound (hj : Jump.Sound bk jump) (gx : GoodArgs bk xs)
 -- Apply
 -- =====
 
-theorem apply_sound (hj : Jump.Sound bk jump) (gf : Good bk f) (lf : f.live)
+theorem apply_sound (hj : Jump.Sound bk jump) (gf : Good bk f)
     (gx : Good bk x) (lx : q.live → x.live) (gs : GoodFrames bk fs)
-    (h : apply bk jump f q x fs = some s') :
-    Inv bk s' ∧ ((decode s' = plug fs (App q f.rb x.rb) ∧ μ s' = (fs.map pend).sum) ∨
-      Plus bk (plug fs (App q f.rb x.rb)) (decode s')) := by
+    (h : apply bk jump f q x fs = some s') : PlugSound bk fs (App q f.rb x.rb) s' := by
   unfold apply at h
   split at h
   · rename_i p b e
@@ -389,8 +393,7 @@ theorem apply_sound (hj : Jump.Sound bk jump) (gf : Good bk f) (lf : f.live)
     · simp at h
   · rename_i k xs
     have gx' : GoodArgs bk (xs ++ [(q, x)]) := goodArgs_append xs _ gf.1 ⟨gx, lx, trivial⟩
-    have e : plug fs (spine (Ref k) (Val.rbArgs (xs ++ [(q, x)]))) =
-        plug fs (App q (Val.rb (.call k xs)) x.rb) := by
+    have e : spine (Ref k) (Val.rbArgs (xs ++ [(q, x)])) = App q (Val.rb (.call k xs)) x.rb := by
       simp [rbArgs_append, Val.rbArgs, spine_snoc, Val.rb]
     rw [← e]
     exact tryCall_sound hj gx' gs h
@@ -399,17 +402,25 @@ theorem apply_sound (hj : Jump.Sound bk jump) (gf : Good bk f) (lf : f.live)
 -- Steps
 -- =====
 
--- what each step gives: the invariant, and either the same term with a
--- smaller measure or one or more Eval steps
+-- StepSound bk s s': the invariant holds at s', and s' stands for the term
+-- of s with a smaller μ, or for a term one or more Eval steps after it
 def StepSound (bk : Book) (s s' : St) : Prop :=
   Inv bk s' ∧ ((decode s' = decode s ∧ μ s' < μ s) ∨ Plus bk (decode s) (decode s'))
+
+theorem PlugSound.stepSound (r : PlugSound bk fs t s') (d : decode s = plug fs t)
+    (m : (fs.map pend).sum < μ s) : StepSound bk s s' := by
+  obtain ⟨I, r⟩ := r
+  refine ⟨I, ?_⟩
+  rcases r with ⟨d', m'⟩ | p
+  · exact .inl ⟨d'.trans d.symm, m' ▸ m⟩
+  · exact .inr (d ▸ p)
 
 theorem eval_sound (hj : Jump.Sound bk jump) (ge : Goods bk e)
     (gs : GoodFrames bk fs) (h : step bk jump (.eval t e fs) = some s') :
     StepSound bk (.eval t e fs) s' := by
   cases t with
   | Var i =>
-    simp only [step] at h
+    simp only [step, stepEval] at h
     split at h
     · simp at h
     · rename_i v hd hv
@@ -420,22 +431,16 @@ theorem eval_sound (hj : Jump.Sound bk jump) (ge : Goods bk e)
       · simp [μ] <;> omega
     · simp at h
   | Ref k =>
-    simp only [step] at h
-    have r := tryCall_sound hj (xs := []) trivial gs h
-    have e : decode (.eval (Ref k) e fs) = plug fs (spine (Ref k) (Val.rbArgs [])) := by
-      simp [decode, Term.sub, Val.rbArgs, spine]
-    unfold StepSound; rw [e]
-    refine ⟨r.1, ?_⟩
-    rcases r.2 with ⟨d, m⟩ | p
-    · exact .inl ⟨d, by rw [m]; simp [μ] <;> omega⟩
-    · exact .inr p
+    simp only [step, stepEval] at h
+    exact (tryCall_sound hj (xs := []) trivial gs h).stepSound
+      (by simp [decode, Term.sub, Val.rbArgs, spine]) (by simp [μ] <;> omega)
   | Ann x T =>
-    simp only [step, Option.some.injEq] at h; subst h
+    simp only [step, stepEval, Option.some.injEq] at h; subst h
     refine ⟨⟨ge, gs⟩, .inr ?_⟩
     simp only [decode, Term.sub]
     exact one_plug gs .ann
   | Let q v f =>
-    simp only [step] at h
+    simp only [step, stepEval] at h
     split at h
     · rename_i l
       cases h
@@ -447,7 +452,7 @@ theorem eval_sound (hj : Jump.Sound bk jump) (ge : Goods bk e)
       simp only [decode, Val.rbs, env_inst, Val.rb, Term.sub]
       exact one_plug gs (.unlet (fun l' => absurd l' l) (fun e => by subst e; simp [Quan.live] at l))
   | Tup q a b =>
-    simp only [step] at h
+    simp only [step, stepEval] at h
     split at h
     · rename_i l
       cases h
@@ -458,28 +463,16 @@ theorem eval_sound (hj : Jump.Sound bk jump) (ge : Goods bk e)
       refine ⟨⟨ge, ⟨⟨trivial, fun l' => absurd l' l⟩, gs⟩⟩,
         .inl ⟨by simp [decode, plug, Term.sub, Val.rb], ?_⟩⟩
       simp [μ, pend] <;> omega
-  | App q f x =>
-    simp only [step, Option.some.injEq] at h; subst h
+  | App _ _ _ | Rwt _ _ _ | Min _ _ =>
+    simp only [step, stepEval, Option.some.injEq] at h; subst h
     refine ⟨⟨ge, ⟨ge, gs⟩⟩, .inl ⟨by simp [decode, plug, Term.sub], ?_⟩⟩
     simp [μ, pend] <;> omega
-  | Rwt p P f =>
-    simp only [step, Option.some.injEq] at h; subst h
-    refine ⟨⟨ge, ⟨ge, gs⟩⟩, .inl ⟨by simp [decode, plug, Term.sub], ?_⟩⟩
-    simp [μ, pend] <;> omega
-  | Min a b =>
-    simp only [step, Option.some.injEq] at h; subst h
-    refine ⟨⟨ge, ⟨ge, gs⟩⟩, .inl ⟨by simp [decode, plug, Term.sub], ?_⟩⟩
-    simp [μ, pend] <;> omega
-  | Lab j =>
-    simp only [step, Option.some.injEq] at h; subst h
-    refine ⟨⟨trivial, rfl, gs⟩, .inl ⟨by simp [decode, Term.sub, Val.rb], ?_⟩⟩
-    simp [μ] <;> omega
-  | Rfl =>
-    simp only [step, Option.some.injEq] at h; subst h
+  | Lab _ | Rfl =>
+    simp only [step, stepEval, Option.some.injEq] at h; subst h
     refine ⟨⟨trivial, rfl, gs⟩, .inl ⟨by simp [decode, Term.sub, Val.rb], ?_⟩⟩
     simp [μ] <;> omega
   | _ =>
-    simp only [step, Option.some.injEq] at h; subst h
+    simp only [step, stepEval, Option.some.injEq] at h; subst h
     refine ⟨⟨⟨ge, ?_⟩, rfl, gs⟩, .inl ⟨rfl, ?_⟩⟩
     · simp only [Val.rb, Term.sub]; constructor
     · simp [μ] <;> omega
@@ -490,34 +483,24 @@ theorem ret_sound (hj : Jump.Sound bk jump) (gv : Good bk v) (lv : v.live)
   have ⟨gf, gs'⟩ := gs
   cases fr with
   | appF q x e =>
-    simp only [step] at h
+    simp only [step, stepRet] at h
     split at h
     · rename_i l
       cases h
       refine ⟨⟨gf, ⟨⟨l, gv, lv⟩, gs'⟩⟩, .inl ⟨by simp [decode, plug], ?_⟩⟩
       simp [μ, pend] <;> omega
     · rename_i l
-      have r := apply_sound hj gv lv (x := .dead x e) trivial (fun l' => absurd l' l) gs' h
-      refine ⟨r.1, ?_⟩
-      rcases r.2 with ⟨d, m⟩ | p
-      · exact .inl ⟨by rw [d]; simp [decode, plug, Val.rb], by rw [m]; simp [μ, pend]⟩
-      · exact .inr (by simpa [decode, plug, Val.rb] using p)
+      exact (apply_sound hj gv (x := .dead x e) trivial (fun l' => absurd l' l) gs' h).stepSound
+        (by simp [decode, plug, Val.rb]) (by simp [μ, pend])
   | appX q f =>
-    simp only [step] at h
-    have r := apply_sound hj gf.2.1 gf.2.2 gv (fun _ => lv) gs' h
-    refine ⟨r.1, ?_⟩
-    rcases r.2 with ⟨d, m⟩ | p
-    · exact .inl ⟨by rw [d]; simp [decode, plug], by rw [m]; simp [μ, pend]⟩
-    · exact .inr (by simpa [decode, plug] using p)
+    simp only [step, stepRet] at h
+    exact (apply_sound hj gf.2.1 gv (fun _ => lv) gs' h).stepSound (by simp [decode, plug])
+      (by simp [μ, pend])
   | appV q a =>
-    simp only [step] at h
-    have r := apply_sound hj gv lv gf.1 gf.2 gs' h
-    refine ⟨r.1, ?_⟩
-    rcases r.2 with ⟨d, m⟩ | p
-    · exact .inl ⟨by rw [d]; simp [decode, plug], by rw [m]; simp [μ, pend]⟩
-    · exact .inr (by simpa [decode, plug] using p)
+    simp only [step, stepRet] at h
+    exact (apply_sound hj gv gf.1 gf.2 gs' h).stepSound (by simp [decode, plug]) (by simp [μ, pend])
   | letV q f e =>
-    simp only [step] at h
+    simp only [step, stepRet] at h
     split at h
     · rename_i c
       cases h
@@ -526,15 +509,15 @@ theorem ret_sound (hj : Jump.Sound bk jump) (gv : Good bk v) (lv : v.live)
       exact one_plug gs' (.unlet (fun _ => good_value gv lv) (fun e => Val.isData_sound (c e)))
     · simp at h
   | tupA q b e =>
-    simp only [step, Option.some.injEq] at h; subst h
+    simp only [step, stepRet, Option.some.injEq] at h; subst h
     refine ⟨⟨gf.2, ⟨⟨gv, fun _ => lv⟩, gs'⟩⟩, .inl ⟨by simp [decode, plug], ?_⟩⟩
     simp [μ, pend] <;> omega
   | tupB q a =>
-    simp only [step, Option.some.injEq] at h; subst h
+    simp only [step, stepRet, Option.some.injEq] at h; subst h
     refine ⟨⟨⟨gf.1, gf.2, gv, lv⟩, rfl, gs'⟩, .inl ⟨by simp [decode, plug, Val.rb], ?_⟩⟩
     simp [μ, pend]
   | rwt P f e =>
-    simp only [step] at h
+    simp only [step, stepRet] at h
     split at h
     · cases h
       refine ⟨⟨gf, gs'⟩, .inr ?_⟩
@@ -542,11 +525,11 @@ theorem ret_sound (hj : Jump.Sound bk jump) (gv : Good bk v) (lv : v.live)
       exact one_plug gs' .cast
     · simp at h
   | minA b e =>
-    simp only [step, Option.some.injEq] at h; subst h
+    simp only [step, stepRet, Option.some.injEq] at h; subst h
     refine ⟨⟨gf, ⟨⟨gv, lv⟩, gs'⟩⟩, .inl ⟨by simp [decode, plug], ?_⟩⟩
     simp [μ, pend] <;> omega
   | minB a =>
-    simp only [step] at h
+    simp only [step, stepRet] at h
     split at h
     · rename_i i j
       split at h
@@ -570,7 +553,6 @@ theorem step_sound (hj : Jump.Sound bk jump) (I : Inv bk s)
 -- Runs
 -- ====
 
--- the start state of t stands for t, and holds the invariant
 theorem decode_init : decode (.eval t [] []) = t := rb_nil t
 
 theorem inv_init : Inv bk (.eval t [] []) := ⟨trivial, trivial⟩
@@ -590,8 +572,8 @@ theorem run_sound (hj : Jump.Sound bk jump) (I : Inv bk s)
       · exact evals_trans (plus_evals p) e
     · simp only [Prod.mk.injEq] at h; rw [← h.1]; exact .refl
 
--- where Eval ends, so does the machine: some k steps reach a state where
--- no step fits
+-- some k steps take s to a state sf where no step fits. The term d of s and
+-- the bound n on μ s are for the induction.
 theorem run_ends (hj : Jump.Sound bk jump) :
     ∀ d, Acc (fun u t => Plus bk t u) d → ∀ n s, μ s ≤ n → decode s = d → Inv bk s →
       ∃ k sf, step bk jump sf = none ∧ Evals bk d (decode sf) ∧
@@ -600,8 +582,8 @@ theorem run_ends (hj : Jump.Sound bk jump) :
   induction acc with
   | intro d _ ihd =>
     intro n
-    induction n with
-    | zero =>
+    induction n using Nat.strongRecOn with
+    | _ n ihn =>
       intro s hμ hd I
       cases hs : step bk jump s with
       | none =>
@@ -609,28 +591,14 @@ theorem run_ends (hj : Jump.Sound bk jump) :
         cases m <;> simp [run, hs]
       | some s1 =>
         have ⟨I1, r⟩ := step_sound hj I hs
-        rcases r with ⟨_, lt⟩ | p
-        · omega
-        · obtain ⟨k, sf, hsf, ev, hr⟩ := ihd (decode s1) (hd ▸ p) (μ s1) s1 (Nat.le_refl _) rfl I1
-          refine ⟨k + 1, sf, hsf, evals_trans (hd ▸ plus_evals p) ev, fun m => ?_⟩
-          rw [show k + 1 + m = (k + m) + 1 by omega]
-          simp [run, hs, hr]
-    | succ n ihn =>
-      intro s hμ hd I
-      cases hs : step bk jump s with
-      | none =>
-        refine ⟨0, s, hs, hd ▸ .refl, fun m => ?_⟩
-        cases m <;> simp [run, hs]
-      | some s1 =>
-        have ⟨I1, r⟩ := step_sound hj I hs
-        rcases r with ⟨e, lt⟩ | p
-        · obtain ⟨k, sf, hsf, ev, hr⟩ := ihn s1 (by omega) (e.trans hd) I1
-          refine ⟨k + 1, sf, hsf, ev, fun m => ?_⟩
-          rw [show k + 1 + m = (k + m) + 1 by omega]
-          simp [run, hs, hr]
-        · obtain ⟨k, sf, hsf, ev, hr⟩ := ihd (decode s1) (hd ▸ p) (μ s1) s1 (Nat.le_refl _) rfl I1
-          refine ⟨k + 1, sf, hsf, evals_trans (hd ▸ plus_evals p) ev, fun m => ?_⟩
-          rw [show k + 1 + m = (k + m) + 1 by omega]
-          simp [run, hs, hr]
+        have ⟨k, sf, hsf, ev, hr⟩ : ∃ k sf, step bk jump sf = none ∧ Evals bk d (decode sf) ∧
+            ∀ m, run bk jump (k + m) s1 = (sf, m) := by
+          rcases r with ⟨e, lt⟩ | p
+          · exact ihn (μ s1) (by omega) s1 (Nat.le_refl _) (e.trans hd) I1
+          · obtain ⟨k, sf, hsf, ev, hr⟩ := ihd (decode s1) (hd ▸ p) (μ s1) s1 (Nat.le_refl _) rfl I1
+            exact ⟨k, sf, hsf, evals_trans (hd ▸ plus_evals p) ev, hr⟩
+        refine ⟨k + 1, sf, hsf, ev, fun m => ?_⟩
+        rw [show k + 1 + m = (k + m) + 1 by omega]
+        simp [run, hs, hr]
 
 end Interp.Machine
