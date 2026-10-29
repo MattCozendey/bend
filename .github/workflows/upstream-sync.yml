@@ -1,0 +1,37 @@
+name: upstream-sync
+
+# Fails unless this branch is exactly 0 behind, 1 ahead of upstream's main, as
+# a reminder to rebase and squash. Daily too, so a fork that sits still learns
+# that upstream moved.
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 12 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  upstream-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: this branch is 0 behind, 1 ahead of upstream's main
+        run: |
+          git fetch --no-tags https://github.com/bendlang/bend.git main
+          if ! git merge-base --is-ancestor FETCH_HEAD HEAD; then
+            n=$(git rev-list --count HEAD..FETCH_HEAD)
+            echo "::error::behind bendlang/bend main by $n commits: rebase onto it"
+            exit 1
+          fi
+          a=$(git rev-list --count FETCH_HEAD..HEAD)
+          if [ "$a" -ne 1 ]; then
+            echo "::error::ahead of bendlang/bend main by $a commits: keep exactly 1"
+            exit 1
+          fi
