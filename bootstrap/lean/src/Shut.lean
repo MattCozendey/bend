@@ -131,7 +131,7 @@ theorem grow_mem (h : k ∈ ks) : k ∈ grow bk n ks := by
   | succ n ih => simp only [grow]; exact ih (List.mem_append_left _ h)
 
 theorem claim_shut : Claim.shut := by
-  intro bk k u hp ev
+  intro bk k v hp ev
   unfold Contract.Pure at hp
   split at hp
   · simp at hp
