@@ -1,59 +1,73 @@
-import Bootstrap.Step
+import Bootstrap.Word
 
 -- Run
 -- ===
 --
 -- The interpreter as a Spec.Compiler: its code is the book and the def to
--- run, and run steps until no step fits. This file proves claims 1
--- (correct) and 2 (total) for it.
+-- run, and run steps until no step fits. Each step is one walk (scanWith),
+-- and a call of base's word add code jumps to its result (wordJump). This
+-- file proves claims 1 (correct) and 2 (total) for it.
 
 open Quan Term Spec
 
 namespace Interp
 
--- run bk n t: step from t, at most n times. When no step fits, the result
--- is what the term shows. When the fuel ends first, there is no result.
--- It takes each step with next, which is step from one walk (next_eq).
-def run (bk : Book) : Nat → Term → Option Obs
+-- run bk jump n t: step from t with scanWith and jump, at most n times.
+-- When no step fits, the result is what the term shows. When the fuel ends
+-- first, there is no result.
+def run (bk : Book) (jump : Term → Option Term) : Nat → Term → Option Obs
   | 0, _ => none
   | n + 1, t =>
-    match next bk t with
-    | some u => run bk n u
+    match (scanWith bk jump t).1 with
+    | some u => run bk jump n u
     | none => observe t
 
--- the interpreter
+-- the interpreter. It compares the book's word add code with WordRef once
+-- per run.
 def compiler : Compiler where
   Code := Book × String
   compile bk k := if Spec.Pure bk k = true then .ok (bk, k) else .error "the def is not Pure"
-  run n code := run code.1 n (Ref code.2)
+  run n code := run code.1 (wordJump (refsMatch code.1)) n (Ref code.2)
 
 -- Runs
 -- ====
 
 -- a result of run is what a reachable term shows, where no step fits
-theorem run_spec : run bk n t = some r →
+theorem run_spec (hj : ∀ t u, jump t = some u → Plus bk t u) : run bk jump n t = some r →
     ∃ v, Evals bk t v ∧ step bk v = none ∧ observe v = some r := by
   induction n generalizing t with
   | zero => simp [run]
   | succ n ih =>
-    simp only [run, next_eq]
+    simp only [run]
     split
     · rename_i u hu
       intro h; obtain ⟨v, ev, sv, ov⟩ := ih h
-      exact ⟨v, .step (step_sound hu) ev, sv, ov⟩
-    · rename_i hn; exact fun h => ⟨t, .refl, hn, h⟩
+      exact ⟨v, evals_trans (plus_evals (scanWith_sound hj hu)) ev, sv, ov⟩
+    · rename_i hn; exact fun h => ⟨t, .refl, scanWith_none hn, h⟩
+
+-- where Eval ends, so does Plus
+theorem acc_plus (h : Acc (fun u t => Eval bk t u) t) : Acc (fun u t => Plus bk t u) t := by
+  induction h with
+  | intro t _ ih =>
+    refine ⟨_, fun u hp => ?_⟩
+    obtain ⟨m, e, es⟩ := hp
+    cases es with
+    | refl => exact ih _ e
+    | step e' es' => exact (ih _ e).inv ⟨_, e', es'⟩
 
 -- from a term where Eval ends, run ends: some fuel reaches a term where
 -- no step fits
-theorem run_ends (acc : Acc (fun u t => Eval bk t u) t) :
-    ∃ n v, Evals bk t v ∧ step bk v = none ∧ run bk n t = observe v := by
+theorem run_ends (hj : ∀ t u, jump t = some u → Plus bk t u)
+    (acc : Acc (fun u t => Plus bk t u) t) :
+    ∃ n v, Evals bk t v ∧ step bk v = none ∧ run bk jump n t = observe v := by
   induction acc with
   | intro t _ ih =>
-    cases hs : step bk t with
-    | none => exact ⟨1, t, .refl, hs, by simp [run, next_eq, hs]⟩
+    cases hs : (scanWith bk jump t).1 with
+    | none => exact ⟨1, t, .refl, scanWith_none hs, by simp [run, hs]⟩
     | some u =>
-      obtain ⟨n, v, ev, sv, rv⟩ := ih u (step_sound hs)
-      exact ⟨n + 1, v, .step (step_sound hs) ev, sv, by simp [run, next_eq, hs, rv]⟩
+      have p := scanWith_sound hj hs
+      obtain ⟨n, v, ev, sv, rv⟩ := ih u p
+      exact ⟨n + 1, v, evals_trans (plus_evals p) ev, sv, by simp [run, hs, rv]⟩
 
 theorem evals_pars (hcl : Book.Closed bk) (h : Evals bk t u) : Pars bk t u := by
   induction h with
@@ -121,14 +135,12 @@ theorem live_ref (hd : bk.get k = some d) : Term.Live bk (Ref k) := by
   obtain ⟨i, hi⟩ := index_of_get hd
   simp [Term.Live, Term.live, Term.called, unspine, hi, index_lt hi]
 
--- a term that Eval reaches from a Pure def, where no step fits, is plain
--- data
-theorem final_data (wt : Book.WellTyped bk) (lv : Book.Live bk)
-    (R : Typed bk [] (Ref k) T) (K : Typed bk [] T T2)
-    (ev : Evals bk (Ref k) v) (sv : step bk v = none) : Data v := by
-  have tv := pars_sr wt R (evals_pars lv.1 ev)
-  rcases progress bk v T wt lv tv with vv | ⟨u, e⟩
-  · exact canon_data wt vv tv K
+-- a term that Eval reaches from a typed def, where no step fits, is a
+-- value
+theorem final_value (wt : Book.WellTyped bk) (lv : Book.Live bk) (R : Typed bk [] (Ref k) T)
+    (ev : Evals bk (Ref k) v) (sv : step bk v = none) : Value bk v := by
+  rcases progress bk v T wt lv (pars_sr wt R (evals_pars lv.1 ev)) with vv | ⟨u, e⟩
+  · exact vv
   · exact absurd sv (step_complete e)
 
 -- two values that Eval reaches from a Pure def show the same
@@ -152,22 +164,16 @@ theorem correct : Claim.correct compiler := by
     cases hcomp
     obtain ⟨wt, lv⟩ := book_check bk hc
     obtain ⟨d, hd, R, K⟩ := pure_facts lv.1 hp
-    have acc := halts bk (Ref k) lv (fun _ => rfl) (live_ref hd)
-    obtain ⟨n, v, ev, sv, rv⟩ := run_ends acc
-    have dv := final_data wt lv R K ev sv
-    have vv : Value bk v := by
-      rcases progress bk v d.T wt lv (pars_sr wt R (evals_pars lv.1 ev)) with vv | ⟨u, e⟩
-      · exact vv
-      · exact absurd sv (step_complete e)
-    obtain ⟨o, ho⟩ := observe_data dv
+    have hj : ∀ t u, wordJump (refsMatch bk) t = some u → Plus bk t u :=
+      fun _ _ => wordJump_sound refsMatch_ok
+    have acc := acc_plus (halts bk (Ref k) lv (fun _ => rfl) (live_ref hd))
+    obtain ⟨n, v, ev, sv, rv⟩ := run_ends hj acc
+    have vv := final_value wt lv R ev sv
+    obtain ⟨o, ho⟩ := observe_data (canon_data wt vv (pars_sr wt R (evals_pars lv.1 ev)) K)
     refine ⟨hp, o, ⟨⟨v, ev, vv, ho⟩, fun v' ev' vv' => ?_⟩, ⟨n, rv.trans ho⟩, fun n' r h => ?_⟩
     · exact (same_show wt lv R K ev vv ev' vv').trans ho
-    · obtain ⟨v', ev', sv', ov'⟩ := run_spec h
-      have vv' : Value bk v' := by
-        rcases progress bk v' d.T wt lv (pars_sr wt R (evals_pars lv.1 ev')) with vv' | ⟨u, e⟩
-        · exact vv'
-        · exact absurd sv' (step_complete e)
-      have := (same_show wt lv R K ev vv ev' vv').trans ho
+    · obtain ⟨v', ev', sv', ov'⟩ := run_spec hj h
+      have := (same_show wt lv R K ev vv ev' (final_value wt lv R ev' sv')).trans ho
       rw [ov'] at this; exact Option.some.inj this
   · simp at hcomp
 
