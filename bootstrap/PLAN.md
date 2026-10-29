@@ -69,11 +69,12 @@ they are. Each is optional, since slow is fine, and each that is done needs
 its own proof that it preserves the claims, composed into them. Each waits
 on a decision.
 
-Now: a U32 sum over 16 input bytes takes 18 s. The time grows as the cube
-of the input size.
+Now: a U32 sum over 16 input bytes takes 1.5 s, and over 64 bytes 19 s.
+The time grows as the square of the input size.
 
-1. One-pass step: one walk finds the next step and the values. This
-   removes one factor of the input size.
+1. One-pass step. Status: done. `scan` finds the next step and the values
+   in one walk. `scan_eq` proves it gives what `step` gives. Before it, 16
+   bytes took 18 s, and the time grew as the cube of the input size.
 2. The environment machine: closures instead of substitution. Actual
    compilation starts here.
 3. Labels and case trees as integer switches. `Eval` matches labels by

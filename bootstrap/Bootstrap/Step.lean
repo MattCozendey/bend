@@ -545,4 +545,109 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
       · rename_i hb; exact absurd hb ih
   | meet hi hj => simp [step, isValue, hi, hj]
 
+-- One pass
+-- ========
+--
+-- scan bk t gives step, isValue and isArgs of t from one walk of t. step
+-- itself checks values again at each App, so its cost grows as the square
+-- of the term. scan_eq proves scan gives exactly what step, isValue and
+-- isArgs give.
+
+-- redexWith q f x vx: redex, with vx the value check of x, made once
+def redexWith (q : Quan) (f x : Term) (vx : Bool) : Option Term :=
+  match f, x with
+  | Lam p b, x =>
+    if p.live = q.live ∧ (q.live = true → vx = true) ∧ (p = Q2 → isData x = true)
+    then some (inst b x) else none
+  | Prj h, Tup r a b =>
+    if q.live = true ∧ vx = true then some (App q (App (Quan.fld r q) h a) b) else none
+  | Mat k h m, Lab j =>
+    if q.live = true then (if j = k then some h else some (App q m (Lab j))) else none
+  | _, _ => none
+
+theorem redexWith_eq : redexWith q f x (isValue bk x) = redex bk q f x := by
+  cases f <;> try rfl
+  all_goals cases x <;> rfl
+
+-- scan bk t: (step bk t, isValue bk t, isArgs bk t), from one walk of t
+def scan (bk : Book) : Term → Option Term × Bool × Bool
+  | Ann x _ => (some x, false, false)
+  | Ref k => (fires bk (Ref k), stops bk (Ref k), true)
+  | App q f x =>
+    let (sf, vf, af) := scan bk f
+    let (sx, vx, _) := scan bk x
+    let ok := af && (!q.live || vx)
+    let s :=
+      match (if ok = true then fires bk (App q f x) else none) with
+      | some u => some u
+      | none =>
+        match sf with
+        | some f' => some (App q f' x)
+        | none =>
+          if vf = true then
+            match (if q.live = true then sx else none) with
+            | some x' => some (App q f x')
+            | none => redexWith q f x vx
+          else none
+    (s, ok && stops bk (App q f x), ok)
+  | Let q v f =>
+    let (sv, vv, _) := scan bk v
+    let s :=
+      match (if q.live = true then sv else none) with
+      | some v' => some (Let q v' f)
+      | none =>
+        if (q.live = true → vv = true) ∧ (q = Q2 → isData v = true)
+        then some (inst f v) else none
+    (s, false, false)
+  | Tup q a b =>
+    let (sa, va, _) := scan bk a
+    let (sb, vb, _) := scan bk b
+    let s :=
+      match (if q.live = true then sa else none) with
+      | some a' => some (Tup q a' b)
+      | none => if q.live = true → va = true then sb.map (Tup q a ·) else none
+    (s, (!q.live || va) && vb, false)
+  | Rwt e P f =>
+    let (se, _, _) := scan bk e
+    let s :=
+      match e with
+      | Rfl => some f
+      | _ => se.map (Rwt · P f)
+    (s, false, false)
+  | .Min a b =>
+    let (sa, va, _) := scan bk a
+    let (sb, _, _) := scan bk b
+    let s :=
+      match sa with
+      | some a' => some (.Min a' b)
+      | none =>
+        if va = true then
+          match sb with
+          | some b' => some (.Min a b')
+          | none =>
+            match a, b with
+            | Lab i, Lab j => if i ∈ QS ∧ j ∈ QS then some (qmin (Lab i) (Lab j)) else none
+            | _, _ => none
+        else none
+    (s, false, false)
+  | Var _ => (none, false, false)
+  | _ => (none, true, false)
+
+theorem scan_eq : scan bk t = (step bk t, isValue bk t, isArgs bk t) := by
+  induction t with
+  | App q f x ihf ihx =>
+    simp only [scan, ihf, ihx, step, call, isValue, isArgs, ← redexWith_eq]
+    congr 2
+    simp only [Bool.and_eq_true, live_or]
+  | Let q v f ihv => simp only [scan, ihv, step, isValue, isArgs]
+  | Tup q a b iha ihb => simp only [scan, iha, ihb, step, isValue, isArgs]
+  | Rwt e P f ihe => simp only [scan, ihe, step, isValue, isArgs]
+  | Min a b iha ihb => simp only [scan, iha, ihb, step, isValue, isArgs]
+  | _ => rfl
+
+-- next bk t: the step that run takes. It is step, from one walk.
+def next (bk : Book) (t : Term) : Option Term := (scan bk t).1
+
+theorem next_eq : next bk t = step bk t := by simp [next, scan_eq]
+
 end Interp

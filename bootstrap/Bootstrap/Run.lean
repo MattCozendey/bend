@@ -13,10 +13,11 @@ namespace Interp
 
 -- run bk n t: step from t, at most n times. When no step fits, the result
 -- is what the term shows. When the fuel ends first, there is no result.
+-- It takes each step with next, which is step from one walk (next_eq).
 def run (bk : Book) : Nat → Term → Option Obs
   | 0, _ => none
   | n + 1, t =>
-    match step bk t with
+    match next bk t with
     | some u => run bk n u
     | none => observe t
 
@@ -35,7 +36,7 @@ theorem run_spec : run bk n t = some r →
   induction n generalizing t with
   | zero => simp [run]
   | succ n ih =>
-    simp only [run]
+    simp only [run, next_eq]
     split
     · rename_i u hu
       intro h; obtain ⟨v, ev, sv, ov⟩ := ih h
@@ -49,10 +50,10 @@ theorem run_ends (acc : Acc (fun u t => Eval bk t u) t) :
   induction acc with
   | intro t _ ih =>
     cases hs : step bk t with
-    | none => exact ⟨1, t, .refl, hs, by simp [run, hs]⟩
+    | none => exact ⟨1, t, .refl, hs, by simp [run, next_eq, hs]⟩
     | some u =>
       obtain ⟨n, v, ev, sv, rv⟩ := ih u (step_sound hs)
-      exact ⟨n + 1, v, .step (step_sound hs) ev, sv, by simp [run, hs, rv]⟩
+      exact ⟨n + 1, v, .step (step_sound hs) ev, sv, by simp [run, next_eq, hs, rv]⟩
 
 theorem evals_pars (hcl : Book.Closed bk) (h : Evals bk t u) : Pars bk t u := by
   induction h with
