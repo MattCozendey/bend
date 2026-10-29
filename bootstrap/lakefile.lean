@@ -58,9 +58,27 @@ target kernel pkg : FilePath := do
         IO.FS.writeFile out text
       return out
 
+-- the hash of Bootstrap/Spec.lean, the contract, after a review. A change
+-- to the contract fails the build until this is updated by hand, so each
+-- change shows in review as a change to this line.
+def Spec.pin : UInt64 := 5069566041464093119
+
+-- the contract's text, line endings made LF, so a checkout's CRLF keeps
+-- its hash
+def Spec.hash (text : String) : UInt64 :=
+  Hashable.hash (text.replace "\r\n" "\n")
+
+target spec pkg : Unit := do
+  let src ← inputTextFile (pkg.dir / "Bootstrap" / "Spec.lean")
+  src.mapM fun src => do
+    let h := Spec.hash (← IO.FS.readFile src)
+    unless h == Spec.pin do
+      error s!"{src} changed. Review it, then set Spec.pin in lakefile.lean to {h}"
+
+@[default_target]
 lean_lib Bootstrap where
   globs := #[.submodules `Bootstrap]
-  needs := #[`@/kernel]
+  needs := #[`@/kernel, `@/spec]
 
 @[default_target]
 lean_exe bootstrap where

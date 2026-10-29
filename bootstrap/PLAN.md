@@ -21,31 +21,39 @@ meaning to preserve.
    declare its own `main`. The build fails unless that section
    (`Kernel.cut` in `lakefile.lean`) appears once, unchanged. `Main.lean`
    is a placeholder that runs the kernel's check.
-1. The contract, `Spec.lean`, written before any compiler code:
-   - `Claim.compile_correct`: if `compile` accepts a checked book, running
-     its code on the machine gives what `Eval` gives main, or main applied
-     to its input.
-   - `Claim.compile_total`: every checked book whose main is `Pure`
-     compiles, so the first claim is not vacuous.
-   - `observe` compares only a result's live parts: dead fields may differ
-     in text.
-   - `Pure`: main's live code reaches no opaque def, since `Eval` would run
-     its placeholder body. Kept simple, as a narrower one would make
-     `compile_total` hollow.
-   - Fuel lives inside `Machine.run`. The CLI passes a huge number, and
-     running out is an error, never a wrong answer.
-   - Main may take one plain-data argument, its input, and both claims
-     hold for every input of that type. The CLI reads the input's bytes and
-     builds the value with `quote`, proven to round-trip (`observe (quote
-     b) = b`). It type-checks the value by adding `run = main(input)` to
-     the book and calling the kernel's `Book.check`, so `Claim.sound`
-     applies unchanged. Only reading the file is glue. A compiler fits as a
-     pure function, `compile(src) -> out`, with a thin main per runner.
-2. The verified interpreter. `compile` passes the book through, and the
-   machine is a `step` function on terms. Prove `step t = some u → Eval bk
-   t u` and `(∃ u, Eval bk t u) → step t ≠ none`, then close both claims
-   with the kernel's `halts`, `progress` and `sr`. The CLI parses with
-   `Book.parse`, checks with `Book.check`, runs and prints.
+1. The contract: `Bootstrap/Spec.lean`. Status: reviewed and pinned.
+   - It holds definitions and claims only. Write it before compiler code.
+   - Claim `correct`: when `compile` accepts def k of a checked book, def k
+     is `Pure` and has one result. `run` gives that result or no result,
+     at all fuel. It never gives a wrong result.
+   - Claim `total`: `compile` accepts each `Pure` def of a checked book. So
+     `correct` is not empty.
+   - Claim `bytes`: bytes go in and out without change.
+   - Claim `cli`: a result from the CLI is the result of the def it runs.
+   - `Answer`: a value that `Eval` reaches shows the result. Each value
+     that `Eval` reaches shows the same result.
+   - `observe`: the plain data in a value. It is the same as the kernel's
+     `Data`: it drops only dead (q=0) fields.
+   - `Pure`: the kernel's checker accepts the type as Data, and no opaque
+     def is reachable. It can be false by mistake, never true by mistake.
+   - Input: a list of bytes. Each byte is a Nat in unary (`Zero`, `Succ`).
+     A Nat has one form only, so its type fixes its meaning.
+   - The CLI adds def `bootstrap.run` = `main(input)`. The kernel checks
+     the full book.
+   - A compiler written in Bend fits as one pure function:
+     `compile(src) -> out`.
+   - The build pins the hash of `Spec.lean` (`Spec.pin` in
+     `lakefile.lean`).
+2. The verified interpreter. `compile` gives the book as it is. The
+   machine is a `step` function on terms.
+   - Prove `step t = some u → Eval bk t u`, and
+     `(∃ u, Eval bk t u) → step t ≠ none`.
+   - Then prove the 4 claims with the kernel's `halts`, `progress`, `sr`
+     and `confluent`.
+   - The CLI parses with the kernel's `Book.parse`, then calls one
+     function. Claim `cli` is about that function.
+   - Freeze the lines that state the claims for this compiler and this
+     function.
 
 This completes the trusted compiler. Its `compile` passes the book through,
 so it is a trusted interpreter: everything below is speed or new meaning.
@@ -91,14 +99,20 @@ is written and reviewed before any compiler work. Each waits on a decision.
 How the compiler stays correct as it grows.
 
 1. The contract is frozen: `Spec.lean` changes only by review. The build
-   pins its hash, so an edit fails until the pin is updated by hand.
-2. No escape hatches: the build fails on `sorry`, `axiom`, `native_decide`,
-   `partial`, `unsafe`, `implemented_by` or `extern` in this folder's
-   sources, and `#print axioms` on both claims must list only `propext`,
-   `Classical.choice` and `Quot.sound`. `Kernel.lean` is exempt: its
-   parser is `partial`, trusted as `--verdict` trusts it.
-3. What runs is what is proven: the CLI calls the `compile` and
-   `Machine.run` the claims name, and the glue around them stays tiny.
+   pins its hash, so an edit fails until the pin is updated by hand. The
+   pin does not stop a person who edits both. It makes each change show
+   in review.
+2. No escape hatches:
+   - A Lean check walks each def that the CLI function uses. It fails on
+     an `opaque`, `partial`, `extern` or `implemented_by` def in
+     `bootstrap/` or the kernel copy.
+   - Lean's own library is exempt. We trust it.
+   - `#print axioms` on each proof shows only `propext`,
+     `Classical.choice` and `Quot.sound`.
+   - A text scan for `sorry` and the rest is an extra.
+3. What runs is what is proven: claim `cli` is about the function that
+   main calls. Outside the proofs: Lean's IO, the kernel's parser (as
+   `--verdict`), and printing a result that is not bytes.
 4. The spec is tracked: Step 0 imports the kernel in place, so a change to
    `Eval` rechecks every proof.
 5. No vacuity: a proven `compile_total` needs no tests. `Pure` is reviewed
@@ -106,8 +120,9 @@ How the compiler stays correct as it grows.
 
 ## Tests
 
-TBD. Tests for what the proofs do not cover: reading the `.bendtt` and
-input files, printing the result, and the elaborator (`safe.ts`). Run the subset's
+TBD. Tests for what the proofs do not cover: reading files, the kernel's
+parser, printing a result that is not bytes, and the elaborator
+(`safe.ts`). Run the subset's
 tests through `bend -o` and the compiler a few at a time, never the full
 suite, and compare each file's `#|` lines. A mismatch is a glue or
 elaborator bug, or a comp.ts bug.
