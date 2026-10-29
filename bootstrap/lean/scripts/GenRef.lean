@@ -24,10 +24,8 @@ def header (version : String) : String :=
   "import Step\n\n-- Word.Ref\n-- ========\n--\n" ++
   "-- GENERATED. The bodies of base's word code, as bend -o gives them: R.k is\n" ++
   "-- the body of def k. Made by scripts/GenRef.lean from scripts/ref.bend (a\n" ++
-  s!"-- program that calls each U32 operation that has a jump) with {version},\n" ++
-  "-- the repo's source in WSL. Do not edit: GenRef.lean has the commands.\n" ++
-  "-- A word jump runs only when the book's defs equal these terms. If they\n" ++
-  "-- differ, the jump does not run, and the result stays correct.\n\n" ++
+  s!"-- program whose book has each def below) with {version}, the repo's\n" ++
+  "-- source in WSL. Do not edit: GenRef.lean has the commands.\n\n" ++
   "open Quan Term\n\n"
 
 def main (args : List String) : IO UInt32 := do
