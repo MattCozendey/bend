@@ -59,7 +59,8 @@ meaning.
      runs a target. `lake run regen` writes it.
    - Each build fails unless the copy is exactly that text, and unless that
      section (`Kernel.cut` in `lakefile.lean`) occurs once, unchanged.
-1. The contract: `src/Contract/Spec.lean`. Status: reviewed and pinned.
+1. The contract: `src/Contract/Spec.lean`. Status: pinned. The change to
+   `bootstrap.run` (it names `bootstrap.input`) waits on review.
    - It holds definitions and claims only. It came before the interpreter
      code. It has the exact text of each claim.
    - Claim 1, `correct`: when `compile` accepts def k of a checked book, k
@@ -93,7 +94,8 @@ meaning.
      a def that gives it.
    - With an input, the CLI adds two defs: `bootstrap.input : A = input`,
      where `A` is the input type of `main`, and `bootstrap.run` =
-     `main(input)`. The kernel checks the book with those defs.
+     `main(bootstrap.input)`. The kernel checks the book with those defs,
+     so it checks the input once.
    - The build pins the hash of `Contract/Spec.lean` (`Pins` in
      `lakefile.lean`).
 2. The verified interpreter. Status: done.
@@ -117,10 +119,9 @@ Each item changes how a program runs, not what it means: the claims stay
 as they are. Each item is optional, because slow is fine. Each done item
 has its own proof that it keeps the claims, composed into them.
 
-Now: a U32 sum over 256 input bytes takes 0.35 s, and over 4096 bytes
-3.8 s. Most of that time reads and checks the input: an echo of 4096 bytes
-takes 2.5 s. The kernel checks the input twice: in `bootstrap.input` and
-in `main(input)`.
+Now: a U32 sum over 256 input bytes takes 0.3 s, and over 4096 bytes
+3 s. Most of that time reads and checks the input: an echo of 4096 bytes
+takes 2 s.
 
 1. The environment machine. Status: done. `Machine/Impl.lean` keeps values
    in environments and its place in a stack of frames, so no step walks the
