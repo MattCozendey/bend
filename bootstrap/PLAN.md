@@ -69,6 +69,10 @@ meaning.
      mistake, never true by mistake.
    - Input: a list of bytes. Each byte is a Nat in unary (`Zero`, `Succ`).
      A Nat has one form only, so its type fixes its meaning.
+   - Output: a result that is a List of Nat below 256 goes out as bytes.
+     The result type must be Data, for example `List<&2, Nat>`.
+     `List<Nat>` is short for `List<&1, Nat>`, a Type, so the CLI refuses
+     a def that gives it.
    - With an input, the CLI adds def `bootstrap.run` = `main(input)`. The
      kernel checks the book with that def.
    - A compiler written in Bend fits as one pure function:
@@ -76,8 +80,8 @@ meaning.
    - The build pins the hash of `Contract/Spec.lean` (`Pins` in
      `lakefile.lean`).
 2. The verified interpreter. Status: done.
-   - `compile` gives the book as it is. The environment machine runs it
-     (Speed, item 2), and the proven `step` ends the run.
+   - `compile` gives the book as it is. The environment machine runs it,
+     and the proven `step` ends the run (Speed, items 1 and 2).
    - `Step.lean`: each `step` is an `Eval` step, and `step` gives none only
      when no `Eval` step exists.
    - The proofs: `Run.lean` (claims 1, 2), `Bytes.lean` (3), `Cli.lean`
@@ -97,18 +101,18 @@ Each item changes how a program runs, not what it means: the claims stay
 as they are. Each item is optional, because slow is fine. Each done item
 has its own proof that it keeps the claims, composed into them.
 
-Now: a U32 sum over 256 input bytes takes 0.33 s, and over 4096 bytes
-3.3 s. Most of that time reads the input: an echo of 4096 bytes takes 2 s.
+Now: a U32 sum over 256 input bytes takes 0.3 s, and over 4096 bytes
+2.9 s. Most of that time reads the input: an echo of 4096 bytes takes 2 s.
 
-1. One-pass step. Status: done. `scanWith` finds the next step and the
-   values in one walk. `scanWith_eq` proves that with no jump it gives what
-   `step` gives. Before it, 16 bytes took 18 s, and the time grew as the
-   cube of the input size.
-2. The environment machine. Status: done. `Machine/Impl.lean` keeps values
+1. The environment machine. Status: done. `Machine/Impl.lean` keeps values
    in environments and its place in a stack of frames, so no step walks the
    full term. `Machine/Spec.lean` proves that each step keeps the decoded
-   term or makes `Eval` steps on it, and that the machine stops. The proven
-   stepper then ends the run. Before it, 256 bytes took 146 s.
+   term or makes `Eval` steps on it, and that the machine stops. Before
+   it, 256 bytes took 146 s.
+2. A linear end of a run. Status: done. When the machine stops, `runSteps`
+   (`Run.lean`) ends the run with `step`. It tests `isValue` first, so a
+   large data result costs one walk. Without that test, the echo took 30 s,
+   because `step` walks a part again to check that it is a value.
 3. Labels and case trees as integer switches. Status: waits on a decision.
    `Eval` matches labels by name. Numbers for labels are a choice of
    representation.
@@ -119,13 +123,14 @@ Now: a U32 sum over 256 input bytes takes 0.33 s, and over 4096 bytes
      `Word/Ref.lean`, a generated copy of base's code (`scripts/GenRef.lean`
      makes it from `scripts/ref.bend`). Else it does not jump, and the
      result stays correct.
-   - The families: add, sub, not, and, or, xor, inc, to_nat, cmp, shl, shr,
-     mul. `Word/` has one file of proofs per group of families,
-     `Word/Shared.lean` for what they share, and `Word/Impl.lean` for the
-     jumps.
+   - The families: add (it also takes sub), not, and, or, xor, inc,
+     to_nat, cmp, shl, shr, mul. Each family is a list of defs (`HasRefs`)
+     with its jump and the jump's proof (`Family`). `Word/` has one file of
+     proofs per group of families, `Word/Shared.lean` for what they share,
+     and `Word/Impl.lean` for the jumps.
    - `T.from_nat` also jumps, for each one-word type `T` (U32 now, U64
-     later) whose defs equal the templates of `Word/Nat.lean`. Before it,
-     4096 bytes took 71 s.
+     later) whose defs equal the templates of `Word/Nat.lean`, when
+     `Word.inc` also equals its copy. Before it, 4096 bytes took 71 s.
 
 ## Beyond the spec
 
@@ -196,7 +201,7 @@ TBD. The tests cover what the proofs do not:
 - reading files, the kernel's parser, and `render`;
 - the elaborator (`safe.ts`);
 - that the kernel accepts the book with the input, for a usual
-  `main : List(Nat) -> D`;
+  `main : List<Nat> -> D`;
 - that the Bend compiler reaches no opaque def. `bend -o` also makes each
   template `~` parameter opaque (`bend2/safe.ts`).
 
