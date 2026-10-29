@@ -15,13 +15,12 @@ meaning to preserve.
 
 ## The trusted compiler
 
-0. Done (a69359d5). A Lake project in this folder, on Lean v4.34.0 as
-   `--verdict` uses. `Bootstrap/Kernel.lean` is `bend2/bendtt.lean` minus
-   its Main section, regenerated on every build so this project can
-   declare its own `main`. The build fails unless that section
-   (`Kernel.cut` in `lakefile.lean`) appears once, unchanged. `Main.lean`
-   is a placeholder that runs the kernel's check.
-1. The contract: `Bootstrap/Spec.lean`. Status: reviewed and pinned.
+0. Done (a69359d5). A Lake project in `lean/`, on Lean v4.34.0 as
+   `--verdict` uses. `src/Kernel.lean` is `bend2/bendtt.lean` minus its
+   Main section, regenerated on every build so this project can declare
+   its own `main`. The build fails unless that section (`Kernel.cut` in
+   `lakefile.lean`) appears once, unchanged.
+1. The contract: `src/Contract/Spec.lean`. Status: reviewed and pinned.
    - It holds definitions and claims only. Write it before compiler code.
    - Claim `correct`: when `compile` accepts def k of a checked book, def k
      is `Pure` and has one result. `run` gives that result or no result,
@@ -45,7 +44,7 @@ meaning to preserve.
      the full book.
    - A compiler written in Bend fits as one pure function:
      `compile(src) -> out`.
-   - The build pins the hash of `Spec.lean` (`Spec.pin` in
+   - The build pins the hash of `Contract/Spec.lean` (`Pins` in
      `lakefile.lean`).
 2. The verified interpreter. Status: done.
    - `compile` gives the book as it is. The machine is a `step` function
@@ -54,8 +53,8 @@ meaning to preserve.
      when no `Eval` step exists.
    - `Run.lean`: claims `correct` and `total`. `Bytes.lean`: claim `bytes`.
      `Laws.lean`: claim `laws`. `Cli.lean`: claim `cli`.
-   - `Final.lean` states the 5 claims for the interpreter and the CLI
-     function, and calls the guards. The build pins it.
+   - `Contract/Proof.lean` states the 5 claims for the interpreter and the
+     CLI function, and calls the guards. The build pins it.
    - `Main.lean` is the glue: it reads files, calls `Interp.cli`, and
      writes the result. The build pins it.
 
@@ -73,24 +72,25 @@ Now: a U32 sum over 256 input bytes takes 0.33 s, and over 4096 bytes
 3.3 s (most of it reads the input: an echo of 4096 bytes takes 2 s).
 
 1. One-pass step. Status: done. `scanWith` finds the next step and the
-   values in one walk. `scan_eq` proves that with no jump it gives what
+   values in one walk. `scanWith_eq` proves that with no jump it gives what
    `step` gives. Before it, 16 bytes took 18 s, and the time grew as the
    cube of the input size.
-2. The environment machine. Status: done. `Machine.lean` keeps values in
-   environments and its place in a stack of frames, so no step walks the
-   full term. `MachineOk.lean` proves that each step keeps the decoded
+2. The environment machine. Status: done. `Machine/Impl.lean` keeps values
+   in environments and its place in a stack of frames, so no step walks the
+   full term. `Machine/Spec.lean` proves that each step keeps the decoded
    term or makes `Eval` steps on it, and that the machine stops. The
    proven stepper then ends the run. Before it, 256 bytes took 146 s.
 3. Labels and case trees as integer switches. `Eval` matches labels by
    name; numbering them is a representation choice.
 4. Word jumps. A call of base's word code goes to its result in one step,
    for each width. The proof shows that `Eval` reaches the same result.
-   - A jump runs only when the book's defs equal `WordRef.lean`, a
+   - A jump runs only when the book's defs equal `Word/Ref.lean`, a
      generated copy of base's code. Else it does not run, and the result
      stays correct.
    - Status: done for each family: add, sub, not, and, or, xor, inc,
-     to_nat, cmp, shl, shr, mul. One file of proofs per family, and
-     `WordJump.lean` for the jumps.
+     to_nat, cmp, shl, shr, mul. One file of proofs per family in `Word/`,
+     `Word/Shared.lean` for what they share, and `Word/Impl.lean` for the
+     jumps.
    - `T.from_nat` also jumps, for each one-word type `T` (U32 now, U64
      later) whose code equals templates in `T` and its width. Before it,
      4096 bytes took 71 s.
@@ -114,14 +114,14 @@ is written and reviewed before any compiler work. Each waits on a decision.
 
 How the compiler stays correct as it grows.
 
-1. Reviewed files are frozen: `Spec.lean`, `Final.lean`, `Guard.lean` and
-   `Main.lean` change only by review. The build pins their hashes, so an
+1. Reviewed files are frozen: `Contract/Spec.lean`, `Contract/Proof.lean`,
+   `Guard.lean` and `Main.lean` change only by review. The build pins their hashes, so an
    edit fails until its pin is updated by hand. A pin does not stop a
    person who edits both. It makes each change show in review.
 2. No escape hatches:
    - `#guard_runs` walks each def that the CLI function uses. It fails on
-     an `opaque`, `partial`, `extern` or `implemented_by` def in
-     `bootstrap/` or the kernel copy.
+     an `opaque`, `partial`, `extern` or `implemented_by` def in this
+     project or the kernel copy.
    - Lean's own library is exempt. We trust it.
    - `#guard_axioms`: each proof uses only `propext`, `Classical.choice`
      and `Quot.sound`.
