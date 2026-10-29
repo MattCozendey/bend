@@ -1,6 +1,29 @@
 // File
 // ====
 
+#ifdef _WIN32
+// ReadFile at an offset moves the file's position: put it back.
+static ssize_t pread(int fd, void* buf, size_t len, off_t at) {
+  HANDLE        h   = (HANDLE)_get_osfhandle(fd);
+  LARGE_INTEGER was = { 0 };
+  OVERLAPPED    o   = { .Offset = (DWORD)at, .OffsetHigh = (DWORD)(at >> 32) };
+  DWORD         got = 0;
+  if (h == INVALID_HANDLE_VALUE
+    || !SetFilePointerEx(h, (LARGE_INTEGER){ 0 }, &was, FILE_CURRENT)) {
+    errno = EBADF;
+    return -1;
+  }
+  DWORD why = ReadFile(h, buf, (DWORD)len, &got, &o) ? 0 : GetLastError();
+  SetFilePointerEx(h, was, NULL, FILE_BEGIN);
+  if (why != 0 && why != ERROR_HANDLE_EOF) {
+    errno = why == ERROR_ACCESS_DENIED ? EBADF : EIO;
+    return -1;
+  }
+  return (ssize_t)got;
+}
+
+#endif
+
 // read(2) answers what is there, not what was asked: a pipe, a terminal
 // and a short read all stop before max. Fill the buffer or reach EOF, so
 // a caller that asked for n bytes gets n unless the file ends first; a

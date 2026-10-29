@@ -64,9 +64,6 @@ A function with a `+` parameter is not a plain function (#1111)
 The installer edits no shell file (#995)
   It prints the PATH line; add it to your shell's config.
 
-The hub client trusts the manifest path grammar on POSIX only (#788)
-  The path guard is POSIX. Windows is not a supported host (see CAPACITY).
-
 A base-file helper may call a law filled below it (#793)
   `base.bend` carries this carve-out and the Lean formalization states it.
   User files do not get it.
@@ -78,9 +75,6 @@ A handle type is a law of Base (#825)
   consistency; we will address the gap later.
 
 CAPACITY (a small team keeps the language at a size it can maintain)
-
-Windows is not supported (#788)
-  Use WSL.
 
 No Vulkan or other extra GPU lanes (#811)
   Metal and CUDA only.
