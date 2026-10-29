@@ -151,19 +151,23 @@ def Bytes.ofObs : Obs → Option (List UInt8)
 -- Entry
 -- =====
 
--- RUN: the name of the def that the CLI adds for an input.
+-- INPUT, RUN: the names of the defs that the CLI adds for an input.
+def INPUT : String := "bootstrap.input"
 def RUN : String := "bootstrap.run"
 
--- Input.apply bk bs: bk with one more def, RUN = main(bs), or none when the
--- type of main is not a function type. The kernel checks the new def with the
--- full book.
+-- Input.apply bk bs: bk with two more defs, or none when the type of main is
+-- not a function type. A is the input type of main.
+-- - INPUT : A = bs. So the kernel checks that bs has type A.
+-- - RUN = main(bs).
+-- The kernel checks the new defs with the full book.
 def Input.apply (bk : Book) (bs : List UInt8) : Option Book :=
   match bk.get "main" with
   | some d =>
     match d.T with
-    | All q _ B =>
+    | All q A B =>
       let x := Bytes.term bs
-      some (Book.of (bk.defs ++ [⟨RUN, Term.inst B x, App q (Ref "main") x, false⟩]))
+      some (Book.of (bk.defs ++
+        [⟨INPUT, A, x, false⟩, ⟨RUN, Term.inst B x, App q (Ref "main") x, false⟩]))
     | _ => none
   | none => none
 
@@ -230,9 +234,7 @@ def Claim.cli (cli : Nat → Book → Option (List UInt8) → Except String Obs)
 -- - A law is a closed, live, typed proof p of an equality {C(t) == b : A},
 --   where t is k or the body of k. C has one hole, Var 0.
 -- - "Holds" means: C(v) and b convert.
--- The body of RUN is main(bs). So, with claim 4, a law about main(bs) holds
--- about the value that the CLI shows for input bs. An instance of a law for
--- all inputs is such a law.
+-- Claim 7 applies this to the input of the CLI.
 -- This is the kernel's theory, as for --verdict: an opaque def unfolds to its
 -- model. So a law whose C or b names an opaque def holds only for that model.
 def Claim.laws : Prop :=
@@ -246,5 +248,20 @@ def Claim.laws : Prop :=
 def Claim.shut : Prop :=
   ∀ bk k v, Pure bk k = true → Evals bk (Ref k) v →
     ∀ j ∈ refs v, ∃ d, Book.get bk j = some d ∧ d.o = false
+
+-- Claim 7, input. When the CLI gives a result o for input bs, each law for all
+-- inputs of main holds at bs.
+-- - A law for all inputs is a def L : ∀r x:A -> P of bk, where A is the input
+--   type of main. Its instance P(bs) is an equality {C(main(bs)) == b : T}. C
+--   has one hole, Var 0.
+-- - "Holds at bs" means: a value v that shows o makes C(v) and b convert.
+-- It joins claims 4 and 5 for the CLI's own book.
+def Claim.input (cli : Nat → Book → Option (List UInt8) → Except String Obs) : Prop :=
+  ∀ n bk bs o dm q A B L dL r P C b T, cli n bk (some bs) = .ok o →
+    Book.get bk "main" = some dm → dm.T = All q A B → Book.get bk L = some dL →
+    dL.T = All r A P →
+    Term.inst P (Bytes.term bs) = Eql (Term.inst C (App q (Ref "main") (Bytes.term bs))) b T →
+    ∃ bk' v, entry bk (some bs) = some (bk', RUN) ∧ Evals bk' (Ref RUN) v ∧ Value bk' v ∧
+      observe v = some o ∧ Conv bk' (Term.inst C v) b
 
 end Contract

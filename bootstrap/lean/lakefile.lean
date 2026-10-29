@@ -84,8 +84,8 @@ script regen (_args) do
 -- - Guard.lean: the guards' code.
 -- - Main.lean: the glue that no proof covers.
 def Pins : List (String × UInt64) := [
-  ("src/Contract/Spec.lean", 4670000982455543513),
-  ("src/Contract/Proof.lean", 978136899986157247),
+  ("src/Contract/Spec.lean", 18233507558894154514),
+  ("src/Contract/Proof.lean", 13366616450239201674),
   ("src/Guard.lean", 15051376749205065931),
   ("src/Main.lean", 10677801529969707441)]
 
