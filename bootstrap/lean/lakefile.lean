@@ -84,8 +84,8 @@ script regen (_args) do
 -- - Guard.lean: the guards' code.
 -- - Main.lean: the glue that no proof covers.
 def Pins : List (String × UInt64) := [
-  ("src/Contract/Spec.lean", 1311157738013855812),
-  ("src/Contract/Proof.lean", 12509918295448043584),
+  ("src/Contract/Spec.lean", 4670000982455543513),
+  ("src/Contract/Proof.lean", 978136899986157247),
   ("src/Guard.lean", 15051376749205065931),
   ("src/Main.lean", 10677801529969707441)]
 
@@ -129,8 +129,9 @@ target scan pkg : Unit := Job.async do
 
 @[default_target]
 lean_lib Bootstrap where
-  roots := #[`Kernel, `Guard, `Step, `Run, `Bytes, `Laws, `Cli, `Contract, `Machine, `Word]
-  globs := #[.one `Kernel, .one `Guard, .one `Step, .one `Run, .one `Bytes, .one `Laws, .one `Cli,
+  roots := #[`Kernel, `Guard, `Step, `Run, `Bytes, `Laws, `Shut, `Cli, `Contract, `Machine, `Word]
+  globs := #[.one `Kernel, .one `Guard, .one `Step, .one `Run, .one `Bytes, .one `Laws, .one `Shut,
+    .one `Cli,
     .submodules `Contract, .submodules `Machine, .submodules `Word]
   needs := #[`@/kernel, `@/pins, `@/scan]
 

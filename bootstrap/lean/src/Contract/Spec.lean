@@ -3,9 +3,9 @@ import Kernel
 -- Contract.Spec
 -- =============
 --
--- The contract. It states what a correct compiler does.
--- It holds definitions and claims only. The proofs are in other files.
--- Change this file only after a review. The build pins its hash.
+-- The contract: what a correct compiler does. This file holds definitions
+-- and claims only. Other files hold the proofs. The build pins its hash, so
+-- change it only after a review.
 --
 -- The claims use the kernel's Eval, Value and Book.check, and the parts below.
 
@@ -25,7 +25,7 @@ inductive Evals (bk : Book) : Term → Term → Prop
 -- - lab k: the label .k. The unit () is lab "()".
 -- - rfl: a proof of an equality.
 -- - tup a b: a pair with a live first field.
--- - tup0 b: a pair with a dead (q=0) first field. That field is not shown.
+-- - tup0 b: a pair with a dead (q=0) first field. It does not show that field.
 inductive Obs where
   | lab (k : String)
   | rfl
@@ -33,9 +33,9 @@ inductive Obs where
   | tup0 (b : Obs)
   deriving DecidableEq, Repr
 
--- observe t: the Obs that t shows. It is the same as the kernel's Data:
--- it keeps each live field and drops each dead (q=0) field.
--- It is none when t is not plain data, for example a λ.
+-- observe t: the Obs that t shows, or none when t is not plain data (for
+-- example, a λ). It is the kernel's Data: it keeps each live field and drops
+-- each dead (q=0) field.
 def observe : Term → Option Obs
   | Lab k => some (.lab k)
   | Rfl => some .rfl
@@ -58,7 +58,7 @@ def Answer (bk : Book) (k : String) (o : Obs) : Prop :=
 -- Pure
 -- ====
 
--- refs t: each def name in t. It reads the live and the dead parts.
+-- refs t: each def name in t, in the live and the dead parts.
 def refs : Term → List String
   | Var _ => []
   | Ref k => [k]
@@ -89,20 +89,21 @@ def grow (bk : Book) : Nat → List String → List String
       | none => []
     grow bk n (ks ++ (new.filter (!ks.contains ·)).eraseDups)
 
--- shut bk ks: each name in ks is a def of bk that is not opaque,
--- and its body names only defs in ks.
+-- shut bk ks: each name in ks is a def of bk that is not opaque, and its body
+-- names only defs in ks.
 def shut (bk : Book) (ks : List String) : Bool :=
   ks.all fun k => match bk.get k with
     | some d => !d.o && (refs d.v).all ks.contains
     | none => false
 
--- Pure bk k: the compiler can run def k. Two conditions must be true:
--- 1. The kernel's checker accepts the type of k as Data (*2).
---    So the result of k is plain data.
--- 2. No opaque def is reachable from the body of k.
---    So Eval never runs a placeholder body.
--- Pure is true only when it finds a shut set of defs that holds k.
--- So it can be false by mistake, but never true by mistake.
+-- Pure bk k: the compiler runs def k. Both conditions must be true:
+-- 1. The kernel's checker accepts the type of k as Data (*2). So the result
+--    of k is plain data.
+-- 2. A shut set holds k. So Eval from k meets no opaque def (claim 6). The
+--    kernel gives an opaque def only a placeholder model, so its result has
+--    no meaning to preserve.
+-- Pure can be false by mistake, never true by mistake. It is also false when
+-- only a dead part names an opaque def, because refs reads each part.
 def Pure (bk : Book) (k : String) : Bool :=
   match bk.get k with
   | none => false
@@ -113,10 +114,10 @@ def Pure (bk : Book) (k : String) : Bool :=
 -- Bytes
 -- =====
 
--- The CLI gives input as bytes, and can write output as bytes.
--- A byte is a Nat from 0 to 255, in unary: Zero, or Succ of a Nat.
--- A Nat has one form only, so its type fixes its meaning.
--- A list of bytes is a List of Nat: Nil, or Con of a byte and a list.
+-- The CLI gives input as bytes, and writes a result as bytes when it can.
+-- A byte is a Nat from 0 to 255, in unary: Zero, or Succ of a Nat. A Nat has
+-- one form only, so its type fixes its meaning. A list of bytes is a List of
+-- Nat: Nil, or Con of a byte and a list.
 
 -- Bytes.nat n: the Nat n as a term.
 def Bytes.nat : Nat → Term
@@ -153,9 +154,9 @@ def Bytes.ofObs : Obs → Option (List UInt8)
 -- RUN: the name of the def that the CLI adds for an input.
 def RUN : String := "bootstrap.run"
 
--- Input.apply bk bs: bk with one more def, RUN = main(bs).
--- It is none when the type of main is not a function type.
--- The kernel checks the new def with the full book.
+-- Input.apply bk bs: bk with one more def, RUN = main(bs), or none when the
+-- type of main is not a function type. The kernel checks the new def with the
+-- full book.
 def Input.apply (bk : Book) (bs : List UInt8) : Option Book :=
   match bk.get "main" with
   | some d =>
@@ -179,8 +180,7 @@ def entry (bk : Book) : Option (List UInt8) → Option (Book × String)
 -- Compiler: the parts of a compiler.
 -- - Code: the type of its output.
 -- - compile bk k: the code for def k of book bk, or an error.
--- - run n code: the result of code, with n steps of fuel.
---   none means no result.
+-- - run n code: the result of code with n steps of fuel, or none (no result).
 structure Compiler where
   Code : Type
   compile : Book → String → Except String Code
@@ -189,55 +189,62 @@ structure Compiler where
 -- Claim 1, correct. When compile accepts def k of a checked book:
 -- 1. Def k is Pure.
 -- 2. Def k has a result o (see Answer).
--- 3. With sufficient fuel, run gives o.
--- 4. With all fuel, run gives o or no result. It never gives a wrong result.
+-- 3. Some fuel makes run give o.
+-- 4. At all fuel, run gives o or no result. It never gives a wrong result.
 def Claim.correct (c : Compiler) : Prop :=
   ∀ bk k code, Book.check bk = .ok () → c.compile bk k = .ok code →
     Pure bk k = true ∧ ∃ o, Answer bk k o ∧
       (∃ n, c.run n code = some o) ∧ (∀ n r, c.run n code = some r → r = o)
 
--- Claim 2, total. compile accepts each Pure def of a checked book.
--- So Claim 1 is not empty.
+-- Claim 2, total. compile accepts each Pure def of a checked book. So claim 1
+-- is not empty.
 def Claim.total (c : Compiler) : Prop :=
   ∀ bk k, Book.check bk = .ok () → Pure bk k = true →
     ∃ code, c.compile bk k = .ok code
 
 -- Claim 3, bytes. Bytes go in and out without change.
 -- 1. The input term for bs shows bs.
--- 2. Bytes.ofObs gives bs only for the Obs that the term for bs shows.
---    So output bytes show the result exactly.
+-- 2. Bytes.ofObs gives bs only for the Obs that the term for bs shows. So
+--    output bytes show the result exactly.
 def Claim.bytes : Prop :=
   (∀ bs, (observe (Bytes.term bs)).bind Bytes.ofObs = some bs) ∧
   (∀ o bs, Bytes.ofObs o = some bs → observe (Bytes.term bs) = some o)
 
--- Claim 4, cli. The CLI gives cli n bk input: a result or an error, for book
--- bk, an input and n steps of fuel.
+-- Claim 4, cli. cli n bk input: the CLI's result or error, for book bk, an
+-- input and n steps of fuel.
 -- 1. Sound. When it gives a result o, at any fuel:
---    a. entry gives the book and the def k that the CLI runs.
---    b. The kernel accepts that book, and def k is Pure.
+--    a. entry gives the book bk' and the def k that the CLI runs.
+--    b. The kernel accepts bk, as for --verdict, and bk'. Def k is Pure.
 --    c. o is the result of def k (see Answer).
--- 2. Not empty. When entry gives a book and a def k, the kernel accepts that
---    book and def k is Pure, some fuel gives a result. So the CLI does not
---    refuse by mistake.
+-- 2. Not empty. When entry gives bk' and k, the kernel accepts bk and bk',
+--    and def k is Pure, some fuel gives a result.
 def Claim.cli (cli : Nat → Book → Option (List UInt8) → Except String Obs) : Prop :=
   (∀ n bk input o, cli n bk input = .ok o →
-    ∃ bk' k, entry bk input = some (bk', k) ∧ Book.check bk' = .ok () ∧
-      Pure bk' k = true ∧ Answer bk' k o) ∧
-  (∀ bk input bk' k, entry bk input = some (bk', k) → Book.check bk' = .ok () →
-    Pure bk' k = true → ∃ n o, cli n bk input = .ok o)
+    ∃ bk' k, entry bk input = some (bk', k) ∧ Book.check bk = .ok () ∧
+      Book.check bk' = .ok () ∧ Pure bk' k = true ∧ Answer bk' k o) ∧
+  (∀ bk input bk' k, entry bk input = some (bk', k) → Book.check bk = .ok () →
+    Book.check bk' = .ok () → Pure bk' k = true → ∃ n o, cli n bk input = .ok o)
 
 -- Claim 5, laws. Each law about def k holds about each value v that Eval
 -- reaches from k.
--- - A law is a closed, live, typed proof p of an equality {C(k) == b : A}.
---   C has one hole, Var 0.
+-- - A law is a closed, live, typed proof p of an equality {C(t) == b : A},
+--   where t is k or the body of k. C has one hole, Var 0.
 -- - "Holds" means: C(v) and b convert.
--- With Claim 4: each law about the def that the CLI runs holds about the
--- value that the CLI shows.
--- This is the kernel's theory, as for --verdict. So a law that names an
--- opaque def holds only for its placeholder body.
+-- The body of RUN is main(bs). So, with claim 4, a law about main(bs) holds
+-- about the value that the CLI shows for input bs. An instance of a law for
+-- all inputs is such a law.
+-- This is the kernel's theory, as for --verdict: an opaque def unfolds to its
+-- model. So a law whose C or b names an opaque def holds only for that model.
 def Claim.laws : Prop :=
-  ∀ bk k v p C b A, Book.check bk = .ok () → Evals bk (Ref k) v →
-    Term.Closed p → Term.Live bk p → Typed bk [] p (Eql (Term.inst C (Ref k)) b A) →
+  ∀ bk k t v p C b A, Book.check bk = .ok () →
+    (t = Ref k ∨ ∃ d, Book.get bk k = some d ∧ t = d.v) → Evals bk (Ref k) v →
+    Term.Closed p → Term.Live bk p → Typed bk [] p (Eql (Term.inst C t) b A) →
     Conv bk (Term.inst C v) b
+
+-- Claim 6, shut. Eval from a Pure def meets no opaque def: each def name in
+-- each term that Eval reaches from it names a def that is not opaque.
+def Claim.shut : Prop :=
+  ∀ bk k v, Pure bk k = true → Evals bk (Ref k) v →
+    ∀ j ∈ refs v, ∃ d, Book.get bk j = some d ∧ d.o = false
 
 end Contract
