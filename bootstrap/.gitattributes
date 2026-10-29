@@ -1,0 +1,2 @@
+# every file of the bootstrap has LF line endings, in the repo and on checkout
+* text=auto eol=lf

@@ -76,9 +76,7 @@ def Pins : List (String × UInt64) := [
 
 -- a file's text, line endings made LF, so a checkout's CRLF keeps its hash
 def Pin.hash (text : String) : UInt64 :=
-  Hashable.hash (text.replace "
-" "
-")
+  Hashable.hash (text.replace "\r\n" "\n")
 
 target pins pkg : Unit := Job.async do
   let mut bad := #[]
@@ -87,8 +85,7 @@ target pins pkg : Unit := Job.async do
     unless h == pin do
       bad := bad.push s!"{path} changed. Review it, then set its pin in lakefile.lean to {h}"
   unless bad.isEmpty do
-    error ("
-".intercalate bad.toList)
+    error ("\n".intercalate bad.toList)
 
 -- Scan
 -- ====
@@ -112,13 +109,11 @@ target scan pkg : Unit := Job.async do
       files := files.push e.path
   let mut bad := #[]
   for f in files do
-    for l in (← IO.FS.readFile f).splitOn "
-" do
+    for l in (← IO.FS.readFile f).splitOn "\n" do
       for w in Scan.line l do
         bad := bad.push s!"{f}: {w}: {l}"
   unless bad.isEmpty do
-    error ("
-".intercalate bad.toList)
+    error ("\n".intercalate bad.toList)
 
 @[default_target]
 lean_lib Bootstrap where
