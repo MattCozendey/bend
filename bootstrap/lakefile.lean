@@ -61,7 +61,7 @@ target kernel pkg : FilePath := do
 -- the hash of Bootstrap/Spec.lean, the contract, after a review. A change
 -- to the contract fails the build until this is updated by hand, so each
 -- change shows in review as a change to this line.
-def Spec.pin : UInt64 := 5069566041464093119
+def Spec.pin : UInt64 := 14227108132861646865
 
 -- the contract's text, line endings made LF, so a checkout's CRLF keeps
 -- its hash

@@ -219,4 +219,18 @@ def Claim.cli (cli : Book → Option (List UInt8) → Except String Obs) : Prop 
     ∃ bk' k, entry bk input = some (bk', k) ∧ Book.check bk' = .ok () ∧
       Pure bk' k = true ∧ Answer bk' k o
 
+-- Claim 5, laws. Each law about def k holds about each value v that Eval
+-- reaches from k.
+-- - A law is a closed, live, typed proof p of an equality {C(k) == b : A}.
+--   C has one hole, Var 0.
+-- - "Holds" means: C(v) and b convert.
+-- With Claim 4: each law about the def that the CLI runs holds about the
+-- value that the CLI shows.
+-- This is the kernel's theory, as for --verdict. So a law that names an
+-- opaque def holds only for its placeholder body.
+def Claim.laws : Prop :=
+  ∀ bk k v p C b A, Book.check bk = .ok () → Evals bk (Ref k) v →
+    Term.Closed p → Term.Live bk p → Typed bk [] p (Eql (Term.inst C (Ref k)) b A) →
+    Conv bk (Term.inst C v) b
+
 end Spec

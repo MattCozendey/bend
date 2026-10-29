@@ -30,6 +30,9 @@ meaning to preserve.
      `correct` is not empty.
    - Claim `bytes`: bytes go in and out without change.
    - Claim `cli`: a result from the CLI is the result of the def it runs.
+   - Claim `laws`: each law that a proof shows about a def holds about the
+     value that `Eval` reaches. So a law proven in Bend holds about the
+     result that the CLI shows.
    - `Answer`: a value that `Eval` reaches shows the result. Each value
      that `Eval` reaches shows the same result.
    - `observe`: the plain data in a value. It is the same as the kernel's
@@ -48,8 +51,8 @@ meaning to preserve.
    machine is a `step` function on terms.
    - Prove `step t = some u → Eval bk t u`, and
      `(∃ u, Eval bk t u) → step t ≠ none`.
-   - Then prove the 4 claims with the kernel's `halts`, `progress`, `sr`
-     and `confluent`.
+   - Then prove the 5 claims with the kernel's `halts`, `progress`, `sr`,
+     `confluent` and `adequate`.
    - The CLI parses with the kernel's `Book.parse`, then calls one
      function. Claim `cli` is about that function.
    - Freeze the lines that state the claims for this compiler and this
