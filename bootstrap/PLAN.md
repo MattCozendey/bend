@@ -12,12 +12,23 @@ computes. Slow is fine.
 The two parts join like this:
 1. The compiler in Bend is one pure function, `compile(src) -> out`: bytes
    in, bytes out. Its laws are proven in Bend.
-2. The interpreter runs it on `src`. Claim 5 carries each law about
-   `compile(src)` to the bytes that the interpreter writes.
+2. The interpreter runs it on `src`. Claim 7 carries each law for all
+   `src` about `compile(src)` to the bytes that the interpreter writes.
 
-The Lean part trusts Lean (its kernel and its compiler) and `bendtt.lean`.
-It assumes that `bend -o` (`bend.ts` and `safe.ts`) gives the `.bendtt`
-text that means the `.bend` file. The proofs speak of that `.bendtt` text.
+## Assumptions
+
+We trust these, with no proof:
+1. The checker is right. The Bend kernel (`bendtt.lean`), `bend -o`
+   (`bend.ts` and `safe.ts`), which gives the kernel its input, and Lean
+   (its kernel, its compiler and its IO) are correct. So a `--verdict`
+   result is true. The proofs speak of the `.bendtt` text that `bend -o`
+   gives.
+2. Bend is sound, as `bendtt.lean` proves.
+3. The claims state what we need. A person reviews `Contract/Spec.lean`;
+   the build proves its claims.
+4. The existing compiler is not trusted. `comp.ts`, its output and the
+   effect code in `bend2/effs/` decide nothing about our compiler. Our
+   compiler grows on its own. It can take ideas from them, nothing more.
 
 ## Scope: correct, and incomplete on purpose
 
@@ -48,7 +59,8 @@ meaning.
      runs a target. `lake run regen` writes it.
    - Each build fails unless the copy is exactly that text, and unless that
      section (`Kernel.cut` in `lakefile.lean`) occurs once, unchanged.
-1. The contract: `src/Contract/Spec.lean`. Status: reviewed and pinned.
+1. The contract: `src/Contract/Spec.lean`. Status: pinned. Claim 7 and
+   the def `bootstrap.input` wait on review.
    - It holds definitions and claims only. It came before the interpreter
      code. It has the exact text of each claim.
    - Claim 1, `correct`: when `compile` accepts def k of a checked book, k
@@ -62,11 +74,11 @@ meaning.
      the def is `Pure`, and the result is its result. For each `Pure` def
      of such books, some fuel gives a result.
    - Claim 5, `laws`: each law about a def, or about its body, holds about
-     each value that `Eval` reaches from the def. The body of
-     `bootstrap.run` is `main(input)`. So a law proven in Bend about
-     `main(input)`, for example an instance of a law for all inputs, holds
-     about the result that the CLI shows.
+     each value that `Eval` reaches from the def.
    - Claim 6, `shut`: `Eval` from a `Pure` def meets no opaque def.
+   - Claim 7, `input`: when the CLI gives a result for an input, each law
+     of the book for all inputs of `main` holds at that input, about a
+     value that shows the result.
    - `Answer`: a value that `Eval` reaches shows the result. Each value
      that `Eval` reaches shows the same result.
    - `observe`: the plain data in a value. It is the kernel's `Data`: it
@@ -80,8 +92,9 @@ meaning.
      The result type must be Data, for example `List<&2, Nat>`.
      `List<Nat>` is short for `List<&1, Nat>`, a Type, so the CLI refuses
      a def that gives it.
-   - With an input, the CLI adds def `bootstrap.run` = `main(input)`. The
-     kernel checks the book with that def.
+   - With an input, the CLI adds two defs: `bootstrap.input : A = input`,
+     where `A` is the input type of `main`, and `bootstrap.run` =
+     `main(input)`. The kernel checks the book with those defs.
    - The build pins the hash of `Contract/Spec.lean` (`Pins` in
      `lakefile.lean`).
 2. The verified interpreter. Status: done.
@@ -90,8 +103,8 @@ meaning.
    - `Step.lean`: each `step` is an `Eval` step, and `step` gives none only
      when no `Eval` step exists.
    - The proofs: `Run.lean` (claims 1, 2), `Bytes.lean` (3), `Cli.lean`
-     (4), `Laws.lean` (5), `Shut.lean` (6).
-   - `Contract/Proof.lean` states the 6 claims for the interpreter and the
+     (4), `Laws.lean` (5, 7), `Shut.lean` (6).
+   - `Contract/Proof.lean` states the 7 claims for the interpreter and the
      CLI function, and calls the guards. The build pins it.
    - `Main.lean` is the glue: it reads files, calls `Interp.cli`, and
      writes the result. The build pins it.
@@ -105,8 +118,10 @@ Each item changes how a program runs, not what it means: the claims stay
 as they are. Each item is optional, because slow is fine. Each done item
 has its own proof that it keeps the claims, composed into them.
 
-Now: a U32 sum over 256 input bytes takes 0.3 s, and over 4096 bytes
-3 s. Most of that time reads the input: an echo of 4096 bytes takes 2 s.
+Now: a U32 sum over 256 input bytes takes 0.35 s, and over 4096 bytes
+3.8 s. Most of that time reads and checks the input: an echo of 4096 bytes
+takes 2.5 s. The kernel checks the input twice: in `bootstrap.input` and
+in `main(input)`.
 
 1. The environment machine. Status: done. `Machine/Impl.lean` keeps values
    in environments and its place in a stack of frames, so no step walks the
@@ -143,13 +158,15 @@ Now: a U32 sum over 256 input bytes takes 0.3 s, and over 4096 bytes
 These need a meaning that `Eval` does not give, so the claims grow. Write
 and review the meaning before any code for it. Each waits on a decision.
 
-1. Effects. No spec exists: BendTT keeps each effect opaque, and the C and
-   JS in `bend2/effs/` are the de facto semantics. Needs:
-   - a spec per effect;
+1. Effects. No spec exists: BendTT keeps each effect opaque. The C and JS
+   in `bend2/effs/` are not a spec for us (assumption 4). They can give
+   ideas only. Needs:
+   - our own spec per effect;
    - a Lean driver: its pure conversions proven, Lean's IO trusted, the OS
      assumed;
-   - a single-threaded scheduler for `IO.spawn` and `Chan.*`. It is fair,
-     because pure code between effects halts.
+   - a single-threaded scheduler for effects that run at the same time,
+     such as `IO.spawn` and `Chan.*`. It is fair, because pure code
+     between effects halts.
 
    An option: write each effect as data, a request and the code that runs
    after the answer. Data is pure, so `Eval` gives it a meaning, and a
@@ -161,7 +178,7 @@ and review the meaning before any code for it. Each waits on a decision.
    - In Lean, outside `--verdict`. Then the claims grow.
    - As bodies in `base.bend`. Then `--verdict` checks them, and the claims
      do not change: the ops are no longer opaque, so `Eval` gives their
-     meaning. comp.ts's native floats must match the bodies.
+     meaning.
 
    The bodies give the meaning only. A compiler can still emit native float
    ops, with a proof that each op gives what its body gives. That proof
@@ -212,5 +229,7 @@ TBD. The tests cover what the proofs do not:
   template `~` parameter opaque (`bend2/safe.ts`).
 
 Run the tests through `bend -o` and the interpreter, a few at a time. Never
-run the full suite. Compare the `#|` lines of each file. A mismatch is a
-bug in the glue, the elaborator, or comp.ts.
+run the full suite. Compare the `#|` lines of each file. The existing JS and
+C runs print those lines, so they are not an authority (assumption 4):
+`Eval` decides. A mismatch is a bug in the glue or the elaborator, or a
+`#|` line that `Eval` does not give.
