@@ -69,9 +69,8 @@ they are. Each is optional, since slow is fine, and each that is done needs
 its own proof that it preserves the claims, composed into them. Each waits
 on a decision.
 
-Now: a U32 sum over 64 input bytes takes 1.2 s, over 256 bytes 4.2 s,
-and over 4096 bytes 71 s (most of it is the program's own work: 128 calls
-of inc per byte).
+Now: a U32 sum over 256 input bytes takes 0.33 s, and over 4096 bytes
+3.3 s (most of it reads the input: an echo of 4096 bytes takes 2 s).
 
 1. One-pass step. Status: done. `scanWith` finds the next step and the
    values in one walk. `scan_eq` proves that with no jump it gives what
@@ -92,6 +91,9 @@ of inc per byte).
    - Status: done for each family: add, sub, not, and, or, xor, inc,
      to_nat, cmp, shl, shr, mul. One file of proofs per family, and
      `WordJump.lean` for the jumps.
+   - `T.from_nat` also jumps, for each one-word type `T` (U32 now, U64
+     later) whose code equals templates in `T` and its width. Before it,
+     4096 bytes took 71 s.
 
 ## Beyond the spec
 
