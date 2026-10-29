@@ -47,16 +47,17 @@ meaning to preserve.
      `compile(src) -> out`.
    - The build pins the hash of `Spec.lean` (`Spec.pin` in
      `lakefile.lean`).
-2. The verified interpreter. `compile` gives the book as it is. The
-   machine is a `step` function on terms.
-   - Prove `step t = some u → Eval bk t u`, and
-     `(∃ u, Eval bk t u) → step t ≠ none`.
-   - Then prove the 5 claims with the kernel's `halts`, `progress`, `sr`,
-     `confluent` and `adequate`.
-   - The CLI parses with the kernel's `Book.parse`, then calls one
-     function. Claim `cli` is about that function.
-   - Freeze the lines that state the claims for this compiler and this
-     function.
+2. The verified interpreter. Status: done.
+   - `compile` gives the book as it is. The machine is a `step` function
+     on terms.
+   - `Step.lean`: each `step` is an `Eval` step, and `step` gives none only
+     when no `Eval` step exists.
+   - `Run.lean`: claims `correct` and `total`. `Bytes.lean`: claim `bytes`.
+     `Laws.lean`: claim `laws`. `Cli.lean`: claim `cli`.
+   - `Final.lean` states the 5 claims for the interpreter and the CLI
+     function, and calls the guards. The build pins it.
+   - `Main.lean` is the glue: it reads files, calls `Interp.cli`, and
+     writes the result. The build pins it.
 
 This completes the trusted compiler. Its `compile` passes the book through,
 so it is a trusted interpreter: everything below is speed or new meaning.
@@ -68,16 +69,21 @@ they are. Each is optional, since slow is fine, and each that is done needs
 its own proof that it preserves the claims, composed into them. Each waits
 on a decision.
 
-1. The environment machine: closures instead of substitution. Actual
+Now: a U32 sum over 16 input bytes takes 18 s. The time grows as the cube
+of the input size.
+
+1. One-pass step: one walk finds the next step and the values. This
+   removes one factor of the input size.
+2. The environment machine: closures instead of substitution. Actual
    compilation starts here.
-2. Labels and case trees as integer switches. `Eval` matches labels by
+3. Labels and case trees as integer switches. `Eval` matches labels by
    name; numbering them is a representation choice.
-3. Native 32-bit words. Replace base's bit-level U32 (`Word(32n)` and the
+4. Native 32-bit words. Replace base's bit-level U32 (`Word(32n)` and the
    defs over it) with Lean's `UInt32`. The meaning stays base's: the proof
    shows each of base's elaborated word defs (`Word.add`, ...) equals its
    `BitVec` operation, which ties the compiler to how `base.bend`
    elaborates.
-4. Erase dead parts (types, q=0 arguments and lets, annotations). `Eval`
+5. Erase dead parts (types, q=0 arguments and lets, annotations). `Eval`
    never runs them, so the machine can carry them as inert syntax; erasing
    them saves time and memory. `Rwt` needs its own argument: its proof is
    evaluated at run time.
@@ -101,18 +107,18 @@ is written and reviewed before any compiler work. Each waits on a decision.
 
 How the compiler stays correct as it grows.
 
-1. The contract is frozen: `Spec.lean` changes only by review. The build
-   pins its hash, so an edit fails until the pin is updated by hand. The
-   pin does not stop a person who edits both. It makes each change show
-   in review.
+1. Reviewed files are frozen: `Spec.lean`, `Final.lean`, `Guard.lean` and
+   `Main.lean` change only by review. The build pins their hashes, so an
+   edit fails until its pin is updated by hand. A pin does not stop a
+   person who edits both. It makes each change show in review.
 2. No escape hatches:
-   - A Lean check walks each def that the CLI function uses. It fails on
+   - `#guard_runs` walks each def that the CLI function uses. It fails on
      an `opaque`, `partial`, `extern` or `implemented_by` def in
      `bootstrap/` or the kernel copy.
    - Lean's own library is exempt. We trust it.
-   - `#print axioms` on each proof shows only `propext`,
-     `Classical.choice` and `Quot.sound`.
-   - A text scan for `sorry` and the rest is an extra.
+   - `#guard_axioms`: each proof uses only `propext`, `Classical.choice`
+     and `Quot.sound`.
+   - An extra: the build scans the code for `sorry` and the rest.
 3. What runs is what is proven: claim `cli` is about the function that
    main calls. Outside the proofs: Lean's IO, the kernel's parser (as
    `--verdict`), and printing a result that is not bytes.
