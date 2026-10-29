@@ -64,7 +64,7 @@ allow(/^bench\/checker\/[a-z]+_[0-9]+\/main\.(bend|agda|lean|thy|v)$/);
 allow(/^bench\/checker\/_pin_\/[a-z0-9_]+\.txt$/);
 allow(/^bench\/runtime\/[a-z-]+\/main\.(bend|c|lean|ts)$/);
 allow(/^bench\/runtime\/_pin_\/[a-z0-9_]+\.txt$/);
-allow(/^bootstrap\/(\.gitignore|TBD\.md|lake-manifest\.json|lakefile\.lean|lean-toolchain|[A-Z][A-Za-z]*\.lean|Bootstrap\/[A-Z][A-Za-z]*\.lean)$/);
+allow(/^bootstrap\/(\.gitignore|PLAN\.md|lake-manifest\.json|lakefile\.lean|lean-toolchain|[A-Z][A-Za-z]*\.lean|Bootstrap\/[A-Z][A-Za-z]*\.lean)$/);
 allow(/^demos\/[a-z0-9_]+\/[A-Za-z0-9_]+\.bend$/);
 allow(/^demos\/[a-z0-9_]+\/[A-Za-z_]+\.(c|sh|md)$/);
 allow(/^demos\/[a-z0-9_]+\/web\/(index\.html|main\.js|bunfig\.toml)$/);
