@@ -23,7 +23,8 @@ meaning to preserve.
    is a placeholder that runs the kernel's check.
 1. The contract, `Spec.lean`, written before any compiler code:
    - `Claim.compile_correct`: if `compile` accepts a checked book, running
-     its code on the machine gives what `Eval` gives main.
+     its code on the machine gives what `Eval` gives main, or main applied
+     to its input.
    - `Claim.compile_total`: every checked book whose main is `Pure`
      compiles, so the first claim is not vacuous.
    - `observe` compares only a result's live parts: dead fields may differ
@@ -33,6 +34,13 @@ meaning to preserve.
      `compile_total` hollow.
    - Fuel lives inside `Machine.run`. The CLI passes a huge number, and
      running out is an error, never a wrong answer.
+   - Main may take one plain-data argument, its input, and both claims
+     hold for every input of that type. The CLI reads the input's bytes and
+     builds the value with `quote`, proven to round-trip (`observe (quote
+     b) = b`). It type-checks the value by adding `run = main(input)` to
+     the book and calling the kernel's `Book.check`, so `Claim.sound`
+     applies unchanged. Only reading the file is glue. A compiler fits as a
+     pure function, `compile(src) -> out`, with a thin main per runner.
 2. The verified interpreter. `compile` passes the book through, and the
    machine is a `step` function on terms. Prove `step t = some u → Eval bk
    t u` and `(∃ u, Eval bk t u) → step t ≠ none`, then close both claims
@@ -98,8 +106,8 @@ How the compiler stays correct as it grows.
 
 ## Tests
 
-TBD. Tests for what the proofs do not cover: reading the `.bendtt` file,
-printing the result, and the elaborator (`safe.ts`). Run the subset's
+TBD. Tests for what the proofs do not cover: reading the `.bendtt` and
+input files, printing the result, and the elaborator (`safe.ts`). Run the subset's
 tests through `bend -o` and the compiler a few at a time, never the full
 suite, and compare each file's `#|` lines. A mismatch is a glue or
 elaborator bug, or a comp.ts bug.
