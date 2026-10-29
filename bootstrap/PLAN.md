@@ -2,18 +2,27 @@
 
 # PLAN
 
-A compiler for Bend that you can trust. It is written in Lean and proven
-against `Eval`, the run-time semantics in `bend2/bendtt.lean`: a compiled
-program computes what `Eval` says its source computes. Slow is fine.
+The goal: a compiler for Bend, written in Bend, that you can trust.
 
-It trusts Lean (its kernel and its compiler) and `bendtt.lean`. It assumes
-that `bend -o` (`bend.ts` and `safe.ts`) gives the `.bendtt` text that
-means the `.bend` file. The proofs speak of that `.bendtt` text.
+The Lean part (this folder) is the starting point: a trusted interpreter
+for Bend. It is written in Lean and proven against `Eval`, the run-time
+semantics in `bend2/bendtt.lean`: it computes what `Eval` says a program
+computes. Slow is fine.
+
+The two parts join like this:
+1. The compiler in Bend is one pure function, `compile(src) -> out`: bytes
+   in, bytes out. Its laws are proven in Bend.
+2. The interpreter runs it on `src`. Claim 5 carries each law about
+   `compile(src)` to the bytes that the interpreter writes.
+
+The Lean part trusts Lean (its kernel and its compiler) and `bendtt.lean`.
+It assumes that `bend -o` (`bend.ts` and `safe.ts`) gives the `.bendtt`
+text that means the `.bend` file. The proofs speak of that `.bendtt` text.
 
 ## Scope: correct, and incomplete on purpose
 
-Each result that the compiler gives is the result that `Eval` gives. It
-covers pure code over datatypes, U32 at its bit-level meaning included.
+Each result that the interpreter gives is the result that `Eval` gives.
+It covers pure code over datatypes, U32 at its bit-level meaning included.
 
 It refuses each def that reaches an opaque def. It follows each name in
 each part of a def, the dead parts included. `bend -o` makes a def opaque
@@ -21,16 +30,15 @@ when the def has no body: F32 ops, effects, handles, natives, foreign
 fills. For an opaque def, the kernel has only a model: a placeholder of
 the right type. So `Eval` gives no real result to preserve.
 
-**Bootstrapping does not need opaque defs.** A compiler written in Bend is
-one pure function: bytes in, bytes out. It uses no F32, no effect and no
-handle.
+**Bootstrapping does not need opaque defs.** The compiler in Bend uses no
+F32, no effect and no handle.
 
 The scope only grows. When a def gets a body, it is no longer opaque, and
-the compiler runs it. A refusal then becomes a result, and no earlier
+the interpreter runs it. A refusal then becomes a result, and no earlier
 result changes. "Beyond the spec" says how F32 and effects can get a
 meaning.
 
-## The trusted compiler
+## The trusted interpreter
 
 0. The project. Status: done (a69359d5).
    - A Lake project in `lean/`, on Lean v4.34.0, as `--verdict` uses.
@@ -40,9 +48,8 @@ meaning.
      runs a target. `lake run regen` writes it.
    - Each build fails unless the copy is exactly that text, and unless that
      section (`Kernel.cut` in `lakefile.lean`) occurs once, unchanged.
-1. The contract: `src/Contract/Spec.lean`. Status: pinned. The changes to
-   claims 4, 5 and 6 wait on review.
-   - It holds definitions and claims only. It came before the compiler
+1. The contract: `src/Contract/Spec.lean`. Status: reviewed and pinned.
+   - It holds definitions and claims only. It came before the interpreter
      code. It has the exact text of each claim.
    - Claim 1, `correct`: when `compile` accepts def k of a checked book, k
      is `Pure` and has one result. Some fuel makes `run` give it. At all
@@ -75,8 +82,6 @@ meaning.
      a def that gives it.
    - With an input, the CLI adds def `bootstrap.run` = `main(input)`. The
      kernel checks the book with that def.
-   - A compiler written in Bend fits as one pure function:
-     `compile(src) -> out`.
    - The build pins the hash of `Contract/Spec.lean` (`Pins` in
      `lakefile.lean`).
 2. The verified interpreter. Status: done.
@@ -91,9 +96,8 @@ meaning.
    - `Main.lean` is the glue: it reads files, calls `Interp.cli`, and
      writes the result. The build pins it.
 
-This completes the trusted compiler. Its `compile` passes the book
-through, so it is a trusted interpreter. Each item below adds speed or a
-new meaning.
+This completes the Lean part. Its `compile` passes the book through, so
+it is an interpreter. Each item below adds speed or a new meaning.
 
 ## Speed
 
@@ -102,17 +106,18 @@ as they are. Each item is optional, because slow is fine. Each done item
 has its own proof that it keeps the claims, composed into them.
 
 Now: a U32 sum over 256 input bytes takes 0.3 s, and over 4096 bytes
-2.9 s. Most of that time reads the input: an echo of 4096 bytes takes 2 s.
+3 s. Most of that time reads the input: an echo of 4096 bytes takes 2 s.
 
 1. The environment machine. Status: done. `Machine/Impl.lean` keeps values
    in environments and its place in a stack of frames, so no step walks the
    full term. `Machine/Spec.lean` proves that each step keeps the decoded
-   term or makes `Eval` steps on it, and that the machine stops. Before
-   it, 256 bytes took 146 s.
+   term or makes `Eval` steps on it, and that it stops where `Eval` ends.
+   Before it, 256 bytes took 146 s.
 2. A linear end of a run. Status: done. When the machine stops, `runSteps`
-   (`Run.lean`) ends the run with `step`. It tests `isValue` first, so a
-   large data result costs one walk. Without that test, the echo took 30 s,
-   because `step` walks a part again to check that it is a value.
+   (`Run.lean`) ends the run with `stepUntil`, which tests `isValue` before
+   each `step`. So a large data result costs time linear in its size.
+   Without that test, the echo took 30 s, because `step` checks again that
+   a part is a value.
 3. Labels and case trees as integer switches. Status: waits on a decision.
    `Eval` matches labels by name. Numbers for labels are a choice of
    representation.
@@ -124,10 +129,11 @@ Now: a U32 sum over 256 input bytes takes 0.3 s, and over 4096 bytes
      makes it from `scripts/ref.bend`). Else it does not jump, and the
      result stays correct.
    - The families: add (it also takes sub), not, and, or, xor, inc,
-     to_nat, cmp, shl, shr, mul. Each family is a list of defs (`HasRefs`)
-     with its jump and the jump's proof (`Family`). `Word/` has one file of
-     proofs per group of families, `Word/Shared.lean` for what they share,
-     and `Word/Impl.lean` for the jumps.
+     to_nat, cmp, shl, shr, mul. Each family (`Family`) has a list of defs
+     (its code), its jump, and a proof that the jump is sound when the book
+     has the code (`HasRefs`). `Word/` has one file of proofs per group of
+     families, `Word/Shared.lean` for what they share, and `Word/Impl.lean`
+     for the jumps.
    - `T.from_nat` also jumps, for each one-word type `T` (U32 now, U64
      later) whose defs equal the templates of `Word/Nat.lean`, when
      `Word.inc` also equals its copy. Before it, 4096 bytes took 71 s.
@@ -135,7 +141,7 @@ Now: a U32 sum over 256 input bytes takes 0.3 s, and over 4096 bytes
 ## Beyond the spec
 
 These need a meaning that `Eval` does not give, so the claims grow. Write
-and review the meaning before any compiler work. Each waits on a decision.
+and review the meaning before any code for it. Each waits on a decision.
 
 1. Effects. No spec exists: BendTT keeps each effect opaque, and the C and
    JS in `bend2/effs/` are the de facto semantics. Needs:
@@ -165,7 +171,7 @@ and review the meaning before any compiler work. Each waits on a decision.
 
 ## Guards
 
-How the compiler stays correct as it grows.
+How the interpreter stays correct as it grows.
 
 1. Reviewed files are frozen: `Contract/Spec.lean`, `Contract/Proof.lean`,
    `Guard.lean` and `Main.lean` change only by review. The build pins their
@@ -202,9 +208,9 @@ TBD. The tests cover what the proofs do not:
 - the elaborator (`safe.ts`);
 - that the kernel accepts the book with the input, for a usual
   `main : List<Nat> -> D`;
-- that the Bend compiler reaches no opaque def. `bend -o` also makes each
+- that the compiler in Bend reaches no opaque def. `bend -o` also makes each
   template `~` parameter opaque (`bend2/safe.ts`).
 
-Run the tests through `bend -o` and the compiler, a few at a time. Never
+Run the tests through `bend -o` and the interpreter, a few at a time. Never
 run the full suite. Compare the `#|` lines of each file. A mismatch is a
 bug in the glue, the elaborator, or comp.ts.
