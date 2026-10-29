@@ -1,7 +1,7 @@
-import Bootstrap.Word
+import Word.Shared
 
--- WordCmp
--- =======
+-- Word.Cmp
+-- ========
 --
 -- Base's compare code: Word.cmp, with Word.cmp.fin and Bool.cmp. A call
 -- compares the rests first, then this bit decides only when the rests are

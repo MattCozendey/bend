@@ -1,7 +1,7 @@
-import Bootstrap.Kernel
+import Kernel
 
--- Spec
--- ====
+-- Contract.Spec
+-- =============
 --
 -- The contract. It states what a correct compiler does.
 -- It holds definitions and claims only. The proofs are in other files.

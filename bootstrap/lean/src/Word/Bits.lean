@@ -1,7 +1,7 @@
-import Bootstrap.Word
+import Word.Shared
 
--- WordBits
--- ========
+-- Word.Bits
+-- =========
 --
 -- Base's bitwise code: Word.not, and Word.and, Word.or and Word.xor. Each
 -- applies its Bool def to each bit. A call on words of n bits reaches the

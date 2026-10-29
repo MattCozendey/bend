@@ -1,4 +1,4 @@
-import Bootstrap.MachineOk
+import Machine.Spec
 
 -- Run
 -- ===
@@ -29,7 +29,7 @@ def runM (bk : Book) (jump : Term → Option Term) (n : Nat) (t : Term) : Option
   let (s, m) := mrun bk jump n (.eval t [] [])
   run bk jump m (decode s)
 
--- the interpreter. It compares the book's word code with WordRef once per
+-- the interpreter. It compares the book's word code with Word.Ref once per
 -- run.
 def compiler : Compiler where
   Code := Book × String

@@ -1,7 +1,7 @@
-import Bootstrap.Step
+import Step
 
--- WordRef
--- =======
+-- Word.Ref
+-- ========
 --
 -- GENERATED. The bodies of base's word code, as bend -o gives them: R.k is
 -- the body of def k. Made with bend 2.0.39 (repo source, in WSL) from a

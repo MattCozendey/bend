@@ -1,4 +1,4 @@
-import Bootstrap.Run
+import Run
 
 -- Laws
 -- ====

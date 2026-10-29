@@ -1,7 +1,7 @@
-import Bootstrap.Word
+import Word.Shared
 
--- WordNat
--- =======
+-- Word.Nat
+-- ========
 --
 -- Base's inc code (Word.inc), its code from a word to a Nat (Word.to_nat,
 -- with Nat.double), and from a Nat to a one-word type (T.from_nat).

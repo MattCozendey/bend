@@ -8,7 +8,8 @@ open Lake DSL System
 -- bend2/bendtt.lean minus its Main section, regenerated on every build, so
 -- a module that imports it can declare its own main. Nothing else differs.
 
-package bootstrap
+package bootstrap where
+  srcDir := "src"
 
 -- the kernel's Main section, exactly as bendtt.lean has it: the only text
 -- the copy leaves out. If it changes there, the build fails until this is
@@ -41,20 +42,20 @@ def Kernel.strip (text : String) : Except String String := do
     ls[i + k]? == some Kernel.cut[k]! || ls[i + k]? == some (Kernel.cut[k]! ++ "\r")
   let [i] := (List.range ls.size).filter cut_at
     | throw "expected the Main section once, unchanged (see Kernel.cut)"
-  let head := "-- GENERATED from bend2/bendtt.lean by bootstrap/lakefile.lean,\n"
+  let head := "-- GENERATED from bend2/bendtt.lean by bootstrap/lean/lakefile.lean,\n"
     ++ "-- with its Main section cut out. Do not edit.\n\n"
   return head ++ "\n".intercalate (ls.extract 0 i ++ ls.extract (i + n) ls.size).toList
 
 target kernel pkg : FilePath := do
-  let out := pkg.dir / "Bootstrap" / "Kernel.lean"
-  let src ← inputTextFile (pkg.dir / ".." / "bend2" / "bendtt.lean")
+  let out := pkg.dir / "src" / "Kernel.lean"
+  let src ← inputTextFile (pkg.dir / ".." / ".." / "bend2" / "bendtt.lean")
   src.mapM fun src => do
     match Kernel.strip (← IO.FS.readFile src) with
     | .error e => error s!"{src}: {e}"
     | .ok text =>
       let old ← if ← out.pathExists then IO.FS.readFile out else pure ""
       if old != text then
-        IO.FS.createDirAll (pkg.dir / "Bootstrap")
+        IO.FS.createDirAll (pkg.dir / "src")
         IO.FS.writeFile out text
       return out
 
@@ -64,15 +65,16 @@ target kernel pkg : FilePath := do
 -- each reviewed file, and the hash of its text after the review. A change
 -- to a file fails the build until its pin is updated by hand, so each
 -- change shows in review as a change to its line here.
--- - Spec.lean: the contract.
--- - Final.lean: the claims, stated for what the CLI runs, and the guards.
+-- - Contract/Spec.lean: the contract.
+-- - Contract/Proof.lean: the claims, stated for what the CLI runs, and the
+--   guards.
 -- - Guard.lean: the guards' code.
 -- - Main.lean: the glue that no proof covers.
 def Pins : List (String × UInt64) := [
-  ("Bootstrap/Spec.lean", 14227108132861646865),
-  ("Bootstrap/Final.lean", 4680035673247075582),
-  ("Bootstrap/Guard.lean", 9896677752811532416),
-  ("Main.lean", 1594596338706852610)]
+  ("src/Contract/Spec.lean", 18155938501184796853),
+  ("src/Contract/Proof.lean", 1263924710572306223),
+  ("src/Guard.lean", 15051376749205065931),
+  ("src/Main.lean", 578425072007868090)]
 
 -- a file's text, line endings made LF, so a checkout's CRLF keeps its hash
 def Pin.hash (text : String) : UInt64 :=
@@ -91,8 +93,8 @@ target pins pkg : Unit := Job.async do
 -- ====
 
 -- the words that let code run past a proof. The scan reads the code of
--- Main.lean and Bootstrap/*.lean, but not the kernel copy and not comments.
--- It is an extra: Final.lean's guards are the main check.
+-- each file in src, but not the kernel copy and not comments. It is an
+-- extra: the guards of Contract/Proof.lean are the main check.
 def Scan.words : List String :=
   ["sorry", "admit", "native_decide", "implemented_by", "@[extern", "axiom ",
    "partial def", "unsafe def", "opaque "]
@@ -103,10 +105,8 @@ def Scan.line (l : String) : List String :=
   Scan.words.filter fun w => (code.splitOn w).length > 1
 
 target scan pkg : Unit := Job.async do
-  let mut files := #[pkg.dir / "Main.lean"]
-  for e in ← (pkg.dir / "Bootstrap").readDir do
-    if e.fileName.endsWith ".lean" && e.fileName != "Kernel.lean" then
-      files := files.push e.path
+  let files := (← (pkg.dir / "src").walkDir).filter fun f =>
+    f.extension == some "lean" && f != pkg.dir / "src" / "Kernel.lean"
   let mut bad := #[]
   for f in files do
     for l in (← IO.FS.readFile f).splitOn "\n" do
@@ -117,7 +117,9 @@ target scan pkg : Unit := Job.async do
 
 @[default_target]
 lean_lib Bootstrap where
-  globs := #[.submodules `Bootstrap]
+  roots := #[`Kernel, `Guard, `Step, `Run, `Bytes, `Laws, `Cli, `Contract, `Machine, `Word]
+  globs := #[.one `Kernel, .one `Guard, .one `Step, .one `Run, .one `Bytes, .one `Laws, .one `Cli,
+    .submodules `Contract, .submodules `Machine, .submodules `Word]
   needs := #[`@/kernel, `@/pins, `@/scan]
 
 @[default_target]

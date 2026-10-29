@@ -1,7 +1,7 @@
-import Bootstrap.Word
+import Word.Shared
 
--- WordShift
--- =========
+-- Word.Shift
+-- ==========
 --
 -- Base's shift code: Word.shl (with Word.shl.put) and Word.shr (with
 -- Word.shr.pad). A word is lowest bit first, so shl puts a 0 bit first,

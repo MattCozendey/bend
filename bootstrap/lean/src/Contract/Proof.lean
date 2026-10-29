@@ -1,10 +1,10 @@
-import Bootstrap.Cli
-import Bootstrap.Bytes
-import Bootstrap.Laws
-import Bootstrap.Guard
+import Cli
+import Bytes
+import Laws
+import Guard
 
--- Final
--- =====
+-- Contract.Proof
+-- ==============
 --
 -- The five claims, stated for the interpreter and for the function that
 -- the CLI calls. Change this file only after a review. The build pins its

@@ -1,7 +1,7 @@
-import Bootstrap.Machine
+import Machine.Impl
 
--- MachineOk
--- =========
+-- Machine.Spec
+-- ============
 --
 -- The proof that the machine runs Eval. Each step either keeps the term
 -- that the state stands for (decode) and makes a measure (μ) smaller, or

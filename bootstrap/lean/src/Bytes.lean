@@ -1,4 +1,4 @@
-import Bootstrap.Spec
+import Contract.Spec
 
 -- Bytes
 -- =====

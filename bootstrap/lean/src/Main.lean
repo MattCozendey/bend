@@ -1,4 +1,4 @@
-import Bootstrap.Final
+import Contract.Proof
 
 -- Main
 -- ====

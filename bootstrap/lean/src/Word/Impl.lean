@@ -1,15 +1,15 @@
-import Bootstrap.WordBits
-import Bootstrap.WordCmp
-import Bootstrap.WordNat
-import Bootstrap.WordMul
+import Word.Bits
+import Word.Cmp
+import Word.Nat
+import Word.Mul
 
--- WordJump
--- ========
+-- Word.Impl
+-- =========
 --
 -- The word jump: a call of base's word code on values goes in one step to
 -- the result that the proofs of that code give. A family of word defs
--- jumps only when the book's defs for it equal WordRef, and T.from_nat
--- only when T's defs equal the templates of WordNat (WordOk, made once per
+-- jumps only when the book's defs for it equal Word.Ref, and T.from_nat
+-- only when T's defs equal the templates of Word.Nat (WordOk, made once per
 -- run). wordJump_sound proves that each jump is one or more Eval steps.
 
 open Quan Term Spec

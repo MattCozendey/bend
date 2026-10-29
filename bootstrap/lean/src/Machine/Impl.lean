@@ -1,7 +1,7 @@
-import Bootstrap.WordJump
+import Word.Impl
 
--- Machine
--- =======
+-- Machine.Impl
+-- ============
 --
 -- The environment machine. It runs a term without substitution: a variable
 -- reads its value from an environment, and a function value is its code

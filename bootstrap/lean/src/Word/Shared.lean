@@ -1,7 +1,7 @@
-import Bootstrap.WordRef
+import Word.Ref
 
--- Word
--- ====
+-- Word.Shared
+-- ===========
 --
 -- What the word jumps share: bits, words, numbers and orders as terms, the
 -- check that the book has base's word code, and the tools of the round

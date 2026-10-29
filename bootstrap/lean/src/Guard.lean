@@ -15,6 +15,9 @@ open Lean Elab Command
 
 namespace Guard
 
+-- the roots of the modules of Lean's own library
+def LEAN_ROOTS : List Name := [`Init, `Std, `Lean, `Lake]
+
 -- why the def c can run code that its body does not show
 def why (env : Environment) (c : Name) (ci : ConstantInfo) : List String :=
   (if ci.isUnsafe then ["unsafe"] else []) ++
@@ -22,10 +25,12 @@ def why (env : Environment) (c : Name) (ci : ConstantInfo) : List String :=
   (if isExtern env c then ["extern"] else []) ++
   (if (Compiler.getImplementedBy? env c).isSome then ["an other implementation"] else [])
 
--- c is in a module of this project, or in the current module
+-- c is in a module of this project, or in the current module: in any
+-- module outside Lean's own library. A module that this misjudges as ours
+-- fails the check; none passes it unseen.
 def ours (env : Environment) (c : Name) : Bool :=
   match env.getModuleIdxFor? c with
-  | some i => (`Bootstrap).isPrefixOf (env.allImportedModuleNames[i.toNat]!)
+  | some i => !LEAN_ROOTS.contains (env.allImportedModuleNames[i.toNat]!).getRoot
   | none => true
 
 end Guard

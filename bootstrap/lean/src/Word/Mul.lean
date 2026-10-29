@@ -1,8 +1,8 @@
-import Bootstrap.WordAdd
-import Bootstrap.WordShift
+import Word.Add
+import Word.Shift
 
--- WordMul
--- =======
+-- Word.Mul
+-- ========
 --
 -- Base's mul code: Word.mul.go. For each bit of a, from the lowest, it
 -- shifts b left, and on a 1 bit it first adds b to the sum. A call on

@@ -1,7 +1,7 @@
-import Bootstrap.Word
+import Word.Shared
 
--- WordAdd
--- =======
+-- Word.Add
+-- ========
 --
 -- Base's add code: Word.adc.group, the code of Word.add and Word.sub. A
 -- call on two words of n bits reaches the word that adcBits gives, for each
