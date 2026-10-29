@@ -36,12 +36,12 @@ theorem adcBits_length : ∀ (as bs : List Bool) (f c : Bool), as.length = bs.le
     rw [adcBits_length as bs f _ (by simpa using h)]
   | [], _ :: _, _, _, h | _ :: _, [], _, _, h => by simp at h
 
-def addCode : List (String × Term) :=
+def groupCode : List (String × Term) :=
   [("Word.adc.group", R.Word.adc.group), ("Bool.full_add", R.Bool.full_add),
     ("Bool.xor", R.Bool.xor), ("Bool.and", R.Bool.and), ("Bool.or", R.Bool.or),
     ("Bool.not", R.Bool.not)]
 
-theorem add_round (H : HasRefs bk addCode) (j : Nat) (as bs : List Bool) (f a b c : Bool) :
+theorem group_round (H : HasRefs bk groupCode) (j : Nat) (as bs : List Bool) (f a b c : Bool) :
     Evals bk (groupCall (boxT "Succ" (Bytes.nat j)) (cellT (bitT a) (wordT as))
         (cellT (bitT b) (wordT bs)) (bitT f) (bitT c))
       (cellT (bitT (fullAdd a (if f then !b else b) c).1)
@@ -54,19 +54,19 @@ theorem add_round (H : HasRefs bk addCode) (j : Nat) (as bs : List Bool) (f a b 
     word_simp [hg, hgv, hf, hfv, hx, hxv, ha, hav, ho, hov, ht, htv, R.Word.adc.group,
       R.Bool.full_add, R.Bool.xor, R.Bool.and, R.Bool.or, R.Bool.not, groupCall, fullAdd]
 
-theorem add_round0 (H : HasRefs bk addCode) (f c : Bool) :
+theorem group_round0 (H : HasRefs bk groupCode) (f c : Bool) :
     Evals bk (groupCall (Bytes.nat 0) (wordT []) (wordT []) (bitT f) (bitT c)) (wordT []) := by
   obtain ⟨⟨_, hg, hgv⟩, -⟩ := H
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   cases f <;> cases c <;> word_simp [hg, hgv, R.Word.adc.group, groupCall, wordT, Bytes.nat]
 
-theorem group_evals (H : HasRefs bk addCode) : ∀ (as bs : List Bool) (f c : Bool),
+theorem group_evals (H : HasRefs bk groupCode) : ∀ (as bs : List Bool) (f c : Bool),
     as.length = bs.length →
     Evals bk (groupCall (Bytes.nat as.length) (wordT as) (wordT bs) (bitT f) (bitT c))
       (wordT (adcBits f as bs c))
-  | [], [], f, c, _ => add_round0 H f c
+  | [], [], f, c, _ => group_round0 H f c
   | a :: as, b :: bs, f, c, h =>
-    evals_trans (add_round H as.length as bs f a b c)
+    evals_trans (group_round H as.length as bs f a b c)
       (evals_rest (group_evals H as bs f _ (by simpa using h)))
   | [], _ :: _, _, _, h | _ :: _, [], _, _, h => by simp at h
 
@@ -77,7 +77,7 @@ theorem add_group (ha : HasRef bk "Word.add" R.Word.add) (k : Nat) (as bs : List
   apply stepUntil_sound (stop := headIs "Word.adc.group") (n := 10)
   word_simp [h, hv, R.Word.add, groupCall]
 
-theorem add_evals (H : HasRefs bk addCode) (ha : HasRef bk "Word.add" R.Word.add)
+theorem add_evals (H : HasRefs bk groupCode) (ha : HasRef bk "Word.add" R.Word.add)
     (as bs : List Bool) (len : as.length = bs.length) :
     Evals bk (callT "Word.add" [Bytes.nat as.length, wordT as, wordT bs])
       (wordT (adcBits false as bs false)) :=

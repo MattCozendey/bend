@@ -23,12 +23,12 @@ def goCall (n m a b acc : Term) : Term :=
   App Q1 (App Q2 (App Q1 (App Q1 (App Q2 (Ref "Word.mul.go") n) m) a) b) acc
 
 def mulCode : List (String × Term) :=
-  ("Word.mul.go", R.Word.mul.go) :: ("Word.add", R.Word.add) :: (addCode ++ shlCode)
+  ("Word.mul.go", R.Word.mul.go) :: ("Word.add", R.Word.add) :: (groupCode ++ shlCode)
 
 theorem mulCode_parts (H : HasRefs bk mulCode) :
-    HasRef bk "Word.add" R.Word.add ∧ HasRefs bk addCode ∧ HasRefs bk shlCode := by
+    HasRef bk "Word.add" R.Word.add ∧ HasRefs bk groupCode ∧ HasRefs bk shlCode := by
   obtain ⟨-, ha, H⟩ := H
-  exact ⟨ha, H.append⟩
+  exact ⟨ha, H.of_append⟩
 
 -- Rounds
 -- ======

@@ -7,9 +7,7 @@ import Word.Mul
 -- =========
 --
 -- The word jump: a call of base's word code on values goes in one step to
--- the result that the proofs of that code give. A family jumps only when
--- the book has its code. T.from_nat jumps only for the types of
--- fromNatTypes. jump_sound proves that each jump is one or more Eval steps.
+-- the result that the proofs of that code give.
 
 open Quan Term Contract
 
@@ -111,7 +109,7 @@ theorem jump2_sound (ev : ∀ as bs, as.length = bs.length →
     exact plus_tup (ev as bs len.symm) (tup as bs)
   · simp at h
 
-theorem groupJump_sound (H : HasRefs bk addCode) : Jump.Sound bk groupJump := by
+theorem groupJump_sound (H : HasRefs bk groupCode) : Jump.Sound bk groupJump := by
   intro t u h
   unfold groupJump at h
   dsimp only at h
@@ -147,12 +145,6 @@ theorem fromNatJump_sound : Jump.Sound bk (fromNatJump (fromNatTypes bk)) := by
       ⟨_, _, _, rfl⟩
   · simp at h
 
-def bitJump (o : BitOp) : Jump :=
-  jump2 o.word fun as bs => wordT (List.zipWith o.op as bs)
-
-theorem bitJump_sound {o : BitOp} (H : HasRefs bk o.code) : Jump.Sound bk (bitJump o) :=
-  jump2_sound (bit_evals H) fun _ _ => word_tup
-
 -- Jump
 -- ====
 
@@ -163,15 +155,19 @@ structure Family (bk : Book) where
   jump : Jump
   sound : HasRefs bk code → Jump.Sound bk jump
 
+def bitFamily (o : BitOp) : Family bk :=
+  ⟨o.code, jump2 o.word fun as bs => wordT (List.zipWith o.op as bs),
+    fun H => jump2_sound (bit_evals H) fun _ _ => word_tup⟩
+
 -- the families of base's word code. The T.from_nat family needs no code:
 -- fromNatTypes makes its checks.
 def families (bk : Book) : List (Family bk) :=
-  [ ⟨addCode, groupJump, groupJump_sound⟩,
+  [ ⟨groupCode, groupJump, groupJump_sound⟩,
     ⟨notCode, jump1 "Word.not" fun bs => wordT (bs.map (!·)),
       fun H => jump1_sound (not_evals H) fun _ => word_tup⟩,
-    ⟨BitOp.and.code, bitJump .and, bitJump_sound⟩,
-    ⟨BitOp.or.code, bitJump .or, bitJump_sound⟩,
-    ⟨BitOp.xor.code, bitJump .xor, bitJump_sound⟩,
+    bitFamily .and,
+    bitFamily .or,
+    bitFamily .xor,
     ⟨incCode, jump1 "Word.inc" fun bs => wordT (incBits bs),
       fun H => jump1_sound (inc_evals H) fun _ => word_tup⟩,
     ⟨toNatCode, jump1 "Word.to_nat" fun bs => Bytes.nat (toNatBits bs),

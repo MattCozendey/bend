@@ -45,27 +45,23 @@ def callT (k : String) (xs : List Term) : Term := spine (Ref k) (xs.map (Q1, ·)
 -- HasRef bk k r: def k of bk has the body r
 def HasRef (bk : Book) (k : String) (r : Term) : Prop := ∃ d, bk.get k = some d ∧ d.v = r
 
-def hasRef (bk : Book) (k : String) (r : Term) : Bool := (bk.get k).map (·.v) == some r
-
-theorem hasRef_sound (h : hasRef bk k r = true) : HasRef bk k r := by
-  simp only [hasRef, beq_iff_eq, Option.map_eq_some_iff] at h; exact h
-
 -- HasRefs bk ps: for each (k, r) in ps, def k of bk has the body r. A
 -- family's xCode lists its defs with the bodies that its proofs know.
 def HasRefs (bk : Book) : List (String × Term) → Prop
   | [] => True
   | (k, r) :: ps => HasRef bk k r ∧ HasRefs bk ps
 
-def hasRefs (bk : Book) (ps : List (String × Term)) : Bool := ps.all fun p => hasRef bk p.1 p.2
+def hasRefs (bk : Book) (ps : List (String × Term)) : Bool :=
+  ps.all fun p => (bk.get p.1).map (·.v) == some p.2
 
 theorem hasRefs_sound (h : hasRefs bk ps = true) : HasRefs bk ps := by
   induction ps with
   | nil => trivial
   | cons p ps ih =>
-    simp only [hasRefs, List.all_cons, Bool.and_eq_true] at h
-    exact ⟨hasRef_sound h.1, ih h.2⟩
+    simp only [hasRefs, List.all_cons, Bool.and_eq_true, beq_iff_eq, Option.map_eq_some_iff] at h
+    exact ⟨h.1, ih h.2⟩
 
-theorem HasRefs.append : HasRefs bk (ps ++ qs) → HasRefs bk ps ∧ HasRefs bk qs := by
+theorem HasRefs.of_append : HasRefs bk (ps ++ qs) → HasRefs bk ps ∧ HasRefs bk qs := by
   induction ps with
   | nil => exact fun h => ⟨trivial, h⟩
   | cons p ps ih => exact fun ⟨h, hs⟩ => ⟨⟨h, (ih hs).1⟩, (ih hs).2⟩
