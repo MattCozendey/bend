@@ -3,10 +3,13 @@ import Word.Ref
 -- Word.Shared
 -- ===========
 --
--- What the word jumps share: bits, words, numbers and orders as terms, the
--- check that the book has base's word code, and the tools of the round
--- proofs. A round proof follows Eval from one call of a word def to the
--- next one, with the rest of each word left open.
+-- What the word families share: their terms, the check of a def's body,
+-- the decoders, and the tools of the round proofs. A round proof (x_round)
+-- follows Eval on a call of a word def to a term with the next call, or to
+-- the result. The rest of each word stays open (wordT t). x_round0 is the
+-- last round, on 0 or on empty words. An induction on the rounds then
+-- proves, for each width, that a call reaches the result of a Lean
+-- function, like adcBits.
 
 open Quan Term Contract
 
@@ -17,7 +20,7 @@ namespace Interp.Word
 
 def bitT (b : Bool) : Term := Tup Q1 (Lab (if b then "True" else "False")) (Lab "()")
 
--- a cell of a word: its lowest bit h, then the rest t
+-- cellT h t: the word cell of the lowest bit h and the rest t
 def cellT (h t : Term) : Term := Tup Q1 (Lab "WCon") (Tup Q1 h (Tup Q1 t (Lab "()")))
 
 def wordT : List Bool → Term
@@ -26,7 +29,7 @@ def wordT : List Bool → Term
 
 def succT (n : Term) : Term := Tup Q1 (Lab "Succ") (Tup Q1 n (Lab "()"))
 
--- a value of a one-field constructor k, like U32
+-- boxT k x: k{x}, for a one-field constructor k, like U32 or Succ
 def boxT (k : String) (x : Term) : Term := Tup Q1 (Lab k) (Tup Q1 x (Lab "()"))
 
 def cmpT (o : Ordering) : Term :=
@@ -38,7 +41,7 @@ def callT (k : String) (xs : List Term) : Term := spine (Ref k) (xs.map (Q1, ·)
 -- Refs
 -- ====
 
--- the body of def k is r
+-- HasRef bk k r: def k of bk has the body r
 def HasRef (bk : Book) (k : String) (r : Term) : Prop := ∃ d, bk.get k = some d ∧ d.v = r
 
 def hasRef (bk : Book) (k : String) (r : Term) : Bool := (bk.get k).map (·.v) == some r
@@ -87,8 +90,8 @@ theorem nat_step : step bk (Bytes.nat n) = none := value_step nat_isValue
 -- Rounds
 -- ======
 
--- stepUntil bk stop n t: the first term from t, in at most n steps, where
--- stop holds or no step fits
+-- stepUntil bk stop n t: the first term of the step chain from t where stop
+-- holds or no step fits; none when the first n terms do not have it
 def stepUntil (bk : Book) (stop : Term → Bool) : Nat → Term → Option Term
   | 0, _ => none
   | n + 1, t =>
@@ -107,7 +110,7 @@ theorem stepUntil_sound : stepUntil bk stop n t = some u → Evals bk t u := by
       · rename_i u' h; exact fun e => .step (step_sound h) (ih e)
       · simp only [Option.some.injEq]; rintro rfl; exact .refl
 
--- t is a call of def k
+-- headIs k t: the head of t is Ref k
 def headIs (k : String) (t : Term) : Bool := (unspine t []).1 == Ref k
 
 -- a word cell whose bit is known and whose rest is a call of def k
@@ -115,9 +118,9 @@ def cellEnd (k : String) : Term → Bool
   | Tup _ (Lab "WCon") (Tup _ (Tup _ (Lab _) (Lab "()")) (Tup _ x (Lab "()"))) => headIs k x
   | _ => false
 
--- the simp set of a round proof: it unfolds step on terms whose numbers and
--- words stay open. Such a proof unfolds step on large terms, so it needs
--- more than the default limits.
+-- word_simp: the simp set of a round proof. It unfolds stepUntil and step on
+-- terms whose words and numbers stay open. These terms are large, so it
+-- sets higher limits.
 macro "word_simp" "[" xs:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic| set_option maxHeartbeats 0 in set_option maxRecDepth 100000 in
     simp (config := { maxSteps := 50000000 }) [stepUntil, step, call, fires, isArgs,
@@ -131,16 +134,16 @@ theorem evals_rest (h : Evals bk x x') : Evals bk (cellT (bitT s) x) (cellT (bit
   exact evals_map (fun y => cellT (bitT s) y)
     (fun e => .tup_b (fun _ => .lab) (.tup_b (fun _ => vs) (.tup_a rfl e))) h
 
--- Eval steps in the field of a one-field constructor k, like Succ or U32
+-- Eval steps in the field of boxT k
 theorem evals_box (k : String) (h : Evals bk x x') : Evals bk (boxT k x) (boxT k x') :=
   evals_map (boxT k) (fun e => .tup_b (fun _ => .lab) (.tup_a rfl e)) h
 
--- Eval steps in the last argument of a call whose other part is a value
+-- Eval steps in the argument of an App whose function is a value
 theorem evals_arg (vf : isValue bk f = true) (l : q.live = true) (h : Evals bk x x') :
     Evals bk (App q f x) (App q f x') :=
   evals_map (App q f ·) (fun e => .app_x (isValue_iff.1 vf) l e) h
 
--- a call that reaches a tuple moves
+-- an App that reaches a tuple makes one or more Eval steps
 theorem plus_tup (h : Evals bk (App q f x) u) (e : ∃ p a b, u = Tup p a b) :
     Plus bk (App q f x) u :=
   plus_of h fun h' => by obtain ⟨_, _, _, rfl⟩ := e; cases h'

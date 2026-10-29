@@ -4,16 +4,16 @@ import Step
 -- ======
 --
 -- Writes src/Word/Ref.lean from the BendTT text that bend gives for
--- scripts/ref.bend, a program that calls each U32 operation. In WSL, from
--- bootstrap/lean:
+-- scripts/ref.bend. In WSL, from bootstrap/lean:
 --   bend scripts/ref.bend -o .lake/ref.bendtt
 --   lake build Step
 --   lake env lean --run scripts/GenRef.lean .lake/ref.bendtt src/Word/Ref.lean "$(bend version)"
--- Then review the diff of Ref.lean. A def that changed there no longer
--- equals the book's def, so its jump stops until the proofs in src/Word/
--- hold for the new body.
+-- Then review the diff of Ref.lean. When base changes a def that a family
+-- needs, the family does not jump until this script runs again and the
+-- proofs in src/Word/ build on the new body.
 
--- the defs of base that the word jumps and their proofs name
+-- the defs that Ref.lean copies: each def that the proofs in src/Word/
+-- name, and Word.zero, which no proof names
 def names : List String :=
   ["Bool.not", "Bool.and", "Bool.or", "Bool.xor", "Bool.cmp", "Bool.full_add",
    "Nat.double", "Word.zero", "Word.not", "Word.and", "Word.or", "Word.xor", "Word.inc",

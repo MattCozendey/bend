@@ -4,9 +4,9 @@ import Word.Shift
 -- Word.Mul
 -- ========
 --
--- Base's mul code: Word.mul.go. For each bit of a, from the lowest, it
--- shifts b left, and on a 1 bit it first adds b to the sum. A call on
--- words reaches the word that mulGoBits gives, for each width.
+-- Base's mul code: Word.mul.go, with Word.add and Word.shl. For each bit of
+-- a, from the lowest, it adds b to the sum when the bit is 1, then shifts b
+-- left.
 
 open Quan Term Contract
 
@@ -17,7 +17,8 @@ def mulGoBits : List Bool → List Bool → List Bool → List Bool
   | false :: as, b, acc => mulGoBits as (shlBits b) acc
   | true :: as, b, acc => mulGoBits as (shlBits b) (adcBits false acc b false)
 
--- a call of Word.mul.go: width n, count m, word a, word b, sum acc
+-- goCall n m a b acc: a call of Word.mul.go. n is the width, m the count of
+-- bits left in a, and acc the sum.
 def goCall (n m a b acc : Term) : Term :=
   App Q1 (App Q2 (App Q1 (App Q1 (App Q2 (Ref "Word.mul.go") n) m) a) b) acc
 
@@ -59,7 +60,7 @@ theorem go_round_t (H : HasMul bk) (k j : Nat) (as bs cs : List Bool) :
   obtain ⟨_, hg, hgv⟩ := H.go
   word_simp [hg, hgv, R.Word.mul.go, goCall]
 
--- Word.mul.go on a width, a count and a word of that count waits for more
+-- Word.mul.go on three arguments (go3) or four (go4) waits for more
 theorem go3_isValue (H : HasMul bk) (k : Nat) : ∀ as : List Bool,
     isValue bk (App Q1 (App Q1 (App Q2 (Ref "Word.mul.go") (Bytes.nat k))
       (Bytes.nat as.length)) (wordT as)) = true
@@ -93,7 +94,6 @@ theorem evals_go_acc (H : HasMul bk) (h : Evals bk x x') :
   evals_map (fun y => goCall (Bytes.nat k) (Bytes.nat as.length) (wordT as) (wordT bs) y)
     (fun e => .app_x (isValue_iff.1 (go4_isValue H k bs as)) rfl e) h
 
--- a call of Word.mul.go on words reaches the word that mulGoBits gives
 theorem go_evals (H : HasMul bk) : ∀ (as bs cs : List Bool), cs.length = bs.length →
     Evals bk (goCall (Bytes.nat bs.length) (Bytes.nat as.length) (wordT as) (wordT bs) (wordT cs))
       (wordT (mulGoBits as bs cs))

@@ -3,9 +3,8 @@ import Word.Shared
 -- Word.Bits
 -- =========
 --
--- Base's bitwise code: Word.not, and Word.and, Word.or and Word.xor. Each
--- applies its Bool def to each bit. A call on words of n bits reaches the
--- word of the Bool results, for each n.
+-- Base's bitwise code: Word.not, Word.and, Word.or and Word.xor. Each
+-- applies its Bool def to each bit.
 
 open Quan Term Contract
 

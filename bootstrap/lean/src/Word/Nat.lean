@@ -26,7 +26,6 @@ theorem inc_round0 (H : HasRef bk "Word.inc" R.Word.inc) :
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hi, hiv, R.Word.inc, wordT, Bytes.nat]
 
--- a 0 bit becomes 1, and the rest stays
 theorem inc_round_f (H : HasRef bk "Word.inc" R.Word.inc) (j : Nat) (t : List Bool) :
     Evals bk (callT "Word.inc" [succT (Bytes.nat j), cellT (bitT false) (wordT t)])
       (cellT (bitT true) (wordT t)) := by
@@ -34,7 +33,6 @@ theorem inc_round_f (H : HasRef bk "Word.inc" R.Word.inc) (j : Nat) (t : List Bo
   apply stepUntil_sound (stop := fun _ => false) (n := 100)
   word_simp [hi, hiv, R.Word.inc]
 
--- a 1 bit becomes 0, and the rest carries
 theorem inc_round_t (H : HasRef bk "Word.inc" R.Word.inc) (j : Nat) (t : List Bool) :
     Evals bk (callT "Word.inc" [succT (Bytes.nat j), cellT (bitT true) (wordT t)])
       (cellT (bitT false) (callT "Word.inc" [Bytes.nat j, wordT t])) := by
@@ -137,10 +135,10 @@ theorem toNat_evals (H : HasToNat bk) : ∀ bs : List Bool,
 -- From Nat
 -- ========
 --
--- Base's from_nat for a one-word type T of width w (U32 is T = "U32",
--- w = 32): T.lit0 is T{0}, T.inc incs T's word, and T.from_nat n incs
--- T.lit0 n times. The refs are templates in T and w, so each such type
--- jumps with these proofs.
+-- Base's from_nat for a one-word type T of width w (for U32, T = "U32" and
+-- w = 32). T.lit0 is T{0}. T.inc applies Word.inc to T's word. T.from_nat n
+-- applies T.inc n times to T.lit0. The refs are templates in T and w, so
+-- these proofs hold for each such type.
 
 def lit0Ref (T : String) (w : Nat) : Term := boxT T (wordT (List.replicate w false))
 
@@ -157,7 +155,6 @@ theorem incBits_length : ∀ bs : List Bool, (incBits bs).length = bs.length
   | false :: _ => rfl
   | true :: bs => by simp [incBits, incBits_length bs]
 
--- incN n bs: incBits n times on bs
 def incN : Nat → List Bool → List Bool
   | 0, bs => bs
   | n + 1, bs => incN n (incBits bs)
@@ -172,7 +169,7 @@ theorem incN_length : (incN n bs).length = bs.length := by
   | zero => rfl
   | succ n ih => simp only [incN, ih, incBits_length]
 
--- the word of T.from_nat n for a width w
+-- fromNatBits w n: the word of T.from_nat n at width w, that is n mod 2^w
 def fromNatBits (w n : Nat) : List Bool := incN n (List.replicate w false)
 
 structure HasFromNat (bk : Book) (T : String) (w : Nat) : Prop where
@@ -185,8 +182,8 @@ def hasFromNat (bk : Book) (T : String) (w : Nat) : Bool :=
   hasRef bk (T ++ ".from_nat") (fromNatRef T) && hasRef bk (T ++ ".inc") (incRef T w) &&
   hasRef bk (T ++ ".lit0") (lit0Ref T w) && hasInc bk
 
--- each type T of the book whose from_nat, inc and lit0 are the templates,
--- with the width w of its lit0
+-- fromNatTypes bk: each (T, w) for which hasFromNat holds, where T.from_nat
+-- is a def of bk and w is the width of T.lit0's word
 def fromNatTypes (bk : Book) : List (String × Nat) :=
   let found := bk.defs.filterMap fun d => do
     let T := (← d.k.dropSuffix? ".from_nat").toString
@@ -216,7 +213,7 @@ theorem fromNat_round0 (H : HasFromNat bk T w) :
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   word_simp [hf, hfv, hl, hlv, fromNatRef, lit0Ref, Bytes.nat, sub_word]
 
--- a call whose argument is a call
+-- an App whose argument is an App
 def callEnd : Term → Bool
   | App _ _ (App _ _ _) => true
   | _ => false
@@ -232,7 +229,7 @@ theorem boxInc_isValue (H : HasFromNat bk T w) : isValue bk (Ref (T ++ ".inc")) 
   obtain ⟨_, hi, hiv⟩ := H.inc
   word_simp [hi, hiv, incRef]
 
--- a one-field value whose field is a call of Word.inc
+-- a boxT whose field is a call of Word.inc
 def boxEnd : Term → Bool
   | Tup _ (Lab _) (Tup _ x (Lab "()")) => headIs "Word.inc" x
   | _ => false

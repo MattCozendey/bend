@@ -3,23 +3,25 @@ import Word.Shared
 -- Word.Add
 -- ========
 --
--- Base's add code: Word.adc.group, the code of Word.add and Word.sub. A
--- call on two words of n bits reaches the word that adcBits gives, for each
--- n (group_evals). A call of Word.add reaches the same (add_evals).
+-- Base's add code: Word.adc. Bend puts Word.adc and Word.adc.con in one
+-- def, Word.adc.group, and a tag argument picks the member. A call of
+-- Word.add or Word.sub steps to a groupCall, which jumps.
 
 open Quan Term Contract
 
 namespace Interp.Word
 
+-- groupCall n a b f c: the call of Word.adc on n, a, b, f and the carry c
 def groupCall (n a b f c : Term) : Term :=
   App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (Ref "Word.adc.group") n) a) b) f)
     (Tup Q1 (Lab "Word.adc") (Lab "()"))) c
 
--- the bits that Word.adc computes. f true subtracts: it flips each bit of
--- the second word.
+-- fullAdd a b c: Bool.full_add, the sum bit and the carry of a + b + c
 def fullAdd (a b c : Bool) : Bool × Bool :=
   if a then (!(b ^^ c), b || c) else (b ^^ c, b && c)
 
+-- adcBits f as bs c: the bits of Word.adc. f true flips each bit of bs.
+-- Word.sub gives f = c = true, so the result is as - bs.
 def adcBits (f : Bool) : List Bool → List Bool → Bool → List Bool
   | a :: as, b :: bs, c =>
     let sk := fullAdd a (if f then !b else b) c
@@ -34,7 +36,6 @@ theorem adcBits_length : ∀ (as bs : List Bool) (f c : Bool), as.length = bs.le
     rw [adcBits_length as bs f _ (by simpa using h)]
   | [], _ :: _, _, _, h | _ :: _, [], _, _, h => by simp at h
 
--- HasAdd bk: the book has base's add code
 structure HasAdd (bk : Book) : Prop where
   group : HasRef bk "Word.adc.group" R.Word.adc.group
   fullAdd : HasRef bk "Bool.full_add" R.Bool.full_add
@@ -53,8 +54,6 @@ theorem hasAdd_sound (h : hasAdd bk = true) : HasAdd bk := by
   exact ⟨hasRef_sound h.1.1.1.1.1, hasRef_sound h.1.1.1.1.2, hasRef_sound h.1.1.1.2,
     hasRef_sound h.1.1.2, hasRef_sound h.1.2, hasRef_sound h.2⟩
 
--- one round: a call on two word cells gives a cell of the result, with the
--- call on the rests as its rest
 theorem add_round (H : HasAdd bk) (j : Nat) (as bs : List Bool) (f a b c : Bool) :
     Evals bk (groupCall (succT (Bytes.nat j)) (cellT (bitT a) (wordT as))
         (cellT (bitT b) (wordT bs)) (bitT f) (bitT c))
@@ -72,7 +71,6 @@ theorem add_round (H : HasAdd bk) (j : Nat) (as bs : List Bool) (f a b c : Bool)
     word_simp [hg, hgv, hf, hfv, hx, hxv, ha, hav, ho, hov, ht, htv, R.Word.adc.group,
       R.Bool.full_add, R.Bool.xor, R.Bool.and, R.Bool.or, R.Bool.not, groupCall, fullAdd]
 
--- the last round: a call on two empty words gives the empty word
 theorem add_round0 (H : HasAdd bk) (f c : Bool) :
     Evals bk (groupCall (Bytes.nat 0) (wordT []) (wordT []) (bitT f) (bitT c)) (wordT []) := by
   obtain ⟨_, hg, hgv⟩ := H.group
@@ -89,7 +87,6 @@ theorem group_evals (H : HasAdd bk) : ∀ (as bs : List Bool) (f c : Bool),
       (evals_rest (group_evals H as bs f _ (by simpa using h)))
   | [], _ :: _, _, _, h | _ :: _, [], _, _, h => by simp at h
 
--- a call of Word.add goes to the call of the group
 theorem add_group (ha : HasRef bk "Word.add" R.Word.add) (k : Nat) (as bs : List Bool) :
     Evals bk (callT "Word.add" [Bytes.nat k, wordT as, wordT bs])
       (groupCall (Bytes.nat k) (wordT as) (wordT bs) (bitT false) (bitT false)) := by

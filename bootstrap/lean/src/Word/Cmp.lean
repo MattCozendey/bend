@@ -4,7 +4,7 @@ import Word.Shared
 -- ========
 --
 -- Base's compare code: Word.cmp, with Word.cmp.fin and Bool.cmp. A call
--- compares the rests first, then this bit decides only when the rests are
+-- compares the rests first. The first bits decide only when the rests are
 -- equal.
 
 open Quan Term Contract

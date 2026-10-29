@@ -7,10 +7,11 @@ import Word.Mul
 -- =========
 --
 -- The word jump: a call of base's word code on values goes in one step to
--- the result that the proofs of that code give. A family of word defs
--- jumps only when the book's defs for it equal Word.Ref, and T.from_nat
--- only when T's defs equal the templates of Word.Nat (Found, made once per
--- run). jump_sound proves that each jump is one or more Eval steps.
+-- the result that the proofs of that code give. A family jumps only when
+-- its defs equal their copies in Word.Ref. T.from_nat jumps only when T's
+-- defs equal the templates of Word.Nat and Word.inc equals its copy. found
+-- records these checks; a run makes it once. jump_sound proves that each
+-- jump is one or more Eval steps.
 
 open Quan Term Contract
 
@@ -46,8 +47,8 @@ def jump2 (k : String) (f : List Bool → List Bool → Term) : Jump where
       else none
     | _ => none
 
--- groupJump: for a call of Word.adc.group on a width, two words of that
--- width and two Bools, the word that adcBits gives
+-- groupJump: for a groupCall on a width, two words of that width and two
+-- bits, the word that adcBits gives
 def groupJump : Jump where
   takes := (· == "Word.adc.group")
   go
@@ -61,8 +62,8 @@ def groupJump : Jump where
       if as.length = m ∧ bs.length = m then some (wordT (adcBits fb as bs cb)) else none
     | _ => none
 
--- mulJump: for a call of Word.mul.go on words, the word that mulGoBits
--- gives
+-- mulJump: for a goCall on a width, a count, a word of that count and two
+-- words of that width, the word that mulGoBits gives
 def mulJump : Jump where
   takes := (· == "Word.mul.go")
   go
@@ -76,8 +77,8 @@ def mulJump : Jump where
       else none
     | _ => none
 
--- fromNatJump ts: for a call of T.from_nat on a Nat, for a type T of width
--- w in ts, the T whose word is that Nat's bits
+-- fromNatJump ts: for a call of T.from_nat on a Nat, with (T, w) in ts, the
+-- T that fromNatBits gives
 def fromNatJump (ts : List (String × Nat)) : Jump where
   takes := (ts.map (·.1 ++ ".from_nat")).contains
   go
@@ -248,7 +249,7 @@ def found (bk : Book) : Found :=
 def bitJump (o : BitOp) : Jump :=
   jump2 o.word fun as bs => wordT (List.zipWith o.op as bs)
 
--- the jump of each family, and whether found has it
+-- each family's jump, and whether found has the family
 def families (found : Found) : List (Bool × Jump) :=
   [ (found.add, groupJump),
     (found.not, jump1 "Word.not" fun bs => wordT (bs.map (!·))),
@@ -263,8 +264,8 @@ def families (found : Found) : List (Bool × Jump) :=
     (found.mul, mulJump),
     (!found.fromNat.isEmpty, fromNatJump found.fromNat) ]
 
--- jump found: the first jump of a family that found has. It takes what
--- those jumps take.
+-- jump found: the first result of the jumps of the families that found has.
+-- It takes each def that one of these jumps takes.
 def jump (found : Found) : Jump :=
   let js := families found
   ⟨fun k => js.any fun (on, j) => on && j.takes k,

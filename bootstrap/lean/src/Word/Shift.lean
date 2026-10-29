@@ -4,8 +4,8 @@ import Word.Shared
 -- ==========
 --
 -- Base's shift code: Word.shl (with Word.shl.put) and Word.shr (with
--- Word.shr.pad). A word is lowest bit first, so shl puts a 0 bit first,
--- and shr drops the first bit and puts a 0 bit last.
+-- Word.shr.pad). shl puts a 0 bit first and drops the last bit. shr drops
+-- the first bit and puts a 0 bit last.
 
 open Quan Term Contract
 
@@ -20,7 +20,6 @@ def shlBits : List Bool → List Bool
   | [] => []
   | b :: bs => false :: putBits b bs
 
--- padBits bs: bs, then a 0 bit
 def padBits : List Bool → List Bool
   | [] => [false]
   | b :: bs => b :: padBits bs
