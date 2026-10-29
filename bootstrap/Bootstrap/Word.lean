@@ -26,6 +26,9 @@ def wordT : List Bool → Term
 
 def succT (n : Term) : Term := Tup Q1 (Lab "Succ") (Tup Q1 n (Lab "()"))
 
+-- a value of a one-field constructor k, like U32
+def boxT (k : String) (x : Term) : Term := Tup Q1 (Lab k) (Tup Q1 x (Lab "()"))
+
 def cmpT (o : Ordering) : Term :=
   Tup Q1 (Lab (match o with | .lt => "LT" | .eq => "EQ" | .gt => "GT")) (Lab "()")
 
@@ -119,7 +122,7 @@ macro "word_simp" "[" xs:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic| set_option maxHeartbeats 0 in set_option maxRecDepth 100000 in
     simp (config := { maxSteps := 50000000 }) [stepUntil, step, call, fires, isArgs,
     isValue, stops, unspine, walk, redex, isData, Quan.live, Quan.fld, takes, spine, Term.sub,
-    Env.sub, bitT, cellT, callT, succT, cellEnd, headIs, nat_isValue, nat_isData, word_isValue,
+    Env.sub, bitT, cellT, callT, succT, boxT, cellEnd, headIs, nat_isValue, nat_isData, word_isValue,
     word_isData, nat_step, word_step, $xs,*])
 
 -- Eval steps in the rest of a word cell
@@ -127,6 +130,10 @@ theorem evals_rest (h : Evals bk x x') : Evals bk (cellT (bitT s) x) (cellT (bit
   have vs := isValue_iff.1 (bit_isValue (bk := bk) (b := s))
   exact evals_map (fun y => cellT (bitT s) y)
     (fun e => .tup_b (fun _ => .lab) (.tup_b (fun _ => vs) (.tup_a rfl e))) h
+
+-- Eval steps in the field of a one-field constructor k, like Succ or U32
+theorem evals_box (k : String) (h : Evals bk x x') : Evals bk (boxT k x) (boxT k x') :=
+  evals_map (boxT k) (fun e => .tup_b (fun _ => .lab) (.tup_a rfl e)) h
 
 -- Eval steps in the last argument of a call whose other part is a value
 theorem evals_arg (vf : isValue bk f = true) (l : q.live = true) (h : Evals bk x x') :

@@ -3,8 +3,8 @@ import Bootstrap.Word
 -- WordNat
 -- =======
 --
--- Base's inc code (Word.inc) and its code from a word to a Nat
--- (Word.to_nat, with Nat.double).
+-- Base's inc code (Word.inc), its code from a word to a Nat (Word.to_nat,
+-- with Nat.double), and from a Nat to a one-word type (T.from_nat).
 
 open Quan Term Spec
 
@@ -77,10 +77,6 @@ def succ2End (k : String) : Term → Bool
   | Tup _ (Lab "Succ") (Tup _ x (Lab "()")) => succEnd k x
   | _ => false
 
--- Eval steps in the pred of a Succ
-theorem evals_succ (h : Evals bk x x') : Evals bk (succT x) (succT x') :=
-  evals_map succT (fun e => .tup_b (fun _ => .lab) (.tup_a rfl e)) h
-
 theorem double_value (H : ToNatRefs bk) : isValue bk (Ref "Nat.double") = true := by
   obtain ⟨_, hd, hdv⟩ := H.double
   word_simp [hd, hdv, R.Nat.double]
@@ -105,7 +101,7 @@ theorem double_evals (H : ToNatRefs bk) : ∀ v : Nat,
     have e : Bytes.nat (2 * (v + 1)) = succT (succT (Bytes.nat (2 * v))) := by
       rw [show 2 * (v + 1) = 2 * v + 1 + 1 by omega]; rfl
     rw [e]
-    exact evals_trans (double_round H v) (evals_succ (evals_succ (double_evals H v)))
+    exact evals_trans (double_round H v) (evals_box "Succ" (evals_box "Succ" (double_evals H v)))
 
 theorem toNat_round0 (H : ToNatRefs bk) :
     Evals bk (callT "Word.to_nat" [Bytes.nat 0, wordT []]) (Bytes.nat 0) := by
@@ -135,7 +131,132 @@ theorem toNat_evals (H : ToNatRefs bk) : ∀ bs : List Bool,
       (evals_trans (evals_arg (double_value H) rfl (toNat_evals H bs)) (double_evals H _))
   | true :: bs =>
     evals_trans (toNat_round_t H bs.length bs)
-      (evals_succ (evals_trans (evals_arg (double_value H) rfl (toNat_evals H bs))
+      (evals_box "Succ" (evals_trans (evals_arg (double_value H) rfl (toNat_evals H bs))
         (double_evals H _)))
+
+-- From Nat
+-- ========
+--
+-- Base's from_nat for a one-word type T of width w (U32 is T = "U32",
+-- w = 32): T.lit0 is T{0}, T.inc incs T's word, and T.from_nat n incs
+-- T.lit0 n times. The refs are templates in T and w, so each such type
+-- jumps with these proofs.
+
+def lit0Ref (T : String) (w : Nat) : Term := boxT T (wordT (List.replicate w false))
+
+def incRef (T : String) (w : Nat) : Term :=
+  Prj (Mat T (Prj (Lam Q1 (Mat "()" (boxT T (callT "Word.inc" [Bytes.nat w, Var 0])) Efq))) Efq)
+
+def fromNatRef (T : String) : Term :=
+  Prj (Mat "Zero" (Mat "()" (Ref (T ++ ".lit0")) Efq)
+    (Mat "Succ" (Prj (Lam Q1 (Mat "()"
+      (callT (T ++ ".inc") [callT (T ++ ".from_nat") [Var 0]]) Efq))) Efq))
+
+theorem incBits_length : ∀ bs : List Bool, (incBits bs).length = bs.length
+  | [] => rfl
+  | false :: _ => rfl
+  | true :: bs => by simp [incBits, incBits_length bs]
+
+-- incN n bs: incBits n times on bs
+def incN : Nat → List Bool → List Bool
+  | 0, bs => bs
+  | n + 1, bs => incN n (incBits bs)
+
+theorem incN_succ : incN (n + 1) bs = incBits (incN n bs) := by
+  induction n generalizing bs with
+  | zero => rfl
+  | succ n ih => exact ih (bs := incBits bs)
+
+theorem incN_length : (incN n bs).length = bs.length := by
+  induction n generalizing bs with
+  | zero => rfl
+  | succ n ih => simp only [incN, ih, incBits_length]
+
+-- the word of T.from_nat n for a width w
+def fromNatBits (w n : Nat) : List Bool := incN n (List.replicate w false)
+
+structure FromNatRefs (bk : Book) (T : String) (w : Nat) : Prop where
+  fromNat : HasRef bk (T ++ ".from_nat") (fromNatRef T)
+  inc : HasRef bk (T ++ ".inc") (incRef T w)
+  lit0 : HasRef bk (T ++ ".lit0") (lit0Ref T w)
+  word : HasRef bk "Word.inc" R.Word.inc
+
+def fromNatOk (bk : Book) (T : String) (w : Nat) : Bool :=
+  hasRef bk (T ++ ".from_nat") (fromNatRef T) && hasRef bk (T ++ ".inc") (incRef T w) &&
+  hasRef bk (T ++ ".lit0") (lit0Ref T w) && incOk bk
+
+-- each type T of the book whose from_nat, inc and lit0 are the templates,
+-- with the width w of its lit0
+def fromNatTypes (bk : Book) : List (String × Nat) :=
+  let found := bk.defs.filterMap fun d => do
+    let T := (← d.k.dropSuffix? ".from_nat").toString
+    let l ← bk.get (T ++ ".lit0")
+    match l.v with
+    | Tup Q1 (Lab _) (Tup Q1 x (Lab "()")) => (decWord x).map fun bs => (T, bs.length)
+    | _ => none
+  found.filter fun (T, w) => fromNatOk bk T w
+
+theorem fromNatTypes_ok (h : (T, w) ∈ fromNatTypes bk) : FromNatRefs bk T w := by
+  have ok := (List.mem_filter.1 h).2
+  simp only [fromNatOk, Bool.and_eq_true] at ok
+  exact ⟨hasRef_ok ok.1.1.1, hasRef_ok ok.1.1.2, hasRef_ok ok.1.2, hasRef_ok ok.2⟩
+
+theorem sub_nat : ∀ n : Nat, Term.sub s (Bytes.nat n) = Bytes.nat n
+  | 0 => rfl
+  | n + 1 => by simp [Bytes.nat, Term.sub, sub_nat n]
+
+theorem sub_word : ∀ bs : List Bool, Term.sub s (wordT bs) = wordT bs
+  | [] => rfl
+  | b :: bs => by cases b <;> simp [wordT, cellT, bitT, Term.sub, sub_word bs]
+
+theorem fromNat_round0 (H : FromNatRefs bk T w) :
+    Evals bk (callT (T ++ ".from_nat") [Bytes.nat 0]) (lit0Ref T w) := by
+  obtain ⟨_, hf, hfv⟩ := H.fromNat
+  obtain ⟨_, hl, hlv⟩ := H.lit0
+  apply stepUntil_sound (stop := fun _ => false) (n := 50)
+  word_simp [hf, hfv, hl, hlv, fromNatRef, lit0Ref, Bytes.nat, sub_word]
+
+-- a call whose argument is a call
+def argCall : Term → Bool
+  | App _ _ (App _ _ _) => true
+  | _ => false
+
+theorem fromNat_round (H : FromNatRefs bk T w) (n : Nat) :
+    Evals bk (callT (T ++ ".from_nat") [succT (Bytes.nat n)])
+      (callT (T ++ ".inc") [callT (T ++ ".from_nat") [Bytes.nat n]]) := by
+  obtain ⟨_, hf, hfv⟩ := H.fromNat
+  apply stepUntil_sound (stop := argCall) (n := 10)
+  word_simp [argCall, hf, hfv, fromNatRef]
+
+theorem boxInc_value (H : FromNatRefs bk T w) : isValue bk (Ref (T ++ ".inc")) = true := by
+  obtain ⟨_, hi, hiv⟩ := H.inc
+  word_simp [hi, hiv, incRef]
+
+-- a one-field value whose field is a call of Word.inc
+def boxEnd : Term → Bool
+  | Tup _ (Lab _) (Tup _ x (Lab "()")) => headIs "Word.inc" x
+  | _ => false
+
+theorem boxInc_round (H : FromNatRefs bk T w) (bs : List Bool) :
+    Evals bk (callT (T ++ ".inc") [boxT T (wordT bs)])
+      (boxT T (callT "Word.inc" [Bytes.nat w, wordT bs])) := by
+  obtain ⟨_, hi, hiv⟩ := H.inc
+  apply stepUntil_sound (stop := boxEnd) (n := 20)
+  word_simp [boxEnd, hi, hiv, incRef, sub_nat]
+
+theorem boxInc_evals (H : FromNatRefs bk T w) (bs : List Bool) (len : bs.length = w) :
+    Evals bk (callT (T ++ ".inc") [boxT T (wordT bs)]) (boxT T (wordT (incBits bs))) := by
+  have e := inc_evals H.word bs
+  rw [len] at e
+  exact evals_trans (boxInc_round H bs) (evals_box T e)
+
+theorem fromNat_evals (H : FromNatRefs bk T w) : ∀ n : Nat,
+    Evals bk (callT (T ++ ".from_nat") [Bytes.nat n]) (boxT T (wordT (fromNatBits w n)))
+  | 0 => fromNat_round0 H
+  | n + 1 => by
+    have l : (fromNatBits w n).length = w := by simp [fromNatBits, incN_length]
+    rw [show fromNatBits w (n + 1) = incBits (fromNatBits w n) from incN_succ]
+    exact evals_trans (fromNat_round H n)
+      (evals_trans (evals_arg (boxInc_value H) rfl (fromNat_evals H n)) (boxInc_evals H _ l))
 
 end Interp

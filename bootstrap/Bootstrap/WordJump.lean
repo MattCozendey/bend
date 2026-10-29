@@ -8,8 +8,9 @@ import Bootstrap.WordMul
 --
 -- The word jump: a call of base's word code on values goes in one step to
 -- the result that the proofs of that code give. A family of word defs
--- jumps only when the book's defs for it equal WordRef (WordOk, made once
--- per run). wordJump_sound proves that each jump is one or more Eval steps.
+-- jumps only when the book's defs for it equal WordRef, and T.from_nat
+-- only when T's defs equal the templates of WordNat (WordOk, made once per
+-- run). wordJump_sound proves that each jump is one or more Eval steps.
 
 open Quan Term Spec
 
@@ -65,6 +66,15 @@ def mulJump : Term → Option Term
     let cs ← decWord acc
     if as.length = j ∧ bs.length = k ∧ cs.length = k then some (wordT (mulGoBits as bs cs))
     else none
+  | _ => none
+
+-- fromNatJump ts t: when t is a call of T.from_nat on a Nat, for a type T
+-- of width w in ts, the T whose word is that Nat's bits
+def fromNatJump (ts : List (String × Nat)) : Term → Option Term
+  | App Q1 (Ref k) n => do
+    let (T, w) ← ts.find? fun (T, _) => k == T ++ ".from_nat"
+    let m ← decNat n
+    some (boxT T (wordT (fromNatBits w m)))
   | _ => none
 
 theorem jump1_spec (h : jump1 k f t = some u) :
@@ -179,6 +189,25 @@ theorem mulJump_spec (h : mulJump t = some u) :
     · simp at h
   · simp at h
 
+theorem fromNatJump_spec (h : fromNatJump ts t = some u) :
+    ∃ T w n, (T, w) ∈ ts ∧ t = callT (T ++ ".from_nat") [Bytes.nat n] ∧
+      u = boxT T (wordT (fromNatBits w n)) := by
+  unfold fromNatJump at h
+  split at h
+  · rename_i k n
+    cases hf : ts.find? (fun (T, _) => k == T ++ ".from_nat") with
+    | none => simp [hf] at h
+    | some p =>
+    obtain ⟨T, w⟩ := p
+    cases hm : decNat n with
+    | none => simp [hf, hm] at h
+    | some m =>
+    simp only [hf, hm, bind, Option.bind, Option.some.injEq] at h
+    have hk := List.find?_some hf
+    simp only [beq_iff_eq] at hk
+    exact ⟨T, w, m, List.mem_of_find?_eq_some hf, by rw [decNat_ok hm, hk]; rfl, h.symm⟩
+  · simp at h
+
 -- Jump
 -- ====
 
@@ -194,10 +223,11 @@ structure WordOk where
   shl : Bool
   shr : Bool
   mul : Bool
+  fromNat : List (String × Nat)
 
 def wordOk (bk : Book) : WordOk :=
   ⟨addOk bk, notOk bk, bitOk bk .and, bitOk bk .or, bitOk bk .xor, incOk bk, toNatOk bk,
-    cmpOk bk, shlOk bk, shrOk bk, mulOk bk⟩
+    cmpOk bk, shlOk bk, shrOk bk, mulOk bk, fromNatTypes bk⟩
 
 def bitJump (o : BitOp) : Term → Option Term :=
   jump2 o.word fun as bs => wordT (List.zipWith o.op as bs)
@@ -214,7 +244,8 @@ def wordJump (ok : WordOk) (t : Term) : Option Term :=
     (ok.cmp, jump2 "Word.cmp" fun as bs => cmpT (cmpBits as bs)),
     (ok.shl, jump1 "Word.shl" fun bs => wordT (shlBits bs)),
     (ok.shr, jump1 "Word.shr" fun bs => wordT (shrBits bs)),
-    (ok.mul, mulJump) ].findSome? fun (on, j) => if on then j t else none
+    (ok.mul, mulJump),
+    (!ok.fromNat.isEmpty, fromNatJump ok.fromNat) ].findSome? fun (on, j) => if on then j t else none
 
 theorem bitJump_sound (H : BitRefs bk o) (h : bitJump o t = some u) : Plus bk t u := by
   obtain ⟨as, bs, len, rfl, rfl⟩ := jump2_spec h
@@ -228,7 +259,7 @@ theorem wordJump_sound : wordJump (wordOk bk) t = some u → Plus bk t u := by
   simp only [hon, ite_true] at hj
   simp only [wordOk, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at mem
   rcases mem with ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ |
-    ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ <;> rw [hon] at e
+    ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ <;> rw [hon] at e
   · obtain ⟨as, bs, f, c, len, rfl, rfl⟩ := groupJump_spec hj
     exact plus_tup (group_evals (addOk_ok e.symm) as bs f c len) word_tup
   · obtain ⟨bs, rfl, rfl⟩ := jump1_spec hj
@@ -248,5 +279,7 @@ theorem wordJump_sound : wordJump (wordOk bk) t = some u → Plus bk t u := by
     exact plus_tup (shr_evals (shrOk_ok e.symm) bs) word_tup
   · obtain ⟨as, bs, cs, len, rfl, rfl⟩ := mulJump_spec hj
     exact plus_tup (go_evals (mulOk_ok e.symm) as bs cs len) word_tup
+  · obtain ⟨T, w, n, mem, rfl, rfl⟩ := fromNatJump_spec hj
+    exact plus_tup (fromNat_evals (fromNatTypes_ok mem) n) ⟨_, _, _, rfl⟩
 
 end Interp

@@ -142,15 +142,16 @@ def decode : St → Term
 -- Steps
 -- =====
 
--- the names of the word defs that a jump can take
-def wordDefs : List String :=
-  ["Word.adc.group", "Word.not", "Word.and", "Word.or", "Word.xor", "Word.inc", "Word.to_nat",
-   "Word.cmp", "Word.shl", "Word.shr", "Word.mul.go"]
+-- a jump can take a call of def k: one of base's word defs, or T.from_nat
+-- for a one-word type T
+def jumps (k : String) : Bool :=
+  k ∈ ["Word.adc.group", "Word.not", "Word.and", "Word.or", "Word.xor", "Word.inc",
+    "Word.to_nat", "Word.cmp", "Word.shl", "Word.shr", "Word.mul.go"] || k.endsWith ".from_nat"
 
 -- tryCall bk jump k xs fs: a call of def k on the values xs, then fs
 def tryCall (bk : Book) (jump : Term → Option Term) (k : String) (xs : List (Quan × Val))
     (fs : List Frame) : Option St :=
-  match (if k ∈ wordDefs then jump (spine (Ref k) (Val.rbArgs xs)) else none) with
+  match (if jumps k then jump (spine (Ref k) (Val.rbArgs xs)) else none) with
   | some u => if isData u then some (.ret (ofData u) fs) else none
   | none =>
     match bk.get k with
