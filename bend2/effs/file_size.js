@@ -10,10 +10,11 @@ function file_size_now(file) {
     // host without it that ask threw where the size was already read, so
     // the catch answered Fail on a good file. Nothing above this line
     // touches the FFI table, and nothing below it should either.
-    const over = process.platform === "darwin" ? 84 : 75;
+    const over = process.platform === "darwin" ? 84
+      : process.platform === "win32" ? 132 : 75;  // UCRT's
     return io_tup(file, size > 4294967295 ? io_fail(over) : io_done(size));
   } catch (e) {
-    return io_tup(file, io_fail(Math.abs(e.errno ?? 5)));
+    return io_tup(file, io_fail(io_code(e)));
   }
 }
 

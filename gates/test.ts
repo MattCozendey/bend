@@ -12,7 +12,11 @@
 // field) is checked and interpreted only; a foreign def with no twin for a
 // lane drops that lane; any other build failure fails its lanes. Meanwhile,
 // here, one process compares the comptime twins' C, then compiles four
-// state fixtures over and over (state_run).
+// state fixtures over and over (state_run). On Windows the shards run on
+// this machine (lib.LOCAL), words on the command line keep the tests whose
+// name holds one, WIN_SKIP's tests (POSIX-only, or answering POSIX's codes)
+// stay out and the _win tests (Windows' versions of those) come in;
+// elsewhere a _win test stays out.
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -300,10 +304,19 @@ async function state_run(): Promise<Fail[]> {
 // Main
 // ====
 
+const WIN_SKIP = new Set(["gfx_window", "io_fifo_eof", "io_file_read_short",
+  "io_nul_bytes", "io_process_run", "io_process_run_parallel",
+  "io_select_eintr", "io_stream_epipe", "io_tcp_send_slow_peer"]);
+
 if (import.meta.main) {
+  const only = lib.LOCAL
+    ? process.argv.slice(2).filter((a) => !a.startsWith("--")) : [];
   const tests = fs.readdirSync(TESTS).sort().flatMap((dir) =>
     fs.readdirSync(path.join(TESTS, dir)).filter((f) => f.endsWith(".bend"))
-      .sort().map((f) => test_read(dir, f)));
+      .sort().map((f) => test_read(dir, f))).filter((t) => lib.LOCAL
+      ? !WIN_SKIP.has(t.name) && (only.length === 0
+        || only.some((w) => t.name.includes(w)))
+      : !t.name.endsWith("_win"));
   const state = state_run();
   const nodes = await lib.node_lock();
   // Every test's source goes to every shard: a test may import another,

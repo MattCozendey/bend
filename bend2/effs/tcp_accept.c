@@ -12,7 +12,7 @@ static Term tcp_accept_more(Env e, IoWork* w) {
     got = accept(fd, NULL, NULL);
   } while (got < 0 && errno == EINTR);
   if (got >= 0 && fcntl(got, F_SETFL, fcntl(got, F_GETFL) | O_NONBLOCK) < 0) {
-    close(got);
+    sock_close(got);
     got = -1;
   }
   io_sys_end(w, got);

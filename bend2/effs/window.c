@@ -379,11 +379,46 @@ static inline void window_x_title(Display* dpy, Window w, const char* text,
     (const unsigned char*)text, (int)n);
 }
 
+#elif defined(_WIN32)
+
+// The Win32 window: a fixed client area, its frame's pixels (a top-down
+// 32-bit DIB, 0x00RRGGBB as X11's image), its events, whether it holds
+// the pointer, and the display's refresh period in ns.
+#pragma comment(lib, "user32")
+#pragma comment(lib, "gdi32")
+
+typedef struct {
+  HWND       hwnd;
+  BITMAPINFO bmi;
+  u32*       pix;
+  u32        w;
+  u32        h;
+  WinQueue   q;
+  u32        grab;
+  u64        period;
+} BendWin;
+
+// The window's centre, on the screen: where a grab holds the pointer.
+static inline POINT window_centre(BendWin* win) {
+  POINT p = { (LONG)win->w / 2, (LONG)win->h / 2 };
+  ClientToScreen(win->hwnd, &p);
+  return p;
+}
+
+// A grab lets go of the pointer: unclipped, and the cursor shown again.
+static inline void window_ungrab(BendWin* win) {
+  if (win != NULL && win->grab) {
+    ClipCursor(NULL);
+    ShowCursor(TRUE);
+    win->grab = 0;
+  }
+}
+
 #endif
 
 #ifdef CID(Window.open)
 
-#if defined(__OBJC__) || defined(__linux__)
+#if defined(__OBJC__) || defined(__linux__) || defined(_WIN32)
 
 // Typed text, from *at on, as the next Text event: up to 16 bytes of
 // UTF-8 in its four words, cut between characters, so a long input
@@ -1193,6 +1228,83 @@ static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,
   return 0;
 }
 
+#elif defined(_WIN32)
+
+// Close reaches the window procedure, not the queue: it comes back as a
+// WM_APP, the close event. Alt alone does not enter the menu loop, and a
+// window that loses the focus lets go of a grab.
+static LRESULT CALLBACK window_proc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
+  if (m == WM_CLOSE) {
+    PostMessageA(h, WM_APP, 0, 0);
+    return 0;
+  }
+  if (m == WM_SYSCOMMAND && (wp & 0xFFF0) == SC_KEYMENU) {
+    return 0;
+  }
+  if (m == WM_SETFOCUS || m == WM_KILLFOCUS) {
+    BendWin* win = (BendWin*)GetWindowLongPtrA(h, GWLP_USERDATA);
+    if (win != NULL) {
+      if (m == WM_KILLFOCUS) {
+        window_ungrab(win);
+      }
+      window_focus(&win->q, m == WM_SETFOCUS);
+    }
+  }
+  return DefWindowProcA(h, m, wp, lp);
+}
+
+// A session with no visible desktop (a service, ssh) has no display.
+static bool window_desktop(void) {
+  USEROBJECTFLAGS uf = { 0 };
+  return GetUserObjectInformationA(GetProcessWindowStation(), UOI_FLAGS, &uf,
+    sizeof uf, NULL) && (uf.dwFlags & WSF_VISIBLE);
+}
+
+static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,
+  const char** why) {
+  static ATOM cls;
+  DWORD       style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+  RECT        r     = { 0, 0, (LONG)w, (LONG)h };
+  if (w < 1 || h < 1 || w > 16384 || h > 16384) {
+    return EINVAL;
+  }
+  if (!window_desktop()) {
+    *why = "Window.open: no display (build a native binary with bend <file> -o <out> and run it from a desktop session)";
+    return ENOTSUP;
+  }
+  if (cls == 0) {
+    cls = RegisterClassA(&(WNDCLASSA){ .lpfnWndProc = window_proc,
+      .hInstance = GetModuleHandleA(NULL), .lpszClassName = "BendWin",
+      .hCursor = LoadCursorA(NULL, IDC_ARROW) });
+  }
+  AdjustWindowRect(&r, style, FALSE);
+  BendWin* win = io_mem(calloc(1, sizeof *win));
+  win->w   = w;
+  win->h   = h;
+  win->pix = io_mem(calloc((size_t)w * h, 4));
+  win->bmi.bmiHeader = (BITMAPINFOHEADER){ .biSize = sizeof(BITMAPINFOHEADER),
+    .biWidth = (LONG)w, .biHeight = -(LONG)h, .biPlanes = 1, .biBitCount = 32,
+    .biCompression = BI_RGB };
+  win->hwnd = CreateWindowExA(0, "BendWin", title, style, CW_USEDEFAULT,
+    CW_USEDEFAULT, r.right - r.left, r.bottom - r.top, NULL, NULL,
+    GetModuleHandleA(NULL), NULL);
+  if (win->hwnd == NULL) {
+    free(win->pix);
+    free(win);
+    *why = "Window.open: the window could not be created";
+    return ENXIO;
+  }
+  DEVMODEA mode = { .dmSize = sizeof mode };
+  EnumDisplaySettingsA(NULL, ENUM_CURRENT_SETTINGS, &mode);
+  win->period = 1000000000ull / (mode.dmDisplayFrequency > 1
+    ? mode.dmDisplayFrequency : 60);
+  SetWindowLongPtrA(win->hwnd, GWLP_USERDATA, (LONG_PTR)win);
+  ShowWindow(win->hwnd, SW_SHOW);
+  SetForegroundWindow(win->hwnd);
+  *out = (intptr_t)win;
+  return 0;
+}
+
 #else
 
 static u32 window_make(const char* title, u32 w, u32 h, intptr_t* out,
@@ -1227,7 +1339,7 @@ static void __attribute__((constructor)) window_open_use(void) {
 
 // A frame answers the events pumped since the last one; a constructor of
 // one word packs it in its term, as the compiler builds it.
-#if defined(__OBJC__) || defined(__linux__)
+#if defined(__OBJC__) || defined(__linux__) || defined(_WIN32)
 
 static Term window_node(Env e, const u32* ev) {
   if (ev[0] == CID(Text)) {
@@ -1418,7 +1530,72 @@ static Term window_frame(Env e, intptr_t at, Term image) {
   return window_list(e, &view->q);
 }
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(_WIN32)
+
+#ifdef _WIN32
+
+// The Mac's key codes, as the X11 lane gives them.
+static const u32 window_keys[][2] = {
+  { VK_ESCAPE,   27 },    { VK_RETURN,   13 },    { VK_TAB,      9 },
+  { VK_BACK,     127 },   { VK_UP,       63232 }, { VK_DOWN,     63233 },
+  { VK_LEFT,     63234 }, { VK_RIGHT,    63235 }, { VK_INSERT,   63271 },
+  { VK_DELETE,   63272 }, { VK_HOME,     63273 }, { VK_END,      63275 },
+  { VK_PRIOR,    63276 }, { VK_NEXT,     63277 }, { VK_RWIN,     65590 },
+  { VK_LWIN,     65591 }, { VK_LSHIFT,   65592 }, { VK_CAPITAL,  65593 },
+  { VK_LMENU,    65594 }, { VK_LCONTROL, 65595 }, { VK_RSHIFT,   65596 },
+  { VK_RMENU,    65597 }, { VK_RCONTROL, 65598 },
+};
+
+// Mouse messages: W3C's button number and whether it went down.
+static const u32 window_buttons[][3] = {
+  { WM_LBUTTONDOWN, 0, 1 }, { WM_LBUTTONUP, 0, 0 },
+  { WM_RBUTTONDOWN, 2, 1 }, { WM_RBUTTONUP, 2, 0 },
+  { WM_MBUTTONDOWN, 1, 1 }, { WM_MBUTTONUP, 1, 0 },
+};
+
+// A modifier's side: Windows names the key, the scan code its side.
+static u32 window_side(WPARAM vk, LPARAM lp) {
+  bool right = (lp >> 24) & 1;
+  switch (vk) {
+    case VK_SHIFT:
+      return MapVirtualKeyW((lp >> 16) & 0xFF, MAPVK_VSC_TO_VK_EX);
+    case VK_CONTROL:
+      return right ? VK_RCONTROL : VK_LCONTROL;
+    case VK_MENU:
+      return right ? VK_RMENU : VK_LMENU;
+    default:
+      return (u32)vk;
+  }
+}
+
+// A key's character under Shift and Caps Lock alone, in lower case, as
+// X11's lookup (Shift+Tab is its back tab); else its table code; else
+// 65536 + its scan code.
+static u32 window_key(WPARAM wp, LPARAM lp) {
+  u32   vk      = window_side(wp, lp);
+  UINT  scan    = (lp >> 16) & 0xFF;
+  BYTE  st[256] = { 0 };
+  WCHAR c[4];
+  st[VK_SHIFT]   = GetKeyState(VK_SHIFT) & 0x80;
+  st[VK_CAPITAL] = GetKeyState(VK_CAPITAL) & 1;
+  if (vk == VK_TAB && st[VK_SHIFT]) {
+    return 25;
+  }
+  for (u32 i = 0; i < sizeof window_keys / sizeof *window_keys; i += 1) {
+    if (window_keys[i][0] == vk) {
+      return window_keys[i][1];
+    }
+  }
+  if (vk >= VK_F1 && vk <= VK_F12) {
+    return 63236 + (vk - VK_F1);
+  }
+  if (ToUnicode(vk, scan, st, c, 4, 4) == 1 && c[0] >= 32) {
+    return c[0] >= 'A' && c[0] <= 'Z' ? c[0] + 32u : c[0];
+  }
+  return 65536 + scan;
+}
+
+#else
 
 // The Mac's key codes: a key's character in lower case (Escape, Return
 // and Tab are theirs), the function keys' private-use characters (the
@@ -1451,6 +1628,10 @@ static u32 window_key(XKeyEvent* ev) {
   }
   return 65536 + ev->keycode;
 }
+
+#endif
+
+#ifndef _WIN32
 
 // A key press's text: what the input method commits, else (no method)
 // the character of the key's symbol, unless Control is held.
@@ -1718,6 +1899,105 @@ static void window_xi_event(BendWin* win, XGenericEventCookie* c, f32* dx,
   }
 }
 
+#endif
+
+#ifdef _WIN32
+
+// A press holds the mouse, so a drag past the window still ends in it (X11
+// grabs it implicitly).
+static void window_mouse(BendWin* win, const MSG* m) {
+  for (u32 i = 0; i < sizeof window_buttons / sizeof *window_buttons; i += 1) {
+    if (window_buttons[i][0] == m->message) {
+      window_point(&win->q, CID(Press), 0, (WinTool){ WIN_MOUSE },
+        (short)LOWORD(m->lParam), (short)HIWORD(m->lParam), (u32)m->time,
+        window_buttons[i][1], window_buttons[i][2]);
+      if (window_buttons[i][2]) {
+        SetCapture(win->hwnd);
+      } else {
+        ReleaseCapture();
+      }
+    }
+  }
+}
+
+// A notch is 1, up and left positive as X11's wheel buttons; the message
+// holds the pointer on the screen.
+static void window_wheel(BendWin* win, const MSG* m) {
+  POINT p = { (short)LOWORD(m->lParam), (short)HIWORD(m->lParam) };
+  f32   s = (f32)GET_WHEEL_DELTA_WPARAM(m->wParam) / WHEEL_DELTA;
+  bool  x = m->message == WM_MOUSEHWHEEL;
+  ScreenToClient(win->hwnd, &p);
+  window_push(&win->q, CID(Scroll), f32_rewrap(p.x), f32_rewrap(p.y),
+    f32_rewrap(x ? -s : 0), f32_rewrap(x ? 0 : s));
+}
+
+// Grabbed, a move is no event: it sets (x, y), and the pump's look is
+// taken from the last one. A move asks to hear when the pointer leaves.
+static void window_input(BendWin* win, const MSG* m, int* x, int* y) {
+  switch (m->message) {
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+      window_push(&win->q, CID(Key), window_key(m->wParam, m->lParam),
+        m->message == WM_KEYDOWN || m->message == WM_SYSKEYDOWN, 0, 0);
+      break;
+    case WM_MOUSEMOVE:
+      *x = (short)LOWORD(m->lParam);
+      *y = (short)HIWORD(m->lParam);
+      if (!win->grab) {
+        TrackMouseEvent(&(TRACKMOUSEEVENT){ sizeof(TRACKMOUSEEVENT),
+          TME_LEAVE, win->hwnd, 0 });
+        window_point(&win->q, CID(Move), 0, (WinTool){ WIN_MOUSE }, *x, *y,
+          (u32)m->time, 0, false);
+      }
+      break;
+    case WM_MOUSELEAVE:
+      if (win->q.down[0] == 0) {
+        window_push(&win->q, CID(Leave), 0, 0, 0, 0);
+      }
+      break;
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL:
+      window_wheel(win, m);
+      break;
+    case WM_APP:
+      window_push(&win->q, CID(Close), 0, 0, 0, 0);
+      break;
+    default:
+      window_mouse(win, m);
+  }
+}
+
+// The thread's queue, as X11's pump reads its connection's: every
+// window's messages, each an event of the window it names (a closed one
+// names none), then dispatched, so Alt+F4 and the title bar still work.
+static void window_pump(BendWin* win) {
+  int cx = win->w / 2;
+  int cy = win->h / 2;
+  int x  = cx;
+  int y  = cy;
+  int ox;
+  int oy;
+  MSG m;
+  while (PeekMessageA(&m, NULL, 0, 0, PM_REMOVE)) {
+    BendWin* to = (BendWin*)GetWindowLongPtrA(m.hwnd, GWLP_USERDATA);
+    if (to != NULL) {
+      window_input(to, &m, to == win ? &x : &ox, to == win ? &y : &oy);
+    }
+    DispatchMessageA(&m);
+  }
+  // grabbed, the frame's motion is one look from the centre
+  if (win->grab && (x != cx || y != cy)) {
+    POINT c = window_centre(win);
+    window_push(&win->q, CID(Look), f32_rewrap(x - cx), f32_rewrap(y - cy), 0,
+      0);
+    SetCursorPos(c.x, c.y);
+  }
+}
+
+#else
+
 static void window_pump(BendWin* win) {
   u32 pw = win->width;
   u32 ph = win->height;
@@ -1850,6 +2130,8 @@ static void window_pump(BendWin* win) {
   }
 }
 
+#endif
+
 #if BEND_CUDA
 static CUfunction  window_pso;
 static CUdeviceptr window_buf;
@@ -1884,7 +2166,16 @@ static void window_sq(u64* H, u32* pix, u32 w, u32 h, Term t, u32 s, u32 x,
 static void window_fill(Env e, u32* pix, u32 w, u32 h, Term image, u32 k) {
 #if BEND_CUDA
   if (io_gpu) {
+#if BEND_TWIN
+    // a twin's host writes go up first; the fill leaves the device's heap
+    // as it was
+    u64*   H    = gpu_twin ? gpu_vram : e.mem;
+    if (gpu_twin) {
+      gpu_sync(true);
+    }
+#else
     u64*   H    = e.mem;
+#endif
     u64    len  = (u64)w * h * 4;
     void*  args[] = { &H, &image, &w, &h, &k, &window_buf };
     if (window_pso == NULL && cuModuleGetFunction(&window_pso, gpu_lib,
@@ -1922,6 +2213,23 @@ static void window_pace(u64 period) {
   due = (due > now ? due : now) + period;
 }
 
+#ifdef _WIN32
+
+static void window_show(Env e, BendWin* win, Term image) {
+  u32 k = 0;
+  while ((1u << k) < win->w || (1u << k) < win->h) {
+    k += 1;
+  }
+  window_fill(e, win->pix, win->w, win->h, image, k);
+  window_pace(win->period);
+  HDC dc = GetDC(win->hwnd);
+  StretchDIBits(dc, 0, 0, win->w, win->h, 0, 0, win->w, win->h, win->pix,
+    &win->bmi, DIB_RGB_COLORS, SRCCOPY);
+  ReleaseDC(win->hwnd, dc);
+}
+
+#else
+
 static void window_show(Env e, BendWin* win, Term image) {
   u32 w = win->img->width;
   u32 h = win->img->height;
@@ -1942,6 +2250,8 @@ static void window_show(Env e, BendWin* win, Term image) {
   }
   XFlush(win->dpy);
 }
+
+#endif
 
 static Term window_frame(Env e, intptr_t at, Term image) {
   BendWin* win = (BendWin*)at;
@@ -1986,6 +2296,13 @@ static void window_set_title(intptr_t at, const char* text, u64 n) {
   BendWin* win = (BendWin*)at;
   window_x_title(win->dpy, win->win, text, n);
   XFlush(win->dpy);
+}
+
+#elif defined(_WIN32)
+
+// The code page is UTF-8 (the binary's manifest), so the A call takes it.
+static void window_set_title(intptr_t at, const char* text, u64 n) {
+  SetWindowTextA(((BendWin*)at)->hwnd, text);
 }
 
 #else
@@ -2113,6 +2430,27 @@ static void window_grab(intptr_t at, bool on) {
   XFlush(win->dpy);
 }
 
+#elif defined(_WIN32)
+
+// The pointer is clipped to the window under a hidden cursor and set at
+// its centre, where each frame puts it back; only a focused window takes
+// it.
+static void window_grab(intptr_t at, bool on) {
+  BendWin* win = (BendWin*)at;
+  if (on && !win->grab && GetForegroundWindow() == win->hwnd) {
+    RECT  r;
+    POINT c = window_centre(win);
+    GetClientRect(win->hwnd, &r);
+    MapWindowPoints(win->hwnd, NULL, (POINT*)&r, 2);
+    ClipCursor(&r);
+    ShowCursor(FALSE);
+    SetCursorPos(c.x, c.y);
+    win->grab = 1;
+  } else if (!on) {
+    window_ungrab(win);
+  }
+}
+
 #else
 
 static void window_grab(intptr_t at, bool on) {
@@ -2178,6 +2516,18 @@ static void window_close(intptr_t at) {
   }
 #endif
   XCloseDisplay(win->dpy);
+  free(win->q.evs);
+  free(win);
+}
+
+#elif defined(_WIN32)
+
+static void window_close(intptr_t at) {
+  BendWin* win = (BendWin*)at;
+  window_ungrab(win);
+  SetWindowLongPtrA(win->hwnd, GWLP_USERDATA, 0);
+  DestroyWindow(win->hwnd);
+  free(win->pix);
   free(win->q.evs);
   free(win);
 }

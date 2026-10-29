@@ -34,7 +34,7 @@ const VERSION = "2.0.39";
 
 // BUILD tags a fork's bend after its version as semver build metadata:
 // "+win" prints bend <version>+win; upstream leaves it empty
-const BUILD = "";
+const BUILD = "+win";
 
 // the commands, one row each: [usage, what it does]; bend guide stays last
 const USAGE = [
@@ -92,6 +92,12 @@ const MISMATCH = "Sorry - this is a mismatch between the TypeScript implementati
   + " and the formalized BendTT kernel. Your proofs may or may not be correct, and"
   + " we cannot validate them yet. This will be addressed in a future update."
   + " Meanwhile, feel free to open an issue to report this bug.";
+
+// a Windows binary's manifest: its code page is UTF-8 (argv, getenv, paths)
+const MANIFEST = "<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\""
+  + " manifestVersion=\"1.0\"><application><windowsSettings><activeCodePage"
+  + " xmlns=\"http://schemas.microsoft.com/SMI/2019/WindowsSettings\">UTF-8"
+  + "</activeCodePage></windowsSettings></application></assembly>";
 
 // BendHub's terms; s18.4 makes MIT-0 the default license
 const TERMS = "https://bend-lang.com/bendai/terms#s18";
@@ -441,7 +447,10 @@ function cc_find(gpu: boolean): string {
   const olds: string[] = [];
   const want = gpu ? "19 (Apple clang 17)" : "14";
   const env  = process.env.CC;
-  const ccs  = [...new Set([...(env ? [env] : []), "clang", ...nums])];
+  // LLVM's Windows installer leaves clang off PATH unless asked
+  const home = process.platform === "win32" ? [path.join(process.env.ProgramFiles
+    ?? "C:\\Program Files", "LLVM", "bin", "clang.exe")] : [];
+  const ccs  = [...new Set([...(env ? [env] : []), "clang", ...nums, ...home])];
   for (const cc of ccs) {
     const [got, out] = Safe.run_read(cc, ["--version"]);
     const m   = /^(Apple )?(?:\w+ )?clang version (\d+)/m.exec(out);
@@ -464,7 +473,39 @@ function cc_find(gpu: boolean): string {
     + " or newer to build " + (gpu ? "a GPU program" : "binaries") + " (found "
     + olds.join(", ") + "); on Debian/Ubuntu: curl -fsSL"
     + " https://apt.llvm.org/llvm.sh | sudo bash -s 19; on macOS: xcode-select"
-    + " --install";
+    + " --install" + (process.platform === "win32" ? "; on Windows: winget"
+    + " install LLVM.LLVM, and the Visual Studio Build Tools' C++ workload" : "");
+}
+
+// cli_build_win is cli_build on Windows: CUDA at $CUDA_HOME or $CUDA_PATH
+// (its installer sets it), its libraries in lib/x64; the C names its own
+// libraries; a bare name gets .exe; and the binary embeds MANIFEST through
+// lld (MSVC's link.exe needs the SDK's mt.exe for that).
+function cli_build_win(bin: string, file: string): void {
+  const c     = fs.readFileSync(file, "utf8");
+  const exe   = path.resolve(path.extname(bin) === "" ? bin + ".exe" : bin);
+  const cuda  = [process.env.CUDA_HOME, process.env.CUDA_PATH]
+    .find(d => d && fs.existsSync(d + "/include/nvrtc.h")) ?? "";
+  const uses  = !/^#define BANGS\s+0$/m.test(c);
+  const bangs = uses && cuda !== "";
+  if (uses && !bangs) {
+    cli_say(2, "bend: no CUDA toolkit (include/nvrtc.h under $CUDA_HOME or"
+      + " $CUDA_PATH), so ! runs on the CPU\n");
+  }
+  fs.writeFileSync(file + ".manifest", MANIFEST);
+  const cc  = cc_find(bangs);
+  const cpu = ["-std=c11", "-O3", file, "-fuse-ld=lld", "-Wl,/manifest:embed",
+    "-Wl,/manifestinput:" + file + ".manifest", "-o", exe];
+  const gpu = ["-DBEND_CUDA=1", "-I" + cuda + "/include",
+    "-L" + cuda + "/lib/x64", ...cpu, "-lcuda", "-lnvrtc"];
+  const steps: [string, string[]][] = bangs
+    ? [[cc, gpu], [exe, ["+RTS", "--gpu-build"]]] : [[cc, cpu]];
+  for (const [cmd, args] of steps) {
+    if (child.spawnSync(cmd, args, { stdio: "inherit",
+      env: { ...process.env, BENDRTS: "" } }).status !== 0) {
+      throw "Error: " + path.basename(cmd) + " failed to build " + bin;
+    }
+  }
 }
 
 // cli_build builds the C file at `file` into the binary `bin`. A `!` program
@@ -477,6 +518,9 @@ function cc_find(gpu: boolean): string {
 // ALSA libraries it includes.
 // The GPU program's build runs without the user's $BENDRTS.
 function cli_build(bin: string, file: string): void {
+  if (process.platform === "win32") {
+    return cli_build_win(bin, file);
+  }
   const c     = fs.readFileSync(file, "utf8");
   const mac   = process.platform === "darwin";
   const cuda  = [process.env.CUDA_HOME, process.env.CUDA_PATH,
@@ -790,7 +834,7 @@ async function cli_login(): Promise<string> {
   }
   cli_say(2, "log in at " + st.verify_url + "\n");
   try {
-    Bun.spawn([process.platform === "darwin" ? "open" : "xdg-open", st.verify_url], { stdout: "ignore", stderr: "ignore" });
+    Bun.spawn(process.platform === "win32" ? ["rundll32", "url.dll,FileProtocolHandler", st.verify_url] : [process.platform === "darwin" ? "open" : "xdg-open", st.verify_url], { stdout: "ignore", stderr: "ignore" });
   } catch {}
   const until = Date.parse(st.expires_at ?? "") || Date.now() + 600000;
   while (Date.now() < until) {
@@ -822,13 +866,13 @@ async function cli_login(): Promise<string> {
 // any case, is refused (it clashes with LICENSE on a case-blind disk).
 function pkg_files(file: string, book: Bend.Book,
   seen: Map<string, string | null>): Record<string, string> {
-  const ent = fs.realpathSync(file);
-  const dir = path.join(path.dirname(ent), "/");
-  if (dir !== path.join(fs.realpathSync(path.dirname(file)), "/")) {
+  const ent = Bend.path_slash(fs.realpathSync(file));
+  const dir = Bend.path_slash(path.join(path.dirname(ent), "/"));
+  if (dir !== Bend.path_slash(path.join(fs.realpathSync(path.dirname(file)), "/"))) {
     throw "Error: " + file + " cannot be published: it links to " + ent
       + ", in another directory; publish that file";
   }
-  if (dir === "/") {
+  if (dir === (Bend.WIN ? Bend.path_slash(path.parse(ent).root) : "/")) {
     throw "Error: " + file + " cannot be published: it is at the file"
       + " system's root; move it into a directory";
   }
@@ -838,7 +882,7 @@ function pkg_files(file: string, book: Bend.Book,
   ...Object.entries(book.tlds).flatMap(([k, tld]): [string, string][] =>
     tld.$ !== "Def" || tld.i === undefined || tld.b === true
       || k.startsWith("0x") ? [] : tld.i.map((f) =>
-      [path.posix.normalize(f.slice(dir.length)), f]))];
+      [path.posix.normalize(Bend.path_slash(f).slice(dir.length)), f]))];
   // .bend files come first, so a foreign file's .bend, its directory a
   // prefix of the file's path, is checked inside dir before its path is cut
   const files: Record<string, string> = {};
@@ -865,7 +909,7 @@ function pkg_files(file: string, book: Bend.Book,
 // importer's fetch drops the mark, so a file sent with one would never
 // match its hash.
 function pkg_read(p: string, src: string, dir: string, fix: string): string {
-  const real = fs.realpathSync(src);
+  const real = Bend.path_slash(fs.realpathSync(src));
   if (!real.startsWith(dir)) {
     throw "Error: " + src + " cannot be published: it is outside " + dir
       + " (the entry's directory); " + fix + " inside";
@@ -1031,10 +1075,10 @@ async function book_read(file: string, base?: Bend.Book,
     seen.set(BASE, "");
   }
   try {
-    await Bend.book_load(book, file, "", seen);
+    await Bend.book_load(book, Bend.path_slash(file), "", seen);
     const laws = path.join(path.dirname(file), "LAWS.bend");
     if (path.basename(file) === "PROOF.bend" && fs.existsSync(laws)
-      && !seen.has(fs.realpathSync(laws))) {
+      && !seen.has(Bend.path_slash(fs.realpathSync(laws)))) {
       throw "Error: PROOF.bend must import ./LAWS.bend";
     }
     Bend.book_valid(book, base?.order.length ?? 0);
