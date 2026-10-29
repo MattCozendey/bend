@@ -3,10 +3,9 @@ import Contract.Spec
 -- Step
 -- ====
 --
--- One step of the interpreter. step bk t makes one Eval step from t, or
--- gives none when no Eval step fits. The proofs show that it agrees with
--- the kernel's Eval: each step is an Eval step, and step gives none only
--- when no Eval step exists.
+-- One step of the interpreter (step). The proofs show that step agrees
+-- with the kernel's Eval: each step is an Eval step (step_sound), and step
+-- gives none only when no Eval step exists (step_complete).
 
 open Quan Term
 
@@ -15,7 +14,7 @@ namespace Interp
 -- Data and walks
 -- ==============
 
--- isData t: t is plain data, as the kernel's Data says.
+-- isData t: t is plain data (the kernel's Data).
 def isData : Term → Bool
   | Lab _ => true
   | Rfl => true
@@ -41,8 +40,8 @@ theorem isData_iff : isData t = true ↔ Data t := by
       simp only [isData, Bool.and_eq_true, Bool.or_eq_true]
       exact ⟨by cases q <;> simp_all [Quan.live], ihb⟩
 
--- walk t e xs: the kernel's Walk as a function.
--- some o: Walk gives o. none: no Walk rule fits.
+-- walk t e xs: the kernel's Walk as a function. some o: Walk gives o.
+-- none: Walk gives no o.
 def walk : Term → Env → List Arg → Option (Option Term)
   | Lam _ _, _, [] => some none
   | Lam p f, e, (q, x) :: xs =>
@@ -62,7 +61,6 @@ def walk : Term → Env → List Arg → Option (Option Term)
     else some (some (spine (sub (Env.sub e) (App q f (Var v))) xs))
   | t, e, xs => some (some (spine (sub (Env.sub e) t) xs))
 
--- a term that is no case tree node leaves the tree
 theorem walk_done (n : node t = false) : walk t e xs = some (some (spine (sub (Env.sub e) t) xs)) := by
   cases t with
   | App q f x =>
@@ -136,7 +134,7 @@ theorem walk_complete (w : Walk bk t e xs o) : walk t e xs = some o := by
 -- Values
 -- ======
 
--- stops bk t: t is a call, and its def's case tree needs more arguments.
+-- stops bk t: t is a call, and the case tree of its def needs more arguments.
 def stops (bk : Book) (t : Term) : Bool :=
   match unspine t [] with
   | (Ref k, xs) =>
@@ -149,7 +147,7 @@ def stops (bk : Book) (t : Term) : Bool :=
   | _ => false
 
 mutual
--- isValue bk t: t is a value, as the kernel's Value says.
+-- isValue bk t: t is a value (the kernel's Value).
 def isValue (bk : Book) : Term → Bool
   | Tup q a b => (!q.live || isValue bk a) && isValue bk b
   | Ref k => stops bk (Ref k)
@@ -181,11 +179,9 @@ theorem stops_iff : stops bk t = true ↔
   · rintro ⟨k, d, xs, e, hd, w⟩
     simp only [e, hd, walk_complete w]
 
--- a term whose head is no Ref is no call
 theorem no_spine (h : (unspine t []).1 ≠ Ref k) : t ≠ spine (Ref k) xs :=
   fun e => h (by rw [spine_head e])
 
--- a live flag, read as an implication
 theorem live_or {q : Quan} {b : Bool} : (!q.live || b) = true ↔ (q.live = true → b = true) := by
   cases q.live <;> simp
 
@@ -249,7 +245,7 @@ theorem isValue_iff : isValue bk t = true ↔ Value bk t := isValue_isArgs_iff.1
 theorem isArgs_iff : isArgs bk t = true ↔ ∃ k xs, t = spine (Ref k) xs ∧ Values bk xs :=
   isValue_isArgs_iff.2
 
--- the call part of an App, read as a spine on a Ref
+-- the condition of call, as a spine on a Ref with Values
 theorem app_args : (isArgs bk f = true ∧ (q.live = true → isValue bk x = true)) ↔
     ∃ k xs, App q f x = spine (Ref k) xs ∧ Values bk xs := by
   rw [← isArgs_iff (t := App q f x)]; simp only [isArgs, Bool.and_eq_true, live_or]
@@ -257,8 +253,8 @@ theorem app_args : (isArgs bk f = true ∧ (q.live = true → isValue bk x = tru
 -- Step
 -- ====
 
--- fires bk t: t is a call, and its def's case tree takes all its
--- arguments. It gives the term that the tree reaches.
+-- fires bk t: when t is a call and the walk of its def leaves the case
+-- tree, the term that Walk gives. Else none.
 def fires (bk : Book) (t : Term) : Option Term :=
   match unspine t [] with
   | (Ref k, xs) =>
@@ -270,8 +266,9 @@ def fires (bk : Book) (t : Term) : Option Term :=
     | none => none
   | _ => none
 
--- redex q f x vx: the Eval step of f applied to x, when f is a λ or a
--- λ-match. vx is the value check of x.
+-- redex q f x vx: the beta, split, hit or miss step of App q f x, or none
+-- when no such step fits. vx is isValue bk x. The caller gives it, so
+-- scanWith does not compute it again.
 def redex (q : Quan) (f x : Term) (vx : Bool) : Option Term :=
   match f, x with
   | Lam p b, x =>
@@ -283,7 +280,7 @@ def redex (q : Quan) (f x : Term) (vx : Bool) : Option Term :=
     if q.live = true then (if j = k then some h else some (App q m (Lab j))) else none
   | _, _ => none
 
--- the call step of App q f x: a call on values whose tree takes them all
+-- call bk q f x: the Eval call step of App q f x, or none
 def call (bk : Book) (q : Quan) (f x : Term) : Option Term :=
   if isArgs bk f = true ∧ (q.live = true → isValue bk x = true) then fires bk (App q f x) else none
 
@@ -447,12 +444,7 @@ theorem step_sound : step bk t = some u → Eval bk t u := by
       · simp at h
   | _ => simp [step]
 
--- an if whose condition holds, or fails
-theorem ite_yes [Decidable c] (h : c) : (if c then a else b) = a := by simp [h]
-
-theorem ite_no [Decidable c] (h : ¬c) : (if c then a else b) = b := by simp [h]
-
--- when step gives none on an App, no part of it fits
+-- when step gives none on an App, each of its App cases gives none
 theorem step_app_none (h : step bk (App q f x) = none) :
     call bk q f x = none ∧ step bk f = none ∧
     (isValue bk f = true → (q.live = true → step bk x = none) ∧ redex q f x (isValue bk x) = none) := by
@@ -505,7 +497,7 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
       intro hn
       have hc := (step_app_none hn).1
       unfold call at hc
-      rw [ite_yes (app_args.2 ⟨k, ys ++ [(q, x)], spine_snoc.symm, vs⟩),
+      rw [ite_eq_left (app_args.2 ⟨k, ys ++ [(q, x)], spine_snoc.symm, vs⟩),
         fires_iff.2 ⟨k, d, ys ++ [(q, x)], spine_head spine_snoc.symm, hd, w⟩] at hc
       simp at hc
   | lett l _ ih =>
@@ -517,7 +509,7 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
     simp only [step]
     split
     · simp
-    · rw [ite_yes ⟨fun l => isValue_iff.2 (vv l), fun e => isData_iff.2 (dv e)⟩]; simp
+    · rw [ite_eq_left ⟨fun l => isValue_iff.2 (vv l), fun e => isData_iff.2 (dv e)⟩]; simp
   | tup_a l _ ih =>
     simp only [step, l, ite_true]
     split
@@ -527,7 +519,7 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
     simp only [step]
     split
     · simp
-    · rw [ite_yes (fun l => isValue_iff.2 (va l))]; simpa using ih
+    · rw [ite_eq_left (fun l => isValue_iff.2 (va l))]; simpa using ih
   | rwt he ih =>
     simp only [step]
     split
@@ -543,7 +535,7 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
     simp only [step]
     split
     · simp
-    · rw [ite_yes (isValue_iff.2 va)]
+    · rw [ite_eq_left (isValue_iff.2 va)]
       split
       · simp
       · rename_i hb; exact absurd hb ih
@@ -552,25 +544,24 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
 -- One pass
 -- ========
 --
--- scanWith gives step, isValue and isArgs of t from one walk of t. step
--- itself checks values again at each App, so its cost grows as the square
--- of the term. scanWith_eq proves that scanWith with no jump gives exactly what
--- step, isValue and isArgs give.
+-- step checks values again at each App, so its cost can grow as the
+-- square of the size of the term. scanWith gets isValue and isArgs in the
+-- same walk as the step.
 
--- Jump: a shortcut at calls. go t, for a call t, can give a later term
--- of the same Eval run in one go. takes k is false for each def k whose
--- calls go never takes, so a caller can skip go cheaply.
+-- Jump: a shortcut at calls. go t gives a later term of the Eval run from
+-- the call t, or none. When takes k is false, go gives none on each call
+-- of def k, so a caller can skip go.
 structure Jump where
   takes : String → Bool
   go : Term → Option Term
 
--- the jump that never jumps
 def Jump.never : Jump := ⟨fun _ => false, fun _ => none⟩
 
 @[simp] theorem Jump.never_go : Jump.never.go t = none := rfl
 
--- scanWith bk jump t: (step bk t, isValue bk t, isArgs bk t), from one
--- walk of t. At a call on values, it first tries jump.go.
+-- scanWith bk jump t: (s, isValue bk t, isArgs bk t). s is the step that
+-- step gives, but at each App where isArgs is true, scanWith first tries
+-- jump.go.
 def scanWith (bk : Book) (jump : Jump) : Term → Option Term × Bool × Bool
   | Ann x _ => (some x, false, false)
   | Ref k => (fires bk (Ref k), stops bk (Ref k), true)
@@ -653,7 +644,7 @@ theorem scanWith_eq : scanWith bk Jump.never t = (step bk t, isValue bk t, isArg
 -- Jumps
 -- =====
 
--- Plus bk t u: t becomes u in one or more Eval steps
+-- Plus bk t u: t becomes u in one or more Eval steps.
 def Plus (bk : Book) (t u : Term) : Prop := ∃ m, Eval bk t m ∧ Contract.Evals bk m u
 
 theorem evals_trans (h1 : Contract.Evals bk a b) (h2 : Contract.Evals bk b c) :
@@ -669,7 +660,7 @@ theorem plus_of (h : Contract.Evals bk t u) (n : t ≠ u) : Plus bk t u := by
   | refl => exact absurd rfl n
   | step e es => exact ⟨_, e, es⟩
 
--- a context that Eval steps inside carries Contract.Evals and Plus
+-- a context C that maps Eval steps also maps Contract.Evals and Plus
 theorem evals_map (C : Term → Term) (hC : ∀ {a a'}, Eval bk a a' → Eval bk (C a) (C a'))
     (h : Contract.Evals bk a a') : Contract.Evals bk (C a) (C a') := by
   induction h with
@@ -703,10 +694,9 @@ theorem scanWith_snd : (scanWith bk jump t).2 = (isValue bk t, isArgs bk t) := b
 
 theorem scanWith_value : (scanWith bk jump t).2.1 = isValue bk t := by rw [scanWith_snd]
 
--- each result of jump.go is one or more Eval steps from its call
+-- each result of jump.go t is one or more Eval steps from t
 def Jump.Sound (bk : Book) (jump : Jump) : Prop := ∀ t u, jump.go t = some u → Plus bk t u
 
--- each step that scanWith gives is one or more Eval steps, when each jump is
 theorem scanWith_sound (hj : Jump.Sound bk jump) :
     (scanWith bk jump t).1 = some u → Plus bk t u := by
   induction t generalizing u with
@@ -734,7 +724,7 @@ theorem scanWith_sound (hj : Jump.Sound bk jump) :
             rw [Bool.and_eq_true, live_or] at this; exact this
           refine ⟨_, call_sound ?_, .refl⟩
           unfold call
-          rw [ite_yes ok']
+          rw [ite_eq_left ok']
           exact hc
       · simp at hc
     · split at h
@@ -803,7 +793,7 @@ theorem scanWith_sound (hj : Jump.Sound bk jump) :
       · simp at h
   | _ => simp [scanWith]
 
--- scanWith with a jump gives no step only where it gives none with no jump
+-- a jump never removes a step
 theorem scanWith_none_nojump :
     (scanWith bk jump t).1 = none → (scanWith bk Jump.never t).1 = none := by
   induction t with
@@ -834,7 +824,7 @@ theorem scanWith_none_nojump :
       · rw [ihf (by first | rfl | assumption)]
         have hc0 : (if (isArgs bk f && (!q.live || isValue bk x)) = true then fires bk (App q f x) else none) = none := by
           split at hc
-          · rename_i ok; rw [ite_yes ok]; split at hc
+          · rename_i ok; rw [ite_eq_left ok]; split at hc
             · simp at hc
             · exact hc
           · rename_i ok; simp [ok]
@@ -889,8 +879,8 @@ theorem scanWith_none_nojump :
         cases l : q.live <;> simp_all
       simp only [ha0]
       split at h
-      · rename_i c; rw [ite_yes c]; simp only [Option.map_eq_none_iff] at h ⊢; exact ihb h
-      · rename_i c; rw [ite_no c]
+      · rename_i c; rw [ite_eq_left c]; simp only [Option.map_eq_none_iff] at h ⊢; exact ihb h
+      · rename_i c; rw [ite_eq_right c]
   | Rwt e P f ihe =>
     simp only [scanWith]
     generalize scanWith bk jump e = E at *
@@ -919,11 +909,11 @@ theorem scanWith_none_nojump :
     · simp at h
     · rw [iha (by first | rfl | assumption)]
       split at h
-      · rename_i v; rw [ite_yes v]
+      · rename_i v; rw [ite_eq_left v]
         split at h
         · simp at h
         · rw [ihb (by first | rfl | assumption)]; exact h
-      · rename_i v; rw [ite_no v]
+      · rename_i v; rw [ite_eq_right v]
   | _ => simp [scanWith]
 
 theorem scanWith_none (h : (scanWith bk jump t).1 = none) : step bk t = none := by
