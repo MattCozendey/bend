@@ -8,9 +8,9 @@ import Word.Ref
 -- proofs. A round proof follows Eval from one call of a word def to the
 -- next one, with the rest of each word left open.
 
-open Quan Term Spec
+open Quan Term Contract
 
-namespace Interp
+namespace Interp.Word
 
 -- Terms
 -- =====
@@ -43,7 +43,7 @@ def HasRef (bk : Book) (k : String) (r : Term) : Prop := ∃ d, bk.get k = some 
 
 def hasRef (bk : Book) (k : String) (r : Term) : Bool := (bk.get k).map (·.v) == some r
 
-theorem hasRef_ok (h : hasRef bk k r = true) : HasRef bk k r := by
+theorem hasRef_sound (h : hasRef bk k r = true) : HasRef bk k r := by
   simp only [hasRef, beq_iff_eq, Option.map_eq_some_iff] at h; exact h
 
 -- Values
@@ -172,11 +172,11 @@ def decNat : Term → Option Nat
   | Tup Q1 (Lab "Succ") (Tup Q1 n (Lab "()")) => (decNat n).map (· + 1)
   | _ => none
 
-theorem decBit_ok (h : decBit t = some b) : t = bitT b := by
+theorem decBit_sound (h : decBit t = some b) : t = bitT b := by
   unfold decBit at h
   split at h <;> simp_all [bitT]
 
-theorem decWord_ok (h : decWord t = some bs) : t = wordT bs := by
+theorem decWord_sound (h : decWord t = some bs) : t = wordT bs := by
   fun_induction decWord t generalizing bs with
   | case1 => cases h; rfl
   | case2 hd tl ih =>
@@ -187,10 +187,10 @@ theorem decWord_ok (h : decWord t = some bs) : t = wordT bs := by
       | none => simp [hb, ht] at h
       | some bs' =>
         simp [hb, ht] at h; subst h
-        simp [wordT, cellT, decBit_ok hb, ih ht]
+        simp [wordT, cellT, decBit_sound hb, ih ht]
   | case3 => simp at h
 
-theorem decNat_ok (h : decNat t = some n) : t = Bytes.nat n := by
+theorem decNat_sound (h : decNat t = some n) : t = Bytes.nat n := by
   fun_induction decNat t generalizing n with
   | case1 => cases h; rfl
   | case2 m ih =>
@@ -198,4 +198,4 @@ theorem decNat_ok (h : decNat t = some n) : t = Bytes.nat n := by
     simp [Bytes.nat, ih hk]
   | case3 => simp at h
 
-end Interp
+end Interp.Word

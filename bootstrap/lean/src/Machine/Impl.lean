@@ -1,4 +1,4 @@
-import Word.Impl
+import Step
 
 -- Machine.Impl
 -- ============
@@ -9,9 +9,9 @@ import Word.Impl
 -- frames, so it never walks the term from the top again. decode gives the
 -- term that a machine state stands for.
 
-open Quan Term Spec
+open Quan Term Contract
 
-namespace Interp
+namespace Interp.Machine
 
 -- Values
 -- ======
@@ -61,35 +61,35 @@ def Val.live : Val → Bool
   | .dead .. => false
   | _ => true
 
--- dataV v: v is plain data. It is false for each closure.
-def dataV : Val → Bool
+-- Val.isData v: v is plain data. It is false for each closure.
+def Val.isData : Val → Bool
   | .lab _ => true
   | .rfl => true
-  | .tup q a b => (!q.live || dataV a) && dataV b
+  | .tup q a b => (!q.live || Val.isData a) && Val.isData b
   | _ => false
 
--- walkV t e xs: walk, on values. some none: the tree needs more arguments.
+-- walk t e xs: walk, on values. some none: the tree needs more arguments.
 -- some (some (t, e, xs)): the walk leaves the tree at t, with e and the
 -- rest xs.
-def walkV : Term → List Val → List (Quan × Val) →
+def walk : Term → List Val → List (Quan × Val) →
     Option (Option (Term × List Val × List (Quan × Val)))
   | Lam _ _, _, [] => some none
   | Lam p f, e, (q, x) :: xs =>
-    if p.live = q.live ∧ (p = Q2 → dataV x = true) then walkV f (x :: e) xs else none
+    if p.live = q.live ∧ (p = Q2 → Val.isData x = true) then walk f (x :: e) xs else none
   | Prj _, _, [] => some none
   | Prj h, e, (q, .tup r a b) :: xs =>
-    if q.live then walkV h e ((Quan.fld r q, a) :: (q, b) :: xs) else none
+    if q.live then walk h e ((Quan.fld r q, a) :: (q, b) :: xs) else none
   | Prj _, _, _ :: _ => none
   | Mat .., _, [] => some none
   | Mat k h m, e, (q, .lab j) :: xs =>
-    if q.live then (if j = k then walkV h e xs else walkV m e ((q, .lab j) :: xs)) else none
+    if q.live then (if j = k then walk h e xs else walk m e ((q, .lab j) :: xs)) else none
   | Mat .., _, _ :: _ => none
   | Efq, _, [] => some none
   | Efq, _, _ :: _ => none
   | App q f (Var v), e, xs =>
     if takes (unspine f []).1 then
       match e[v]? with
-      | some x => if q.live = true → x.live = true then walkV f e ((q, x) :: xs) else none
+      | some x => if q.live = true → x.live = true then walk f e ((q, x) :: xs) else none
       | none => none
     else some (some (App q f (Var v), e, xs))
   | t, e, xs => some (some (t, e, xs))
@@ -142,32 +142,26 @@ def decode : St → Term
 -- Steps
 -- =====
 
--- a jump can take a call of def k: one of base's word defs, or T.from_nat
--- for a one-word type T
-def jumps (k : String) : Bool :=
-  k ∈ ["Word.adc.group", "Word.not", "Word.and", "Word.or", "Word.xor", "Word.inc",
-    "Word.to_nat", "Word.cmp", "Word.shl", "Word.shr", "Word.mul.go"] || k.endsWith ".from_nat"
-
 -- tryCall bk jump k xs fs: a call of def k on the values xs, then fs
-def tryCall (bk : Book) (jump : Term → Option Term) (k : String) (xs : List (Quan × Val))
+def tryCall (bk : Book) (jump : Jump) (k : String) (xs : List (Quan × Val))
     (fs : List Frame) : Option St :=
-  match (if jumps k then jump (spine (Ref k) (Val.rbArgs xs)) else none) with
+  match (if jump.takes k then jump.go (spine (Ref k) (Val.rbArgs xs)) else none) with
   | some u => if isData u then some (.ret (ofData u) fs) else none
   | none =>
     match bk.get k with
     | some d =>
-      match walkV d.v [] xs with
+      match walk d.v [] xs with
       | some none => some (.ret (.call k xs) fs)
       | some (some (t, e, rest)) => some (.eval t e (rest.map (fun (q, a) => .appV q a) ++ fs))
       | none => none
     | none => none
 
 -- apply bk jump f x fs: the value f applied to x, then fs
-def apply (bk : Book) (jump : Term → Option Term) (f : Val) (q : Quan) (x : Val)
+def apply (bk : Book) (jump : Jump) (f : Val) (q : Quan) (x : Val)
     (fs : List Frame) : Option St :=
   match f, x with
   | .clo (Lam p b) e, x =>
-    if p.live = q.live ∧ (p = Q2 → dataV x = true) then some (.eval b (x :: e) fs) else none
+    if p.live = q.live ∧ (p = Q2 → Val.isData x = true) then some (.eval b (x :: e) fs) else none
   | .clo (Prj h) e, .tup r a b =>
     if q.live then some (.eval h e (.appV (Quan.fld r q) a :: .appV q b :: fs)) else none
   | .clo (Mat k h m) e, .lab j =>
@@ -177,8 +171,8 @@ def apply (bk : Book) (jump : Term → Option Term) (f : Val) (q : Quan) (x : Va
   | .call k xs, x => tryCall bk jump k (xs ++ [(q, x)]) fs
   | _, _ => none
 
--- mstep bk jump s: one step of the machine, or none when it stops
-def mstep (bk : Book) (jump : Term → Option Term) : St → Option St
+-- step bk jump s: one step of the machine, or none when it stops
+def step (bk : Book) (jump : Jump) : St → Option St
   | .eval t e fs =>
     match t with
     | Var i =>
@@ -206,7 +200,7 @@ def mstep (bk : Book) (jump : Term → Option Term) : St → Option St
       if q.live then some (.eval x e (.appX q v :: fs)) else apply bk jump v q (.dead x e) fs
     | .appX q f => apply bk jump f q v fs
     | .appV q a => apply bk jump v q a fs
-    | .letV q f e => if q = Q2 → dataV v = true then some (.eval f (v :: e) fs) else none
+    | .letV q f e => if q = Q2 → Val.isData v = true then some (.eval f (v :: e) fs) else none
     | .tupA q b e => some (.eval b e (.tupB q v :: fs))
     | .tupB q a => some (.ret (.tup q a v) fs)
     | .rwt _ f e =>
@@ -220,13 +214,13 @@ def mstep (bk : Book) (jump : Term → Option Term) : St → Option St
         if i ∈ QS ∧ j ∈ QS then some (.eval (qmin (Lab i) (Lab j)) [] fs) else none
       | _, _ => none
 
--- mrun bk jump n s: at most n machine steps from s; the state where it
+-- run bk jump n s: at most n machine steps from s; the state where it
 -- stops, and the fuel left
-def mrun (bk : Book) (jump : Term → Option Term) : Nat → St → St × Nat
+def run (bk : Book) (jump : Jump) : Nat → St → St × Nat
   | 0, s => (s, 0)
   | n + 1, s =>
-    match mstep bk jump s with
-    | some s' => mrun bk jump n s'
+    match step bk jump s with
+    | some s' => run bk jump n s'
     | none => (s, n + 1)
 
-end Interp
+end Interp.Machine

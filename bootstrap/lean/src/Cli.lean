@@ -6,7 +6,7 @@ import Run
 -- The function that the CLI calls, and the proof of claim 4 (cli): when it
 -- gives a result, that is the result of the def it runs.
 
-open Quan Term Spec
+open Quan Term Contract
 
 namespace Interp
 
@@ -31,7 +31,7 @@ def cli (bk : Book) (input : Option (List UInt8)) : Except String Obs :=
         | some o => .ok o
         | none => .error "out of fuel"
 
-theorem cli_ok : Claim.cli cli := by
+theorem claim_cli : Claim.cli cli := by
   intro bk input o h
   unfold cli at h
   split at h
@@ -46,7 +46,7 @@ theorem cli_ok : Claim.cli cli := by
         split at h
         · rename_i o' hr
           cases h
-          obtain ⟨hp, o'', ans, -, never⟩ := correct bk' k code hc hcomp
+          obtain ⟨hp, o'', ans, -, never⟩ := claim_correct bk' k code hc hcomp
           cases never _ _ hr
           exact ⟨bk', k, he, hc, hp, ans⟩
         · simp at h

@@ -7,9 +7,9 @@ import Word.Shared
 -- call on two words of n bits reaches the word that adcBits gives, for each
 -- n (group_evals). A call of Word.add reaches the same (add_evals).
 
-open Quan Term Spec
+open Quan Term Contract
 
-namespace Interp
+namespace Interp.Word
 
 def groupCall (n a b f c : Term) : Term :=
   App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (Ref "Word.adc.group") n) a) b) f)
@@ -34,8 +34,8 @@ theorem adcBits_length : ∀ (as bs : List Bool) (f c : Bool), as.length = bs.le
     rw [adcBits_length as bs f _ (by simpa using h)]
   | [], _ :: _, _, _, h | _ :: _, [], _, _, h => by simp at h
 
--- AddRefs bk: the book has base's add code
-structure AddRefs (bk : Book) : Prop where
+-- HasAdd bk: the book has base's add code
+structure HasAdd (bk : Book) : Prop where
   group : HasRef bk "Word.adc.group" R.Word.adc.group
   fullAdd : HasRef bk "Bool.full_add" R.Bool.full_add
   xor : HasRef bk "Bool.xor" R.Bool.xor
@@ -43,19 +43,19 @@ structure AddRefs (bk : Book) : Prop where
   or : HasRef bk "Bool.or" R.Bool.or
   not : HasRef bk "Bool.not" R.Bool.not
 
-def addOk (bk : Book) : Bool :=
+def hasAdd (bk : Book) : Bool :=
   hasRef bk "Word.adc.group" R.Word.adc.group && hasRef bk "Bool.full_add" R.Bool.full_add &&
   hasRef bk "Bool.xor" R.Bool.xor && hasRef bk "Bool.and" R.Bool.and &&
   hasRef bk "Bool.or" R.Bool.or && hasRef bk "Bool.not" R.Bool.not
 
-theorem addOk_ok (h : addOk bk = true) : AddRefs bk := by
-  simp only [addOk, Bool.and_eq_true] at h
-  exact ⟨hasRef_ok h.1.1.1.1.1, hasRef_ok h.1.1.1.1.2, hasRef_ok h.1.1.1.2, hasRef_ok h.1.1.2,
-    hasRef_ok h.1.2, hasRef_ok h.2⟩
+theorem hasAdd_sound (h : hasAdd bk = true) : HasAdd bk := by
+  simp only [hasAdd, Bool.and_eq_true] at h
+  exact ⟨hasRef_sound h.1.1.1.1.1, hasRef_sound h.1.1.1.1.2, hasRef_sound h.1.1.1.2, hasRef_sound h.1.1.2,
+    hasRef_sound h.1.2, hasRef_sound h.2⟩
 
 -- one round: a call on two word cells gives a cell of the result, with the
 -- call on the rests as its rest
-theorem add_round (H : AddRefs bk) (j : Nat) (as bs : List Bool) (f a b c : Bool) :
+theorem add_round (H : HasAdd bk) (j : Nat) (as bs : List Bool) (f a b c : Bool) :
     Evals bk (groupCall (succT (Bytes.nat j)) (cellT (bitT a) (wordT as))
         (cellT (bitT b) (wordT bs)) (bitT f) (bitT c))
       (cellT (bitT (fullAdd a (if f then !b else b) c).1)
@@ -73,13 +73,13 @@ theorem add_round (H : AddRefs bk) (j : Nat) (as bs : List Bool) (f a b c : Bool
       R.Bool.full_add, R.Bool.xor, R.Bool.and, R.Bool.or, R.Bool.not, groupCall, fullAdd]
 
 -- the last round: a call on two empty words gives the empty word
-theorem add_round0 (H : AddRefs bk) (f c : Bool) :
+theorem add_round0 (H : HasAdd bk) (f c : Bool) :
     Evals bk (groupCall (Bytes.nat 0) (wordT []) (wordT []) (bitT f) (bitT c)) (wordT []) := by
   obtain ⟨_, hg, hgv⟩ := H.group
   apply stepUntil_sound (stop := fun _ => false) (n := 50)
   cases f <;> cases c <;> word_simp [hg, hgv, R.Word.adc.group, groupCall, wordT, Bytes.nat]
 
-theorem group_evals (H : AddRefs bk) : ∀ (as bs : List Bool) (f c : Bool),
+theorem group_evals (H : HasAdd bk) : ∀ (as bs : List Bool) (f c : Bool),
     as.length = bs.length →
     Evals bk (groupCall (Bytes.nat as.length) (wordT as) (wordT bs) (bitT f) (bitT c))
       (wordT (adcBits f as bs c))
@@ -97,10 +97,10 @@ theorem add_group (ha : HasRef bk "Word.add" R.Word.add) (k : Nat) (as bs : List
   apply stepUntil_sound (stop := headIs "Word.adc.group") (n := 10)
   word_simp [h, hv, R.Word.add, groupCall]
 
-theorem add_evals (H : AddRefs bk) (ha : HasRef bk "Word.add" R.Word.add)
+theorem add_evals (H : HasAdd bk) (ha : HasRef bk "Word.add" R.Word.add)
     (as bs : List Bool) (len : as.length = bs.length) :
     Evals bk (callT "Word.add" [Bytes.nat as.length, wordT as, wordT bs])
       (wordT (adcBits false as bs false)) :=
   evals_trans (add_group ha _ as bs) (group_evals H as bs false false len)
 
-end Interp
+end Interp.Word

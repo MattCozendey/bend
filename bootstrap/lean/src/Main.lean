@@ -10,7 +10,7 @@ import Contract.Proof
 -- This file is glue: it reads files, calls Interp.cli, and writes the
 -- result. Change it only after a review. The build pins its hash.
 
-open Spec
+open Contract
 
 -- render o: o as text. A Nat shows as its number.
 def render (o : Obs) : String :=

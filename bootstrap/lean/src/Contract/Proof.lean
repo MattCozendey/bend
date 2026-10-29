@@ -10,13 +10,13 @@ import Guard
 -- the CLI calls. Change this file only after a review. The build pins its
 -- hash.
 
-open Spec
+open Contract
 
-theorem final_correct : Claim.correct Interp.compiler := Interp.correct
-theorem final_total : Claim.total Interp.compiler := Interp.total
-theorem final_bytes : Claim.bytes := Interp.bytes
-theorem final_cli : Claim.cli Interp.cli := Interp.cli_ok
-theorem final_laws : Claim.laws := Interp.laws
+theorem final_correct : Claim.correct Interp.compiler := Interp.claim_correct
+theorem final_total : Claim.total Interp.compiler := Interp.claim_total
+theorem final_bytes : Claim.bytes := Interp.claim_bytes
+theorem final_cli : Claim.cli Interp.cli := Interp.claim_cli
+theorem final_laws : Claim.laws := Interp.claim_laws
 
 -- What the CLI function runs is what the proofs see.
 #guard_runs Interp.cli

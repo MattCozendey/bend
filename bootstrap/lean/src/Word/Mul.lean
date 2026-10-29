@@ -8,9 +8,9 @@ import Word.Shift
 -- shifts b left, and on a 1 bit it first adds b to the sum. A call on
 -- words reaches the word that mulGoBits gives, for each width.
 
-open Quan Term Spec
+open Quan Term Contract
 
-namespace Interp
+namespace Interp.Word
 
 def mulGoBits : List Bool → List Bool → List Bool → List Bool
   | [], _, acc => acc
@@ -21,29 +21,29 @@ def mulGoBits : List Bool → List Bool → List Bool → List Bool
 def goCall (n m a b acc : Term) : Term :=
   App Q1 (App Q2 (App Q1 (App Q1 (App Q2 (Ref "Word.mul.go") n) m) a) b) acc
 
-structure MulRefs (bk : Book) : Prop where
+structure HasMul (bk : Book) : Prop where
   go : HasRef bk "Word.mul.go" R.Word.mul.go
   add : HasRef bk "Word.add" R.Word.add
-  adds : AddRefs bk
-  shl : ShlRefs bk
+  adds : HasAdd bk
+  shl : HasShl bk
 
-def mulOk (bk : Book) : Bool :=
-  hasRef bk "Word.mul.go" R.Word.mul.go && hasRef bk "Word.add" R.Word.add && addOk bk && shlOk bk
+def hasMul (bk : Book) : Bool :=
+  hasRef bk "Word.mul.go" R.Word.mul.go && hasRef bk "Word.add" R.Word.add && hasAdd bk && hasShl bk
 
-theorem mulOk_ok (h : mulOk bk = true) : MulRefs bk := by
-  simp only [mulOk, Bool.and_eq_true] at h
-  exact ⟨hasRef_ok h.1.1.1, hasRef_ok h.1.1.2, addOk_ok h.1.2, shlOk_ok h.2⟩
+theorem hasMul_sound (h : hasMul bk = true) : HasMul bk := by
+  simp only [hasMul, Bool.and_eq_true] at h
+  exact ⟨hasRef_sound h.1.1.1, hasRef_sound h.1.1.2, hasAdd_sound h.1.2, hasShl_sound h.2⟩
 
 -- Rounds
 -- ======
 
-theorem go_round0 (H : MulRefs bk) (k : Nat) (bs cs : List Bool) :
+theorem go_round0 (H : HasMul bk) (k : Nat) (bs cs : List Bool) :
     step bk (goCall (Bytes.nat k) (Bytes.nat 0) (wordT []) (wordT bs) (wordT cs)) =
       some (wordT cs) := by
   obtain ⟨_, hg, hgv⟩ := H.go
   word_simp [hg, hgv, R.Word.mul.go, goCall, wordT, Bytes.nat]
 
-theorem go_round_f (H : MulRefs bk) (k j : Nat) (as bs cs : List Bool) :
+theorem go_round_f (H : HasMul bk) (k j : Nat) (as bs cs : List Bool) :
     step bk (goCall (Bytes.nat k) (succT (Bytes.nat j)) (cellT (bitT false) (wordT as))
         (wordT bs) (wordT cs)) =
       some (goCall (Bytes.nat k) (Bytes.nat j) (wordT as) (callT "Word.shl" [Bytes.nat k, wordT bs])
@@ -51,7 +51,7 @@ theorem go_round_f (H : MulRefs bk) (k j : Nat) (as bs cs : List Bool) :
   obtain ⟨_, hg, hgv⟩ := H.go
   word_simp [hg, hgv, R.Word.mul.go, goCall]
 
-theorem go_round_t (H : MulRefs bk) (k j : Nat) (as bs cs : List Bool) :
+theorem go_round_t (H : HasMul bk) (k j : Nat) (as bs cs : List Bool) :
     step bk (goCall (Bytes.nat k) (succT (Bytes.nat j)) (cellT (bitT true) (wordT as))
         (wordT bs) (wordT cs)) =
       some (goCall (Bytes.nat k) (Bytes.nat j) (wordT as) (callT "Word.shl" [Bytes.nat k, wordT bs])
@@ -60,7 +60,7 @@ theorem go_round_t (H : MulRefs bk) (k j : Nat) (as bs cs : List Bool) :
   word_simp [hg, hgv, R.Word.mul.go, goCall]
 
 -- Word.mul.go on a width, a count and a word of that count waits for more
-theorem go3_value (H : MulRefs bk) (k : Nat) : ∀ as : List Bool,
+theorem go3_isValue (H : HasMul bk) (k : Nat) : ∀ as : List Bool,
     isValue bk (App Q1 (App Q1 (App Q2 (Ref "Word.mul.go") (Bytes.nat k))
       (Bytes.nat as.length)) (wordT as)) = true
   | [] => by
@@ -70,7 +70,7 @@ theorem go3_value (H : MulRefs bk) (k : Nat) : ∀ as : List Bool,
     obtain ⟨_, hg, hgv⟩ := H.go
     cases b <;> word_simp [hg, hgv, R.Word.mul.go, wordT, Bytes.nat]
 
-theorem go4_value (H : MulRefs bk) (k : Nat) (bs : List Bool) : ∀ as : List Bool,
+theorem go4_isValue (H : HasMul bk) (k : Nat) (bs : List Bool) : ∀ as : List Bool,
     isValue bk (App Q2 (App Q1 (App Q1 (App Q2 (Ref "Word.mul.go") (Bytes.nat k))
       (Bytes.nat as.length)) (wordT as)) (wordT bs)) = true
   | [] => by
@@ -81,20 +81,20 @@ theorem go4_value (H : MulRefs bk) (k : Nat) (bs : List Bool) : ∀ as : List Bo
     cases b <;> word_simp [hg, hgv, R.Word.mul.go, wordT, Bytes.nat]
 
 -- Eval steps in the b and acc arguments of a call of Word.mul.go
-theorem evals_go_b (H : MulRefs bk) (h : Evals bk x x') :
+theorem evals_go_b (H : HasMul bk) (h : Evals bk x x') :
     Evals bk (goCall (Bytes.nat k) (Bytes.nat as.length) (wordT as) x acc)
       (goCall (Bytes.nat k) (Bytes.nat as.length) (wordT as) x' acc) :=
   evals_map (fun y => goCall (Bytes.nat k) (Bytes.nat as.length) (wordT as) y acc)
-    (fun e => .app_f (.app_x (isValue_iff.1 (go3_value H k as)) rfl e)) h
+    (fun e => .app_f (.app_x (isValue_iff.1 (go3_isValue H k as)) rfl e)) h
 
-theorem evals_go_acc (H : MulRefs bk) (h : Evals bk x x') :
+theorem evals_go_acc (H : HasMul bk) (h : Evals bk x x') :
     Evals bk (goCall (Bytes.nat k) (Bytes.nat as.length) (wordT as) (wordT bs) x)
       (goCall (Bytes.nat k) (Bytes.nat as.length) (wordT as) (wordT bs) x') :=
   evals_map (fun y => goCall (Bytes.nat k) (Bytes.nat as.length) (wordT as) (wordT bs) y)
-    (fun e => .app_x (isValue_iff.1 (go4_value H k bs as)) rfl e) h
+    (fun e => .app_x (isValue_iff.1 (go4_isValue H k bs as)) rfl e) h
 
 -- a call of Word.mul.go on words reaches the word that mulGoBits gives
-theorem go_evals (H : MulRefs bk) : ∀ (as bs cs : List Bool), cs.length = bs.length →
+theorem go_evals (H : HasMul bk) : ∀ (as bs cs : List Bool), cs.length = bs.length →
     Evals bk (goCall (Bytes.nat bs.length) (Bytes.nat as.length) (wordT as) (wordT bs) (wordT cs))
       (wordT (mulGoBits as bs cs))
   | [], bs, cs, _ => .step (step_sound (go_round0 H bs.length bs cs)) .refl
@@ -119,4 +119,4 @@ theorem go_evals (H : MulRefs bk) : ∀ (as bs cs : List Bool), cs.length = bs.l
     rw [l] at ih
     exact evals_trans r (evals_trans s (evals_trans t ih))
 
-end Interp
+end Interp.Word

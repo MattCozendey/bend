@@ -189,7 +189,7 @@ theorem no_spine (h : (unspine t []).1 ≠ Ref k) : t ≠ spine (Ref k) xs :=
 theorem live_or {q : Quan} {b : Bool} : (!q.live || b) = true ↔ (q.live = true → b = true) := by
   cases q.live <;> simp
 
-theorem value_iff : (isValue bk t = true ↔ Value bk t) ∧
+theorem isValue_isArgs_iff : (isValue bk t = true ↔ Value bk t) ∧
     (isArgs bk t = true ↔ ∃ k xs, t = spine (Ref k) xs ∧ Values bk xs) := by
   induction t with
   | Ref k =>
@@ -244,12 +244,15 @@ theorem value_iff : (isValue bk t = true ↔ Value bk t) ∧
       | exact ⟨fun h => by simp [isValue] at h,
           fun v => have ⟨_, _, _, e, _⟩ := value_inv v rfl; (no_spine (by simp [unspine]) e).elim⟩
 
-theorem isValue_iff : isValue bk t = true ↔ Value bk t := value_iff.1
+theorem isValue_iff : isValue bk t = true ↔ Value bk t := isValue_isArgs_iff.1
+
+theorem isArgs_iff : isArgs bk t = true ↔ ∃ k xs, t = spine (Ref k) xs ∧ Values bk xs :=
+  isValue_isArgs_iff.2
 
 -- the call part of an App, read as a spine on a Ref
 theorem app_args : (isArgs bk f = true ∧ (q.live = true → isValue bk x = true)) ↔
     ∃ k xs, App q f x = spine (Ref k) xs ∧ Values bk xs := by
-  rw [← (value_iff (t := App q f x)).2]; simp only [isArgs, Bool.and_eq_true, live_or]
+  rw [← isArgs_iff (t := App q f x)]; simp only [isArgs, Bool.and_eq_true, live_or]
 
 -- Step
 -- ====
@@ -551,13 +554,24 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
 --
 -- scanWith gives step, isValue and isArgs of t from one walk of t. step
 -- itself checks values again at each App, so its cost grows as the square
--- of the term. scan_eq proves that scanWith with no jump gives exactly what
+-- of the term. scanWith_eq proves that scanWith with no jump gives exactly what
 -- step, isValue and isArgs give.
 
+-- Jump: a shortcut at calls. go t, for a call t, can give a later term
+-- of the same Eval run in one go. takes k is false for each def k whose
+-- calls go never takes, so a caller can skip go cheaply.
+structure Jump where
+  takes : String → Bool
+  go : Term → Option Term
+
+-- the jump that never jumps
+def Jump.never : Jump := ⟨fun _ => false, fun _ => none⟩
+
+@[simp] theorem Jump.never_go : Jump.never.go t = none := rfl
+
 -- scanWith bk jump t: (step bk t, isValue bk t, isArgs bk t), from one
--- walk of t. At a call on values, it first tries jump, which can reach a
--- later term of the same Eval run in one go.
-def scanWith (bk : Book) (jump : Term → Option Term) : Term → Option Term × Bool × Bool
+-- walk of t. At a call on values, it first tries jump.go.
+def scanWith (bk : Book) (jump : Jump) : Term → Option Term × Bool × Bool
   | Ann x _ => (some x, false, false)
   | Ref k => (fires bk (Ref k), stops bk (Ref k), true)
   | App q f x =>
@@ -566,7 +580,7 @@ def scanWith (bk : Book) (jump : Term → Option Term) : Term → Option Term ×
     let ok := af && (!q.live || vx)
     let s :=
       match (if ok = true then
-          (match jump (App q f x) with
+          (match jump.go (App q f x) with
            | some u => some u
            | none => fires bk (App q f x))
         else none) with
@@ -624,10 +638,10 @@ def scanWith (bk : Book) (jump : Term → Option Term) : Term → Option Term ×
   | Var _ => (none, false, false)
   | _ => (none, true, false)
 
-theorem scan_eq : scanWith bk (fun _ => none) t = (step bk t, isValue bk t, isArgs bk t) := by
+theorem scanWith_eq : scanWith bk Jump.never t = (step bk t, isValue bk t, isArgs bk t) := by
   induction t with
   | App q f x ihf ihx =>
-    simp only [scanWith, ihf, ihx, step, call, isValue, isArgs]
+    simp only [scanWith, Jump.never_go, ihf, ihx, step, call, isValue, isArgs]
     congr 2
     simp only [Bool.and_eq_true, live_or]
   | Let q v f ihv => simp only [scanWith, ihv, step, isValue, isArgs]
@@ -640,23 +654,23 @@ theorem scan_eq : scanWith bk (fun _ => none) t = (step bk t, isValue bk t, isAr
 -- =====
 
 -- Plus bk t u: t becomes u in one or more Eval steps
-def Plus (bk : Book) (t u : Term) : Prop := ∃ m, Eval bk t m ∧ Spec.Evals bk m u
+def Plus (bk : Book) (t u : Term) : Prop := ∃ m, Eval bk t m ∧ Contract.Evals bk m u
 
-theorem evals_trans (h1 : Spec.Evals bk a b) (h2 : Spec.Evals bk b c) : Spec.Evals bk a c := by
+theorem evals_trans (h1 : Contract.Evals bk a b) (h2 : Contract.Evals bk b c) : Contract.Evals bk a c := by
   induction h1 with
   | refl => exact h2
   | step e _ ih => exact .step e (ih h2)
 
-theorem plus_evals : Plus bk t u → Spec.Evals bk t u := fun ⟨_, e, es⟩ => .step e es
+theorem plus_evals : Plus bk t u → Contract.Evals bk t u := fun ⟨_, e, es⟩ => .step e es
 
-theorem plus_of (h : Spec.Evals bk t u) (n : t ≠ u) : Plus bk t u := by
+theorem plus_of (h : Contract.Evals bk t u) (n : t ≠ u) : Plus bk t u := by
   cases h with
   | refl => exact absurd rfl n
   | step e es => exact ⟨_, e, es⟩
 
--- a context that Eval steps inside carries Spec.Evals and Plus
+-- a context that Eval steps inside carries Contract.Evals and Plus
 theorem evals_map (C : Term → Term) (hC : ∀ {a a'}, Eval bk a a' → Eval bk (C a) (C a'))
-    (h : Spec.Evals bk a a') : Spec.Evals bk (C a) (C a') := by
+    (h : Contract.Evals bk a a') : Contract.Evals bk (C a) (C a') := by
   induction h with
   | refl => exact .refl
   | step e _ ih => exact .step (hC e) ih
@@ -688,8 +702,11 @@ theorem scanWith_snd : (scanWith bk jump t).2 = (isValue bk t, isArgs bk t) := b
 
 theorem scanWith_value : (scanWith bk jump t).2.1 = isValue bk t := by rw [scanWith_snd]
 
+-- each result of jump.go is one or more Eval steps from its call
+def Jump.Sound (bk : Book) (jump : Jump) : Prop := ∀ t u, jump.go t = some u → Plus bk t u
+
 -- each step that scanWith gives is one or more Eval steps, when each jump is
-theorem scanWith_sound (hj : ∀ t u, jump t = some u → Plus bk t u) :
+theorem scanWith_sound (hj : Jump.Sound bk jump) :
     (scanWith bk jump t).1 = some u → Plus bk t u := by
   induction t generalizing u with
   | Ann x T => simp only [scanWith, Option.some.injEq]; rintro rfl; exact ⟨_, .ann, .refl⟩
@@ -786,18 +803,18 @@ theorem scanWith_sound (hj : ∀ t u, jump t = some u → Plus bk t u) :
   | _ => simp [scanWith]
 
 -- scanWith with a jump gives no step only where it gives none with no jump
-theorem scanWith_none' : (scanWith bk jump t).1 = none → (scanWith bk (fun _ => none) t).1 = none := by
+theorem scanWith_none_nojump : (scanWith bk jump t).1 = none → (scanWith bk Jump.never t).1 = none := by
   induction t with
   | App q f x ihf ihx =>
     have vf := scanWith_snd (bk := bk) (jump := jump) (t := f)
-    have vf0 := scanWith_snd (bk := bk) (jump := fun _ => none) (t := f)
+    have vf0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := f)
     have vx := scanWith_snd (bk := bk) (jump := jump) (t := x)
-    have vx0 := scanWith_snd (bk := bk) (jump := fun _ => none) (t := x)
-    simp only [scanWith]
+    have vx0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := x)
+    simp only [scanWith, Jump.never_go]
     generalize scanWith bk jump f = F at *
-    generalize scanWith bk (fun _ => none) f = F0 at *
+    generalize scanWith bk Jump.never f = F0 at *
     generalize scanWith bk jump x = X at *
-    generalize scanWith bk (fun _ => none) x = X0 at *
+    generalize scanWith bk Jump.never x = X0 at *
     obtain ⟨sf, _, _⟩ := F
     obtain ⟨sf0, _, _⟩ := F0
     obtain ⟨sx, _, _⟩ := X
@@ -831,10 +848,10 @@ theorem scanWith_none' : (scanWith bk jump t).1 = none → (scanWith bk (fun _ =
         · rename_i v; simp [v]
   | Let q v f ihv =>
     have vv := scanWith_snd (bk := bk) (jump := jump) (t := v)
-    have vv0 := scanWith_snd (bk := bk) (jump := fun _ => none) (t := v)
+    have vv0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := v)
     simp only [scanWith]
     generalize scanWith bk jump v = V at *
-    generalize scanWith bk (fun _ => none) v = V0 at *
+    generalize scanWith bk Jump.never v = V0 at *
     obtain ⟨sv, _, _⟩ := V
     obtain ⟨sv0, _, _⟩ := V0
     simp only [Prod.mk.injEq] at vv vv0
@@ -849,12 +866,12 @@ theorem scanWith_none' : (scanWith bk jump t).1 = none → (scanWith bk (fun _ =
       simp only [hv0]; exact h
   | Tup q a b iha ihb =>
     have va := scanWith_snd (bk := bk) (jump := jump) (t := a)
-    have va0 := scanWith_snd (bk := bk) (jump := fun _ => none) (t := a)
+    have va0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := a)
     simp only [scanWith]
     generalize scanWith bk jump a = A at *
-    generalize scanWith bk (fun _ => none) a = A0 at *
+    generalize scanWith bk Jump.never a = A0 at *
     generalize scanWith bk jump b = B at *
-    generalize scanWith bk (fun _ => none) b = B0 at *
+    generalize scanWith bk Jump.never b = B0 at *
     obtain ⟨sa, _, _⟩ := A
     obtain ⟨sa0, _, _⟩ := A0
     obtain ⟨sb, _, _⟩ := B
@@ -875,19 +892,19 @@ theorem scanWith_none' : (scanWith bk jump t).1 = none → (scanWith bk (fun _ =
   | Rwt e P f ihe =>
     simp only [scanWith]
     generalize scanWith bk jump e = E at *
-    generalize scanWith bk (fun _ => none) e = E0 at *
+    generalize scanWith bk Jump.never e = E0 at *
     obtain ⟨se, _, _⟩ := E
     obtain ⟨se0, _, _⟩ := E0
     dsimp only at *
     cases e <;> simp_all
   | Min a b iha ihb =>
     have va := scanWith_snd (bk := bk) (jump := jump) (t := a)
-    have va0 := scanWith_snd (bk := bk) (jump := fun _ => none) (t := a)
+    have va0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := a)
     simp only [scanWith]
     generalize scanWith bk jump a = A at *
-    generalize scanWith bk (fun _ => none) a = A0 at *
+    generalize scanWith bk Jump.never a = A0 at *
     generalize scanWith bk jump b = B at *
-    generalize scanWith bk (fun _ => none) b = B0 at *
+    generalize scanWith bk Jump.never b = B0 at *
     obtain ⟨sa, _, _⟩ := A
     obtain ⟨sa0, _, _⟩ := A0
     obtain ⟨sb, _, _⟩ := B
@@ -908,8 +925,8 @@ theorem scanWith_none' : (scanWith bk jump t).1 = none → (scanWith bk (fun _ =
   | _ => simp [scanWith]
 
 theorem scanWith_none (h : (scanWith bk jump t).1 = none) : step bk t = none := by
-  have e := congrArg Prod.fst (scan_eq (bk := bk) (t := t))
+  have e := congrArg Prod.fst (scanWith_eq (bk := bk) (t := t))
   simp only at e
-  rw [← e]; exact scanWith_none' h
+  rw [← e]; exact scanWith_none_nojump h
 
 end Interp

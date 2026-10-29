@@ -5,7 +5,7 @@ import Contract.Spec
 --
 -- The proof of claim 3 (bytes): bytes go in and out without change.
 
-open Quan Term Spec
+open Quan Term Contract
 
 namespace Interp
 
@@ -55,7 +55,7 @@ theorem bytes_out (h : Bytes.ofObs o = some bs) : observe (Bytes.term bs) = some
       · simp [hn, lt] at h
   | case3 => simp at h
 
-theorem bytes : Claim.bytes := by
+theorem claim_bytes : Claim.bytes := by
   refine ⟨fun bs => ?_, fun o bs h => bytes_out h⟩
   obtain ⟨o, ho, hb⟩ := bytes_in bs
   simp [ho, hb]

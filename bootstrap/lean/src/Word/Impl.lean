@@ -9,12 +9,12 @@ import Word.Mul
 -- The word jump: a call of base's word code on values goes in one step to
 -- the result that the proofs of that code give. A family of word defs
 -- jumps only when the book's defs for it equal Word.Ref, and T.from_nat
--- only when T's defs equal the templates of Word.Nat (WordOk, made once per
--- run). wordJump_sound proves that each jump is one or more Eval steps.
+-- only when T's defs equal the templates of Word.Nat (Found, made once per
+-- run). jump_sound proves that each jump is one or more Eval steps.
 
-open Quan Term Spec
+open Quan Term Contract
 
-namespace Interp
+namespace Interp.Word
 
 -- Shapes
 -- ======
@@ -77,7 +77,7 @@ def fromNatJump (ts : List (String × Nat)) : Term → Option Term
     some (boxT T (wordT (fromNatBits w m)))
   | _ => none
 
-theorem jump1_spec (h : jump1 k f t = some u) :
+theorem jump1_inv (h : jump1 k f t = some u) :
     ∃ bs, t = callT k [Bytes.nat bs.length, wordT bs] ∧ u = f bs := by
   unfold jump1 at h
   split at h
@@ -94,12 +94,12 @@ theorem jump1_spec (h : jump1 k f t = some u) :
       split at h
       · rename_i len
         cases h
-        exact ⟨bs, by rw [decNat_ok hm, decWord_ok hw, ← len, hj]; rfl, rfl⟩
+        exact ⟨bs, by rw [decNat_sound hm, decWord_sound hw, ← len, hj]; rfl, rfl⟩
       · simp at h
     · simp at h
   · simp at h
 
-theorem jump2_spec (h : jump2 k f t = some u) :
+theorem jump2_inv (h : jump2 k f t = some u) :
     ∃ as bs, as.length = bs.length ∧ t = callT k [Bytes.nat as.length, wordT as, wordT bs] ∧
       u = f as bs := by
   unfold jump2 at h
@@ -121,12 +121,12 @@ theorem jump2_spec (h : jump2 k f t = some u) :
       · rename_i len
         cases h
         refine ⟨as, bs, len.1.trans len.2.symm, ?_, rfl⟩
-        rw [decNat_ok hm, decWord_ok ha, decWord_ok hb, ← len.1, hj]; rfl
+        rw [decNat_sound hm, decWord_sound ha, decWord_sound hb, ← len.1, hj]; rfl
       · simp at h
     · simp at h
   · simp at h
 
-theorem groupJump_spec (h : groupJump t = some u) :
+theorem groupJump_inv (h : groupJump t = some u) :
     ∃ as bs f c, as.length = bs.length ∧
       t = groupCall (Bytes.nat as.length) (wordT as) (wordT bs) (bitT f) (bitT c) ∧
       u = wordT (adcBits f as bs c) := by
@@ -153,11 +153,11 @@ theorem groupJump_spec (h : groupJump t = some u) :
     · rename_i len
       cases h
       refine ⟨as, bs, fb, cb, len.1.trans len.2.symm, ?_, rfl⟩
-      rw [decNat_ok hm, decWord_ok ha, decWord_ok hb, decBit_ok hf, decBit_ok hc, ← len.1]; rfl
+      rw [decNat_sound hm, decWord_sound ha, decWord_sound hb, decBit_sound hf, decBit_sound hc, ← len.1]; rfl
     · simp at h
   · simp at h
 
-theorem mulJump_spec (h : mulJump t = some u) :
+theorem mulJump_inv (h : mulJump t = some u) :
     ∃ as bs cs, cs.length = bs.length ∧
       t = goCall (Bytes.nat bs.length) (Bytes.nat as.length) (wordT as) (wordT bs) (wordT cs) ∧
       u = wordT (mulGoBits as bs cs) := by
@@ -184,12 +184,12 @@ theorem mulJump_spec (h : mulJump t = some u) :
     · rename_i len
       cases h
       refine ⟨as, bs, cs, len.2.2.trans len.2.1.symm, ?_, rfl⟩
-      rw [decNat_ok hn, decNat_ok hm, decWord_ok ha, decWord_ok hb, decWord_ok hc, ← len.1,
+      rw [decNat_sound hn, decNat_sound hm, decWord_sound ha, decWord_sound hb, decWord_sound hc, ← len.1,
         ← len.2.1]; rfl
     · simp at h
   · simp at h
 
-theorem fromNatJump_spec (h : fromNatJump ts t = some u) :
+theorem fromNatJump_inv (h : fromNatJump ts t = some u) :
     ∃ T w n, (T, w) ∈ ts ∧ t = callT (T ++ ".from_nat") [Bytes.nat n] ∧
       u = boxT T (wordT (fromNatBits w n)) := by
   unfold fromNatJump at h
@@ -205,13 +205,13 @@ theorem fromNatJump_spec (h : fromNatJump ts t = some u) :
     simp only [hf, hm, bind, Option.bind, Option.some.injEq] at h
     have hk := List.find?_some hf
     simp only [beq_iff_eq] at hk
-    exact ⟨T, w, m, List.mem_of_find?_eq_some hf, by rw [decNat_ok hm, hk]; rfl, h.symm⟩
+    exact ⟨T, w, m, List.mem_of_find?_eq_some hf, by rw [decNat_sound hm, hk]; rfl, h.symm⟩
   · simp at h
 
 -- Jump
 -- ====
 
-structure WordOk where
+structure Found where
   add : Bool
   not : Bool
   and : Bool
@@ -225,61 +225,64 @@ structure WordOk where
   mul : Bool
   fromNat : List (String × Nat)
 
-def wordOk (bk : Book) : WordOk :=
-  ⟨addOk bk, notOk bk, bitOk bk .and, bitOk bk .or, bitOk bk .xor, incOk bk, toNatOk bk,
-    cmpOk bk, shlOk bk, shrOk bk, mulOk bk, fromNatTypes bk⟩
+def found (bk : Book) : Found :=
+  ⟨hasAdd bk, hasNot bk, hasBit bk .and, hasBit bk .or, hasBit bk .xor, hasInc bk, hasToNat bk,
+    hasCmp bk, hasShl bk, hasShr bk, hasMul bk, fromNatTypes bk⟩
 
 def bitJump (o : BitOp) : Term → Option Term :=
   jump2 o.word fun as bs => wordT (List.zipWith o.op as bs)
 
--- wordJump ok t: the first jump of a family that ok allows
-def wordJump (ok : WordOk) (t : Term) : Option Term :=
-  [ (ok.add, groupJump),
-    (ok.not, jump1 "Word.not" fun bs => wordT (bs.map (!·))),
-    (ok.and, bitJump .and),
-    (ok.or, bitJump .or),
-    (ok.xor, bitJump .xor),
-    (ok.inc, jump1 "Word.inc" fun bs => wordT (incBits bs)),
-    (ok.toNat, jump1 "Word.to_nat" fun bs => Bytes.nat (toNatBits bs)),
-    (ok.cmp, jump2 "Word.cmp" fun as bs => cmpT (cmpBits as bs)),
-    (ok.shl, jump1 "Word.shl" fun bs => wordT (shlBits bs)),
-    (ok.shr, jump1 "Word.shr" fun bs => wordT (shrBits bs)),
-    (ok.mul, mulJump),
-    (!ok.fromNat.isEmpty, fromNatJump ok.fromNat) ].findSome? fun (on, j) => if on then j t else none
+-- jump found: the first jump of a family that found has. It takes base's
+-- word defs, and T.from_nat for a one-word type T.
+def jump (found : Found) : Jump where
+  takes k := k ∈ ["Word.adc.group", "Word.not", "Word.and", "Word.or", "Word.xor", "Word.inc",
+    "Word.to_nat", "Word.cmp", "Word.shl", "Word.shr", "Word.mul.go"] || k.endsWith ".from_nat"
+  go t := [ (found.add, groupJump),
+    (found.not, jump1 "Word.not" fun bs => wordT (bs.map (!·))),
+    (found.and, bitJump .and),
+    (found.or, bitJump .or),
+    (found.xor, bitJump .xor),
+    (found.inc, jump1 "Word.inc" fun bs => wordT (incBits bs)),
+    (found.toNat, jump1 "Word.to_nat" fun bs => Bytes.nat (toNatBits bs)),
+    (found.cmp, jump2 "Word.cmp" fun as bs => cmpT (cmpBits as bs)),
+    (found.shl, jump1 "Word.shl" fun bs => wordT (shlBits bs)),
+    (found.shr, jump1 "Word.shr" fun bs => wordT (shrBits bs)),
+    (found.mul, mulJump),
+    (!found.fromNat.isEmpty, fromNatJump found.fromNat) ].findSome? fun (on, j) => if on then j t else none
 
-theorem bitJump_sound (H : BitRefs bk o) (h : bitJump o t = some u) : Plus bk t u := by
-  obtain ⟨as, bs, len, rfl, rfl⟩ := jump2_spec h
+theorem bitJump_sound (H : HasBit bk o) (h : bitJump o t = some u) : Plus bk t u := by
+  obtain ⟨as, bs, len, rfl, rfl⟩ := jump2_inv h
   exact plus_tup (bit_evals H as bs len) word_tup
 
-theorem wordJump_sound : wordJump (wordOk bk) t = some u → Plus bk t u := by
-  intro h
+theorem jump_sound : Jump.Sound bk (jump (found bk)) := by
+  intro t u h
   obtain ⟨⟨on, j⟩, mem, hj⟩ := List.exists_of_findSome?_eq_some h
   cases hon : on
   · simp [hon] at hj
   simp only [hon, ite_true] at hj
-  simp only [wordOk, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at mem
+  simp only [found, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at mem
   rcases mem with ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ |
     ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ <;> rw [hon] at e
-  · obtain ⟨as, bs, f, c, len, rfl, rfl⟩ := groupJump_spec hj
-    exact plus_tup (group_evals (addOk_ok e.symm) as bs f c len) word_tup
-  · obtain ⟨bs, rfl, rfl⟩ := jump1_spec hj
-    exact plus_tup (not_evals (notOk_ok e.symm) bs) word_tup
-  · exact bitJump_sound (bitOk_ok e.symm) hj
-  · exact bitJump_sound (bitOk_ok e.symm) hj
-  · exact bitJump_sound (bitOk_ok e.symm) hj
-  · obtain ⟨bs, rfl, rfl⟩ := jump1_spec hj
-    exact plus_tup (inc_evals (hasRef_ok e.symm) bs) word_tup
-  · obtain ⟨bs, rfl, rfl⟩ := jump1_spec hj
-    exact plus_tup (toNat_evals (toNatOk_ok e.symm) bs) nat_tup
-  · obtain ⟨as, bs, len, rfl, rfl⟩ := jump2_spec hj
-    exact plus_tup (cmp_evals (cmpOk_ok e.symm) as bs len) ⟨_, _, _, rfl⟩
-  · obtain ⟨bs, rfl, rfl⟩ := jump1_spec hj
-    exact plus_tup (shl_evals (shlOk_ok e.symm) bs) word_tup
-  · obtain ⟨bs, rfl, rfl⟩ := jump1_spec hj
-    exact plus_tup (shr_evals (shrOk_ok e.symm) bs) word_tup
-  · obtain ⟨as, bs, cs, len, rfl, rfl⟩ := mulJump_spec hj
-    exact plus_tup (go_evals (mulOk_ok e.symm) as bs cs len) word_tup
-  · obtain ⟨T, w, n, mem, rfl, rfl⟩ := fromNatJump_spec hj
-    exact plus_tup (fromNat_evals (fromNatTypes_ok mem) n) ⟨_, _, _, rfl⟩
+  · obtain ⟨as, bs, f, c, len, rfl, rfl⟩ := groupJump_inv hj
+    exact plus_tup (group_evals (hasAdd_sound e.symm) as bs f c len) word_tup
+  · obtain ⟨bs, rfl, rfl⟩ := jump1_inv hj
+    exact plus_tup (not_evals (hasNot_sound e.symm) bs) word_tup
+  · exact bitJump_sound (hasBit_sound e.symm) hj
+  · exact bitJump_sound (hasBit_sound e.symm) hj
+  · exact bitJump_sound (hasBit_sound e.symm) hj
+  · obtain ⟨bs, rfl, rfl⟩ := jump1_inv hj
+    exact plus_tup (inc_evals (hasRef_sound e.symm) bs) word_tup
+  · obtain ⟨bs, rfl, rfl⟩ := jump1_inv hj
+    exact plus_tup (toNat_evals (hasToNat_sound e.symm) bs) nat_tup
+  · obtain ⟨as, bs, len, rfl, rfl⟩ := jump2_inv hj
+    exact plus_tup (cmp_evals (hasCmp_sound e.symm) as bs len) ⟨_, _, _, rfl⟩
+  · obtain ⟨bs, rfl, rfl⟩ := jump1_inv hj
+    exact plus_tup (shl_evals (hasShl_sound e.symm) bs) word_tup
+  · obtain ⟨bs, rfl, rfl⟩ := jump1_inv hj
+    exact plus_tup (shr_evals (hasShr_sound e.symm) bs) word_tup
+  · obtain ⟨as, bs, cs, len, rfl, rfl⟩ := mulJump_inv hj
+    exact plus_tup (go_evals (hasMul_sound e.symm) as bs cs len) word_tup
+  · obtain ⟨T, w, n, mem, rfl, rfl⟩ := fromNatJump_inv hj
+    exact plus_tup (fromNat_evals (fromNatTypes_sound mem) n) ⟨_, _, _, rfl⟩
 
-end Interp
+end Interp.Word

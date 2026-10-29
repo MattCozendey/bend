@@ -11,7 +11,7 @@ import Kernel
 
 open Quan Term
 
-namespace Spec
+namespace Contract
 
 -- Answer
 -- ======
@@ -233,4 +233,4 @@ def Claim.laws : Prop :=
     Term.Closed p → Term.Live bk p → Typed bk [] p (Eql (Term.inst C (Ref k)) b A) →
     Conv bk (Term.inst C v) b
 
-end Spec
+end Contract

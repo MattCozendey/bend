@@ -7,7 +7,7 @@ import Run
 -- that Eval reaches from k. It joins the kernel's adequate with Eval's
 -- reduction.
 
-open Quan Term Spec
+open Quan Term Contract
 
 namespace Interp
 
@@ -16,7 +16,7 @@ theorem pars_hole (h : Pars bk x y) : Pars bk (inst C x) (inst C y) := by
   | refl => exact .refl
   | step s _ ih => exact .step (par_inst par_refl s) ih
 
-theorem laws : Claim.laws := by
+theorem claim_laws : Claim.laws := by
   intro bk k v p C b A hc ev cp lp tp
   obtain ⟨_, lv⟩ := book_check bk hc
   have h1 : Conv bk (inst C (Ref k)) b := adequate bk p _ _ b A hc cp lp tp crefl
