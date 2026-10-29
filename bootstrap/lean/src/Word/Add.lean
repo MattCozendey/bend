@@ -14,7 +14,7 @@ namespace Interp.Word
 -- groupCall n a b f c: the call of Word.adc on n, a, b, f and the carry c
 def groupCall (n a b f c : Term) : Term :=
   App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (Ref "Word.adc.group") n) a) b) f)
-    (Tup Q1 (Lab "Word.adc") (Lab "()"))) c
+    (labT "Word.adc")) c
 
 -- fullAdd a b c: Bool.full_add, the sum bit and the carry of a + b + c
 def fullAdd (a b c : Bool) : Bool × Bool :=
@@ -55,7 +55,7 @@ theorem hasAdd_sound (h : hasAdd bk = true) : HasAdd bk := by
     hasRef_sound h.1.1.2, hasRef_sound h.1.2, hasRef_sound h.2⟩
 
 theorem add_round (H : HasAdd bk) (j : Nat) (as bs : List Bool) (f a b c : Bool) :
-    Evals bk (groupCall (succT (Bytes.nat j)) (cellT (bitT a) (wordT as))
+    Evals bk (groupCall (boxT "Succ" (Bytes.nat j)) (cellT (bitT a) (wordT as))
         (cellT (bitT b) (wordT bs)) (bitT f) (bitT c))
       (cellT (bitT (fullAdd a (if f then !b else b) c).1)
         (groupCall (Bytes.nat j) (wordT as) (wordT bs) (bitT f)

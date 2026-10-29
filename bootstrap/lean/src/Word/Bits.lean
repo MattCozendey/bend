@@ -25,7 +25,7 @@ theorem hasNot_sound (h : hasNot bk = true) : HasNot bk := by
   exact ⟨hasRef_sound h.1, hasRef_sound h.2⟩
 
 theorem not_round (H : HasNot bk) (j : Nat) (t : List Bool) (b : Bool) :
-    Evals bk (callT "Word.not" [succT (Bytes.nat j), cellT (bitT b) (wordT t)])
+    Evals bk (callT "Word.not" [boxT "Succ" (Bytes.nat j), cellT (bitT b) (wordT t)])
       (cellT (bitT !b) (callT "Word.not" [Bytes.nat j, wordT t])) := by
   obtain ⟨_, hw, hwv⟩ := H.word
   obtain ⟨_, hb, hbv⟩ := H.bool
@@ -80,7 +80,7 @@ theorem hasBit_sound (h : hasBit bk o = true) : HasBit bk o := by
   exact ⟨hasRef_sound h.1.1, hasRef_sound h.1.2, fun e => by simp_all [hasRef_sound]⟩
 
 theorem bit_round (H : HasBit bk o) (j : Nat) (as bs : List Bool) (a b : Bool) :
-    Evals bk (callT o.word [succT (Bytes.nat j), cellT (bitT a) (wordT as),
+    Evals bk (callT o.word [boxT "Succ" (Bytes.nat j), cellT (bitT a) (wordT as),
         cellT (bitT b) (wordT bs)])
       (cellT (bitT (o.op a b)) (callT o.word [Bytes.nat j, wordT as, wordT bs])) := by
   apply stepUntil_sound (stop := cellEnd o.word) (n := 100)

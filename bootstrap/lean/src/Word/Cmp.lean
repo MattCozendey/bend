@@ -39,7 +39,7 @@ theorem hasCmp_sound (h : hasCmp bk = true) : HasCmp bk := by
   exact ⟨hasRef_sound h.1.1, hasRef_sound h.1.2, hasRef_sound h.2⟩
 
 theorem cmp_round (H : HasCmp bk) (j : Nat) (as bs : List Bool) (a b : Bool) :
-    Evals bk (callT "Word.cmp" [succT (Bytes.nat j), cellT (bitT a) (wordT as),
+    Evals bk (callT "Word.cmp" [boxT "Succ" (Bytes.nat j), cellT (bitT a) (wordT as),
         cellT (bitT b) (wordT bs)])
       (callT "Word.cmp.fin" [bitT a, bitT b, callT "Word.cmp" [Bytes.nat j, wordT as, wordT bs]]) := by
   obtain ⟨_, hc, hcv⟩ := H.cmp

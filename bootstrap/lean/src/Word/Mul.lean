@@ -45,7 +45,7 @@ theorem go_round0 (H : HasMul bk) (k : Nat) (bs cs : List Bool) :
   word_simp [hg, hgv, R.Word.mul.go, goCall, wordT, Bytes.nat]
 
 theorem go_round_f (H : HasMul bk) (k j : Nat) (as bs cs : List Bool) :
-    step bk (goCall (Bytes.nat k) (succT (Bytes.nat j)) (cellT (bitT false) (wordT as))
+    step bk (goCall (Bytes.nat k) (boxT "Succ" (Bytes.nat j)) (cellT (bitT false) (wordT as))
         (wordT bs) (wordT cs)) =
       some (goCall (Bytes.nat k) (Bytes.nat j) (wordT as) (callT "Word.shl" [Bytes.nat k, wordT bs])
         (wordT cs)) := by
@@ -53,7 +53,7 @@ theorem go_round_f (H : HasMul bk) (k j : Nat) (as bs cs : List Bool) :
   word_simp [hg, hgv, R.Word.mul.go, goCall]
 
 theorem go_round_t (H : HasMul bk) (k j : Nat) (as bs cs : List Bool) :
-    step bk (goCall (Bytes.nat k) (succT (Bytes.nat j)) (cellT (bitT true) (wordT as))
+    step bk (goCall (Bytes.nat k) (boxT "Succ" (Bytes.nat j)) (cellT (bitT true) (wordT as))
         (wordT bs) (wordT cs)) =
       some (goCall (Bytes.nat k) (Bytes.nat j) (wordT as) (callT "Word.shl" [Bytes.nat k, wordT bs])
         (callT "Word.add" [Bytes.nat k, wordT cs, wordT bs])) := by

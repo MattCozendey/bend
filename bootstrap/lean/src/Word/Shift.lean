@@ -51,7 +51,7 @@ theorem hasShl_sound (h : hasShl bk = true) : HasShl bk := by
   exact ⟨hasRef_sound h.1, hasRef_sound h.2⟩
 
 theorem put_round (H : HasShl bk) (j : Nat) (t : List Bool) (c b : Bool) :
-    Evals bk (callT "Word.shl.put" [succT (Bytes.nat j), bitT c, cellT (bitT b) (wordT t)])
+    Evals bk (callT "Word.shl.put" [boxT "Succ" (Bytes.nat j), bitT c, cellT (bitT b) (wordT t)])
       (cellT (bitT c) (callT "Word.shl.put" [Bytes.nat j, bitT b, wordT t])) := by
   obtain ⟨_, hp, hpv⟩ := H.put
   apply stepUntil_sound (stop := cellEnd "Word.shl.put") (n := 100)
@@ -69,7 +69,7 @@ theorem put_evals (H : HasShl bk) : ∀ (c : Bool) (bs : List Bool),
   | c, b :: bs => evals_trans (put_round H bs.length bs c b) (evals_rest (put_evals H b bs))
 
 theorem shl_round (H : HasShl bk) (j : Nat) (t : List Bool) (b : Bool) :
-    Evals bk (callT "Word.shl" [succT (Bytes.nat j), cellT (bitT b) (wordT t)])
+    Evals bk (callT "Word.shl" [boxT "Succ" (Bytes.nat j), cellT (bitT b) (wordT t)])
       (cellT (bitT false) (callT "Word.shl.put" [Bytes.nat j, bitT b, wordT t])) := by
   obtain ⟨_, hs, hsv⟩ := H.shl
   apply stepUntil_sound (stop := cellEnd "Word.shl.put") (n := 100)
@@ -101,7 +101,7 @@ theorem hasShr_sound (h : hasShr bk = true) : HasShr bk := by
   exact ⟨hasRef_sound h.1, hasRef_sound h.2⟩
 
 theorem pad_round (H : HasShr bk) (j : Nat) (t : List Bool) (b : Bool) :
-    Evals bk (callT "Word.shr.pad" [succT (Bytes.nat j), cellT (bitT b) (wordT t)])
+    Evals bk (callT "Word.shr.pad" [boxT "Succ" (Bytes.nat j), cellT (bitT b) (wordT t)])
       (cellT (bitT b) (callT "Word.shr.pad" [Bytes.nat j, wordT t])) := by
   obtain ⟨_, hp, hpv⟩ := H.pad
   apply stepUntil_sound (stop := cellEnd "Word.shr.pad") (n := 100)
@@ -119,7 +119,7 @@ theorem pad_evals (H : HasShr bk) : ∀ bs : List Bool,
   | b :: bs => evals_trans (pad_round H bs.length bs b) (evals_rest (pad_evals H bs))
 
 theorem shr_round (H : HasShr bk) (j : Nat) (t : List Bool) (b : Bool) :
-    Evals bk (callT "Word.shr" [succT (Bytes.nat j), cellT (bitT b) (wordT t)])
+    Evals bk (callT "Word.shr" [boxT "Succ" (Bytes.nat j), cellT (bitT b) (wordT t)])
       (callT "Word.shr.pad" [Bytes.nat j, wordT t]) := by
   obtain ⟨_, hs, hsv⟩ := H.shr
   apply stepUntil_sound (stop := headIs "Word.shr.pad") (n := 100)

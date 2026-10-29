@@ -18,22 +18,23 @@ namespace Interp.Word
 -- Terms
 -- =====
 
-def bitT (b : Bool) : Term := Tup Q1 (Lab (if b then "True" else "False")) (Lab "()")
+-- labT k: k{}, for a constructor k with no field, like True or WNil
+def labT (k : String) : Term := Tup Q1 (Lab k) (Lab "()")
+
+def bitT (b : Bool) : Term := labT (if b then "True" else "False")
 
 -- cellT h t: the word cell of the lowest bit h and the rest t
 def cellT (h t : Term) : Term := Tup Q1 (Lab "WCon") (Tup Q1 h (Tup Q1 t (Lab "()")))
 
 def wordT : List Bool → Term
-  | [] => Tup Q1 (Lab "WNil") (Lab "()")
+  | [] => labT "WNil"
   | b :: bs => cellT (bitT b) (wordT bs)
-
-def succT (n : Term) : Term := Tup Q1 (Lab "Succ") (Tup Q1 n (Lab "()"))
 
 -- boxT k x: k{x}, for a one-field constructor k, like U32 or Succ
 def boxT (k : String) (x : Term) : Term := Tup Q1 (Lab k) (Tup Q1 x (Lab "()"))
 
 def cmpT (o : Ordering) : Term :=
-  Tup Q1 (Lab (match o with | .lt => "LT" | .eq => "EQ" | .gt => "GT")) (Lab "()")
+  labT (match o with | .lt => "LT" | .eq => "EQ" | .gt => "GT")
 
 -- callT k xs: def k applied to xs, each at quantity 1
 def callT (k : String) (xs : List Term) : Term := spine (Ref k) (xs.map (Q1, ·))
@@ -58,19 +59,19 @@ theorem value_step (v : isValue bk t = true) : step bk t = none := by
   | some u => exact (eval_value (step_sound h) (isValue_iff.1 v)).elim
 
 theorem bit_isValue : isValue bk (bitT b) = true := by
-  cases b <;> simp [bitT, isValue, Quan.live]
+  cases b <;> simp [bitT, labT, isValue, Quan.live]
 
 theorem bit_isData : isData (bitT b) = true := by
-  cases b <;> simp [bitT, isData, Quan.live]
+  cases b <;> simp [bitT, labT, isData, Quan.live]
 
 theorem word_isValue : isValue bk (wordT bs) = true := by
   induction bs with
-  | nil => simp [wordT, isValue]
+  | nil => simp [wordT, labT, isValue]
   | cons b bs ih => simp [wordT, cellT, isValue, Quan.live, ih, bit_isValue]
 
 theorem word_isData : isData (wordT bs) = true := by
   induction bs with
-  | nil => simp [wordT, isData]
+  | nil => simp [wordT, labT, isData]
   | cons b bs ih => simp [wordT, cellT, isData, Quan.live, ih, bit_isData]
 
 theorem nat_isValue : isValue bk (Bytes.nat n) = true := by
@@ -125,7 +126,7 @@ macro "word_simp" "[" xs:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic| set_option maxHeartbeats 0 in set_option maxRecDepth 100000 in
     simp (config := { maxSteps := 50000000 }) [stepUntil, step, call, fires, isArgs,
     isValue, stops, unspine, walk, redex, isData, Quan.live, Quan.fld, takes, spine, Term.sub,
-    Env.sub, bitT, cellT, callT, succT, boxT, cellEnd, headIs, nat_isValue, nat_isData, word_isValue,
+    Env.sub, labT, bitT, cellT, callT, boxT, cellEnd, headIs, nat_isValue, nat_isData, word_isValue,
     word_isData, nat_step, word_step, $xs,*])
 
 -- Eval steps in the rest of a word cell
@@ -177,7 +178,7 @@ def decNat : Term → Option Nat
 
 theorem decBit_sound (h : decBit t = some b) : t = bitT b := by
   unfold decBit at h
-  split at h <;> simp_all [bitT]
+  split at h <;> simp_all [bitT, labT]
 
 theorem decWord_sound (h : decWord t = some bs) : t = wordT bs := by
   fun_induction decWord t generalizing bs with

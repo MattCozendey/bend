@@ -93,22 +93,10 @@ theorem jump1_inv (h : (jump1 k f).go t = some u) :
   unfold jump1 at h
   dsimp only at h
   split at h
-  · rename_i j n w
-    split at h
-    · rename_i hj
-      cases hm : decNat n with
-      | none => simp [hm] at h
-      | some m =>
-      cases hw : decWord w with
-      | none => simp [hm, hw] at h
-      | some bs =>
-      simp only [hm, hw, bind, Option.bind] at h
-      split at h
-      · rename_i len
-        cases h
-        exact ⟨bs, by rw [decNat_sound hm, decWord_sound hw, ← len, hj]; rfl, rfl⟩
-      · simp at h
-    · simp at h
+  · simp only [Option.ite_none_right_eq_some, Option.bind_eq_bind, Option.bind_eq_some_iff,
+      Option.some.injEq] at h
+    obtain ⟨rfl, _, hm, bs, hw, rfl, rfl⟩ := h
+    exact ⟨bs, by rw [decNat_sound hm, decWord_sound hw]; rfl, rfl⟩
   · simp at h
 
 theorem jump2_inv (h : (jump2 k f).go t = some u) :
@@ -117,26 +105,11 @@ theorem jump2_inv (h : (jump2 k f).go t = some u) :
   unfold jump2 at h
   dsimp only at h
   split at h
-  · rename_i j n a b
-    split at h
-    · rename_i hj
-      cases hm : decNat n with
-      | none => simp [hm] at h
-      | some m =>
-      cases ha : decWord a with
-      | none => simp [hm, ha] at h
-      | some as =>
-      cases hb : decWord b with
-      | none => simp [hm, ha, hb] at h
-      | some bs =>
-      simp only [hm, ha, hb, bind, Option.bind] at h
-      split at h
-      · rename_i len
-        cases h
-        refine ⟨as, bs, len.1.trans len.2.symm, ?_, rfl⟩
-        rw [decNat_sound hm, decWord_sound ha, decWord_sound hb, ← len.1, hj]; rfl
-      · simp at h
-    · simp at h
+  · simp only [Option.ite_none_right_eq_some, Option.bind_eq_bind, Option.bind_eq_some_iff,
+      Option.some.injEq] at h
+    obtain ⟨rfl, _, hm, as, ha, bs, hb, ⟨rfl, len⟩, rfl⟩ := h
+    refine ⟨as, bs, len.symm, ?_, rfl⟩
+    rw [decNat_sound hm, decWord_sound ha, decWord_sound hb]; rfl
   · simp at h
 
 theorem groupJump_inv (h : groupJump.go t = some u) :
@@ -146,30 +119,12 @@ theorem groupJump_inv (h : groupJump.go t = some u) :
   unfold groupJump at h
   dsimp only at h
   split at h
-  · rename_i n a b f c
-    cases hm : decNat n with
-    | none => simp [hm] at h
-    | some m =>
-    cases ha : decWord a with
-    | none => simp [hm, ha] at h
-    | some as =>
-    cases hb : decWord b with
-    | none => simp [hm, ha, hb] at h
-    | some bs =>
-    cases hf : decBit f with
-    | none => simp [hm, ha, hb, hf] at h
-    | some fb =>
-    cases hc : decBit c with
-    | none => simp [hm, ha, hb, hf, hc] at h
-    | some cb =>
-    simp only [hm, ha, hb, hf, hc, bind, Option.bind] at h
-    split at h
-    · rename_i len
-      cases h
-      refine ⟨as, bs, fb, cb, len.1.trans len.2.symm, ?_, rfl⟩
-      rw [decNat_sound hm, decWord_sound ha, decWord_sound hb, decBit_sound hf, decBit_sound hc,
-        ← len.1]; rfl
-    · simp at h
+  · simp only [Option.ite_none_right_eq_some, Option.bind_eq_bind, Option.bind_eq_some_iff,
+      Option.some.injEq] at h
+    obtain ⟨_, hm, as, ha, bs, hb, f, hf, c, hc, ⟨rfl, len⟩, rfl⟩ := h
+    refine ⟨as, bs, f, c, len.symm, ?_, rfl⟩
+    rw [decNat_sound hm, decWord_sound ha, decWord_sound hb, decBit_sound hf, decBit_sound hc]
+    rfl
   · simp at h
 
 theorem mulJump_inv (h : mulJump.go t = some u) :
@@ -179,30 +134,12 @@ theorem mulJump_inv (h : mulJump.go t = some u) :
   unfold mulJump at h
   dsimp only at h
   split at h
-  · rename_i n m a b acc
-    cases hn : decNat n with
-    | none => simp [hn] at h
-    | some k =>
-    cases hm : decNat m with
-    | none => simp [hn, hm] at h
-    | some j =>
-    cases ha : decWord a with
-    | none => simp [hn, hm, ha] at h
-    | some as =>
-    cases hb : decWord b with
-    | none => simp [hn, hm, ha, hb] at h
-    | some bs =>
-    cases hc : decWord acc with
-    | none => simp [hn, hm, ha, hb, hc] at h
-    | some cs =>
-    simp only [hn, hm, ha, hb, hc, bind, Option.bind] at h
-    split at h
-    · rename_i len
-      cases h
-      refine ⟨as, bs, cs, len.2.2.trans len.2.1.symm, ?_, rfl⟩
-      rw [decNat_sound hn, decNat_sound hm, decWord_sound ha, decWord_sound hb, decWord_sound hc,
-        ← len.1, ← len.2.1]; rfl
-    · simp at h
+  · simp only [Option.ite_none_right_eq_some, Option.bind_eq_bind, Option.bind_eq_some_iff,
+      Option.some.injEq] at h
+    obtain ⟨_, hn, _, hm, as, ha, bs, hb, cs, hc, ⟨rfl, rfl, len⟩, rfl⟩ := h
+    refine ⟨as, bs, cs, len, ?_, rfl⟩
+    rw [decNat_sound hn, decNat_sound hm, decWord_sound ha, decWord_sound hb, decWord_sound hc]
+    rfl
   · simp at h
 
 theorem fromNatJump_inv (h : (fromNatJump ts).go t = some u) :
@@ -211,18 +148,11 @@ theorem fromNatJump_inv (h : (fromNatJump ts).go t = some u) :
   unfold fromNatJump at h
   dsimp only at h
   split at h
-  · rename_i k n
-    cases hf : ts.find? (fun (T, _) => k == T ++ ".from_nat") with
-    | none => simp [hf] at h
-    | some p =>
-    obtain ⟨T, w⟩ := p
-    cases hm : decNat n with
-    | none => simp [hf, hm] at h
-    | some m =>
-    simp only [hf, hm, bind, Option.bind, Option.some.injEq] at h
+  · simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.some.injEq] at h
+    obtain ⟨⟨T, w⟩, hf, m, hm, rfl⟩ := h
     have hk := List.find?_some hf
     simp only [beq_iff_eq] at hk
-    exact ⟨T, w, m, List.mem_of_find?_eq_some hf, by rw [decNat_sound hm, hk]; rfl, h.symm⟩
+    exact ⟨T, w, m, List.mem_of_find?_eq_some hf, by rw [decNat_sound hm, hk]; rfl, rfl⟩
   · simp at h
 
 -- Jump
