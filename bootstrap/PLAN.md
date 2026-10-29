@@ -1,79 +1,104 @@
-# NOTE: BEND DOESN'T RUN ON WINDOWS USE WSL. NEVER RUN THE FULL SUITE IT KILLS MY COMPUTER AND FREEZES IT
+# NOTE: BEND DOESN'T RUN ON WINDOWS USE WSL. NEVER RUN THE FULL TEST SUITE: IT FREEZES MY COMPUTER.
 
 # PLAN
 
-A compiler for Bend that can be trusted: written in Lean and proven against
-`Eval`, the run-time semantics in `bend2/bendtt.lean`, so a compiled
-program computes what `Eval` says its source computes. Slow is fine. It
-trusts Lean (its kernel and compiler) and `bendtt.lean`, and assumes that
-`bend -o` (bend.ts and safe.ts) gives the `.bendtt` text that means the
-`.bend` file. The `.bendtt` text is the program the proofs speak of.
+A compiler for Bend that you can trust. It is written in Lean and proven
+against `Eval`, the run-time semantics in `bend2/bendtt.lean`: a compiled
+program computes what `Eval` says its source computes. Slow is fine.
 
-It covers pure code over datatypes, U32 included at its bit-level meaning.
-F32 and effects are out: BendTT keeps them opaque, so `Eval` gives them no
-meaning to preserve.
+It trusts Lean (its kernel and its compiler) and `bendtt.lean`. It assumes
+that `bend -o` (`bend.ts` and `safe.ts`) gives the `.bendtt` text that
+means the `.bend` file. The proofs speak of that `.bendtt` text.
+
+## Scope: correct, and incomplete on purpose
+
+Each result that the compiler gives is the result that `Eval` gives. It
+covers pure code over datatypes, U32 at its bit-level meaning included.
+
+It refuses each def that reaches an opaque def. It follows each name in
+each part of a def, the dead parts included. `bend -o` makes a def opaque
+when the def has no body: F32 ops, effects, handles, natives, foreign
+fills. For an opaque def, the kernel has only a model: a placeholder of
+the right type. So `Eval` gives no real result to preserve.
+
+**Bootstrapping does not need opaque defs.** A compiler written in Bend is
+one pure function: bytes in, bytes out. It uses no F32, no effect and no
+handle.
+
+The scope only grows. When a def gets a body, it is no longer opaque, and
+the compiler runs it. A refusal then becomes a result, and no earlier
+result changes. "Beyond the spec" says how F32 and effects can get a
+meaning.
 
 ## The trusted compiler
 
-0. Done (a69359d5). A Lake project in `lean/`, on Lean v4.34.0 as
-   `--verdict` uses. `src/Kernel.lean` is `bend2/bendtt.lean` minus its
-   Main section, so this project can declare its own `main`. The copy is
-   committed, because Lake reads module headers before it runs any target.
-   Every build fails unless the copy is exactly that text, and unless that
-   section (`Kernel.cut` in `lakefile.lean`) appears once, unchanged.
-   `lake run regen` writes the copy.
-1. The contract: `src/Contract/Spec.lean`. Status: reviewed and pinned.
-   - It holds definitions and claims only. Write it before compiler code.
-   - Claim `correct`: when `compile` accepts def k of a checked book, def k
-     is `Pure` and has one result. `run` gives that result or no result,
-     at all fuel. It never gives a wrong result.
-   - Claim `total`: `compile` accepts each `Pure` def of a checked book. So
-     `correct` is not empty.
-   - Claim `bytes`: bytes go in and out without change.
-   - Claim `cli`: a result from the CLI is the result of the def it runs,
-     at any fuel. For each `Pure` def of a checked book, some fuel gives a
-     result.
-   - Claim `laws`: each law that a proof shows about a def holds about the
-     value that `Eval` reaches. So a law proven in Bend holds about the
-     result that the CLI shows.
+0. The project. Status: done (a69359d5).
+   - A Lake project in `lean/`, on Lean v4.34.0, as `--verdict` uses.
+   - `src/Kernel.lean` is `bend2/bendtt.lean` minus its Main section, so
+     this project can declare its own `main`.
+   - The copy is committed, because Lake reads module headers before it
+     runs a target. `lake run regen` writes it.
+   - Each build fails unless the copy is exactly that text, and unless that
+     section (`Kernel.cut` in `lakefile.lean`) occurs once, unchanged.
+1. The contract: `src/Contract/Spec.lean`. Status: pinned. The changes to
+   claims 4, 5 and 6 wait on review.
+   - It holds definitions and claims only. It came before the compiler
+     code. It has the exact text of each claim.
+   - Claim 1, `correct`: when `compile` accepts def k of a checked book, k
+     is `Pure` and has one result. Some fuel makes `run` give it. At all
+     fuel, `run` gives it or no result, never a wrong result.
+   - Claim 2, `total`: `compile` accepts each `Pure` def of a checked book.
+     So claim 1 is not empty.
+   - Claim 3, `bytes`: bytes go in and out without change.
+   - Claim 4, `cli`: when the CLI gives a result, at any fuel, the kernel
+     accepted the book (as for `--verdict`) and the book with the input,
+     the def is `Pure`, and the result is its result. For each `Pure` def
+     of such books, some fuel gives a result.
+   - Claim 5, `laws`: each law about a def, or about its body, holds about
+     each value that `Eval` reaches from the def. The body of
+     `bootstrap.run` is `main(input)`. So a law proven in Bend about
+     `main(input)`, for example an instance of a law for all inputs, holds
+     about the result that the CLI shows.
+   - Claim 6, `shut`: `Eval` from a `Pure` def meets no opaque def.
    - `Answer`: a value that `Eval` reaches shows the result. Each value
      that `Eval` reaches shows the same result.
-   - `observe`: the plain data in a value. It is the same as the kernel's
-     `Data`: it drops only dead (q=0) fields.
-   - `Pure`: the kernel's checker accepts the type as Data, and no opaque
-     def is reachable. It can be false by mistake, never true by mistake.
+   - `observe`: the plain data in a value. It is the kernel's `Data`: it
+     drops only dead (q=0) fields.
+   - `Pure`: the kernel's checker accepts the type as Data, and a shut set
+     of defs that are not opaque holds the def. It can be false by
+     mistake, never true by mistake.
    - Input: a list of bytes. Each byte is a Nat in unary (`Zero`, `Succ`).
      A Nat has one form only, so its type fixes its meaning.
-   - The CLI adds def `bootstrap.run` = `main(input)`. The kernel checks
-     the full book.
+   - With an input, the CLI adds def `bootstrap.run` = `main(input)`. The
+     kernel checks the book with that def.
    - A compiler written in Bend fits as one pure function:
      `compile(src) -> out`.
    - The build pins the hash of `Contract/Spec.lean` (`Pins` in
      `lakefile.lean`).
 2. The verified interpreter. Status: done.
-   - `compile` gives the book as it is. The machine is a `step` function
-     on terms.
+   - `compile` gives the book as it is. The environment machine runs it
+     (Speed, item 2), and the proven `step` ends the run.
    - `Step.lean`: each `step` is an `Eval` step, and `step` gives none only
      when no `Eval` step exists.
-   - `Run.lean`: claims `correct` and `total`. `Bytes.lean`: claim `bytes`.
-     `Laws.lean`: claim `laws`. `Cli.lean`: claim `cli`.
-   - `Contract/Proof.lean` states the 5 claims for the interpreter and the
+   - The proofs: `Run.lean` (claims 1, 2), `Bytes.lean` (3), `Cli.lean`
+     (4), `Laws.lean` (5), `Shut.lean` (6).
+   - `Contract/Proof.lean` states the 6 claims for the interpreter and the
      CLI function, and calls the guards. The build pins it.
    - `Main.lean` is the glue: it reads files, calls `Interp.cli`, and
      writes the result. The build pins it.
 
-This completes the trusted compiler. Its `compile` passes the book through,
-so it is a trusted interpreter: everything below is speed or new meaning.
+This completes the trusted compiler. Its `compile` passes the book
+through, so it is a trusted interpreter. Each item below adds speed or a
+new meaning.
 
 ## Speed
 
-These change how a program runs, not what it means: the claims stay as
-they are. Each is optional, since slow is fine, and each that is done needs
-its own proof that it preserves the claims, composed into them. Each waits
-on a decision.
+Each item changes how a program runs, not what it means: the claims stay
+as they are. Each item is optional, because slow is fine. Each done item
+has its own proof that it keeps the claims, composed into them.
 
 Now: a U32 sum over 256 input bytes takes 0.33 s, and over 4096 bytes
-3.3 s (most of it reads the input: an echo of 4096 bytes takes 2 s).
+3.3 s. Most of that time reads the input: an echo of 4096 bytes takes 2 s.
 
 1. One-pass step. Status: done. `scanWith` finds the next step and the
    values in one walk. `scanWith_eq` proves that with no jump it gives what
@@ -82,72 +107,99 @@ Now: a U32 sum over 256 input bytes takes 0.33 s, and over 4096 bytes
 2. The environment machine. Status: done. `Machine/Impl.lean` keeps values
    in environments and its place in a stack of frames, so no step walks the
    full term. `Machine/Spec.lean` proves that each step keeps the decoded
-   term or makes `Eval` steps on it, and that the machine stops. The
-   proven stepper then ends the run. Before it, 256 bytes took 146 s.
-3. Labels and case trees as integer switches. `Eval` matches labels by
-   name; numbering them is a representation choice.
-4. Word jumps. A call of base's word code goes to its result in one step,
-   for each width. The proof shows that `Eval` reaches the same result.
-   - A jump runs only when the book's defs equal `Word/Ref.lean`, a
-     generated copy of base's code (`scripts/GenRef.lean` makes it from
-     `scripts/ref.bend`). Else it does not run, and the result stays
-     correct.
-   - Status: done for each family: add, sub, not, and, or, xor, inc,
-     to_nat, cmp, shl, shr, mul. One file of proofs per family in `Word/`,
+   term or makes `Eval` steps on it, and that the machine stops. The proven
+   stepper then ends the run. Before it, 256 bytes took 146 s.
+3. Labels and case trees as integer switches. Status: waits on a decision.
+   `Eval` matches labels by name. Numbers for labels are a choice of
+   representation.
+4. Word jumps. Status: done. A call of base's word code goes to its result
+   in one step, for each width. The proof shows that `Eval` reaches the
+   same result.
+   - A family jumps only when the book's defs for it equal
+     `Word/Ref.lean`, a generated copy of base's code (`scripts/GenRef.lean`
+     makes it from `scripts/ref.bend`). Else it does not jump, and the
+     result stays correct.
+   - The families: add, sub, not, and, or, xor, inc, to_nat, cmp, shl, shr,
+     mul. `Word/` has one file of proofs per group of families,
      `Word/Shared.lean` for what they share, and `Word/Impl.lean` for the
      jumps.
    - `T.from_nat` also jumps, for each one-word type `T` (U32 now, U64
-     later) whose code equals templates in `T` and its width. Before it,
+     later) whose defs equal the templates of `Word/Nat.lean`. Before it,
      4096 bytes took 71 s.
 
 ## Beyond the spec
 
-These need a meaning `Eval` does not give, so the claims grow: the meaning
-is written and reviewed before any compiler work. Each waits on a decision.
+These need a meaning that `Eval` does not give, so the claims grow. Write
+and review the meaning before any compiler work. Each waits on a decision.
 
-1. Effects. No spec exists: BendTT keeps every effect opaque, and the C
-   and JS in `bend2/effs/` are the de facto semantics. Needs a spec per
-   effect, a Lean driver (its pure conversions proven, Lean's IO trusted,
-   the OS assumed), and a single-threaded scheduler for `IO.spawn` and
-   `Chan.*`, which is fair because pure code between effects halts.
+1. Effects. No spec exists: BendTT keeps each effect opaque, and the C and
+   JS in `bend2/effs/` are the de facto semantics. Needs:
+   - a spec per effect;
+   - a Lean driver: its pure conversions proven, Lean's IO trusted, the OS
+     assumed;
+   - a single-threaded scheduler for `IO.spawn` and `Chan.*`. It is fair,
+     because pure code between effects halts.
+
+   An option: write each effect as data, a request and the code that runs
+   after the answer. Data is pure, so `Eval` gives it a meaning, and a
+   proof in Bend can use it. Only the code that does the real IO stays
+   outside the proofs.
 2. F32. Its ops are base laws with no body, so the kernel knows only their
-   types. Needs a spec, as software floating point over `Word(32n)`:
-   in Lean, outside `--verdict`, or as bodies in `base.bend`, which
-   `--verdict` then backs and comp.ts's native floats must match.
+   types. Needs a spec, as software floating point over `Word(32n)`, in one
+   of two places:
+   - In Lean, outside `--verdict`. Then the claims grow.
+   - As bodies in `base.bend`. Then `--verdict` checks them, and the claims
+     do not change: the ops are no longer opaque, so `Eval` gives their
+     meaning. comp.ts's native floats must match the bodies.
+
+   The bodies give the meaning only. A compiler can still emit native float
+   ops, with a proof that each op gives what its body gives. That proof
+   assumes that the hardware follows IEEE 754 strictly: no fast-math, no
+   FMA contraction, no flush-to-zero. Check the bodies against IEEE 754
+   test vectors.
 
 ## Guards
 
 How the compiler stays correct as it grows.
 
 1. Reviewed files are frozen: `Contract/Spec.lean`, `Contract/Proof.lean`,
-   `Guard.lean` and `Main.lean` change only by review. The build pins their hashes, so an
-   edit fails until its pin is updated by hand. A pin does not stop a
-   person who edits both. It makes each change show in review.
+   `Guard.lean` and `Main.lean` change only by review. The build pins their
+   hashes, so an edit fails the build until its pin is updated by hand. A
+   pin does not stop a person who edits both. It makes each change show in
+   review.
 2. No escape hatches:
-   - `#guard_runs` walks each def that the CLI function uses. It fails on
-     an `opaque`, `partial`, `extern` or `implemented_by` def in this
-     project or the kernel copy.
-   - Lean's own library is exempt. We trust it.
+   - `#guard_runs` walks each def that `Interp.cli` or `Bytes.ofObs` uses.
+     It fails on an `unsafe`, `opaque`, `extern` or `implemented_by` def in
+     this project or the kernel copy. Lean makes a `partial` def opaque, so
+     it fails on that too. Lean's own library is exempt: we trust it.
    - `#guard_axioms`: each proof uses only `propext`, `Classical.choice`
      and `Quot.sound`.
-   - An extra: the build scans the code for `sorry` and the rest.
-3. What runs is what is proven: claim `cli` is about the function that
-   main calls. Outside the proofs: Lean's IO, the kernel's parser (as
-   `--verdict`), and printing a result that is not bytes.
+   - An extra: the build scans the code for the words of `Scan.words`
+     (`lakefile.lean`), for example `sorry`.
+3. What runs is what is proven: claims 3 and 4 are about the functions that
+   `main` calls. Outside the proofs: Lean's IO, reading the arguments and
+   the files, the kernel's parser (as for `--verdict`), and `render`, which
+   prints a result that is not bytes.
 4. The spec is tracked: the kernel copy must equal `bend2/bendtt.lean`
    minus its Main section, so a change to `Eval` rechecks every proof. The
-   build check is our own code, so check the copy by hand too: this diff
-   must show only the `main` section.
+   build check is our own code, so also check the copy by hand. This diff
+   must show only the `main` section:
 
        diff bend2/bendtt.lean <(tail -n +4 bootstrap/lean/src/Kernel.lean)
-5. No vacuity: a proven `compile_total` needs no tests. `Pure` is reviewed
-   as part of the contract.
+5. No vacuity: claim 2 makes claim 1 not empty, with no test. `Pure` is
+   reviewed as part of the contract. A test must still show that real books
+   pass the kernel's check (see Tests).
 
 ## Tests
 
-TBD. Tests for what the proofs do not cover: reading files, the kernel's
-parser, printing a result that is not bytes, and the elaborator
-(`safe.ts`). Run the subset's
-tests through `bend -o` and the compiler a few at a time, never the full
-suite, and compare each file's `#|` lines. A mismatch is a glue or
-elaborator bug, or a comp.ts bug.
+TBD. The tests cover what the proofs do not:
+- reading files, the kernel's parser, and `render`;
+- the elaborator (`safe.ts`);
+- that the kernel accepts the book with the input, for a usual
+  `main : List(Nat) -> D`;
+- that the Bend compiler reaches no opaque def. `bend -o` also makes each
+  template `~` parameter opaque (`bend2/safe.ts`).
+
+Run the tests through `bend -o` and the compiler, a few at a time. Never
+run the full suite. Compare the `#|` lines of each file. A mismatch is a
+bug in the glue, the elaborator, or comp.ts.
