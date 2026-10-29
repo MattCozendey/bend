@@ -30,17 +30,6 @@ theorem rbArgs_append : ∀ (xs ys : List (Quan × Val)),
 theorem rb_nil (t : Term) : sub (Env.sub (Val.rbs [])) t = t := by
   simp only [Val.rbs, env_nil, sub_var]
 
-theorem rb_ofData : (ofData t).rb = t := by
-  induction t with
-  | Lab => rfl
-  | Rfl => rfl
-  | Tup q a b iha ihb =>
-    simp only [ofData, Val.rb, ihb]
-    split
-    · rw [iha]
-    · simp only [Val.rb, rb_nil]
-  | _ => simp only [ofData, Val.rb, rb_nil]
-
 theorem Val.isData_sound : ∀ {v : Val}, Val.isData v = true → Data v.rb
   | .lab _, _ => .lab
   | .rfl, _ => .rfl
@@ -99,19 +88,24 @@ theorem goodArgs_values : ∀ {xs : List (Quan × Val)}, GoodArgs bk xs → Valu
   | [], _ => .nil
   | (_, _) :: _, ⟨g1, g2, g3⟩ => .cons (fun l => good_value g1 (g2 l)) (goodArgs_values g3)
 
-theorem ofData_good (h : isData t = true) : Good bk (ofData t) ∧ (ofData t).live := by
-  induction t with
-  | Lab => exact ⟨trivial, rfl⟩
-  | Rfl => exact ⟨trivial, rfl⟩
+theorem ofData_sound (h : ofData t = some v) : v.rb = t ∧ Good bk v ∧ v.live := by
+  induction t generalizing v with
+  | Lab => cases h; exact ⟨rfl, trivial, rfl⟩
+  | Rfl => cases h; exact ⟨rfl, trivial, rfl⟩
   | Tup q a b iha ihb =>
-    simp only [isData, Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true'] at h
-    have hb := ihb h.2
-    simp only [ofData]
-    cases hq : q.live
-    · exact ⟨⟨trivial, by simp [hq], hb.1, hb.2⟩, rfl⟩
-    · have ha := iha (by simpa [hq] using h.1)
-      exact ⟨⟨ha.1, fun _ => ha.2, hb.1, hb.2⟩, rfl⟩
-  | _ => simp [isData] at h
+    simp only [ofData] at h
+    split at h
+    · rename_i a' b' ha hb
+      cases h
+      have ⟨rb, gb, lb⟩ := ihb hb
+      split at ha
+      · have ⟨ra, ga, la⟩ := iha ha
+        exact ⟨by simp [Val.rb, ra, rb], ⟨ga, fun _ => la, gb, lb⟩, rfl⟩
+      · rename_i l
+        cases ha
+        exact ⟨by simp [Val.rb, rb_nil, rb], ⟨trivial, fun l' => absurd l' l, gb, lb⟩, rfl⟩
+    · simp at h
+  | _ => simp [ofData] at h
 
 def GoodFrame (bk : Book) : Frame → Prop
   | .appF _ _ e => Goods bk e
@@ -166,50 +160,56 @@ def leafT : Option (Term × List Val × List (Quan × Val)) → Option Term
   | none => none
   | some (t, e, rest) => some (spine (sub (Env.sub (Val.rbs e)) t) (Val.rbArgs rest))
 
+-- GoodLeaf bk o: the environment and the arguments of the leaf o are good
+def GoodLeaf (bk : Book) : Option (Term × List Val × List (Quan × Val)) → Prop
+  | none => True
+  | some (_, e, rest) => Goods bk e ∧ GoodArgs bk rest
+
 theorem fld_live : (Quan.fld r q).live = true → r.live = true := by
   cases r <;> cases q <;> simp [Quan.fld, Quan.live]
 
-theorem walk_sound :
-    walk t e xs = some o → Interp.walk t (Val.rbs e) (Val.rbArgs xs) = some (leafT o) := by
+theorem walk_sound (ge : Goods bk e) (gx : GoodArgs bk xs) : walk t e xs = some o →
+    Interp.walk t (Val.rbs e) (Val.rbArgs xs) = some (leafT o) ∧ GoodLeaf bk o := by
   induction t generalizing e xs o with
   | Lam p f ih =>
     cases xs with
-    | nil => simp [walk]; rintro rfl; rfl
+    | nil => simp [walk]; rintro rfl; exact ⟨rfl, trivial⟩
     | cons a xs =>
       obtain ⟨q, x⟩ := a
       simp only [walk, Interp.walk, Val.rbArgs]; split
       · rename_i c
         have c' : p.live = q.live ∧ (p = Q2 → isData x.rb = true) :=
           ⟨c.1, fun e => isData_iff.2 (Val.isData_sound (c.2 e))⟩
-        rw [ite_eq_left c']; exact ih
+        rw [ite_eq_left c']; exact ih ⟨gx.1, ge⟩ gx.2.2
       · simp
   | Prj h ih =>
     cases xs with
-    | nil => simp [walk]; rintro rfl; rfl
+    | nil => simp [walk]; rintro rfl; exact ⟨rfl, trivial⟩
     | cons a xs =>
       obtain ⟨q, x⟩ := a
       cases x
       case tup r a b =>
         simp only [walk, Interp.walk, Val.rbArgs, Val.rb]; split
-        · exact ih
+        · obtain ⟨⟨ga, la, gb, lb⟩, _, gxs⟩ := gx
+          exact ih ge ⟨ga, fun l => la (fld_live l), gb, fun _ => lb, gxs⟩
         · simp
       all_goals simp [walk]
   | Mat k h m ihh ihm =>
     cases xs with
-    | nil => simp [walk]; rintro rfl; rfl
+    | nil => simp [walk]; rintro rfl; exact ⟨rfl, trivial⟩
     | cons a xs =>
       obtain ⟨q, x⟩ := a
       cases x
       case lab j =>
         simp only [walk, Interp.walk, Val.rbArgs, Val.rb]; split
         · split
-          · exact ihh
-          · exact ihm
+          · exact ihh ge gx.2.2
+          · exact ihm ge ⟨trivial, fun _ => rfl, gx.2.2⟩
         · simp
       all_goals simp [walk]
   | Efq =>
     cases xs with
-    | nil => simp [walk]; rintro rfl; rfl
+    | nil => simp [walk]; rintro rfl; exact ⟨rfl, trivial⟩
     | cons a xs => obtain ⟨q, x⟩ := a; simp [walk]
   | App q f x ihf =>
     cases x
@@ -218,67 +218,12 @@ theorem walk_sound :
       · split
         · rename_i x' hx
           split
-          · rw [rbs_get hx]; exact ihf
+          · rename_i lx; rw [rbs_get hx]; exact ihf ge ⟨goods_get ge hx, lx, gx⟩
           · simp
         · simp
-      · simp only [Option.some.injEq]; rintro rfl; rfl
-    all_goals (simp only [walk, Interp.walk, Option.some.injEq]; rintro rfl; rfl)
-  | _ => simp only [walk, Interp.walk, Option.some.injEq]; rintro rfl; rfl
-
-theorem walk_good (ge : Goods bk e) (gx : GoodArgs bk xs) :
-    walk t e xs = some (some (t', e', rest)) → Goods bk e' ∧ GoodArgs bk rest := by
-  induction t generalizing e xs with
-  | Lam p f ih =>
-    cases xs with
-    | nil => simp [walk]
-    | cons a xs =>
-      obtain ⟨q, x⟩ := a
-      simp only [walk]; split
-      · exact ih ⟨gx.1, ge⟩ gx.2.2
-      · simp
-  | Prj h ih =>
-    cases xs with
-    | nil => simp [walk]
-    | cons a xs =>
-      obtain ⟨q, x⟩ := a
-      cases x
-      case tup r a b =>
-        simp only [walk]; split
-        · obtain ⟨⟨ga, la, gb, lb⟩, _, gxs⟩ := gx
-          exact ih ge ⟨ga, fun l => la (fld_live l), gb, fun _ => lb, gxs⟩
-        · simp
-      all_goals simp [walk]
-  | Mat k h m ihh ihm =>
-    cases xs with
-    | nil => simp [walk]
-    | cons a xs =>
-      obtain ⟨q, x⟩ := a
-      cases x
-      case lab j =>
-        simp only [walk]; split
-        · split
-          · exact ihh ge gx.2.2
-          · exact ihm ge ⟨trivial, fun _ => rfl, gx.2.2⟩
-        · simp
-      all_goals simp [walk]
-  | Efq =>
-    cases xs with
-    | nil => simp [walk]
-    | cons a xs => obtain ⟨q, x⟩ := a; simp [walk]
-  | App q f x ihf =>
-    cases x
-    case Var v =>
-      simp only [walk]; split
-      · split
-        · rename_i x' hx
-          split
-          · rename_i lx; exact ihf ge ⟨goods_get ge hx, lx, gx⟩
-          · simp
-        · simp
-      · simp only [Option.some.injEq, Prod.mk.injEq]; rintro ⟨rfl, rfl, rfl⟩; exact ⟨ge, gx⟩
-    all_goals (simp only [walk, Option.some.injEq, Prod.mk.injEq]; rintro ⟨rfl, rfl, rfl⟩
-               exact ⟨ge, gx⟩)
-  | _ => simp only [walk, Option.some.injEq, Prod.mk.injEq]; rintro ⟨rfl, rfl, rfl⟩; exact ⟨ge, gx⟩
+      · simp only [Option.some.injEq]; rintro rfl; exact ⟨rfl, ge, gx⟩
+    all_goals (simp only [walk, Interp.walk, Option.some.injEq]; rintro rfl; exact ⟨rfl, ge, gx⟩)
+  | _ => simp only [walk, Interp.walk, Option.some.injEq]; rintro rfl; exact ⟨rfl, ge, gx⟩
 
 theorem goodFrames_appVs : ∀ {rest : List (Quan × Val)}, GoodArgs bk rest → GoodFrames bk fs →
     GoodFrames bk (rest.map (fun (q, a) => .appV q a) ++ fs)
@@ -322,29 +267,25 @@ theorem tryCall_sound (hj : Jump.Sound bk jump) (gx : GoodArgs bk xs)
   split at h
   · rename_i u hu
     split at hu
-    · split at h
-      · rename_i d
-        cases h
-        have g := ofData_good (bk := bk) d
-        refine ⟨⟨g.1, g.2, gs⟩, .inr ?_⟩
-        simp only [decode, rb_ofData]
-        exact plus_plug gs (hj _ _ hu)
-      · simp at h
+    · obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.1 h
+      have ⟨r, g, l⟩ := ofData_sound (bk := bk) hv
+      refine ⟨⟨g, l, gs⟩, .inr ?_⟩
+      simp only [decode, r]
+      exact plus_plug gs (hj _ _ hu)
     · simp at hu
   · split at h
     · rename_i d hd
       split at h
       · rename_i hw
         cases h
-        have w := Interp.walk_sound (bk := bk) (walk_sound hw)
+        have w := Interp.walk_sound (bk := bk) (walk_sound (show Goods bk [] from trivial) gx hw).1
         exact ⟨⟨⟨gx, .call hd (goodArgs_values gx) w⟩, rfl, gs⟩, .inl ⟨rfl, rfl⟩⟩
       · rename_i t e rest hw
         cases h
-        have w := Interp.walk_sound (bk := bk) (walk_sound hw)
-        have ⟨ge, gr⟩ := walk_good (show Goods bk [] from trivial) gx hw
+        obtain ⟨w, ge, gr⟩ := walk_sound (show Goods bk [] from trivial) gx hw
         refine ⟨⟨ge, goodFrames_appVs gr gs⟩, .inr ?_⟩
         simp only [decode, plug_appVs]
-        exact one_plug gs (.call hd (goodArgs_values gx) w)
+        exact one_plug gs (.call hd (goodArgs_values gx) (Interp.walk_sound w))
       · simp at h
     · simp at h
 

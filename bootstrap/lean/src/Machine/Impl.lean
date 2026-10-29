@@ -48,13 +48,16 @@ def Val.rbArgs : List (Quan × Val) → List Arg
   | (q, v) :: xs => (q, v.rb) :: Val.rbArgs xs
 end
 
--- ofData t: the plain data t as a value, for a jump result. A dead (q=0)
--- field becomes a dead term.
-def ofData : Term → Val
-  | Lab k => .lab k
-  | Rfl => .rfl
-  | Tup q a b => .tup q (if q.live then ofData a else .dead a []) (ofData b)
-  | t => .clo t []
+-- ofData t: t as a value, for a jump result, or none when t is not plain
+-- data. A dead (q=0) field becomes a dead term.
+def ofData : Term → Option Val
+  | Lab k => some (.lab k)
+  | Rfl => some .rfl
+  | Tup q a b =>
+    match (if q.live then ofData a else some (.dead a [])), ofData b with
+    | some a, some b => some (.tup q a b)
+    | _, _ => none
+  | _ => none
 
 -- v.live: v is not a dead term
 def Val.live : Val → Bool
@@ -150,7 +153,7 @@ def decode : St → Term
 def tryCall (bk : Book) (jump : Jump) (k : String) (xs : List (Quan × Val))
     (fs : List Frame) : Option St :=
   match (if jump.takes k then jump.go (spine (Ref k) (Val.rbArgs xs)) else none) with
-  | some u => if isData u then some (.ret (ofData u) fs) else none
+  | some u => (ofData u).map (.ret · fs)
   | none =>
     match bk.get k with
     | some d =>
