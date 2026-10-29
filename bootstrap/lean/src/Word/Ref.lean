@@ -5,8 +5,8 @@ import Step
 --
 -- GENERATED. The bodies of base's word code, as bend -o gives them: R.k is
 -- the body of def k. Made by scripts/GenRef.lean from scripts/ref.bend (a
--- program that calls each U32 operation) with bend 2.0.39, the repo's source
--- in WSL. Do not edit: GenRef.lean has the commands.
+-- program that calls each U32 operation that has a jump) with bend 2.0.39,
+-- the repo's source in WSL. Do not edit: GenRef.lean has the commands.
 -- A word jump runs only when the book's defs equal these terms. If they
 -- differ, the jump does not run, and the result stays correct.
 
@@ -140,28 +140,6 @@ def R.Nat.double : Term :=
                     (Term.Lab "Succ")
                     (Term.Tup (Quan.Q1) (Term.App (Quan.Q1) (Term.Ref "Nat.double") (Term.Var 0)) (Term.Lab "()")))
                   (Term.Lab "()")))
-              (Term.Efq))))
-        (Term.Efq)))
-
-def R.Word.zero : Term :=
-  Term.Prj
-    (Term.Mat
-      "Zero"
-      (Term.Mat "()" (Term.Tup (Quan.Q1) (Term.Lab "WNil") (Term.Lab "()")) (Term.Efq))
-      (Term.Mat
-        "Succ"
-        (Term.Prj
-          (Term.Lam
-            (Quan.Q1)
-            (Term.Mat
-              "()"
-              (Term.Tup
-                (Quan.Q1)
-                (Term.Lab "WCon")
-                (Term.Tup
-                  (Quan.Q1)
-                  (Term.Tup (Quan.Q1) (Term.Lab "False") (Term.Lab "()"))
-                  (Term.Tup (Quan.Q1) (Term.App (Quan.Q1) (Term.Ref "Word.zero") (Term.Var 0)) (Term.Lab "()"))))
               (Term.Efq))))
         (Term.Efq)))
 
