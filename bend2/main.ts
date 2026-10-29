@@ -1104,13 +1104,16 @@ class Check_Fail {
 }
 
 // book_trust returns the entries --trust skips, which book_valid takes as
-// validated where they stand: Base, and each file a glob names by its path
-// from the entry (lib/a.bend; a !glob excludes), unless it uses what a
-// checked file declares or fills (a law unfolds after its fill, even for a
-// file that never imports the filler), or a named hole: its check would
-// read those bodies, and a hole fails every check. So the trusted files are
-// closed under uses; out gets their names. A file is its namespace ("" the
-// entry's); "?" is no file, never trusted.
+// validated where they stand: Base (unless !base.bend), and each file a glob
+// names by its path from the entry (lib/a.bend; a !glob excludes), unless it
+// uses what a checked file declares or fills (a law unfolds after its fill,
+// even for a file that never imports the filler), or a named hole: its check
+// would read those bodies, and a hole fails every check. A file's check also
+// reads the order of events, which every file's imports set: so a file that
+// reaches a fill (through any body) its imports don't order, or Base without
+// importing it, is checked too. So the trusted files are closed under uses;
+// out gets their names. A file is its namespace ("" the entry's); "?" is no
+// file, never trusted.
 function book_trust(book: Bend.Book, file: string,
   seen: Map<string, string | null>, globs: string[], out: string[]): (i: number) => boolean {
   const nss = new Set([...seen].filter(([real]) => real !== BASE).map(([, n]) => n ?? ""));
@@ -1149,10 +1152,13 @@ function book_trust(book: Bend.Book, file: string,
     }
   };
   const name = (f: string): string => f === "?" ? "an unknown name or a foreign fill"
-    : f.startsWith("?") ? "the hole " + f : f === BASE ? "Base" : f === "" ? path.basename(file) : f + ".bend";
+    : f.startsWith("?") ? "the hole " + f : f === BASE ? "Base" : f === "" ? path.basename(file)
+    : f === "@" + BASE ? "Base, which it does not import"
+    : f.startsWith("@") ? "the fill in " + name(f.slice(1)) + ", which its imports do not order" : f + ".bend";
   // a !glob excludes a file by any of its paths; with only those, every
   // import left is named, and the entry only by a glob that names it
-  const gs = globs.map((g) => [g.startsWith("!"), new Bun.Glob(g.replace(/^!?(\.\/)?/, ""))] as const);
+  const gs = globs.map((g) => g.replace(/^!?(\.\/)?/, "")).map((p, j) => p.startsWith("!")
+    ? cli_fail("--trust " + globs[j] + ": only one leading ! excludes") : [globs[j].startsWith("!"), new Bun.Glob(p)] as const);
   const all = gs.every(([no]) => no);
   const matches = (ps: string[], rest = all): boolean => (rest || gs.some(([no, g]) => !no && ps.some((p) => g.match(p))))
     && !gs.some(([no, g]) => no && ps.some((p) => g.match(p)));
@@ -1163,7 +1169,7 @@ function book_trust(book: Bend.Book, file: string,
   const named = (f: string): boolean => matches(names(f), all && f !== "");
   // base.bend as the entry is Base itself, trusted only when named
   const root = fs.realpathSync(file) === BASE;
-  const paths = [...nss].flatMap(names).concat(root ? [path.basename(file)] : []);
+  const paths = [...nss].flatMap(names).concat(root ? [path.basename(file)] : seen.has(BASE) ? ["base.bend"] : []);
   // an exclusion may name a file this entry skips, so it only warns
   globs.forEach((g, j) => {
     if (!paths.some((p) => gs[j][1].match(p))) {
@@ -1174,25 +1180,81 @@ function book_trust(book: Bend.Book, file: string,
   // later check that unfolds the user's body reaches the fill through it
   const deps = (r: string): string[] => first.get(r) === last.get(r) ? [owner(r)]
     : [owner(r), at[last.get(r)!]];
-  // the files a named file needs (Base needs Base alone)
+  // the files a named file needs (Base needs Base alone), and the names it uses
   const need = new Map([...nss].filter(named).map((f) => [f, new Set<string>()]));
+  const uses = new Map([...need.keys()].map((f) => [f, new Set<string>()]));
   book.order.forEach((k, i) => {
-    const ds = need.get(at[i]);
-    if (ds !== undefined) {
-      const us = new Set<string>();
+    const us = uses.get(at[i]);
+    if (us !== undefined) {
       refs(k, i, us);
-      us.forEach((r) => deps(r).forEach((d) => ds.add(d)));
     }
   });
-  const trust = new Set((!root || matches([path.basename(file)], false) ? [BASE] : []).concat([...need.keys()]));
+  uses.forEach((us, f) => us.forEach((r) => deps(r).forEach((d) => need.get(f)!.add(d))));
+  // a file's imports: Base by its import line, the rest by its terms' aliases
+  const imps = new Map([...seen].filter(([real]) => real !== BASE).map(([real, f]) => [f ?? "",
+    new Set(/^\s*import\s+Base\b/m.test(fs.readFileSync(real, "utf8")) ? [BASE] : [])]));
+  for (const t of Object.values(book.tlds)) {
+    for (const f of t.b === true ? [] : [t.T.s?.file, t.$ === "Def" ? t.v?.s?.file : undefined]) {
+      Object.values(f?.al ?? {}).forEach((n) => imps.get(f!.ns)?.add(n));
+    }
+  }
+  const reach = (a: string, b: string): boolean => {
+    const got = new Set([a]);
+    for (const todo = [a]; todo.length > 0;) {
+      for (const n of imps.get(todo.pop()!) ?? []) {
+        if (!got.has(n)) {
+          got.add(n);
+          todo.push(n);
+        }
+      }
+    }
+    return got.has(b);
+  };
+  // what a name's check reads: its type and its body
+  const reads = new Map<string, Set<string>>();
+  const read = (k: string): Set<string> => {
+    let us = reads.get(k);
+    if (us === undefined) {
+      reads.set(k, us = new Set());
+      refs(k, first.get(k)!, us);
+      refs(k, last.get(k)!, us);
+    }
+    return us;
+  };
+  // a fill f reaches through any body comes before f, or after it, by f's
+  // imports alone, and so does Base; else an edit elsewhere moves it
+  uses.forEach((us, f) => {
+    const got = new Set(us);
+    for (const todo = [...us]; todo.length > 0;) {
+      const k = tld(todo.pop()!);
+      const t = book.tlds[k];
+      const fill = first.get(k) !== last.get(k) ? at[last.get(k)!] : f;
+      const lost = t === undefined || !last.has(k) ? undefined : t.b === true ? (reach(f, BASE) ? undefined : "@" + BASE)
+        : fill !== f && !reach(f, fill) && !reach(fill, f) ? "@" + fill : undefined;
+      if (lost !== undefined) {
+        need.get(f)!.add(lost);
+        return;
+      }
+      for (const r of t === undefined || t.b === true || !last.has(k) ? [] : read(k)) {
+        if (!got.has(r)) {
+          got.add(r);
+          todo.push(r);
+        }
+      }
+    }
+  });
+  const based = root ? matches([path.basename(file)], false) : matches(["base.bend"], true);
+  const trust = new Set((based ? [BASE] : []).concat([...need.keys()]));
   // a file checked unsettles the trusted files that need it
+  const users = new Map<string, string[]>();
+  need.forEach((ds, f) => ds.forEach((d) => users.set(d, [...users.get(d) ?? [], f])));
   for (const todo = [...need.keys()]; todo.length > 0;) {
     const f = todo.shift()!;
     const dep = trust.has(f) ? [...need.get(f)!].find((d) => !trust.has(d)) : undefined;
     if (dep !== undefined) {
       cli_say(2, "checking " + names(f).at(-1) + ": it uses " + names(dep).at(-1) + "\n");
       trust.delete(f);
-      todo.push(...[...need].filter(([g, ds]) => trust.has(g) && ds.has(f)).map(([g]) => g));
+      todo.push(...(users.get(f) ?? []).filter((g) => trust.has(g)));
     }
   }
   out.push(...[...trust].filter((f) => f !== BASE || seen.has(BASE)).map((f) => names(f).at(-1)!));
