@@ -69,9 +69,10 @@ they are. Each is optional, since slow is fine, and each that is done needs
 its own proof that it preserves the claims, composed into them. Each waits
 on a decision.
 
-Now: 1024 U32 adds take 0.74 s. A U32 sum over 64 input bytes takes
-15 s: `U32.from_nat` and `U32.to_nat` have no jump yet. The time grows as
-the square of the input size.
+Now: a program with all 12 U32 operations takes 110 steps (2673 before
+the word jumps). A U32 sum over 64 input bytes takes 11 s, and over 256
+bytes 146 s. Each step walks the full term, and the unary input stays in
+it. The time grows as the square of the input size.
 
 1. One-pass step. Status: done. `scanWith` finds the next step and the
    values in one walk. `scan_eq` proves that with no jump it gives what
@@ -86,11 +87,9 @@ the square of the input size.
    - A jump runs only when the book's defs equal `WordRef.lean`, a
      generated copy of base's code. Else it does not run, and the result
      stays correct.
-   - Status: add and sub done (`Word.adc.group`). 8 adds: 1961 steps
-     before, 52 after.
-   - Not done: inc, to_nat, cmp, and, or, xor, not, shl, shr, mul.
-   - `U32.from_nat` calls inc once per unit of its input, and `U32.to_nat`
-     calls `Word.to_nat`. Jumps for these make the U32 sum faster.
+   - Status: done for each family: add, sub, not, and, or, xor, inc,
+     to_nat, cmp, shl, shr, mul. One file of proofs per family, and
+     `WordJump.lean` for the jumps.
 5. Erase dead parts (types, q=0 arguments and lets, annotations). `Eval`
    never runs them, so the machine can carry them as inert syntax; erasing
    them saves time and memory. `Rwt` needs its own argument: its proof is
