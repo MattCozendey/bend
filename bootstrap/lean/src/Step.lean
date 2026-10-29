@@ -131,20 +131,35 @@ theorem walk_complete (w : Walk bk t e xs o) : walk t e xs = some o := by
   | need t => rename_i t' _; cases t' <;> simp_all [takes, walk]
   | done n => exact walk_done n
 
+-- walkCall bk t: when t is a call, the walk of the case tree of its def on
+-- the arguments of t. Else none.
+def walkCall (bk : Book) (t : Term) : Option (Option Term) :=
+  match unspine t [] with
+  | (Ref k, xs) =>
+    match bk.get k with
+    | some d => walk d.v [] xs
+    | none => none
+  | _ => none
+
+theorem walkCall_iff : walkCall bk t = some o ↔
+    ∃ k d xs, unspine t [] = (Ref k, xs) ∧ bk.get k = some d ∧ Walk bk d.v [] xs o := by
+  unfold walkCall
+  constructor
+  · intro h
+    split at h
+    · rename_i k xs e
+      split at h
+      · rename_i d hd; exact ⟨k, d, xs, e, hd, walk_sound h⟩
+      · simp at h
+    · simp at h
+  · rintro ⟨k, d, xs, e, hd, w⟩
+    simp only [e, hd, walk_complete w]
+
 -- Values
 -- ======
 
 -- stops bk t: t is a call, and the case tree of its def needs more arguments.
-def stops (bk : Book) (t : Term) : Bool :=
-  match unspine t [] with
-  | (Ref k, xs) =>
-    match bk.get k with
-    | some d =>
-      match walk d.v [] xs with
-      | some none => true
-      | _ => false
-    | none => false
-  | _ => false
+def stops (bk : Book) (t : Term) : Bool := decide (walkCall bk t = some none)
 
 mutual
 -- isValue bk t: t is a value (the kernel's Value).
@@ -162,23 +177,6 @@ def isArgs (bk : Book) : Term → Bool
   | _ => false
 end
 
-theorem stops_iff : stops bk t = true ↔
-    ∃ k d xs, unspine t [] = (Ref k, xs) ∧ bk.get k = some d ∧ Walk bk d.v [] xs none := by
-  unfold stops
-  constructor
-  · intro h
-    split at h
-    · rename_i k xs e
-      split at h
-      · rename_i d hd
-        split at h
-        · rename_i hw; exact ⟨k, d, xs, e, hd, walk_sound hw⟩
-        · simp at h
-      · simp at h
-    · simp at h
-  · rintro ⟨k, d, xs, e, hd, w⟩
-    simp only [e, hd, walk_complete w]
-
 theorem no_spine (h : (unspine t []).1 ≠ Ref k) : t ≠ spine (Ref k) xs :=
   fun e => h (by rw [spine_head e])
 
@@ -190,7 +188,7 @@ theorem isValue_isArgs_iff : (isValue bk t = true ↔ Value bk t) ∧
   induction t with
   | Ref k =>
     refine ⟨?_, ⟨fun _ => ⟨k, [], rfl, .nil⟩, fun _ => rfl⟩⟩
-    simp only [isValue, stops_iff]
+    simp only [isValue, stops, decide_eq_true_eq, walkCall_iff]
     constructor
     · rintro ⟨k', d, xs, e, hd, w⟩
       simp only [unspine, Prod.mk.injEq, Term.Ref.injEq] at e
@@ -217,7 +215,7 @@ theorem isValue_isArgs_iff : (isValue bk t = true ↔ Value bk t) ∧
           exact ⟨ihf.2.2 ⟨k, ys, rfl, vs⟩, fun l => ihx.1.2 (vx l)⟩
     refine ⟨?_, by simpa only [isArgs] using args⟩
     simp only [isValue, Bool.and_eq_true]
-    rw [← Bool.and_eq_true, args, stops_iff]
+    rw [← Bool.and_eq_true, args, stops, decide_eq_true_eq, walkCall_iff]
     constructor
     · rintro ⟨⟨k, xs, e, vs⟩, k', d, xs', e', hd, w⟩
       rw [spine_head e] at e'
@@ -255,27 +253,18 @@ theorem app_args : (isArgs bk f = true ∧ (q.live = true → isValue bk x = tru
 
 -- fires bk t: when t is a call and the walk of its def leaves the case
 -- tree, the term that Walk gives. Else none.
-def fires (bk : Book) (t : Term) : Option Term :=
-  match unspine t [] with
-  | (Ref k, xs) =>
-    match bk.get k with
-    | some d =>
-      match walk d.v [] xs with
-      | some (some u) => some u
-      | _ => none
-    | none => none
-  | _ => none
+def fires (bk : Book) (t : Term) : Option Term := (walkCall bk t).join
 
--- redex q f x vx: the beta, split, hit or miss step of App q f x, or none
--- when no such step fits. vx is isValue bk x. The caller gives it, so
--- scanWith does not compute it again.
-def redex (q : Quan) (f x : Term) (vx : Bool) : Option Term :=
+-- redex bk q f x: the beta, split, hit or miss step of App q f x, or none
+-- when no such step fits.
+def redex (bk : Book) (q : Quan) (f x : Term) : Option Term :=
   match f, x with
   | Lam p b, x =>
-    if p.live = q.live ∧ (q.live = true → vx = true) ∧ (p = Q2 → isData x = true)
+    if p.live = q.live ∧ (q.live = true → isValue bk x = true) ∧ (p = Q2 → isData x = true)
     then some (inst b x) else none
   | Prj h, Tup r a b =>
-    if q.live = true ∧ vx = true then some (App q (App (Quan.fld r q) h a) b) else none
+    if q.live = true ∧ isValue bk (Tup r a b) = true
+    then some (App q (App (Quan.fld r q) h a) b) else none
   | Mat k h m, Lab j =>
     if q.live = true then (if j = k then some h else some (App q m (Lab j))) else none
   | _, _ => none
@@ -284,7 +273,9 @@ def redex (q : Quan) (f x : Term) (vx : Bool) : Option Term :=
 def call (bk : Book) (q : Quan) (f x : Term) : Option Term :=
   if isArgs bk f = true ∧ (q.live = true → isValue bk x = true) then fires bk (App q f x) else none
 
--- step bk t: one Eval step from t, or none when no Eval step fits.
+-- step bk t: one Eval step from t, or none when no Eval step fits. It walks
+-- a part of t again to check that the part is a value, so its cost can grow
+-- as the square of the size of t.
 def step (bk : Book) : Term → Option Term
   | Ann x _ => some x
   | Ref k => fires bk (Ref k)
@@ -298,7 +289,7 @@ def step (bk : Book) : Term → Option Term
         if isValue bk f = true then
           match (if q.live = true then step bk x else none) with
           | some x' => some (App q f x')
-          | none => redex q f x (isValue bk x)
+          | none => redex bk q f x
         else none
   | Let q v f =>
     match (if q.live = true then step bk v else none) with
@@ -329,36 +320,19 @@ def step (bk : Book) : Term → Option Term
       else none
   | _ => none
 
-theorem fires_iff : fires bk t = some u ↔
-    ∃ k d xs, unspine t [] = (Ref k, xs) ∧ bk.get k = some d ∧ Walk bk d.v [] xs (some u) := by
-  unfold fires
-  constructor
-  · intro h
-    split at h
-    · rename_i k xs e
-      split at h
-      · rename_i d hd
-        split at h
-        · rename_i u' hw; cases h; exact ⟨k, d, xs, e, hd, walk_sound hw⟩
-        · simp at h
-      · simp at h
-    · simp at h
-  · rintro ⟨k, d, xs, e, hd, w⟩
-    simp only [e, hd, walk_complete w]
-
 theorem call_sound (h : call bk q f x = some u) : Eval bk (App q f x) u := by
   unfold call at h
   split at h
   · rename_i c
     obtain ⟨k, xs, e, vs⟩ := app_args.1 c
-    obtain ⟨k', d, xs', e', hd, w⟩ := fires_iff.1 h
+    obtain ⟨k', d, xs', e', hd, w⟩ := walkCall_iff.1 (Option.join_eq_some_iff.1 h)
     rw [spine_head e] at e'
     simp only [Prod.mk.injEq, Term.Ref.injEq] at e'
     obtain ⟨rfl, rfl⟩ := e'
     rw [e]; exact .call hd vs w
   · simp at h
 
-theorem redex_sound (h : redex q f x (isValue bk x) = some u) : Eval bk (App q f x) u := by
+theorem redex_sound (h : redex bk q f x = some u) : Eval bk (App q f x) u := by
   unfold redex at h
   split at h
   · split at h
@@ -380,7 +354,7 @@ theorem step_sound : step bk t = some u → Eval bk t u := by
   | Ann x T => simp only [step, Option.some.injEq]; rintro rfl; exact .ann
   | Ref k =>
     simp only [step]; intro h
-    obtain ⟨k', d, xs, e, hd, w⟩ := fires_iff.1 h
+    obtain ⟨k', d, xs, e, hd, w⟩ := walkCall_iff.1 (Option.join_eq_some_iff.1 h)
     simp only [unspine, Prod.mk.injEq, Term.Ref.injEq] at e
     obtain ⟨rfl, rfl⟩ := e
     exact .call (xs := []) hd .nil w
@@ -447,7 +421,7 @@ theorem step_sound : step bk t = some u → Eval bk t u := by
 -- when step gives none on an App, each of its App cases gives none
 theorem step_app_none (h : step bk (App q f x) = none) :
     call bk q f x = none ∧ step bk f = none ∧
-    (isValue bk f = true → (q.live = true → step bk x = none) ∧ redex q f x (isValue bk x) = none) := by
+    (isValue bk f = true → (q.live = true → step bk x = none) ∧ redex bk q f x = none) := by
   simp only [step] at h
   split at h
   · simp at h
@@ -490,16 +464,14 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
   | call hd vs w =>
     rename_i k d xs _
     rcases xs.eq_nil_or_concat with rfl | ⟨ys, ⟨q, x⟩, rfl⟩
-    · simp only [spine, step]
-      rw [fires_iff.2 ⟨k, d, [], rfl, hd, w⟩]; simp
+    · simp [spine, step, fires, (walkCall_iff (t := Ref k)).2 ⟨k, d, [], rfl, hd, w⟩]
     · simp only [List.concat_eq_append] at vs w ⊢
       rw [spine_snoc]
       intro hn
       have hc := (step_app_none hn).1
       unfold call at hc
-      rw [ite_eq_left (app_args.2 ⟨k, ys ++ [(q, x)], spine_snoc.symm, vs⟩),
-        fires_iff.2 ⟨k, d, ys ++ [(q, x)], spine_head spine_snoc.symm, hd, w⟩] at hc
-      simp at hc
+      rw [ite_eq_left (app_args.2 ⟨k, ys ++ [(q, x)], spine_snoc.symm, vs⟩)] at hc
+      simp [fires, walkCall_iff.2 ⟨k, d, ys ++ [(q, x)], spine_head spine_snoc.symm, hd, w⟩] at hc
   | lett l _ ih =>
     simp only [step, l, ite_true]
     split
@@ -541,12 +513,13 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
       · rename_i hb; exact absurd hb ih
   | meet hi hj => simp [step, isValue, hi, hj]
 
--- One pass
--- ========
---
--- step checks values again at each App, so its cost can grow as the
--- square of the size of the term. scanWith gets isValue and isArgs in the
--- same walk as the step.
+theorem value_step (v : isValue bk t = true) : step bk t = none := by
+  cases h : step bk t with
+  | none => rfl
+  | some u => exact (eval_value (step_sound h) (isValue_iff.1 v)).elim
+
+-- Jumps
+-- =====
 
 -- Jump: a shortcut at calls. go t gives a later term of the Eval run from
 -- the call t, or none. When takes k is false, go gives none on each call
@@ -554,95 +527,6 @@ theorem step_complete (h : Eval bk t u) : step bk t ≠ none := by
 structure Jump where
   takes : String → Bool
   go : Term → Option Term
-
-def Jump.never : Jump := ⟨fun _ => false, fun _ => none⟩
-
-@[simp] theorem Jump.never_go : Jump.never.go t = none := rfl
-
--- scanWith bk jump t: (s, isValue bk t, isArgs bk t). s is the step that
--- step gives, but at each App where isArgs is true, scanWith first tries
--- jump.go.
-def scanWith (bk : Book) (jump : Jump) : Term → Option Term × Bool × Bool
-  | Ann x _ => (some x, false, false)
-  | Ref k => (fires bk (Ref k), stops bk (Ref k), true)
-  | App q f x =>
-    let (sf, vf, af) := scanWith bk jump f
-    let (sx, vx, _) := scanWith bk jump x
-    let ok := af && (!q.live || vx)
-    let s :=
-      match (if ok = true then
-          (match jump.go (App q f x) with
-           | some u => some u
-           | none => fires bk (App q f x))
-        else none) with
-      | some u => some u
-      | none =>
-        match sf with
-        | some f' => some (App q f' x)
-        | none =>
-          if vf = true then
-            match (if q.live = true then sx else none) with
-            | some x' => some (App q f x')
-            | none => redex q f x vx
-          else none
-    (s, ok && stops bk (App q f x), ok)
-  | Let q v f =>
-    let (sv, vv, _) := scanWith bk jump v
-    let s :=
-      match (if q.live = true then sv else none) with
-      | some v' => some (Let q v' f)
-      | none =>
-        if (q.live = true → vv = true) ∧ (q = Q2 → isData v = true)
-        then some (inst f v) else none
-    (s, false, false)
-  | Tup q a b =>
-    let (sa, va, _) := scanWith bk jump a
-    let (sb, vb, _) := scanWith bk jump b
-    let s :=
-      match (if q.live = true then sa else none) with
-      | some a' => some (Tup q a' b)
-      | none => if q.live = true → va = true then sb.map (Tup q a ·) else none
-    (s, (!q.live || va) && vb, false)
-  | Rwt e P f =>
-    let (se, _, _) := scanWith bk jump e
-    let s :=
-      match e with
-      | Rfl => some f
-      | _ => se.map (Rwt · P f)
-    (s, false, false)
-  | .Min a b =>
-    let (sa, va, _) := scanWith bk jump a
-    let (sb, _, _) := scanWith bk jump b
-    let s :=
-      match sa with
-      | some a' => some (.Min a' b)
-      | none =>
-        if va = true then
-          match sb with
-          | some b' => some (.Min a b')
-          | none =>
-            match a, b with
-            | Lab i, Lab j => if i ∈ QS ∧ j ∈ QS then some (qmin (Lab i) (Lab j)) else none
-            | _, _ => none
-        else none
-    (s, false, false)
-  | Var _ => (none, false, false)
-  | _ => (none, true, false)
-
-theorem scanWith_eq : scanWith bk Jump.never t = (step bk t, isValue bk t, isArgs bk t) := by
-  induction t with
-  | App q f x ihf ihx =>
-    simp only [scanWith, Jump.never_go, ihf, ihx, step, call, isValue, isArgs]
-    congr 2
-    simp only [Bool.and_eq_true, live_or]
-  | Let q v f ihv => simp only [scanWith, ihv, step, isValue, isArgs]
-  | Tup q a b iha ihb => simp only [scanWith, iha, ihb, step, isValue, isArgs]
-  | Rwt e P f ihe => simp only [scanWith, ihe, step, isValue, isArgs]
-  | Min a b iha ihb => simp only [scanWith, iha, ihb, step, isValue, isArgs]
-  | _ => rfl
-
--- Jumps
--- =====
 
 -- Plus bk t u: t becomes u in one or more Eval steps.
 def Plus (bk : Book) (t u : Term) : Prop := ∃ m, Eval bk t m ∧ Contract.Evals bk m u
@@ -671,254 +555,7 @@ theorem plus_map (C : Term → Term) (hC : ∀ {a a'}, Eval bk a a' → Eval bk 
     Plus bk a a' → Plus bk (C a) (C a') :=
   fun ⟨_, e, es⟩ => ⟨_, hC e, evals_map C hC es⟩
 
-theorem scanWith_snd : (scanWith bk jump t).2 = (isValue bk t, isArgs bk t) := by
-  induction t with
-  | App q f x ihf ihx =>
-    simp only [scanWith]
-    generalize scanWith bk jump f = F at *
-    generalize scanWith bk jump x = X at *
-    obtain ⟨sf, vf, af⟩ := F
-    obtain ⟨sx, vx, ax⟩ := X
-    simp only [Prod.mk.injEq] at ihf ihx
-    simp [isValue, isArgs, ihf.2, ihx.1]
-  | Tup q a b iha ihb =>
-    simp only [scanWith]
-    generalize scanWith bk jump a = A at *
-    generalize scanWith bk jump b = B at *
-    obtain ⟨sa, va, aa⟩ := A
-    obtain ⟨sb, vb, ab⟩ := B
-    simp only [Prod.mk.injEq] at iha ihb
-    simp [isValue, isArgs, iha.1, ihb.1]
-  | Let | Rwt | Min => simp [scanWith, isValue, isArgs]
-  | _ => rfl
-
-theorem scanWith_value : (scanWith bk jump t).2.1 = isValue bk t := by rw [scanWith_snd]
-
 -- each result of jump.go t is one or more Eval steps from t
 def Jump.Sound (bk : Book) (jump : Jump) : Prop := ∀ t u, jump.go t = some u → Plus bk t u
-
-theorem scanWith_sound (hj : Jump.Sound bk jump) :
-    (scanWith bk jump t).1 = some u → Plus bk t u := by
-  induction t generalizing u with
-  | Ann x T => simp only [scanWith, Option.some.injEq]; rintro rfl; exact ⟨_, .ann, .refl⟩
-  | Ref k =>
-    simp only [scanWith]; intro h
-    exact ⟨u, step_sound (by simpa [step] using h), .refl⟩
-  | App q f x ihf ihx =>
-    simp only [scanWith]
-    have hvf := scanWith_value (bk := bk) (jump := jump) (t := f)
-    have hvx := scanWith_value (bk := bk) (jump := jump) (t := x)
-    have haf := congrArg Prod.snd (scanWith_snd (bk := bk) (jump := jump) (t := f))
-    simp only at haf
-    intro h
-    split at h
-    · rename_i u' hc
-      cases h
-      split at hc
-      · rename_i ok
-        split at hc
-        · rename_i hjmp; cases hc; exact hj _ _ hjmp
-        · rename_i hjmp
-          have ok' : isArgs bk f = true ∧ (q.live = true → isValue bk x = true) := by
-            have := ok; simp only [haf, hvx] at this
-            rw [Bool.and_eq_true, live_or] at this; exact this
-          refine ⟨_, call_sound ?_, .refl⟩
-          unfold call
-          rw [ite_eq_left ok']
-          exact hc
-      · simp at hc
-    · split at h
-      · rename_i f' hf; cases h
-        exact plus_map (App q · x) (fun e => .app_f e) (ihf hf)
-      · split at h
-        · rename_i vf
-          rw [hvf] at vf
-          split at h
-          · rename_i x' hx; cases h
-            split at hx
-            · rename_i l
-              exact plus_map (App q f ·) (fun e => .app_x (isValue_iff.1 vf) l e) (ihx hx)
-            · simp at hx
-          · rw [hvx] at h; exact ⟨u, redex_sound h, .refl⟩
-        · simp at h
-  | Let q v f ihv =>
-    simp only [scanWith]
-    have hvv := scanWith_value (bk := bk) (jump := jump) (t := v)
-    intro h
-    split at h
-    · rename_i v' hv; cases h
-      split at hv
-      · rename_i l; exact plus_map (Let q · f) (fun e => .lett l e) (ihv hv)
-      · simp at hv
-    · split at h
-      · rename_i c; cases h; rw [hvv] at c
-        exact ⟨_, .unlet (fun l => isValue_iff.1 (c.1 l)) (fun e => isData_iff.1 (c.2 e)), .refl⟩
-      · simp at h
-  | Tup q a b iha ihb =>
-    simp only [scanWith]
-    have hva := scanWith_value (bk := bk) (jump := jump) (t := a)
-    intro h
-    split at h
-    · rename_i a' ha; cases h
-      split at ha
-      · rename_i l; exact plus_map (Tup q · b) (fun e => .tup_a l e) (iha ha)
-      · simp at ha
-    · split at h
-      · rename_i c; rw [hva] at c
-        obtain ⟨b', hb, rfl⟩ := Option.map_eq_some_iff.1 h
-        exact plus_map (Tup q a ·) (fun e => .tup_b (fun l => isValue_iff.1 (c l)) e) (ihb hb)
-      · simp at h
-  | Rwt e P f ihe =>
-    simp only [scanWith]; intro h
-    split at h
-    · cases h; exact ⟨_, .cast, .refl⟩
-    · obtain ⟨e', he, rfl⟩ := Option.map_eq_some_iff.1 h
-      exact plus_map (Rwt · P f) (fun e => .rwt e) (ihe he)
-  | Min a b iha ihb =>
-    simp only [scanWith]
-    have hva := scanWith_value (bk := bk) (jump := jump) (t := a)
-    intro h
-    split at h
-    · rename_i a' ha; cases h; exact plus_map (.Min · b) (fun e => .min_a e) (iha ha)
-    · split at h
-      · rename_i va; rw [hva] at va
-        split at h
-        · rename_i b' hb; cases h
-          exact plus_map (.Min a ·) (fun e => .min_b (isValue_iff.1 va) e) (ihb hb)
-        · split at h
-          · split at h
-            · rename_i c; cases h; exact ⟨_, .meet c.1 c.2, .refl⟩
-            · simp at h
-          · simp at h
-      · simp at h
-  | _ => simp [scanWith]
-
--- a jump never removes a step
-theorem scanWith_none_nojump :
-    (scanWith bk jump t).1 = none → (scanWith bk Jump.never t).1 = none := by
-  induction t with
-  | App q f x ihf ihx =>
-    have vf := scanWith_snd (bk := bk) (jump := jump) (t := f)
-    have vf0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := f)
-    have vx := scanWith_snd (bk := bk) (jump := jump) (t := x)
-    have vx0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := x)
-    simp only [scanWith, Jump.never_go]
-    generalize scanWith bk jump f = F at *
-    generalize scanWith bk Jump.never f = F0 at *
-    generalize scanWith bk jump x = X at *
-    generalize scanWith bk Jump.never x = X0 at *
-    obtain ⟨sf, _, _⟩ := F
-    obtain ⟨sf0, _, _⟩ := F0
-    obtain ⟨sx, _, _⟩ := X
-    obtain ⟨sx0, _, _⟩ := X0
-    simp only [Prod.mk.injEq] at vf vf0 vx vx0
-    obtain ⟨rfl, rfl⟩ := vf; obtain ⟨rfl, rfl⟩ := vf0
-    obtain ⟨rfl, rfl⟩ := vx; obtain ⟨rfl, rfl⟩ := vx0
-    dsimp only at *
-    intro h
-    split at h
-    · simp at h
-    · rename_i hc
-      split at h
-      · simp at h
-      · rw [ihf (by first | rfl | assumption)]
-        have hc0 : (if (isArgs bk f && (!q.live || isValue bk x)) = true then fires bk (App q f x) else none) = none := by
-          split at hc
-          · rename_i ok; rw [ite_eq_left ok]; split at hc
-            · simp at hc
-            · exact hc
-          · rename_i ok; simp [ok]
-        simp only [hc0]
-        split at h
-        · rename_i v; simp only [v, ite_true]
-          split at h
-          · simp at h
-          · rename_i hx
-            have hx0 : (if q.live = true then sx0 else none) = none := by
-              cases l : q.live <;> simp_all
-            simp only [hx0]; exact h
-        · rename_i v; simp [v]
-  | Let q v f ihv =>
-    have vv := scanWith_snd (bk := bk) (jump := jump) (t := v)
-    have vv0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := v)
-    simp only [scanWith]
-    generalize scanWith bk jump v = V at *
-    generalize scanWith bk Jump.never v = V0 at *
-    obtain ⟨sv, _, _⟩ := V
-    obtain ⟨sv0, _, _⟩ := V0
-    simp only [Prod.mk.injEq] at vv vv0
-    obtain ⟨rfl, rfl⟩ := vv; obtain ⟨rfl, rfl⟩ := vv0
-    dsimp only at *
-    intro h
-    split at h
-    · simp at h
-    · rename_i hv
-      have hv0 : (if q.live = true then sv0 else none) = none := by
-        cases l : q.live <;> simp_all
-      simp only [hv0]; exact h
-  | Tup q a b iha ihb =>
-    have va := scanWith_snd (bk := bk) (jump := jump) (t := a)
-    have va0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := a)
-    simp only [scanWith]
-    generalize scanWith bk jump a = A at *
-    generalize scanWith bk Jump.never a = A0 at *
-    generalize scanWith bk jump b = B at *
-    generalize scanWith bk Jump.never b = B0 at *
-    obtain ⟨sa, _, _⟩ := A
-    obtain ⟨sa0, _, _⟩ := A0
-    obtain ⟨sb, _, _⟩ := B
-    obtain ⟨sb0, _, _⟩ := B0
-    simp only [Prod.mk.injEq] at va va0
-    obtain ⟨rfl, rfl⟩ := va; obtain ⟨rfl, rfl⟩ := va0
-    dsimp only at *
-    intro h
-    split at h
-    · simp at h
-    · rename_i ha
-      have ha0 : (if q.live = true then sa0 else none) = none := by
-        cases l : q.live <;> simp_all
-      simp only [ha0]
-      split at h
-      · rename_i c; rw [ite_eq_left c]; simp only [Option.map_eq_none_iff] at h ⊢; exact ihb h
-      · rename_i c; rw [ite_eq_right c]
-  | Rwt e P f ihe =>
-    simp only [scanWith]
-    generalize scanWith bk jump e = E at *
-    generalize scanWith bk Jump.never e = E0 at *
-    obtain ⟨se, _, _⟩ := E
-    obtain ⟨se0, _, _⟩ := E0
-    dsimp only at *
-    cases e <;> simp_all
-  | Min a b iha ihb =>
-    have va := scanWith_snd (bk := bk) (jump := jump) (t := a)
-    have va0 := scanWith_snd (bk := bk) (jump := Jump.never) (t := a)
-    simp only [scanWith]
-    generalize scanWith bk jump a = A at *
-    generalize scanWith bk Jump.never a = A0 at *
-    generalize scanWith bk jump b = B at *
-    generalize scanWith bk Jump.never b = B0 at *
-    obtain ⟨sa, _, _⟩ := A
-    obtain ⟨sa0, _, _⟩ := A0
-    obtain ⟨sb, _, _⟩ := B
-    obtain ⟨sb0, _, _⟩ := B0
-    simp only [Prod.mk.injEq] at va va0
-    obtain ⟨rfl, rfl⟩ := va; obtain ⟨rfl, rfl⟩ := va0
-    dsimp only at *
-    intro h
-    split at h
-    · simp at h
-    · rw [iha (by first | rfl | assumption)]
-      split at h
-      · rename_i v; rw [ite_eq_left v]
-        split at h
-        · simp at h
-        · rw [ihb (by first | rfl | assumption)]; exact h
-      · rename_i v; rw [ite_eq_right v]
-  | _ => simp [scanWith]
-
-theorem scanWith_none (h : (scanWith bk jump t).1 = none) : step bk t = none := by
-  have e := congrArg Prod.fst (scanWith_eq (bk := bk) (t := t))
-  simp only at e
-  rw [← e]; exact scanWith_none_nojump h
 
 end Interp

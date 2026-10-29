@@ -53,11 +53,6 @@ theorem hasRef_sound (h : hasRef bk k r = true) : HasRef bk k r := by
 -- Values
 -- ======
 
-theorem value_step (v : isValue bk t = true) : step bk t = none := by
-  cases h : step bk t with
-  | none => rfl
-  | some u => exact (eval_value (step_sound h) (isValue_iff.1 v)).elim
-
 theorem bit_isValue : isValue bk (bitT b) = true := by
   cases b <;> simp [bitT, labT, isValue, Quan.live]
 
@@ -125,7 +120,7 @@ def cellEnd (k : String) : Term → Bool
 macro "word_simp" "[" xs:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic| set_option maxHeartbeats 0 in set_option maxRecDepth 100000 in
     simp (config := { maxSteps := 50000000 }) [stepUntil, step, call, fires, isArgs,
-    isValue, stops, unspine, walk, redex, isData, Quan.live, Quan.fld, takes, spine, Term.sub,
+    isValue, stops, walkCall, unspine, walk, redex, isData, Quan.live, Quan.fld, takes, spine, Term.sub,
     Env.sub, labT, bitT, cellT, callT, boxT, cellEnd, headIs, nat_isValue, nat_isData, word_isValue,
     word_isData, nat_step, word_step, $xs,*])
 
