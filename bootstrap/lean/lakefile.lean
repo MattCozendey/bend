@@ -4,9 +4,11 @@ open Lake DSL System
 -- Bootstrap
 -- =========
 --
--- The verified compiler. Its proofs read the kernel itself: Kernel.lean is
--- bend2/bendtt.lean minus its Main section, regenerated on every build, so
--- a module that imports it can declare its own main. Nothing else differs.
+-- The verified compiler. Its proofs read the kernel itself: src/Kernel.lean
+-- is bend2/bendtt.lean minus its Main section, so a module that imports it
+-- can declare its own main. Nothing else differs. The copy is committed so
+-- that Lake can read its header before any target runs; every build checks
+-- that it is exactly that text, and `lake run regen` writes it.
 
 package bootstrap where
   srcDir := "src"
@@ -33,31 +35,42 @@ def main (args : List String) : IO UInt32 := do
     pure 2
 "#.splitOn "\n").toArray
 
+-- a file's text, line endings made LF, so a checkout's CRLF changes nothing
+def LF (text : String) : String :=
+  text.replace "\r\n" "\n"
+
 -- bendtt.lean's text, its Main section cut out; fails unless that section
 -- appears in it exactly once, unchanged
 def Kernel.strip (text : String) : Except String String := do
-  let ls := (text.splitOn "\n").toArray
+  let ls := ((LF text).splitOn "\n").toArray
   let n := Kernel.cut.size
-  let cut_at (i : Nat) := (List.range n).all fun k =>
-    ls[i + k]? == some Kernel.cut[k]! || ls[i + k]? == some (Kernel.cut[k]! ++ "\r")
+  let cut_at (i : Nat) := (List.range n).all fun k => ls[i + k]? == some Kernel.cut[k]!
   let [i] := (List.range ls.size).filter cut_at
     | throw "expected the Main section once, unchanged (see Kernel.cut)"
-  let head := "-- GENERATED from bend2/bendtt.lean by bootstrap/lean/lakefile.lean,\n"
-    ++ "-- with its Main section cut out. Do not edit.\n\n"
+  let head := "-- A COPY of bend2/bendtt.lean with its Main section cut out. The build\n"
+    ++ "-- fails unless this is exactly that. Do not edit: `lake run regen` writes it.\n\n"
   return head ++ "\n".intercalate (ls.extract 0 i ++ ls.extract (i + n) ls.size).toList
 
-target kernel pkg : FilePath := do
-  let out := pkg.dir / "src" / "Kernel.lean"
-  let src ← inputTextFile (pkg.dir / ".." / ".." / "bend2" / "bendtt.lean")
-  src.mapM fun src => do
-    match Kernel.strip (← IO.FS.readFile src) with
-    | .error e => error s!"{src}: {e}"
-    | .ok text =>
-      let old ← if ← out.pathExists then IO.FS.readFile out else pure ""
-      if old != text then
-        IO.FS.createDirAll (pkg.dir / "src")
-        IO.FS.writeFile out text
-      return out
+-- the text that src/Kernel.lean must have, from bend2/bendtt.lean
+def Kernel.want (dir : FilePath) : IO (Except String String) :=
+  return Kernel.strip (← IO.FS.readFile (dir / ".." / ".." / "bend2" / "bendtt.lean"))
+
+target kernel pkg : Unit := Job.async do
+  match ← Kernel.want pkg.dir with
+  | .error e => error s!"bend2/bendtt.lean: {e}"
+  | .ok want =>
+    let file := pkg.dir / "src" / "Kernel.lean"
+    unless ← file.pathExists do
+      error "src/Kernel.lean is missing. Run `lake run regen`."
+    unless LF (← IO.FS.readFile file) == want do
+      error ("src/Kernel.lean is not bend2/bendtt.lean minus its Main section. "
+        ++ "Run `lake run regen`, review the diff, and commit.")
+
+script regen (_args) do
+  let dir := (← getWorkspace).root.dir
+  match ← Kernel.want dir with
+  | .error e => IO.eprintln s!"bend2/bendtt.lean: {e}"; return 1
+  | .ok want => IO.FS.writeFile (dir / "src" / "Kernel.lean") want; return 0
 
 -- Pins
 -- ====
@@ -76,9 +89,8 @@ def Pins : List (String × UInt64) := [
   ("src/Guard.lean", 15051376749205065931),
   ("src/Main.lean", 10677801529969707441)]
 
--- a file's text, line endings made LF, so a checkout's CRLF keeps its hash
 def Pin.hash (text : String) : UInt64 :=
-  Hashable.hash (text.replace "\r\n" "\n")
+  Hashable.hash (LF text)
 
 target pins pkg : Unit := Job.async do
   let mut bad := #[]
