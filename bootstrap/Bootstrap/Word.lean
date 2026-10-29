@@ -3,11 +3,10 @@ import Bootstrap.WordRef
 -- Word
 -- ====
 --
--- The word jump. A call of base's Word.adc.group (the code of Word.add and
--- Word.sub) on values goes in one step to its result, which adcBits, a bit
--- recursion in Lean, computes. group_evals proves that Eval reaches the
--- same result, for each width. The jump runs only when the book's defs
--- equal the terms in WordRef.
+-- What the word jumps share: bits, words, numbers and orders as terms, the
+-- check that the book has base's word code, and the tools of the round
+-- proofs. A round proof follows Eval from one call of a word def to the
+-- next one, with the rest of each word left open.
 
 open Quan Term Spec
 
@@ -16,52 +15,33 @@ namespace Interp
 -- Terms
 -- =====
 
--- a Bool, a word (lowest bit first) and a call of the group, as terms
 def bitT (b : Bool) : Term := Tup Q1 (Lab (if b then "True" else "False")) (Lab "()")
+
+-- a cell of a word: its lowest bit h, then the rest t
+def cellT (h t : Term) : Term := Tup Q1 (Lab "WCon") (Tup Q1 h (Tup Q1 t (Lab "()")))
 
 def wordT : List Bool → Term
   | [] => Tup Q1 (Lab "WNil") (Lab "()")
-  | b :: bs => Tup Q1 (Lab "WCon") (Tup Q1 (bitT b) (Tup Q1 (wordT bs) (Lab "()")))
+  | b :: bs => cellT (bitT b) (wordT bs)
 
-def groupCall (n a b f c : Term) : Term :=
-  App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (Ref "Word.adc.group") n) a) b) f)
-    (Tup Q1 (Lab "Word.adc") (Lab "()"))) c
+def succT (n : Term) : Term := Tup Q1 (Lab "Succ") (Tup Q1 n (Lab "()"))
 
--- the bits that Word.adc computes. f true subtracts: it flips each bit of
--- the second word.
-def fullAdd (a b c : Bool) : Bool × Bool :=
-  if a then (!(b ^^ c), b || c) else (b ^^ c, b && c)
+def cmpT (o : Ordering) : Term :=
+  Tup Q1 (Lab (match o with | .lt => "LT" | .eq => "EQ" | .gt => "GT")) (Lab "()")
 
-def adcBits (f : Bool) : List Bool → List Bool → Bool → List Bool
-  | a :: as, b :: bs, c =>
-    let sk := fullAdd a (if f then !b else b) c
-    sk.1 :: adcBits f as bs sk.2
-  | _, _, _ => []
+-- callT k xs: def k applied to xs, each at quantity 1
+def callT (k : String) (xs : List Term) : Term := spine (Ref k) (xs.map (Q1, ·))
 
--- Refs bk: the book has base's word add code, as WordRef gives it
-structure Refs (bk : Book) : Prop where
-  group : ∃ d, bk.get "Word.adc.group" = some d ∧ d.v = refGroup
-  fullAdd : ∃ d, bk.get "Bool.full_add" = some d ∧ d.v = refFullAdd
-  xor : ∃ d, bk.get "Bool.xor" = some d ∧ d.v = refXor
-  and : ∃ d, bk.get "Bool.and" = some d ∧ d.v = refAnd
-  or : ∃ d, bk.get "Bool.or" = some d ∧ d.v = refOr
-  not : ∃ d, bk.get "Bool.not" = some d ∧ d.v = refNot
+-- Refs
+-- ====
 
 -- the body of def k is r
+def HasRef (bk : Book) (k : String) (r : Term) : Prop := ∃ d, bk.get k = some d ∧ d.v = r
+
 def hasRef (bk : Book) (k : String) (r : Term) : Bool := (bk.get k).map (·.v) == some r
 
-theorem hasRef_ok (h : hasRef bk k r = true) : ∃ d, bk.get k = some d ∧ d.v = r := by
+theorem hasRef_ok (h : hasRef bk k r = true) : HasRef bk k r := by
   simp only [hasRef, beq_iff_eq, Option.map_eq_some_iff] at h; exact h
-
-def refsMatch (bk : Book) : Bool :=
-  hasRef bk "Word.adc.group" refGroup && hasRef bk "Bool.full_add" refFullAdd &&
-  hasRef bk "Bool.xor" refXor && hasRef bk "Bool.and" refAnd &&
-  hasRef bk "Bool.or" refOr && hasRef bk "Bool.not" refNot
-
-theorem refsMatch_ok (h : refsMatch bk = true) : Refs bk := by
-  simp only [refsMatch, Bool.and_eq_true] at h
-  exact ⟨hasRef_ok h.1.1.1.1.1, hasRef_ok h.1.1.1.1.2, hasRef_ok h.1.1.1.2, hasRef_ok h.1.1.2,
-    hasRef_ok h.1.2, hasRef_ok h.2⟩
 
 -- Values
 -- ======
@@ -71,33 +51,48 @@ theorem value_step (v : isValue bk t = true) : step bk t = none := by
   | none => rfl
   | some u => exact (eval_value (step_sound h) (isValue_iff.1 v)).elim
 
-theorem bit_value : isValue bk (bitT b) = true ∧ isData (bitT b) = true := by
-  cases b <;> simp [bitT, isValue, isData, Quan.live]
+theorem bit_isValue : isValue bk (bitT b) = true := by
+  cases b <;> simp [bitT, isValue, Quan.live]
 
-theorem word_value : isValue bk (wordT bs) = true ∧ isData (wordT bs) = true := by
+theorem bit_isData : isData (bitT b) = true := by
+  cases b <;> simp [bitT, isData, Quan.live]
+
+theorem word_isValue : isValue bk (wordT bs) = true := by
   induction bs with
-  | nil => simp [wordT, isValue, isData]
-  | cons b bs ih =>
-    have := bit_value (bk := bk) (b := b)
-    simp_all [wordT, isValue, isData, Quan.live]
+  | nil => simp [wordT, isValue]
+  | cons b bs ih => simp [wordT, cellT, isValue, Quan.live, ih, bit_isValue]
 
-theorem nat_value : isValue bk (Bytes.nat n) = true ∧ isData (Bytes.nat n) = true := by
+theorem word_isData : isData (wordT bs) = true := by
+  induction bs with
+  | nil => simp [wordT, isData]
+  | cons b bs ih => simp [wordT, cellT, isData, Quan.live, ih, bit_isData]
+
+theorem nat_isValue : isValue bk (Bytes.nat n) = true := by
   induction n with
-  | zero => simp [Bytes.nat, isValue, isData]
-  | succ n ih => simp_all [Bytes.nat, isValue, isData, Quan.live]
+  | zero => simp [Bytes.nat, isValue]
+  | succ n ih => simp [Bytes.nat, isValue, Quan.live, ih]
+
+theorem nat_isData : isData (Bytes.nat n) = true := by
+  induction n with
+  | zero => simp [Bytes.nat, isData]
+  | succ n ih => simp [Bytes.nat, isData, Quan.live, ih]
+
+theorem word_step : step bk (wordT bs) = none := value_step word_isValue
+
+theorem nat_step : step bk (Bytes.nat n) = none := value_step nat_isValue
 
 -- Rounds
 -- ======
 
 -- stepUntil bk stop n t: the first term from t, in at most n steps, where
--- stop holds
+-- stop holds or no step fits
 def stepUntil (bk : Book) (stop : Term → Bool) : Nat → Term → Option Term
   | 0, _ => none
   | n + 1, t =>
     if stop t then some t else
     match step bk t with
     | some u => stepUntil bk stop n u
-    | none => none
+    | none => some t
 
 theorem stepUntil_sound : stepUntil bk stop n t = some u → Evals bk t u := by
   induction n generalizing t with
@@ -107,85 +102,50 @@ theorem stepUntil_sound : stepUntil bk stop n t = some u → Evals bk t u := by
     · simp only [Option.some.injEq]; rintro rfl; exact .refl
     · split
       · rename_i u' h; exact fun e => .step (step_sound h) (ih e)
-      · simp
+      · simp only [Option.some.injEq]; rintro rfl; exact .refl
 
--- the end of a round: a word cell whose tail is the next group call
-def roundEnd : Term → Bool
-  | Tup _ (Lab "WCon") (Tup _ _ (Tup _ (App _ (App _ (App _ (App _ (App _ (App _
-      (Ref "Word.adc.group") _) _) _) _) _) _) (Lab "()"))) => true
+-- t is a call of def k
+def headIs (k : String) (t : Term) : Bool := (unspine t []).1 == Ref k
+
+-- a word cell whose bit is known and whose rest is a call of def k
+def cellEnd (k : String) : Term → Bool
+  | Tup _ (Lab "WCon") (Tup _ (Tup _ (Lab _) (Lab "()")) (Tup _ x (Lab "()"))) => headIs k x
   | _ => false
 
--- the end of the last round: the empty word
-def wnilEnd : Term → Bool
-  | Tup _ (Lab "WNil") (Lab "()") => true
-  | _ => false
+-- the simp set of a round proof: it unfolds step on terms whose numbers and
+-- words stay open. Such a proof unfolds step on large terms, so it needs
+-- more than the default limits.
+macro "word_simp" "[" xs:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
+  `(tactic| set_option maxHeartbeats 0 in set_option maxRecDepth 100000 in
+    simp (config := { maxSteps := 50000000 }) [stepUntil, step, call, fires, isArgs,
+    isValue, stops, unspine, walk, redex, isData, Quan.live, Quan.fld, takes, spine, Term.sub,
+    Env.sub, bitT, cellT, callT, succT, cellEnd, headIs, nat_isValue, nat_isData, word_isValue,
+    word_isData, nat_step, word_step, $xs,*])
 
--- one round: a call on two word cells gives a cell of the result, with the
--- call on the tails as its tail
-set_option maxHeartbeats 0 in
-set_option maxRecDepth 100000 in
-theorem round (R : Refs bk) (vn : isValue bk n = true) (dn : isData n = true)
-    (va : isValue bk as = true) (da : isData as = true)
-    (vb : isValue bk bs = true) (db : isData bs = true) (f a b c : Bool) :
-    Evals bk (groupCall (Tup Q1 (Lab "Succ") (Tup Q1 n (Lab "()")))
-        (Tup Q1 (Lab "WCon") (Tup Q1 (bitT a) (Tup Q1 as (Lab "()"))))
-        (Tup Q1 (Lab "WCon") (Tup Q1 (bitT b) (Tup Q1 bs (Lab "()")))) (bitT f) (bitT c))
-      (Tup Q1 (Lab "WCon") (Tup Q1 (bitT (fullAdd a (if f then !b else b) c).1)
-        (Tup Q1 (groupCall n as bs (bitT f) (bitT (fullAdd a (if f then !b else b) c).2))
-          (Lab "()")))) := by
-  obtain ⟨dg, hg, hgv⟩ := R.group
-  obtain ⟨df, hf, hfv⟩ := R.fullAdd
-  obtain ⟨dx, hx, hxv⟩ := R.xor
-  obtain ⟨da', ha, hav⟩ := R.and
-  obtain ⟨do', ho, hov⟩ := R.or
-  obtain ⟨dt, ht, htv⟩ := R.not
-  have sn := value_step vn
-  have sa := value_step va
-  have sb := value_step vb
-  apply stepUntil_sound (stop := roundEnd) (n := 200)
-  cases f <;> cases a <;> cases b <;> cases c <;>
-    simp (config := { maxSteps := 50000000 }) [stepUntil, roundEnd, step, call, fires, isArgs,
-      isValue, stops, unspine, walk, redex, isData, hg, hgv, hf, hfv, hx, hxv, ha, hav, ho, hov,
-      ht, htv, vn, dn, va, da, vb, db, sn, sa, sb, refGroup, refFullAdd, refXor, refAnd, refOr,
-      refNot, groupCall, bitT, fullAdd, Quan.live, Quan.fld, takes, spine, Term.sub, Env.sub]
-
--- the last round: a call on two empty words gives the empty word
-set_option maxHeartbeats 0 in
-set_option maxRecDepth 100000 in
-theorem round0 (R : Refs bk) (f c : Bool) :
-    Evals bk (groupCall (Tup Q1 (Lab "Zero") (Lab "()")) (wordT []) (wordT []) (bitT f) (bitT c))
-      (wordT []) := by
-  obtain ⟨dg, hg, hgv⟩ := R.group
-  apply stepUntil_sound (stop := wnilEnd) (n := 50)
-  cases f <;> cases c <;>
-    simp (config := { maxSteps := 50000000 }) [stepUntil, wnilEnd, step, call, fires, isArgs,
-      isValue, unspine, walk, isData, hg, hgv, refGroup, groupCall, wordT, bitT, Quan.live,
-      Quan.fld, takes, spine, Term.sub, Env.sub]
-
--- Eval steps inside a word cell's tail
-theorem evals_tail (h : Evals bk x x') :
-    Evals bk (Tup Q1 (Lab "WCon") (Tup Q1 (bitT s) (Tup Q1 x (Lab "()"))))
-      (Tup Q1 (Lab "WCon") (Tup Q1 (bitT s) (Tup Q1 x' (Lab "()")))) := by
-  have vs := isValue_iff.1 (bit_value (bk := bk) (b := s)).1
-  refine evals_map (fun y => Tup Q1 (Lab "WCon") (Tup Q1 (bitT s) (Tup Q1 y (Lab "()"))))
+-- Eval steps in the rest of a word cell
+theorem evals_rest (h : Evals bk x x') : Evals bk (cellT (bitT s) x) (cellT (bitT s) x') := by
+  have vs := isValue_iff.1 (bit_isValue (bk := bk) (b := s))
+  exact evals_map (fun y => cellT (bitT s) y)
     (fun e => .tup_b (fun _ => .lab) (.tup_b (fun _ => vs) (.tup_a rfl e))) h
 
--- a group call on two words of n bits reaches the word that adcBits gives
-theorem group_evals (R : Refs bk) : ∀ (as bs : List Bool) (f c : Bool), as.length = bs.length →
-    Evals bk (groupCall (Bytes.nat as.length) (wordT as) (wordT bs) (bitT f) (bitT c))
-      (wordT (adcBits f as bs c))
-  | [], [], f, c, _ => round0 R f c
-  | a :: as, b :: bs, f, c, h => by
-    have vn := nat_value (bk := bk) (n := as.length)
-    have va := word_value (bk := bk) (bs := as)
-    have vb := word_value (bk := bk) (bs := bs)
-    have r := round R vn.1 vn.2 va.1 va.2 vb.1 vb.2 f a b c
-    exact evals_trans r (evals_tail (group_evals R as bs f _ (by simpa using h)))
-  | [], _ :: _, _, _, h => by simp at h
-  | _ :: _, [], _, _, h => by simp at h
+-- Eval steps in the last argument of a call whose other part is a value
+theorem evals_arg (vf : isValue bk f = true) (l : q.live = true) (h : Evals bk x x') :
+    Evals bk (App q f x) (App q f x') :=
+  evals_map (App q f ·) (fun e => .app_x (isValue_iff.1 vf) l e) h
 
--- Jump
--- ====
+-- a call that reaches a tuple moves
+theorem plus_tup (h : Evals bk (App q f x) u) (e : ∃ p a b, u = Tup p a b) :
+    Plus bk (App q f x) u :=
+  plus_of h fun h' => by obtain ⟨_, _, _, rfl⟩ := e; cases h'
+
+theorem word_tup : ∃ q a b, wordT bs = Tup q a b := by
+  cases bs <;> exact ⟨_, _, _, rfl⟩
+
+theorem nat_tup : ∃ q a b, Bytes.nat v = Tup q a b := by
+  cases v <;> exact ⟨_, _, _, rfl⟩
+
+-- Decoders
+-- ========
 
 def decBit : Term → Option Bool
   | Tup Q1 (Lab "True") (Lab "()") => some true
@@ -220,7 +180,7 @@ theorem decWord_ok (h : decWord t = some bs) : t = wordT bs := by
       | none => simp [hb, ht] at h
       | some bs' =>
         simp [hb, ht] at h; subst h
-        simp [wordT, decBit_ok hb, ih ht]
+        simp [wordT, cellT, decBit_ok hb, ih ht]
   | case3 => simp at h
 
 theorem decNat_ok (h : decNat t = some n) : t = Bytes.nat n := by
@@ -230,53 +190,5 @@ theorem decNat_ok (h : decNat t = some n) : t = Bytes.nat n := by
     obtain ⟨k, hk, rfl⟩ := Option.map_eq_some_iff.1 h
     simp [Bytes.nat, ih hk]
   | case3 => simp at h
-
--- wordJump ok t: when ok and t is a group call on a width, two words of
--- that width and two Bools, the word that the call reaches
-def wordJump (ok : Bool) : Term → Option Term
-  | App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (App Q1 (Ref "Word.adc.group") n) a) b) f)
-      (Tup Q1 (Lab "Word.adc") (Lab "()"))) c =>
-    if ok then do
-      let m ← decNat n
-      let as ← decWord a
-      let bs ← decWord b
-      let fb ← decBit f
-      let cb ← decBit c
-      if as.length = m ∧ bs.length = m then some (wordT (adcBits fb as bs cb)) else none
-    else none
-  | _ => none
-
-theorem wordJump_sound (hr : ok = true → Refs bk) : wordJump ok t = some u → Plus bk t u := by
-  intro h
-  unfold wordJump at h
-  split at h
-  · rename_i n a b f c
-    split at h
-    · rename_i hok
-      cases hm : decNat n with
-      | none => simp [hm] at h
-      | some m =>
-      cases has : decWord a with
-      | none => simp [hm, has] at h
-      | some as =>
-      cases hbs : decWord b with
-      | none => simp [hm, has, hbs] at h
-      | some bs =>
-      cases hfb : decBit f with
-      | none => simp [hm, has, hbs, hfb] at h
-      | some fb =>
-      cases hcb : decBit c with
-      | none => simp [hm, has, hbs, hfb, hcb] at h
-      | some cb =>
-      simp only [hm, has, hbs, hfb, hcb, bind, Option.bind] at h
-      split at h
-      · rename_i len
-        cases h
-        rw [decNat_ok hm, decWord_ok has, decWord_ok hbs, decBit_ok hfb, decBit_ok hcb, ← len.1]
-        refine plus_of (group_evals (hr hok) as bs fb cb (len.1.trans len.2.symm)) ?_
-        cases adcBits fb as bs cb <;> simp [wordT]
-      · simp at h
-    · simp at h
-  · simp at h
 
 end Interp

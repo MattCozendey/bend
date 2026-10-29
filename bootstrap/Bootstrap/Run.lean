@@ -1,11 +1,11 @@
-import Bootstrap.Word
+import Bootstrap.WordJump
 
 -- Run
 -- ===
 --
 -- The interpreter as a Spec.Compiler: its code is the book and the def to
 -- run, and run steps until no step fits. Each step is one walk (scanWith),
--- and a call of base's word add code jumps to its result (wordJump). This
+-- and a call of base's word code jumps to its result (wordJump). This
 -- file proves claims 1 (correct) and 2 (total) for it.
 
 open Quan Term Spec
@@ -22,12 +22,12 @@ def run (bk : Book) (jump : Term → Option Term) : Nat → Term → Option Obs
     | some u => run bk jump n u
     | none => observe t
 
--- the interpreter. It compares the book's word add code with WordRef once
--- per run.
+-- the interpreter. It compares the book's word code with WordRef once per
+-- run.
 def compiler : Compiler where
   Code := Book × String
   compile bk k := if Spec.Pure bk k = true then .ok (bk, k) else .error "the def is not Pure"
-  run n code := run code.1 (wordJump (refsMatch code.1)) n (Ref code.2)
+  run n code := run code.1 (wordJump (wordOk code.1)) n (Ref code.2)
 
 -- Runs
 -- ====
@@ -164,8 +164,7 @@ theorem correct : Claim.correct compiler := by
     cases hcomp
     obtain ⟨wt, lv⟩ := book_check bk hc
     obtain ⟨d, hd, R, K⟩ := pure_facts lv.1 hp
-    have hj : ∀ t u, wordJump (refsMatch bk) t = some u → Plus bk t u :=
-      fun _ _ => wordJump_sound refsMatch_ok
+    have hj : ∀ t u, wordJump (wordOk bk) t = some u → Plus bk t u := fun _ _ => wordJump_sound
     have acc := acc_plus (halts bk (Ref k) lv (fun _ => rfl) (live_ref hd))
     obtain ⟨n, v, ev, sv, rv⟩ := run_ends hj acc
     have vv := final_value wt lv R ev sv
