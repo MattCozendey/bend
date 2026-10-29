@@ -4,9 +4,9 @@ import Step
 -- ========
 --
 -- GENERATED. The bodies of base's word code, as bend -o gives them: R.k is
--- the body of def k. Made with bend 2.0.39 (repo source, in WSL) from a
--- program that calls each U32 operation, then printed with Book.parse and
--- reprStr.
+-- the body of def k. Made by scripts/GenRef.lean from scripts/ref.bend (a
+-- program that calls each U32 operation) with bend 2.0.39, the repo's source
+-- in WSL. Do not edit: GenRef.lean has the commands.
 -- A word jump runs only when the book's defs equal these terms. If they
 -- differ, the jump does not run, and the result stays correct.
 
