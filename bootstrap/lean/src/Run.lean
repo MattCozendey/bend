@@ -6,25 +6,17 @@ import Word.Impl
 --
 -- The interpreter as a Contract.Compiler. Its code is the book and the def to
 -- run. The environment machine (Machine.run) runs it until the machine stops.
--- In the machine, a call of base's word code jumps to its result (Word.jump).
--- Then runSteps steps the term until no step fits. This file proves claims 1
--- (correct) and 2 (total).
+-- The machine takes the word jumps (Word.jump). Then runSteps steps the term
+-- until no step fits. This file proves claims 1 (correct) and 2 (total).
 
 open Quan Term Contract
 
 namespace Interp
 
--- runSteps bk n t: step from t, at most n times. When no step fits, the
--- result is what the term shows. When the fuel ends first, there is no
--- result. It tests isValue before step: a value has no step, and isValue
--- costs less than step on a large value.
-def runSteps (bk : Book) : Nat → Term → Option Obs
-  | 0, _ => none
-  | n + 1, t =>
-    if isValue bk t then observe t else
-    match step bk t with
-    | some u => runSteps bk n u
-    | none => observe t
+-- runSteps bk n t: what the term shows where stepUntil stops at a value or
+-- where no step fits
+def runSteps (bk : Book) (n : Nat) (t : Term) : Option Obs :=
+  (stepUntil bk (isValue bk) n t).bind observe
 
 -- run bk jump n t: the machine from t, at most n steps, then runSteps from the
 -- term where it stops, with the fuel left
@@ -32,8 +24,7 @@ def run (bk : Book) (jump : Jump) (n : Nat) (t : Term) : Option Obs :=
   let (s, m) := Machine.run bk jump n (.eval t [] [])
   runSteps bk m (Machine.decode s)
 
--- the interpreter. It compares the book's word code with Word.Ref once per
--- run.
+-- the interpreter
 def compiler : Compiler where
   Code := Book × String
   compile bk k := if Contract.Pure bk k = true then .ok (bk, k) else .error "the def is not Pure"
@@ -45,32 +36,26 @@ def compiler : Compiler where
 -- a result of runSteps is what a reachable term shows, where no step fits
 theorem runSteps_sound : runSteps bk n t = some r →
     ∃ v, Evals bk t v ∧ step bk v = none ∧ observe v = some r := by
-  induction n generalizing t with
-  | zero => simp [runSteps]
-  | succ n ih =>
-    simp only [runSteps]
-    split
-    · rename_i hv; exact fun h => ⟨t, .refl, value_step hv, h⟩
-    split
-    · rename_i u hu
-      intro h; obtain ⟨v, ev, sv, ov⟩ := ih h
-      exact ⟨v, .step (step_sound hu) ev, sv, ov⟩
-    · rename_i hn; exact fun h => ⟨t, .refl, hn, h⟩
+  intro h
+  obtain ⟨v, hv, ov⟩ := Option.bind_eq_some_iff.1 h
+  obtain ⟨ev, l⟩ := stepUntil_some hv
+  exact ⟨v, ev, l.elim value_step id, ov⟩
 
 -- from a term where Eval ends, runSteps ends: some fuel reaches a term where
 -- no step fits
 theorem runSteps_ends (acc : Acc (fun u t => Eval bk t u) t) :
     ∃ n v, Evals bk t v ∧ step bk v = none ∧ runSteps bk n t = observe v := by
+  simp only [runSteps]
   induction acc with
   | intro t _ ih =>
     by_cases hv : isValue bk t = true
-    · exact ⟨1, t, .refl, value_step hv, by simp [runSteps, hv]⟩
+    · exact ⟨1, t, .refl, value_step hv, by simp [stepUntil, hv]⟩
     cases hs : step bk t with
-    | none => exact ⟨1, t, .refl, hs, by simp [runSteps, hs]⟩
+    | none => exact ⟨1, t, .refl, hs, by simp [stepUntil, hs]⟩
     | some u =>
       have e := step_sound hs
       obtain ⟨n, v, ev, sv, rv⟩ := ih u e
-      exact ⟨n + 1, v, .step e ev, sv, by simp [runSteps, hv, hs, rv]⟩
+      exact ⟨n + 1, v, .step e ev, sv, by simp [stepUntil, hv, hs, rv]⟩
 
 -- a result of run is what a reachable term shows, where no step fits
 theorem run_sound (hj : Jump.Sound bk jump) : run bk jump n t = some r →
@@ -84,16 +69,6 @@ theorem run_sound (hj : Jump.Sound bk jump) : run bk jump n t = some r →
   obtain ⟨v, ev', sv, ov⟩ := runSteps_sound h
   exact ⟨v, evals_trans ev ev', sv, ov⟩
 
--- where Eval ends, so does Plus
-theorem acc_plus (h : Acc (fun u t => Eval bk t u) t) : Acc (fun u t => Plus bk t u) t := by
-  induction h with
-  | intro t _ ih =>
-    refine ⟨_, fun u hp => ?_⟩
-    obtain ⟨m, e, es⟩ := hp
-    cases es with
-    | refl => exact ih _ e
-    | step e' es' => exact (ih _ e).inv ⟨_, e', es'⟩
-
 theorem acc_evals (acc : Acc (fun u t => Eval bk t u) t) (h : Evals bk t u) :
     Acc (fun u t => Eval bk t u) u := by
   induction h with
@@ -105,7 +80,7 @@ theorem acc_evals (acc : Acc (fun u t => Eval bk t u) t) (h : Evals bk t u) :
 theorem run_ends (hj : Jump.Sound bk jump)
     (acc : Acc (fun u t => Eval bk t u) t) :
     ∃ n v, Evals bk t v ∧ step bk v = none ∧ run bk jump n t = observe v := by
-  obtain ⟨k, sf, _, ev, hrun⟩ := Machine.run_ends hj t (acc_plus acc) _ (.eval t [] [])
+  obtain ⟨k, sf, ev, hrun⟩ := Machine.run_ends hj t acc _ (.eval t [] [])
     (Nat.le_refl _) Machine.decode_init Machine.inv_init
   obtain ⟨m, v, ev', sv, rv⟩ := runSteps_ends (acc_evals acc ev)
   refine ⟨k + m, v, evals_trans ev ev', sv, ?_⟩

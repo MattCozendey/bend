@@ -515,11 +515,21 @@ theorem run_sound (hj : Jump.Sound bk jump) (I : Inv bk s)
 
 -- some k steps take s to a state sf where no step fits. The term d of s and
 -- the bound n on μ s are for the induction.
+-- where Eval ends, so does Plus
+theorem acc_plus (h : Acc (fun u t => Eval bk t u) t) : Acc (fun u t => Plus bk t u) t := by
+  induction h with
+  | intro t _ ih =>
+    refine ⟨_, fun u hp => ?_⟩
+    obtain ⟨m, e, es⟩ := hp
+    cases es with
+    | refl => exact ih _ e
+    | step e' es' => exact (ih _ e).inv ⟨_, e', es'⟩
+
 theorem run_ends (hj : Jump.Sound bk jump) :
-    ∀ d, Acc (fun u t => Plus bk t u) d → ∀ n s, μ s ≤ n → decode s = d → Inv bk s →
-      ∃ k sf, step bk jump sf = none ∧ Evals bk d (decode sf) ∧
-        ∀ m, run bk jump (k + m) s = (sf, m) := by
+    ∀ d, Acc (fun u t => Eval bk t u) d → ∀ n s, μ s ≤ n → decode s = d → Inv bk s →
+      ∃ k sf, Evals bk d (decode sf) ∧ ∀ m, run bk jump (k + m) s = (sf, m) := by
   intro d acc
+  replace acc := acc_plus acc
   induction acc with
   | intro d _ ihd =>
     intro n
@@ -528,17 +538,17 @@ theorem run_ends (hj : Jump.Sound bk jump) :
       intro s hμ hd I
       cases hs : step bk jump s with
       | none =>
-        refine ⟨0, s, hs, hd ▸ .refl, fun m => ?_⟩
+        refine ⟨0, s, hd ▸ .refl, fun m => ?_⟩
         cases m <;> simp [run, hs]
       | some s1 =>
         have ⟨I1, r⟩ := step_sound hj I hs
-        have ⟨k, sf, hsf, ev, hr⟩ : ∃ k sf, step bk jump sf = none ∧ Evals bk d (decode sf) ∧
+        have ⟨k, sf, ev, hr⟩ : ∃ k sf, Evals bk d (decode sf) ∧
             ∀ m, run bk jump (k + m) s1 = (sf, m) := by
           rcases r with ⟨e, lt⟩ | p
           · exact ihn (μ s1) (by omega) s1 (Nat.le_refl _) (e.trans hd) I1
-          · obtain ⟨k, sf, hsf, ev, hr⟩ := ihd (decode s1) (hd ▸ p) (μ s1) s1 (Nat.le_refl _) rfl I1
-            exact ⟨k, sf, hsf, evals_trans (hd ▸ plus_evals p) ev, hr⟩
-        refine ⟨k + 1, sf, hsf, ev, fun m => ?_⟩
+          · obtain ⟨k, sf, ev, hr⟩ := ihd (decode s1) (hd ▸ p) (μ s1) s1 (Nat.le_refl _) rfl I1
+            exact ⟨k, sf, evals_trans (hd ▸ plus_evals p) ev, hr⟩
+        refine ⟨k + 1, sf, ev, fun m => ?_⟩
         rw [show k + 1 + m = (k + m) + 1 by omega]
         simp [run, hs, hr]
 

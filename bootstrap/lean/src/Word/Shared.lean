@@ -106,26 +106,6 @@ theorem nat_step : step bk (Bytes.nat n) = none := value_step nat_isValue
 -- Rounds
 -- ======
 
--- stepUntil bk stop n t: the first term of the step chain from t where stop
--- holds or no step fits; none when the first n terms do not have it
-def stepUntil (bk : Book) (stop : Term → Bool) : Nat → Term → Option Term
-  | 0, _ => none
-  | n + 1, t =>
-    if stop t then some t else
-    match step bk t with
-    | some u => stepUntil bk stop n u
-    | none => some t
-
-theorem stepUntil_sound : stepUntil bk stop n t = some u → Evals bk t u := by
-  induction n generalizing t with
-  | zero => simp [stepUntil]
-  | succ n ih =>
-    simp only [stepUntil]; split
-    · simp only [Option.some.injEq]; rintro rfl; exact .refl
-    · split
-      · rename_i u' h; exact fun e => .step (step_sound h) (ih e)
-      · simp only [Option.some.injEq]; rintro rfl; exact .refl
-
 -- headIs k t: the head of t is Ref k
 def headIs (k : String) (t : Term) : Bool := (unspine t []).1 == Ref k
 
@@ -140,9 +120,9 @@ def cellEnd (k : String) : Term → Bool
 macro "word_simp" "[" xs:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic| set_option maxHeartbeats 0 in set_option maxRecDepth 100000 in
     simp (config := { maxSteps := 50000000 }) [stepUntil, step, call, fires, isArgs,
-    isValue, stops, walkCall, unspine, walk, redex, isData, Quan.live, Quan.fld, takes, spine, Term.sub,
-    Env.sub, labT, bitT, cellT, callT, boxT, cellEnd, headIs, nat_isValue, nat_isData, word_isValue,
-    word_isData, nat_step, word_step, $xs,*])
+    isValue, stops, walkCall, unspine, walk, redex, isData, Quan.live, Quan.fld, takes, spine,
+    Term.sub, Env.sub, labT, bitT, cellT, callT, boxT, cellEnd, headIs, nat_isValue, nat_isData,
+    word_isValue, word_isData, nat_step, word_step, $xs,*])
 
 -- Eval steps in the rest of a word cell
 theorem evals_rest (h : Evals bk x x') : Evals bk (cellT (bitT s) x) (cellT (bitT s) x') := by

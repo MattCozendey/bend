@@ -273,9 +273,7 @@ def redex (bk : Book) (q : Quan) (f x : Term) : Option Term :=
 def call (bk : Book) (q : Quan) (f x : Term) : Option Term :=
   if isArgs bk f = true ∧ (q.live = true → isValue bk x = true) then fires bk (App q f x) else none
 
--- step bk t: one Eval step from t, or none when no Eval step fits. It walks
--- a part of t again to check that the part is a value, so its cost can grow
--- as the square of the size of t.
+-- step bk t: one Eval step from t, or none when no Eval step fits.
 def step (bk : Book) : Term → Option Term
   | Ann x _ => some x
   | Ref k => fires bk (Ref k)
@@ -518,15 +516,32 @@ theorem value_step (v : isValue bk t = true) : step bk t = none := by
   | none => rfl
   | some u => exact (eval_value (step_sound h) (isValue_iff.1 v)).elim
 
--- Jumps
--- =====
+-- stepUntil bk stop n t: the first term of the step chain from t where stop
+-- holds or no step fits; none when the first n terms do not have it
+def stepUntil (bk : Book) (stop : Term → Bool) : Nat → Term → Option Term
+  | 0, _ => none
+  | n + 1, t =>
+    if stop t then some t else
+    match step bk t with
+    | some u => stepUntil bk stop n u
+    | none => some t
 
--- Jump: a shortcut at calls. go t gives a later term of the Eval run from
--- the call t, or none. When takes k is false, go gives none on each call
--- of def k, so a caller can skip go.
-structure Jump where
-  takes : String → Bool
-  go : Term → Option Term
+theorem stepUntil_some : stepUntil bk stop n t = some u →
+    Contract.Evals bk t u ∧ (stop u = true ∨ step bk u = none) := by
+  induction n generalizing t with
+  | zero => simp [stepUntil]
+  | succ n ih =>
+    simp only [stepUntil]; split
+    · rename_i hs; simp only [Option.some.injEq]; rintro rfl; exact ⟨.refl, .inl hs⟩
+    · split
+      · rename_i u' h; exact fun e => have ⟨ev, l⟩ := ih e; ⟨.step (step_sound h) ev, l⟩
+      · rename_i h; simp only [Option.some.injEq]; rintro rfl; exact ⟨.refl, .inr h⟩
+
+theorem stepUntil_sound : stepUntil bk stop n t = some u → Contract.Evals bk t u :=
+  fun h => (stepUntil_some h).1
+
+-- Eval chains
+-- ===========
 
 -- Plus bk t u: t becomes u in one or more Eval steps.
 def Plus (bk : Book) (t u : Term) : Prop := ∃ m, Eval bk t m ∧ Contract.Evals bk m u
@@ -554,6 +569,16 @@ theorem evals_map (C : Term → Term) (hC : ∀ {a a'}, Eval bk a a' → Eval bk
 theorem plus_map (C : Term → Term) (hC : ∀ {a a'}, Eval bk a a' → Eval bk (C a) (C a')) :
     Plus bk a a' → Plus bk (C a) (C a') :=
   fun ⟨_, e, es⟩ => ⟨_, hC e, evals_map C hC es⟩
+
+-- Jumps
+-- =====
+
+-- Jump: a shortcut at calls. go t gives a later term of the Eval run from
+-- the call t, or none. When takes k is false, go gives none on each call
+-- of def k, so a caller can skip go.
+structure Jump where
+  takes : String → Bool
+  go : Term → Option Term
 
 -- each result of jump.go t is one or more Eval steps from t
 def Jump.Sound (bk : Book) (jump : Jump) : Prop := ∀ t u, jump.go t = some u → Plus bk t u
