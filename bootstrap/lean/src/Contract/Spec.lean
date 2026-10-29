@@ -210,14 +210,21 @@ def Claim.bytes : Prop :=
   (∀ bs, (observe (Bytes.term bs)).bind Bytes.ofObs = some bs) ∧
   (∀ o bs, Bytes.ofObs o = some bs → observe (Bytes.term bs) = some o)
 
--- Claim 4, cli. When the CLI gives a result o for book bk and an input:
--- 1. entry gives the book and the def k that the CLI runs.
--- 2. The kernel accepts that book, and def k is Pure.
--- 3. o is the result of def k (see Answer).
-def Claim.cli (cli : Book → Option (List UInt8) → Except String Obs) : Prop :=
-  ∀ bk input o, cli bk input = .ok o →
+-- Claim 4, cli. The CLI gives cli n bk input: a result or an error, for book
+-- bk, an input and n steps of fuel.
+-- 1. Sound. When it gives a result o, at any fuel:
+--    a. entry gives the book and the def k that the CLI runs.
+--    b. The kernel accepts that book, and def k is Pure.
+--    c. o is the result of def k (see Answer).
+-- 2. Not empty. When entry gives a book and a def k, the kernel accepts that
+--    book and def k is Pure, some fuel gives a result. So the CLI does not
+--    refuse by mistake.
+def Claim.cli (cli : Nat → Book → Option (List UInt8) → Except String Obs) : Prop :=
+  (∀ n bk input o, cli n bk input = .ok o →
     ∃ bk' k, entry bk input = some (bk', k) ∧ Book.check bk' = .ok () ∧
-      Pure bk' k = true ∧ Answer bk' k o
+      Pure bk' k = true ∧ Answer bk' k o) ∧
+  (∀ bk input bk' k, entry bk input = some (bk', k) → Book.check bk' = .ok () →
+    Pure bk' k = true → ∃ n o, cli n bk input = .ok o)
 
 -- Claim 5, laws. Each law about def k holds about each value v that Eval
 -- reaches from k.

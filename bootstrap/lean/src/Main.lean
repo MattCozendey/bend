@@ -34,7 +34,7 @@ def main (args : List String) : IO UInt32 := do
   let input ← match inp with
     | none => pure none
     | some i => pure (some (← IO.FS.readBinFile i).toList)
-  match Interp.cli bk input with
+  match Interp.cli Interp.FUEL_RUN bk input with
   | .error e =>
     IO.eprintln e
     pure 1

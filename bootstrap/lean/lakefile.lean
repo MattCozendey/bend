@@ -71,10 +71,10 @@ target kernel pkg : FilePath := do
 -- - Guard.lean: the guards' code.
 -- - Main.lean: the glue that no proof covers.
 def Pins : List (String × UInt64) := [
-  ("src/Contract/Spec.lean", 17897613996029356144),
+  ("src/Contract/Spec.lean", 1311157738013855812),
   ("src/Contract/Proof.lean", 12509918295448043584),
   ("src/Guard.lean", 15051376749205065931),
-  ("src/Main.lean", 11309241110717817726)]
+  ("src/Main.lean", 10677801529969707441)]
 
 -- a file's text, line endings made LF, so a checkout's CRLF keeps its hash
 def Pin.hash (text : String) : UInt64 :=
