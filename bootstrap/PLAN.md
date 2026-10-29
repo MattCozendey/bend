@@ -69,21 +69,28 @@ they are. Each is optional, since slow is fine, and each that is done needs
 its own proof that it preserves the claims, composed into them. Each waits
 on a decision.
 
-Now: a U32 sum over 16 input bytes takes 1.5 s, and over 64 bytes 19 s.
-The time grows as the square of the input size.
+Now: 1024 U32 adds take 0.74 s. A U32 sum over 64 input bytes takes
+15 s: `U32.from_nat` and `U32.to_nat` have no jump yet. The time grows as
+the square of the input size.
 
-1. One-pass step. Status: done. `scan` finds the next step and the values
-   in one walk. `scan_eq` proves it gives what `step` gives. Before it, 16
-   bytes took 18 s, and the time grew as the cube of the input size.
+1. One-pass step. Status: done. `scanWith` finds the next step and the
+   values in one walk. `scan_eq` proves that with no jump it gives what
+   `step` gives. Before it, 16 bytes took 18 s, and the time grew as the
+   cube of the input size.
 2. The environment machine: closures instead of substitution. Actual
    compilation starts here.
 3. Labels and case trees as integer switches. `Eval` matches labels by
    name; numbering them is a representation choice.
-4. Native 32-bit words. Replace base's bit-level U32 (`Word(32n)` and the
-   defs over it) with Lean's `UInt32`. The meaning stays base's: the proof
-   shows each of base's elaborated word defs (`Word.add`, ...) equals its
-   `BitVec` operation, which ties the compiler to how `base.bend`
-   elaborates.
+4. Word jumps. A call of base's word code goes to its result in one step,
+   for each width. The proof shows that `Eval` reaches the same result.
+   - A jump runs only when the book's defs equal `WordRef.lean`, a
+     generated copy of base's code. Else it does not run, and the result
+     stays correct.
+   - Status: add and sub done (`Word.adc.group`). 8 adds: 1961 steps
+     before, 52 after.
+   - Not done: inc, to_nat, cmp, and, or, xor, not, shl, shr, mul.
+   - `U32.from_nat` calls inc once per unit of its input, and `U32.to_nat`
+     calls `Word.to_nat`. Jumps for these make the U32 sum faster.
 5. Erase dead parts (types, q=0 arguments and lets, annotations). `Eval`
    never runs them, so the machine can carry them as inert syntax; erasing
    them saves time and memory. `Rwt` needs its own argument: its proof is
