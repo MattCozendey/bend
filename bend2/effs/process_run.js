@@ -18,7 +18,9 @@ parentPort.on("message", async (data) => {
   try {
     got = await run(data);
   } catch (e) {
-    got = { fail: errno[e] ?? (typeof e?.errno === "number"
+    // Windows: a libuv errno is not the C lane's; its name says which
+    got = { fail: errno[e] ?? (process.platform === "win32"
+      ? errno[e?.code] : undefined) ?? (typeof e?.errno === "number"
       ? Math.abs(e.errno) : errno.EIO) };
   }
   port.postMessage(got);

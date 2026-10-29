@@ -1,6 +1,29 @@
 // File
 // ====
 
+#ifdef _WIN32
+// WriteFile at an offset moves the file's position: put it back.
+static ssize_t pwrite(int fd, const void* buf, size_t len, off_t at) {
+  HANDLE        h    = (HANDLE)_get_osfhandle(fd);
+  LARGE_INTEGER was  = { 0 };
+  OVERLAPPED    o    = { .Offset = (DWORD)at, .OffsetHigh = (DWORD)(at >> 32) };
+  DWORD         made = 0;
+  if (h == INVALID_HANDLE_VALUE
+    || !SetFilePointerEx(h, (LARGE_INTEGER){ 0 }, &was, FILE_CURRENT)) {
+    errno = EBADF;
+    return -1;
+  }
+  DWORD why = WriteFile(h, buf, (DWORD)len, &made, &o) ? 0 : GetLastError();
+  SetFilePointerEx(h, was, NULL, FILE_BEGIN);
+  if (why != 0) {
+    errno = why == ERROR_ACCESS_DENIED ? EBADF : why == ERROR_DISK_FULL ? ENOSPC : EIO;
+    return -1;
+  }
+  return (ssize_t)made;
+}
+
+#endif
+
 static void file_write_fill(IoWork* w, int at_offset) {
   int fd = (int)w->hand;
   ssize_t n = 0;

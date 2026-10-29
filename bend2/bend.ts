@@ -878,7 +878,8 @@ export function ctx_scope(ctx: Ctx): Name[] {
 // ====
 // BEND_DIR, which holds base.bend and effs/, is this file's directory,
 // or bend2/ beside bin/ in the compiled bend. NAMED is the hub's rule
-// for a package's <name>@<version>.
+// for a package's <name>@<version>. On Windows the loader's paths have "/"
+// between segments (path_slash), as path.posix reads them.
 
 export function book_nil(): Book {
   return { tlds: Object.create(null), ctrs: Object.create(null), order: [], hols: 0, tmps: Object.create(null) };
@@ -905,11 +906,17 @@ export function book_adt(book: Book, tm: Extract<HTerm, { $: "ADT" }>, ctx: Ctx,
   return { $: "ADT", n: tld.n, g: tld.g, T: tld.T, c: tld.c.filter((c) => !r.has(c.k)) };
 }
 
-export const BEND_DIR = import.meta.url.startsWith("file:///$bunfs/")
+export const WIN = process.platform === "win32";
+
+export function path_slash(p: string): string {
+  return WIN ? p.replaceAll(path.sep, "/") : p;
+}
+
+export const BEND_DIR = path_slash(import.meta.url.startsWith("file:///$bunfs/")
   ? path.join(path.dirname(fs.realpathSync(process.execPath)), "..", "bend2")
-  : url.fileURLToPath(new URL(".", import.meta.url));
-export const BASE_BEND = fs.realpathSync(path.join(BEND_DIR, "base.bend"));
-const BEND_LIB = path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib"));
+  : url.fileURLToPath(new URL(".", import.meta.url)));
+export const BASE_BEND = path_slash(fs.realpathSync(path.join(BEND_DIR, "base.bend")));
+const BEND_LIB = path_slash(path.resolve(process.env.BEND_LIB ?? path.join(os.homedir(), ".bend", "lib")));
 export const BEND_HUB   = process.env.BEND_HUB ?? "https://hub.bend-lang.com";
 
 export const NAMED = /^([a-z][a-z0-9-]{0,63})@((?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){3})$/;
@@ -960,7 +967,7 @@ async function book_file(book: Book, file: string, spn?: Span): Promise<string> 
   if (!fs.existsSync(file)) {
     throw Err(book, ctx_nil(), "no such file: " + file, undefined, spn);
   }
-  return fs.realpathSync(file);
+  return path_slash(fs.realpathSync(file));
 }
 
 export async function book_load(book: Book, file: string, ns: string, seen: Map<string, string | null>, spn?: Span, root?: string): Promise<number> {
@@ -1013,16 +1020,17 @@ export async function book_load(book: Book, file: string, ns: string, seen: Map<
     if (!ok(as.replace(/^\.\//, "").slice(0, -5), hub(as))) {
       throw bad();
     }
-    const got = await book_file(book, hub(as) ? BEND_LIB + "/" + rel : path.posix.resolve(dir, rel), sp);
-    const lib = fs.existsSync(BEND_LIB) ? fs.realpathSync(BEND_LIB) + "/" : "\0";
+    const got = await book_file(book, hub(as) ? BEND_LIB + "/" + rel
+      : WIN ? path_slash(path.resolve(dir, rel)) : path.posix.resolve(dir, rel), sp);
+    const lib = fs.existsSync(BEND_LIB) ? path_slash(fs.realpathSync(BEND_LIB)) + "/" : "\0";
     const in_lib = got.startsWith(lib);
     const sub = (in_lib ? got.slice(lib.length)
-      : path.posix.relative(top, got)).replace(/\.bend$/, "");
+      : WIN ? path_slash(path.relative(top, got)) : path.posix.relative(top, got)).replace(/\.bend$/, "");
     if ((in_lib && !hub(sub)) || (hub(ns) && !in_lib)) {
       throw Err(book, ctx_nil(), "an import on its side of the hub (a hub file imports only hub files, and a local path stays out of the hub's store)", "'" + m[1] + "'", sp);
     }
     if (!ok(sub, in_lib)) {
-      throw bad(" (resolves to '" + (in_lib ? got.slice(lib.length) : path.posix.relative(dir, got)) + "')");
+      throw bad(" (resolves to '" + (in_lib ? got.slice(lib.length) : WIN ? path_slash(path.relative(dir, got)) : path.posix.relative(dir, got)) + "')");
     }
     al[m[2]] = sub;
     await book_load(book, got, sub, seen, sp, top);
