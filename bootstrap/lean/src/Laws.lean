@@ -8,7 +8,9 @@ import Cli
 --   that Eval reaches from k. It joins the kernel's adequate with Eval's
 --   reduction, and with one δ step for the body.
 -- - Claim 7: the instance of a law at the CLI's input is a closed, live,
---   typed proof in the CLI's book, so claim 5 applies to it.
+--   typed proof in the CLI's book, so claim 5 applies to it. Its equality
+--   names main(bs), and the body of RUN is main(INPUT): one δ step joins
+--   them.
 
 open Quan Term Contract
 
@@ -86,8 +88,8 @@ theorem claim_input : Claim.input cli := by
   generalize hx : Bytes.term bs = x at *
   have at_ (j : Nat) (d : Def) (e : _) := check_get (j := j) (d := d) hc' e
   have hI' := at_ bk.defs.length ⟨INPUT, A, x, false⟩ (by simp [Book.of])
-  have hR' := at_ (bk.defs.length + 1) ⟨RUN, inst B x, App q (Ref "main") x, false⟩
-    (by simp [Book.of])
+  have hR' := at_ (bk.defs.length + 1)
+    ⟨RUN, inst B (Ref INPUT), App q (Ref "main") (Ref INPUT), false⟩ (by simp [Book.of])
   rw [get_find] at hL
   obtain ⟨-, j, hj, hdj, -⟩ := List.find?_eq_some_iff_getElem.1 hL
   obtain rfl : dL.k = L := by simpa using List.find?_some hL
@@ -95,9 +97,12 @@ theorem claim_input : Claim.input cli := by
   have hx' : Typed _ [] x A := ((book_check _ hc').1 _ _ hI').2.1
   have tp := Typed.app (by simpa [sub_var, hP] using Typed.ref (Γ := []) (σ := Var) hL') hx'
   rw [hI] at tp
+  have tp' : Typed _ [] _ (Eql (inst C (App q (Ref "main") (Ref INPUT))) b T) :=
+    .conv tp (.conv ⟨_, .refl, .step (.eql (par_inst par_refl
+      (.app par_refl (.delta hI' (hx ▸ bytes_closed bs)))) par_refl par_refl) .refl⟩)
   have cp : Term.Closed (App r (Ref dL.k) x) := fun σ => by
     simp [sub, ← hx, bytes_closed bs σ]
-  refine ⟨_, v, by simp [entry, Input.apply, hm, hT, ← hx], ev, vv, ov, claim_laws _ RUN _ v _ C b T hc' (.inr ⟨_, hR', rfl⟩) ev cp ?_ tp⟩
+  refine ⟨_, v, by simp [entry, Input.apply, hm, hT, ← hx], ev, vv, ov, claim_laws _ RUN _ v _ C b T hc' (.inr ⟨_, hR', rfl⟩) ev cp ?_ tp'⟩
   obtain ⟨i, hi⟩ := index_of_get hL'
   subst hx
   simp [Term.Live, Term.live, Term.called, unspine, hi, index_lt hi, bytes_live]

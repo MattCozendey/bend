@@ -158,16 +158,15 @@ def RUN : String := "bootstrap.run"
 -- Input.apply bk bs: bk with two more defs, or none when the type of main is
 -- not a function type. A is the input type of main.
 -- - INPUT : A = bs. So the kernel checks that bs has type A.
--- - RUN = main(bs).
+-- - RUN = main(INPUT). So the kernel checks bs only once.
 -- The kernel checks the new defs with the full book.
 def Input.apply (bk : Book) (bs : List UInt8) : Option Book :=
   match bk.get "main" with
   | some d =>
     match d.T with
     | All q A B =>
-      let x := Bytes.term bs
-      some (Book.of (bk.defs ++
-        [⟨INPUT, A, x, false⟩, ⟨RUN, Term.inst B x, App q (Ref "main") x, false⟩]))
+      some (Book.of (bk.defs ++ [⟨INPUT, A, Bytes.term bs, false⟩,
+        ⟨RUN, Term.inst B (Ref INPUT), App q (Ref "main") (Ref INPUT), false⟩]))
     | _ => none
   | none => none
 
