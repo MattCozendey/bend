@@ -3,6 +3,9 @@
 
 #ifdef __linux__
 #include <sys/random.h>
+#elif defined(_WIN32)
+#include <bcrypt.h>
+#pragma comment(lib, "bcrypt")
 #endif
 
 // One word from the host's entropy source: getrandom never returns short
@@ -11,6 +14,9 @@ static void io_random_u32_call(IoWork* w) {
 #ifdef __APPLE__
   arc4random_buf(&w->word, sizeof(w->word));
   w->code = 0;
+#elif defined(_WIN32)
+  w->code = BCryptGenRandom(NULL, (PUCHAR)&w->word, sizeof(w->word),
+    BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0 ? 0 : EIO;
 #else
   io_sys_end(w, getrandom(&w->word, sizeof(w->word), 0));
 #endif
