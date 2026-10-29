@@ -1166,9 +1166,10 @@ function book_trust(book: Bend.Book, file: string,
       cli_say(2, "bend: --trust " + g + " names no file (a glob matches paths from the entry's directory)\n");
     }
   });
-  // a law is its file's, and its fill's once filled
-  const deps = (r: string, i: number): string[] => first.get(r) === last.get(r) || last.get(r)! > i
-    ? [owner(r)] : [owner(r), at[last.get(r)!]];
+  // a law is its file's, and its fill's, even for a use before the fill: a
+  // later check that unfolds the user's body reaches the fill through it
+  const deps = (r: string): string[] => first.get(r) === last.get(r) ? [owner(r)]
+    : [owner(r), at[last.get(r)!]];
   // the files a named file needs (Base needs Base alone)
   const need = new Map([...nss].filter(named).map((f) => [f, new Set<string>()]));
   book.order.forEach((k, i) => {
@@ -1176,7 +1177,7 @@ function book_trust(book: Bend.Book, file: string,
     if (ds !== undefined) {
       const us = new Set<string>();
       refs(k, i, us);
-      us.forEach((r) => deps(r, i).forEach((d) => ds.add(d)));
+      us.forEach((r) => deps(r).forEach((d) => ds.add(d)));
     }
   });
   const trust = new Set((!root || matches([path.basename(file)], false) ? [BASE] : []).concat([...need.keys()]));
