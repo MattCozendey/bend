@@ -69,17 +69,19 @@ they are. Each is optional, since slow is fine, and each that is done needs
 its own proof that it preserves the claims, composed into them. Each waits
 on a decision.
 
-Now: a program with all 12 U32 operations takes 110 steps (2673 before
-the word jumps). A U32 sum over 64 input bytes takes 11 s, and over 256
-bytes 146 s. Each step walks the full term, and the unary input stays in
-it. The time grows as the square of the input size.
+Now: a U32 sum over 64 input bytes takes 1.2 s, over 256 bytes 4.2 s,
+and over 4096 bytes 71 s (most of it is the program's own work: 128 calls
+of inc per byte).
 
 1. One-pass step. Status: done. `scanWith` finds the next step and the
    values in one walk. `scan_eq` proves that with no jump it gives what
    `step` gives. Before it, 16 bytes took 18 s, and the time grew as the
    cube of the input size.
-2. The environment machine: closures instead of substitution. Actual
-   compilation starts here.
+2. The environment machine. Status: done. `Machine.lean` keeps values in
+   environments and its place in a stack of frames, so no step walks the
+   full term. `MachineOk.lean` proves that each step keeps the decoded
+   term or makes `Eval` steps on it, and that the machine stops. The
+   proven stepper then ends the run. Before it, 256 bytes took 146 s.
 3. Labels and case trees as integer switches. `Eval` matches labels by
    name; numbering them is a representation choice.
 4. Word jumps. A call of base's word code goes to its result in one step,
@@ -90,10 +92,6 @@ it. The time grows as the square of the input size.
    - Status: done for each family: add, sub, not, and, or, xor, inc,
      to_nat, cmp, shl, shr, mul. One file of proofs per family, and
      `WordJump.lean` for the jumps.
-5. Erase dead parts (types, q=0 arguments and lets, annotations). `Eval`
-   never runs them, so the machine can carry them as inert syntax; erasing
-   them saves time and memory. `Rwt` needs its own argument: its proof is
-   evaluated at run time.
 
 ## Beyond the spec
 
