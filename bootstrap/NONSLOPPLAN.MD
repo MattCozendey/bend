@@ -13,6 +13,7 @@ WHAT WE TRUST:
 WHAT WE DON'T TRUST:
 1 - The current Bend compiler written in TypeScript.
 2 - A checker result without --verdict.
+3 - OUR OWN BOOTSTRAP CODE UNTIL IT'S SOMEHOW PROOF-OR-EXTENSIVELY-TEST-VALIDATED.
 
 STEPS:
 1 - 
