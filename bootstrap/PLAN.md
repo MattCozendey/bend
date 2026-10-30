@@ -237,10 +237,37 @@ Status: the meaning, the encoder and the glue are done, and tested (see
 Tests). The contract, `src/compile_wasm/spec.bend`, is reviewed and
 pinned; its header states what it promises and its excuses. It is a new
 module, so the compiler in `src/compile/` stays until the new one replaces
-it. Next, in order, each reviewed before the next starts:
-1. The compiler, as proven steps, each a module with its laws: no `Let` and
-   no `Ann`, flat case trees, closures as data, data in memory, WASM.
-2. The compiler compiled by itself, so that compiling is fast too.
+it.
+
+The compiler is a chain of proven steps, each a module with its laws, each
+reviewed before the next starts:
+1. Imp: a small structured language (i32 locals, memory, `if`, loops,
+   `break`), with a meaning and a proven translation to the WASM meaning.
+   All later run-time code is Imp, so no later proof reads WASM.
+2. The numbered book: the parse (with enough fuel), the entry, and a number
+   for each def and each label. Its run gives `Source.run`.
+3. The machine: an environment machine on the numbered book, with no
+   substitution, after the Lean machine (`Machine/`). It is exact for
+   untyped books too, where the Lean machine hands the run to `stepUntil`:
+   a dead term is a closure, and the machine reads its form when a case
+   tree asks for it. Its result is step 2's.
+4. The layout: the machine's values, environments and frames as bytes in
+   the memory. A full memory gives `Out.oom`. It does what step 3 does.
+5. The run time in Imp: the machine's loop, the loader (the book into the
+   memory, by stores, as the WASM part has no data segments), the input
+   (its `Nat`s 0 to 255 shared) and the output (`Out.of`). It computes what
+   step 4 computes.
+6. The assembly: `compile(src)` is the WASM of the loader and the run time.
+   The laws of steps 1 to 5 give the contract's laws. `main.bend` becomes
+   `λsrc. Wasm.encode(compile(src))`, and `src/compile/` goes.
+
+So the first compiler interprets the book; it is likely no faster than the
+Lean interpreter. Then, each optional and proven against the step below it:
+7. Case trees as code: each def as its own Imp code.
+8. U32 and Word as i32 operations, as the interpreter's jumps.
+9. A compact `Nat`.
+10. Garbage collection.
+11. The compiler compiled by itself, so that compiling is fast too.
 
 ## Speed
 
