@@ -1602,6 +1602,18 @@ def Val.value(v: Machine.Val, +bk: List<&2, Source.Def>, +h: {Val.ok(v, Mode.goo
     case Machine.Val.call{+v0, +v1}:
       SP.Bool.and_right(Val.ok(v1, Mode.args{}, bk), Source.Term.is_value(Val.rb(Machine.Val.call{v0, v1}), False{}, bk), h)
 
+# a value at the mode of the field q is a value when q is live
+def Field.value(q: Source.Quan, a: Machine.Val, +bk: List<&2, Source.Def>, h: {Val.ok(a, Mode.field(q), bk) == True{} : Bool}) ->
+  {Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(Val.rb(a), False{}, bk)) == True{} : Bool}:
+  match q:
+    case Source.Q0{}:
+      {==}
+    case Source.Q1{}:
+      Val.value(a, bk, h)
+    case Source.Q2{}:
+      Val.value(a, bk, h)
+
+
 # Forms
 # =====
 
@@ -3514,15 +3526,6 @@ def Ctx.min2(+a: Source.Term, +u: Source.Term, +bk: List<&2, Source.Def>,
   ({==}, Ctx.min2_step(a, u, bk, ha, hu))
 
 
-def Field.value(q: Source.Quan, a: Machine.Val, +bk: List<&2, Source.Def>, h: {Val.ok(a, Mode.field(q), bk) == True{} : Bool}) ->
-  {Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(Val.rb(a), False{}, bk)) == True{} : Bool}:
-  match q:
-    case Source.Q0{}:
-      {==}
-    case Source.Q1{}:
-      Val.value(a, bk, h)
-    case Source.Q2{}:
-      Val.value(a, bk, h)
 
 # a step inside the frame fr is a step of its term
 def Fr.ctx(fr: Machine.Fr, +u: Source.Term, +bk: List<&2, Source.Def>, +hfr: {Fr.ok(fr, bk) == True{} : Bool},
