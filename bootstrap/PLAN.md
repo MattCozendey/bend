@@ -1,4 +1,4 @@
-# NOTE: BEND DOESN'T RUN ON WINDOWS USE WSL. NEVER RUN THE FULL TEST SUITE: IT FREEZES MY COMPUTER.
+# NOTE: THE EXISTING `bend` COMMAND DOESN'T RUN ON WINDOWS: USE WSL FOR IT. THIS IS ITS LIMIT, NOT OURS. NEVER RUN THE FULL TEST SUITE: IT FREEZES MY COMPUTER.
 
 # PLAN
 
@@ -29,6 +29,8 @@ We trust these, with no proof:
 4. The existing compiler is not trusted. `comp.ts`, its output and the
    effect code in `bend2/effs/` decide nothing about our compiler. Our
    compiler grows on its own. It can take ideas from them, nothing more.
+   We use the `bend` command for one job: `bend -o`, which makes the
+   `.bendtt` text (assumption 1).
 
 ## Scope: correct, and incomplete on purpose
 
@@ -227,8 +229,8 @@ TBD. The tests cover what the proofs do not:
 - that the compiler in Bend reaches no opaque def. `bend -o` also makes each
   template `~` parameter opaque (`bend2/safe.ts`).
 
-Run the tests through `bend -o` and the interpreter, a few at a time. Never
-run the full suite. Compare the `#|` lines of each file. The existing JS and
-C runs print those lines, so they are not an authority (assumption 4):
-`Eval` decides. A mismatch is a bug in the glue or the elaborator, or a
-`#|` line that `Eval` does not give.
+Run the tests through `bend -o` (in WSL today) and the interpreter, a few
+at a time. Never run the full suite. Compare the `#|` lines of each file.
+The existing JS and C runs print those lines, so they are not an authority
+(assumption 4): `Eval` decides. A mismatch is a bug in the glue or the
+elaborator, or a `#|` line that `Eval` does not give.
