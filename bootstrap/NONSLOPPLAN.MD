@@ -20,8 +20,8 @@ STEPS:
 2 - We must write a BEND INTERPRETER IN LEAN, with a Lean proof that it gives what `Eval` gives, so that we have a trusted way to RUN >OUR OWN< compiler (it runs any Bend program, ours included). This is because `Eval` is a list of rules, not a program (it can't run anything), we don't trust the current compiler, and our compiler can't run itself before it is compiled.
 3 - We must write a LEAN PROOF THAT JOINS #1 AND #2: when the interpreter runs >OUR OWN< compiler, the bytes it writes follow the laws of #1 (it works for any Bend program and its laws, ours included). This is because #1 only says that the compiler is correct by the rules of `Eval`, and #2 only says that the interpreter follows `Eval`. Without this proof, nothing says that the laws hold for what actually runs on the PC.
 
-DESIRED EXCEPTIONS(MAY GIVE UP):
-1 - ARBITRARY WIDTH FOR ints, unsigned ints and floats (Current untrusted bend supports up to 32b at u32 but not i32 nor 64b counterparts. nor does it support 64b floats).
+DESIRED EXTRAS(MAY GIVE UP):
+1 - ARBITRARY WIDTH FOR AND PROOFS FOR floats
 
 
 NOTES:
