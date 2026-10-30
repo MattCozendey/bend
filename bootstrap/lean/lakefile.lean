@@ -106,12 +106,15 @@ inductive Pin.Part where
 -- - ../bend/src/source/impl.bend: the meaning of its source.
 -- - ../bend/src/source/spec.bend: the kernel's relations, copied, that its
 --   laws tie that meaning to.
+-- - ../bend/runner.bend and ../bend/src/runner/impl.bend: the runner in Bend,
+--   which runs a program by that meaning.
 -- - ../../bend2/bendtt.lean: the parts of the kernel that impl.bend and
 --   spec.bend copy: Types up to Ctx (the terms, substitution and the book),
 --   the Parser, and Evaluation (the run-time relations). When one changes,
 --   check the copy again.
--- - ../../bend2/base.bend: each Base def that the meaning reaches: in the
---   .bendtt of ../bend/main.bend, from the defs of impl.bend and spec.bend,
+-- - ../../bend2/base.bend: each Base def that the meaning or the runner
+--   reaches: in the .bendtt of ../bend/main.bend and ../bend/runner.bend,
+--   from the defs of source/impl.bend, source/spec.bend and runner/impl.bend,
 --   and from the types of the laws. A pinned def that starts to call another
 --   Base def changes, so its review adds that def here.
 def Pins : List (String × Pin.Part × UInt64) := [
@@ -123,6 +126,8 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../bend/src/compile/spec.bend", .all, 16295624150471894959),
   ("../bend/src/source/impl.bend", .all, 16563396131937143125),
   ("../bend/src/source/spec.bend", .all, 5629837982964475826),
+  ("../bend/runner.bend", .all, 1850732974300312482),
+  ("../bend/src/runner/impl.bend", .all, 12737539636974758867),
   ("../../bend2/bendtt.lean", .span "-- Types" "-- Ctx", 14875125228840285785),
   ("../../bend2/bendtt.lean", .span "-- Parser" "-- Evaluator", 15025253426444512988),
   ("../../bend2/bendtt.lean", .span "-- Evaluation" "-- Claims", 4021871860510412546),
@@ -160,7 +165,17 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../../bend2/base.bend", .block "def List.reverse.go(", 3740530639075124172),
   ("../../bend2/base.bend", .block "def List.reverse(", 5721769233288835689),
   ("../../bend2/base.bend", .block "def Word.to_nat(", 723743634680710343),
-  ("../../bend2/base.bend", .block "def U32.to_nat(", 15123021057519108580)]
+  ("../../bend2/base.bend", .block "def U32.to_nat(", 15123021057519108580),
+  ("../../bend2/base.bend", .block "def Pair.fst(", 10900200023254262526),
+  ("../../bend2/base.bend", .block "def Pair.snd(", 1246976093224629073),
+  ("../../bend2/base.bend", .block "def Nat.mul(", 1813486149535455628),
+  ("../../bend2/base.bend", .block "def Nat.divmod.go(", 6487796413967987314),
+  ("../../bend2/base.bend", .block "def Nat.divmod(", 12078178798127432727),
+  ("../../bend2/base.bend", .block "def Nat.div(", 84019639989369007),
+  ("../../bend2/base.bend", .block "def Nat.mod(", 1601870151355992951),
+  ("../../bend2/base.bend", .block "def List.length(", 18432464484018013776),
+  ("../../bend2/base.bend", .block "def List.take(", 8769491522669272524),
+  ("../../bend2/base.bend", .block "def List.drop(", 17352358031024133288)]
 
 -- the index of the first line, from i on, that p holds for
 def Pin.find (ls : Array String) (i : Nat) (p : String → Bool) : Option Nat :=
