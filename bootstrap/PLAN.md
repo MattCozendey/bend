@@ -114,6 +114,29 @@ meaning.
 This completes the Lean part. Its `compile` passes the book through, so
 it is an interpreter. Each item below adds speed or a new meaning.
 
+## The compiler in Bend
+
+Status: not started. Its contract comes first. Write it and review it before
+the compiler, as `Contract/Spec.lean` came before the interpreter. A law that
+holds is not always the law we need. These three requirements decide what the
+contract holds:
+1. A preservation law: the output means what the source means, for each
+   `src`. A law that is too weak lets a wrong compiler pass, for example
+   "the output is well-formed".
+2. A totality law: `compile` accepts what it should accept. Without it,
+   law 1 holds for a compiler that refuses everything. This is why the
+   interpreter has claim 2 beside claim 1.
+3. The meaning of the source and of the target, written in Bend. A person
+   reviews them. No claim ties them to the kernel's `Eval`. If `Eval` does
+   not run the target, the chain of trust ends at that meaning.
+
+Review each law as `.bendtt` text, not as `.bend` text: the proofs speak of
+the `.bendtt` text (assumption 1). Claim 7 carries each law for all inputs
+to the bytes that the interpreter writes.
+
+Tests do not replace a law: a test samples, and a law covers all inputs.
+A test finds a law that is too weak or empty, and an assumption that fails.
+
 ## Speed
 
 Each item changes how a program runs, not what it means: the claims stay
@@ -221,7 +244,10 @@ How the interpreter stays correct as it grows.
 
 ## Tests
 
-TBD. The tests cover what the proofs do not:
+Status: the harness is done, with 4 cases for the interpreter. The compiler
+in Bend has no cases yet.
+
+The tests cover what the proofs do not:
 - reading files, the kernel's parser, and `render`;
 - the elaborator (`safe.ts`);
 - that the kernel accepts the book with the input, for a usual
@@ -229,8 +255,25 @@ TBD. The tests cover what the proofs do not:
 - that the compiler in Bend reaches no opaque def. `bend -o` also makes each
   template `~` parameter opaque (`bend2/safe.ts`).
 
-Run the tests through `bend -o` (in WSL today) and the interpreter, a few
-at a time. Never run the full suite. Compare the `#|` lines of each file.
-The existing JS and C runs print those lines, so they are not an authority
-(assumption 4): `Eval` decides. A mismatch is a bug in the glue or the
-elaborator, or a `#|` line that `Eval` does not give.
+One harness serves both parts: `bootstrap/harness/harness.ts`. It does not
+know which implementation it tests. A command-line parameter names it:
+
+    bun bootstrap/harness/harness.ts --run '<command>' [--make '<command>']
+      bootstrap/harness/cases/interp.json
+
+- `--run` is the implementation, for example the bootstrap program, with
+  `{program}` (a `.bendtt` file) and `{input}`. It writes the output bytes
+  to stdout and exits non-zero to refuse. The compiler in Bend runs on the
+  interpreter, so its command is the same, with the `.bendtt` file of the
+  compiler as the program. Later, a command can run it with no interpreter.
+- `--make` turns a `.bend` program into `.bendtt`. This is the only step
+  that needs the existing `bend` command, so it is the only step that needs
+  WSL on Windows. A case whose program is not a `.bend` file skips it.
+- A case has an `expect`: the output bytes, the output text, or a refusal
+  that names a text. Without `expect`, two `--run` must give the same
+  outcome. We can point `--run` at the existing compiler's run. Its
+  differences are advice only (assumption 4): `Eval` decides.
+- Cases are data in `bootstrap/harness/cases/`, one list for each part. The
+  `#|` lines of the existing tests are not cases, because they come from
+  the existing JS and C runs.
+- Run a few cases at a time. Never run the full suite.
