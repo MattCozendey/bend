@@ -425,11 +425,12 @@ def S.load(ws: List<&2, W>, +off: Nat) -> Imp.Stm:
     case Con{w, rest}:
       Imp.Stm.seq{Imp.Stm.store{U32.from_nat(off), E.l(2n), W.exp(w)}, S.load(rest, 4n+off)}
 
-# the stores of the words ws (the last first) below base + end
+# the stores of the words ws (the last first) below base + end, the lowest
+# first
 def S.loadr(ws: List<&2, W>, end: Nat) -> Imp.Stm:
   match ws end:
     case Con{w, rest} 4n++e:
-      Imp.Stm.seq{Imp.Stm.store{U32.from_nat(e), E.l(2n), W.exp(w)}, S.loadr(rest, e)}
+      Imp.Stm.seq{S.loadr(rest, e), Imp.Stm.store{U32.from_nat(e), E.l(2n), W.exp(w)}}
     case _ _:
       Imp.Stm.skip{}
 

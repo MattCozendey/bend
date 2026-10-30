@@ -5974,3 +5974,113 @@ def Vs.drop(cs: List<&2, Fun.C>, +i: Nat, +len: Nat, +more: List<&2, Fun.V>, +me
       +vr = Vs.rd(List.append(&2, Fun.V, RT.Enc.codes(rest, len), more), 1n+i, mem, H, base)
       %MP.Nat.add_succ(List.length(&2, Fun.C, rest), i) : {Vs.rd(more, _, mem, H, base) == True{} : Bool}
       Vs.drop(rest, 1n+i, len, more, mem, H, base, And.r(rd, vr, And.r(bd, Bool.and(rd, vr), h)))
+
+# The loads of the image
+# ======================
+
+# a load above a store
+def Ld.above(+p: U32, +q: U32, +mem: Wasm.Mem, +x: U32, +size: U32,
+  +hqp: {Nat.is_le(4n+U32.to_nat(q), U32.to_nat(p)) == True{} : Bool}, +hp: {Nat.is_le(4n+U32.to_nat(p), U32.to_nat(size)) == True{} : Bool}) ->
+  {Wasm.Mem.load(p, Wasm.Mem.store(q, mem, x)) == Wasm.Mem.load(p, mem) : U32}:
+  +hps = Le.t(U32.to_nat(p), 4n+U32.to_nat(p), U32.to_nat(size), Shared.Nat.is_le_add_left(U32.to_nat(p), 4n), hp)
+  %WP.U.from_to_nat(p) : {Wasm.Mem.load(_, Wasm.Mem.store(q, mem, x)) == Wasm.Mem.load(_, mem) : U32}
+  %WP.U.from_to_nat(q) :
+    {Wasm.Mem.load(U32.from_nat(U32.to_nat(p)), Wasm.Mem.store(_, mem, x)) == Wasm.Mem.load(U32.from_nat(U32.to_nat(p)), mem) : U32}
+  WP.M.load_store_hi(U32.to_nat(p), U32.to_nat(q), mem, x,
+    Fits.le(3n+U32.to_nat(p), size, Shared.Nat.is_le_pred(3n+U32.to_nat(p), U32.to_nat(size), hp)),
+    Fits.le(3n+U32.to_nat(q), size, Le.t(3n+U32.to_nat(q), U32.to_nat(p), U32.to_nat(size), Shared.Nat.is_le_pred(3n+U32.to_nat(q), U32.to_nat(p), hqp), hps)), hqp)
+
+# the memory after the loads of the words ws (the last first) below base + e
+def Ldr.mem(ws: List<&2, RT.W>, +base: U32, e: Nat, mem: Wasm.Mem) -> Wasm.Mem:
+  match ws e:
+    case Con{w, rest} 4n++x:
+      Wasm.Mem.store(U32.add(base, U32.from_nat(x)), Ldr.mem(rest, base, x, mem), W.u(w, base))
+    case _ _:
+      mem
+
+# the memory after the loads of the words ws from base + o on
+def Ld.mem(ws: List<&2, RT.W>, +base: U32, +o: Nat, mem: Wasm.Mem) -> Wasm.Mem:
+  match ws:
+    case Nil{}:
+      mem
+    case Con{w, rest}:
+      Ld.mem(rest, base, 4n+o, Wasm.Mem.store(U32.add(base, U32.from_nat(o)), mem, W.u(w, base)))
+
+# whether the words ws (the last first) fit below e
+def Ws.fit(ws: List<&2, RT.W>, e: Nat) -> Bool:
+  match ws e:
+    case Nil{} _:
+      True{}
+    case Con{w, rest} 4n++x:
+      Ws.fit(rest, x)
+    case _ _:
+      False{}
+
+# a word below a store keeps
+def W.keep(+w: RT.W, +mem: Wasm.Mem, +base: U32, +x: Nat, +q: U32, +u: U32, +size: U32,
+  +hq: {Nat.is_le(4n+Nat.add(x, U32.to_nat(base)), U32.to_nat(q)) == True{} : Bool}, +hqs: {Nat.is_le(4n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool},
+  +h: {W.at(w, mem, base, x) == True{} : Bool}) -> {W.at(w, Wasm.Mem.store(q, mem, u), base, x) == True{} : Bool}:
+  +hxs = Le.t(Nat.add(x, U32.to_nat(base)), U32.to_nat(q), U32.to_nat(size),
+    Le.t(Nat.add(x, U32.to_nat(base)), 4n+Nat.add(x, U32.to_nat(base)), U32.to_nat(q), Shared.Nat.is_le_add_left(Nat.add(x, U32.to_nat(base)), 4n), hq),
+    Le.t(U32.to_nat(q), 4n+U32.to_nat(q), U32.to_nat(size), Shared.Nat.is_le_add_left(U32.to_nat(q), 4n), hqs))
+  +hx = {Q.nat(base, x, size, hxs) : {U32.to_nat(U32.add(base, U32.from_nat(x))) == Nat.add(x, U32.to_nat(base)) : Nat}}
+  %Equal.sym(U32, Wasm.Mem.load(U32.add(base, U32.from_nat(x)), Wasm.Mem.store(q, mem, u)), Wasm.Mem.load(U32.add(base, U32.from_nat(x)), mem),
+    Ld.far(U32.add(base, U32.from_nat(x)), q, mem, u, size, Le.rwl(4n+Nat.add(x, U32.to_nat(base)), 4n+U32.to_nat(U32.add(base, U32.from_nat(x))), U32.to_nat(q),
+      Equal.cong(Nat, Nat, y => 4n+y, Nat.add(x, U32.to_nat(base)), U32.to_nat(U32.add(base, U32.from_nat(x))), Equal.sym(Nat, U32.to_nat(U32.add(base, U32.from_nat(x))), Nat.add(x, U32.to_nat(base)), hx)), hq), hqs)) :
+    {Nat.is_eq(U32.to_nat(_), U32.to_nat(W.u(w, base))) == True{} : Bool}
+  h
+
+def Ws.keep1(ws: List<&2, RT.W>, e: Nat, +mem: Wasm.Mem, +base: U32, +q: U32, +u: U32, +size: U32,
+  +hq: {Nat.is_le(Nat.add(e, U32.to_nat(base)), U32.to_nat(q)) == True{} : Bool}, +hqs: {Nat.is_le(4n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool},
+  +h: {Ws.at(ws, mem, base, e) == True{} : Bool}) -> {Ws.at(ws, Wasm.Mem.store(q, mem, u), base, e) == True{} : Bool}:
+  match ws e:
+    case Nil{} _:
+      {==}
+    case Con{+w, +rest} 0n:
+      h
+    case Con{+w, +rest} 1n:
+      h
+    case Con{+w, +rest} 2n:
+      h
+    case Con{+w, +rest} 3n:
+      h
+    case Con{+w, +rest} 4n++x:
+      And.mk(W.at(w, Wasm.Mem.store(q, mem, u), base, x), Ws.at(rest, Wasm.Mem.store(q, mem, u), base, x),
+        W.keep(w, mem, base, x, q, u, size, hq, hqs, And.l(W.at(w, mem, base, x), Ws.at(rest, mem, base, x), h)),
+        Ws.keep1(rest, x, mem, base, q, u, size,
+          Le.t(Nat.add(x, U32.to_nat(base)), 4n+Nat.add(x, U32.to_nat(base)), U32.to_nat(q), Shared.Nat.is_le_add_left(Nat.add(x, U32.to_nat(base)), 4n), hq), hqs,
+          And.r(W.at(w, mem, base, x), Ws.at(rest, mem, base, x), h)))
+
+def Ldr.at1(+w: RT.W, +M: Wasm.Mem, +base: U32, +x: Nat, +size: U32, +h4: {Nat.is_le(4n+U32.to_nat(U32.add(base, U32.from_nat(x))), U32.to_nat(size)) == True{} : Bool}) ->
+  {W.at(w, Wasm.Mem.store(U32.add(base, U32.from_nat(x)), M, W.u(w, base)), base, x) == True{} : Bool}:
+  %Equal.sym(U32, Wasm.Mem.load(U32.add(base, U32.from_nat(x)), Wasm.Mem.store(U32.add(base, U32.from_nat(x)), M, W.u(w, base))), W.u(w, base), Ld.same(U32.add(base, U32.from_nat(x)), M, W.u(w, base), size, h4)) :
+    {Nat.is_eq(U32.to_nat(_), U32.to_nat(W.u(w, base))) == True{} : Bool}
+  WP.Nat.is_eq_refl(U32.to_nat(W.u(w, base)))
+
+# after the loads below base + e, the memory holds the words
+def Ldr.at(ws: List<&2, RT.W>, e: Nat, +mem: Wasm.Mem, +base: U32, +size: U32, +hfit: {Ws.fit(ws, e) == True{} : Bool},
+  +hs: {Nat.is_le(Nat.add(e, U32.to_nat(base)), U32.to_nat(size)) == True{} : Bool}) -> {Ws.at(ws, Ldr.mem(ws, base, e, mem), base, e) == True{} : Bool}:
+  match ws e:
+    case Nil{} _:
+      {==}
+    case Con{+w, +rest} 0n:
+      hfit
+    case Con{+w, +rest} 1n:
+      hfit
+    case Con{+w, +rest} 2n:
+      hfit
+    case Con{+w, +rest} 3n:
+      hfit
+    case Con{+w, +rest} 4n++x:
+      +M = Ldr.mem(rest, base, x, mem)
+      +hxs = Le.t(Nat.add(x, U32.to_nat(base)), 4n+Nat.add(x, U32.to_nat(base)), U32.to_nat(size), Shared.Nat.is_le_add_left(Nat.add(x, U32.to_nat(base)), 4n), hs)
+      +hx = {Q.nat(base, x, size, hxs) : {U32.to_nat(U32.add(base, U32.from_nat(x))) == Nat.add(x, U32.to_nat(base)) : Nat}}
+      +h4 = Le.rwl(4n+Nat.add(x, U32.to_nat(base)), 4n+U32.to_nat(U32.add(base, U32.from_nat(x))), U32.to_nat(size),
+        Equal.cong(Nat, Nat, y => 4n+y, Nat.add(x, U32.to_nat(base)), U32.to_nat(U32.add(base, U32.from_nat(x))), Equal.sym(Nat, U32.to_nat(U32.add(base, U32.from_nat(x))), Nat.add(x, U32.to_nat(base)), hx)), hs)
+      And.mk(W.at(w, Wasm.Mem.store(U32.add(base, U32.from_nat(x)), M, W.u(w, base)), base, x), Ws.at(rest, Wasm.Mem.store(U32.add(base, U32.from_nat(x)), M, W.u(w, base)), base, x),
+        Ldr.at1(w, M, base, x, size, h4),
+        Ws.keep1(rest, x, M, base, U32.add(base, U32.from_nat(x)), W.u(w, base), size,
+          Le.rwl(Nat.add(x, U32.to_nat(base)), Nat.add(x, U32.to_nat(base)), U32.to_nat(U32.add(base, U32.from_nat(x))), {==},
+            Le.rw(Nat.add(x, U32.to_nat(base)), Nat.add(x, U32.to_nat(base)), U32.to_nat(U32.add(base, U32.from_nat(x))), Equal.sym(Nat, U32.to_nat(U32.add(base, U32.from_nat(x))), Nat.add(x, U32.to_nat(base)), hx),
+              Shared.Nat.is_le_refl(Nat.add(x, U32.to_nat(base))))), h4,
+          Ldr.at(rest, x, mem, base, size, hfit, hxs)))
