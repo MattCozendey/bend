@@ -5252,3 +5252,530 @@ def Step.ok(s: Machine.St, +bk: List<&2, Source.Def>, +h: {St.ok(s, bk) == True{
     case Machine.St.ret{+v, +fs}:
       S.ret(v, fs, bk, SP.Bool.and_left(Val.ok(v, Mode.good{}, bk), Frs.ok(fs, bk), h),
         SP.Bool.and_right(Val.ok(v, Mode.good{}, bk), Frs.ok(fs, bk), h))
+
+# Bound
+# =====
+
+def Bnd.three(+acc: Nat, +x: Nat, +wu: Nat, h: {Nat.is_le(acc, 1n+wu) == True{} : Bool}) ->
+  {Nat.is_le(Nat.add(3n+x, acc), 1n+5n+Nat.add(x, wu)) == True{} : Bool}:
+  Le.add(Nat.add(x, acc), 1n+Nat.add(x, wu),
+    Eq.rw(Nat, Nat.add(x, 1n+wu), 1n+Nat.add(x, wu), Nat.add_succ(x, wu),
+      z => {Nat.is_le(Nat.add(x, acc), z) == True{} : Bool}, Nat.is_le_mono(x, acc, 1n+wu, h)), 2n)
+
+def Bnd.one(+acc: Nat, +wu: Nat, +x: Nat, h: {Nat.is_le(acc, 1n+wu) == True{} : Bool}) ->
+  {Nat.is_le(Nat.add(1n, acc), 1n+5n+Nat.add(wu, x)) == True{} : Bool}:
+  Le.add(acc, 1n+Nat.add(wu, x), Nat.is_le_trans(acc, 1n+wu, 1n+Nat.add(wu, x), h, Shared.Nat.is_le_add(1n+wu, x)), 4n)
+
+def Bnd.onez(+acc: Nat, +wu: Nat, h: {Nat.is_le(acc, 1n+wu) == True{} : Bool}) ->
+  {Nat.is_le(Nat.add(1n, acc), 1n+5n+Nat.add(0n, wu)) == True{} : Bool}:
+  Le.add(acc, 1n+wu, h, 4n)
+
+def Bnd.zero(+acc: Nat, +wu: Nat, h: {Nat.is_le(acc, 1n+wu) == True{} : Bool}) ->
+  {Nat.is_le(Nat.add(0n, acc), 1n+5n+wu) == True{} : Bool}:
+  Le.add(acc, 1n+wu, h, 5n)
+
+# a frame's measure is at most the weight that it adds to the term
+def Fr.bound(fr: Machine.Fr, +u: Source.Term, +acc: Nat, +bk: List<&2, Source.Def>, hfr: {Fr.ok(fr, bk) == True{} : Bool},
+  h: {Nat.is_le(acc, 1n+Term.w(u)) == True{} : Bool}) ->
+  {Nat.is_le(Nat.add(Fr.pend(fr), acc), 1n+Term.w(Fr.plug(fr, u))) == True{} : Bool}:
+  match fr:
+    case Machine.Fr.arg{q, x}:
+      match q:
+        case Source.Q0{}:
+          Bnd.onez(acc, Term.w(u), h)
+        case Source.Q1{}:
+          Bnd.three(acc, Term.w(Val.rb(x)), Term.w(u), h)
+        case Source.Q2{}:
+          Bnd.three(acc, Term.w(Val.rb(x)), Term.w(u), h)
+    case Machine.Fr.fun{q, f}:
+      match q:
+        case Source.Q0{}:
+          Shared.Bool.absurd({Nat.is_le(Nat.add(1n, acc), 1n+Term.w(Source.Term.App{Source.Q0{}, Val.rb(f), u})) == True{} : Bool}, hfr)
+        case Source.Q1{}:
+          Bnd.one(acc, Term.w(u), Term.w(Val.rb(f)), h)
+        case Source.Q2{}:
+          Bnd.one(acc, Term.w(u), Term.w(Val.rb(f)), h)
+    case Machine.Fr.let{q, f, e}:
+      match q:
+        case Source.Q0{}:
+          Shared.Bool.absurd({Nat.is_le(Nat.add(0n, acc), 1n+Term.w(Fr.plug(Machine.Fr.let{Source.Q0{}, f, e}, u))) == True{} : Bool}, hfr)
+        case Source.Q1{}:
+          Bnd.zero(acc, Term.w(u), h)
+        case Source.Q2{}:
+          Bnd.zero(acc, Term.w(u), h)
+    case Machine.Fr.fst{q, +b, +e}:
+      match q:
+        case Source.Q0{}:
+          Shared.Bool.absurd({Nat.is_le(Nat.add(3n+Term.w(Clo.rb(b, e)), acc), 1n+Term.w(Fr.plug(Machine.Fr.fst{Source.Q0{}, b, e}, u))) == True{} : Bool}, hfr)
+        case Source.Q1{}:
+          Bnd.three(acc, Term.w(Clo.rb(b, e)), Term.w(u), h)
+        case Source.Q2{}:
+          Bnd.three(acc, Term.w(Clo.rb(b, e)), Term.w(u), h)
+    case Machine.Fr.snd{q, a}:
+      Bnd.one(acc, Term.w(u), Q.w(q, Term.w(Val.rb(a))), h)
+    case Machine.Fr.rwt{p, f, e}:
+      Bnd.zero(acc, Term.w(u), h)
+    case Machine.Fr.min1{b, e}:
+      Bnd.three(acc, Term.w(Clo.rb(b, e)), Term.w(u), h)
+    case Machine.Fr.min2{a}:
+      Bnd.one(acc, Term.w(u), Term.w(Val.rb(a)), h)
+
+def Frs.bound(fs: List<&2, Machine.Fr>, +u: Source.Term, +acc: Nat, +bk: List<&2, Source.Def>, +hfs: {Frs.ok(fs, bk) == True{} : Bool},
+  h: {Nat.is_le(acc, 1n+Term.w(u)) == True{} : Bool}) ->
+  {Nat.is_le(Frs.mu(fs, acc), 1n+Term.w(Frs.plug(fs, u))) == True{} : Bool}:
+  match fs:
+    case Nil{}:
+      h
+    case Con{+fr, +rest}:
+      Frs.bound(rest, Fr.plug(fr, u), Nat.add(Fr.pend(fr), acc), bk, SP.Bool.and_right(Fr.ok(fr, bk), Frs.ok(rest, bk), hfs),
+        Fr.bound(fr, u, acc, bk, SP.Bool.and_left(Fr.ok(fr, bk), Frs.ok(rest, bk), hfs), h))
+
+# a state's measure is at most 1 plus the weight of its term
+def St.bound(s: Machine.St, +bk: List<&2, Source.Def>, +hs: {St.ok(s, bk) == True{} : Bool}) ->
+  {Nat.is_le(St.mu(s), 1n+Term.w(St.rb(s))) == True{} : Bool}:
+  match s:
+    case Machine.St.eval{+t, +e, +fs}:
+      Frs.bound(fs, Clo.rb(t, e), Nat.add(Term.var(t), Term.w(Clo.rb(t, e))), bk,
+        SP.Bool.and_right(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), hs), Le.step1(t, Term.w(Clo.rb(t, e))))
+    case Machine.St.ret{+v, +fs}:
+      Frs.bound(fs, Val.rb(v), 0n, bk, SP.Bool.and_right(Val.ok(v, Mode.good{}, bk), Frs.ok(fs, bk), hs), {==})
+
+# Runs
+# ====
+
+def Run.mono.of(mv: Machine.Move, -m: Nat, +d: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  rec: @s2: Machine.St -> {Machine.Machine.run(m, s2, bk) == Some{o} : Maybe<&2, Source.Obs>} ->
+    {Machine.Machine.run(Nat.add(m, d), s2, bk) == Some{o} : Maybe<&2, Source.Obs>},
+  h: {Machine.Run.next(mv, s2 => Machine.Machine.run(m, s2, bk)) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Machine.Run.next(mv, s2 => Machine.Machine.run(Nat.add(m, d), s2, bk)) == Some{o} : Maybe<&2, Source.Obs>}:
+  match mv:
+    case Machine.Move.go{s2}:
+      rec(s2, h)
+    case Machine.Move.done{v}:
+      h
+    case Machine.Move.stuck{}:
+      Empty.absurd({None{} == Some{o} : Maybe<&2, Source.Obs>}, Shared.Maybe.no_none(Source.Obs, o, h))
+
+# more fuel keeps the machine's result
+def Run.mono(n: Nat, +s: Machine.St, +bk: List<&2, Source.Def>, +d: Nat, -o: Source.Obs,
+  h: {Machine.Machine.run(n, s, bk) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Machine.Machine.run(Nat.add(n, d), s, bk) == Some{o} : Maybe<&2, Source.Obs>}:
+  match n:
+    case 0n:
+      Empty.absurd({Machine.Machine.run(d, s, bk) == Some{o} : Maybe<&2, Source.Obs>}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case 1n+m:
+      Run.mono.of(Machine.Machine.step(s, bk), m, d, bk, o, s2 => h2 => Run.mono(m, s2, bk, d, o, h2), h)
+
+def Src.mono.next(ms: Maybe<&2, Source.Term>, -t: Source.Term, -m: Nat, +bk: List<&2, Source.Def>, -u: Source.Term,
+  rec: @a: Source.Term -> {Source.Term.run(m, a, bk) == Some{u} : Maybe<&2, Source.Term>} ->
+    {Source.Term.run(1n+m, a, bk) == Some{u} : Maybe<&2, Source.Term>},
+  h: {Source.Term.run.next(ms, t, a => Source.Term.run(m, a, bk)) == Some{u} : Maybe<&2, Source.Term>}) ->
+  {Source.Term.run.next(ms, t, a => Source.Term.run(1n+m, a, bk)) == Some{u} : Maybe<&2, Source.Term>}:
+  match ms:
+    case Some{a}:
+      rec(a, h)
+    case None{}:
+      h
+
+def Src.mono.of(c: Bool, +t: Source.Term, -m: Nat, +bk: List<&2, Source.Def>, -u: Source.Term,
+  rec: @a: Source.Term -> {Source.Term.run(m, a, bk) == Some{u} : Maybe<&2, Source.Term>} ->
+    {Source.Term.run(1n+m, a, bk) == Some{u} : Maybe<&2, Source.Term>},
+  h: {Source.Term.run.of(c, t, z => Source.Term.step(t, bk), z => Source.Term.run(m, z, bk)) == Some{u} : Maybe<&2, Source.Term>}) ->
+  {Source.Term.run.of(c, t, z => Source.Term.step(t, bk), z => Source.Term.run(1n+m, z, bk)) == Some{u} : Maybe<&2, Source.Term>}:
+  match c:
+    case True{}:
+      h
+    case False{}:
+      Src.mono.next(Source.Term.step(t, bk), t, m, bk, u, rec, h)
+
+# more fuel keeps the source's result
+def Src.mono(n: Nat, +t: Source.Term, +bk: List<&2, Source.Def>, -u: Source.Term,
+  h: {Source.Term.run(n, t, bk) == Some{u} : Maybe<&2, Source.Term>}) ->
+  {Source.Term.run(1n+n, t, bk) == Some{u} : Maybe<&2, Source.Term>}:
+  match n:
+    case 0n:
+      Empty.absurd({Source.Term.run(1n, t, bk) == Some{u} : Maybe<&2, Source.Term>}, Shared.Maybe.no_none(Source.Term, u, h))
+    case 1n+m:
+      Src.mono.of(Source.Term.is_value(t, False{}, bk), t, m, bk, u, a => ha => Src.mono(m, a, bk, u, ha), h)
+
+def Obs.mono.of(mr: Maybe<&2, Source.Term>, +t: Source.Term, +n: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  hr: {Source.Term.run(n, t, bk) == mr : Maybe<&2, Source.Term>}, h: {Source.Maybe.observe(mr) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Source.Maybe.observe(Source.Term.run(1n+n, t, bk)) == Some{o} : Maybe<&2, Source.Obs>}:
+  match mr:
+    case None{}:
+      Empty.absurd({Source.Maybe.observe(Source.Term.run(1n+n, t, bk)) == Some{o} : Maybe<&2, Source.Obs>}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Some{+u}:
+      Eq.rw(Maybe<&2, Source.Term>, Some{u}, Source.Term.run(1n+n, t, bk),
+        Equal.sym(Maybe<&2, Source.Term>, Source.Term.run(1n+n, t, bk), Some{u}, Src.mono(n, t, bk, u, hr)),
+        z => {Source.Maybe.observe(z) == Some{o} : Maybe<&2, Source.Obs>}, h)
+
+def Obs.mono(+t: Source.Term, +n: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  h: {Source.Maybe.observe(Source.Term.run(n, t, bk)) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Source.Maybe.observe(Source.Term.run(1n+n, t, bk)) == Some{o} : Maybe<&2, Source.Obs>}:
+  Obs.mono.of(Source.Term.run(n, t, bk), t, n, bk, o, {==}, h)
+
+def Obs.value.tup(mb: Maybe<&2, Source.Obs>, q: Source.Quan, ma: Maybe<&2, Source.Obs>, -a: Source.Term, -b: Source.Term,
+  +bk: List<&2, Source.Def>, -o: Source.Obs, h: {Source.Obs.tup.of(mb, Source.Quan.live(q), ma) == Some{o} : Maybe<&2, Source.Obs>},
+  hb: @y: Source.Obs -> {mb == Some{y} : Maybe<&2, Source.Obs>} -> {Source.Term.is_value(b, False{}, bk) == True{} : Bool},
+  ha: @x: Source.Obs -> {ma == Some{x} : Maybe<&2, Source.Obs>} -> {Source.Term.is_value(a, False{}, bk) == True{} : Bool}) ->
+  {Bool.and(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(a, False{}, bk)), Source.Term.is_value(b, False{}, bk)) == True{} : Bool}:
+  match mb:
+    case None{}:
+      Empty.absurd({Bool.and(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(a, False{}, bk)), Source.Term.is_value(b, False{}, bk)) == True{} : Bool},
+        Shared.Maybe.no_none(Source.Obs, o, h))
+    case Some{y}:
+      match q:
+        case Source.Q0{}:
+          hb(y, {==})
+        case Source.Q1{}:
+          match ma:
+            case None{}:
+              Empty.absurd({Bool.and(Source.Term.is_value(a, False{}, bk), Source.Term.is_value(b, False{}, bk)) == True{} : Bool},
+                Shared.Maybe.no_none(Source.Obs, o, h))
+            case Some{x}:
+              SP.Bool.and_intro(Source.Term.is_value(a, False{}, bk), Source.Term.is_value(b, False{}, bk), ha(x, {==}), hb(y, {==}))
+        case Source.Q2{}:
+          match ma:
+            case None{}:
+              Empty.absurd({Bool.and(Source.Term.is_value(a, False{}, bk), Source.Term.is_value(b, False{}, bk)) == True{} : Bool},
+                Shared.Maybe.no_none(Source.Obs, o, h))
+            case Some{x}:
+              SP.Bool.and_intro(Source.Term.is_value(a, False{}, bk), Source.Term.is_value(b, False{}, bk), ha(x, {==}), hb(y, {==}))
+
+# a term that shows data is a value
+def Obs.value(t: Source.Term, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  h: {Source.Term.observe(t) == Some{o} : Maybe<&2, Source.Obs>}) -> {Source.Term.is_value(t, False{}, bk) == True{} : Bool}:
+  match t:
+    case Source.Term.Var{+z0}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Ref{+z0}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Ann{+z0, +z1}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Let{+z0, +z1, +z2}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Typ{+z0}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Typ{z0}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Min{+z0, +z1}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.All{+z0, +z1, +z2}:
+      Empty.absurd({Source.Term.is_value(Source.Term.All{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Lam{+z0, +z1}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Lam{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.App{+z0, +z1, +z2}:
+      Empty.absurd({Source.Term.is_value(Source.Term.App{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Sig{+z0, +z1, +z2}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Sig{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Tup{+z0, +z1, +z2}:
+      Obs.value.tup(Source.Term.observe(z2), z0, Source.Term.observe(z1), z1, z2, bk, o, h,
+        y => ey => Obs.value(z2, bk, y, ey), x => ex => Obs.value(z1, bk, x, ex))
+    case Source.Term.Prj{+z0}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Prj{z0}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Enu{+z0}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Enu{z0}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Lab{+z0}:
+      {==}
+    case Source.Term.Mat{+z0, +z1, +z2}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Mat{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Efq{}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Efq{}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Eql{+z0, +z1, +z2}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Eql{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case Source.Term.Rfl{}:
+      {==}
+    case Source.Term.Rwt{+z0, +z1, +z2}:
+      Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Maybe.no_none(Source.Obs, o, h))
+
+# Keeps
+# =====
+
+# what the machine is to reach from a state of term t: a value of t that
+# shows o, or the state of the term after t's step, from where a run of M
+# steps shows o
+type Goal<-t: Source.Term, -o: Source.Obs, -M: Nat, -bk: List<&2, Source.Def>> is Type:
+  Goal.val{hv: {Source.Term.is_value(t, False{}, bk) == True{} : Bool}, ho: {Source.Term.observe(t) == Some{o} : Maybe<&2, Source.Obs>}}
+  Goal.step{u: Source.Term, hst: {Source.Term.step(t, bk) == Some{u} : Maybe<&2, Source.Term>},
+    next: @s2: Machine.St -> {St.ok(s2, bk) == True{} : Bool} -> {St.rb(s2) == u : Source.Term} ->
+      {Machine.Machine.run(M, s2, bk) == Some{o} : Maybe<&2, Source.Obs>}}
+
+def Inner.of(mv: Machine.Move, +j: Nat, +t: Source.Term, +mu: Nat, +M: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  mvd: Moved(mv, t, mu, bk), hj: {Nat.is_le(mu, j) == True{} : Bool}, g: Goal<t, o, M, bk>,
+  rec: @s2: Machine.St -> {St.ok(s2, bk) == True{} : Bool} -> {Nat.is_le(1n+St.mu(s2), j) == True{} : Bool} ->
+    Goal<St.rb(s2), o, M, bk> -> {Machine.Machine.run(Nat.add(j, M), s2, bk) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Machine.Run.next(mv, s2 => Machine.Machine.run(Nat.add(j, M), s2, bk)) == Some{o} : Maybe<&2, Source.Obs>}:
+  match mv:
+    case Machine.Move.go{+s2}:
+      match mvd:
+        case (ok2, r):
+          match r:
+            case Inl{(eq2, lt2)}:
+              rec(s2, ok2, Nat.is_le_trans(1n+St.mu(s2), mu, j, lt2, hj),
+                Eq.rw(Source.Term, t, St.rb(s2), Equal.sym(Source.Term, St.rb(s2), t, eq2), z => Goal<z, o, M, bk>, g))
+            case Inr{st}:
+              match g:
+                case Goal.val{hv, ho}:
+                  Empty.absurd({Machine.Machine.run(Nat.add(j, M), s2, bk) == Some{o} : Maybe<&2, Source.Obs>},
+                    Shared.Maybe.no_none(Source.Term, St.rb(s2),
+                      Equal.trans(Maybe<&2, Source.Term>, None{}, Source.Term.step(t, bk), Some{St.rb(s2)},
+                        Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(t, bk), None{}, Vals.step(t, False{}, bk, hv)), st)))
+                case Goal.step{u, hst, next}:
+                  Eq.rw(Nat, Nat.add(M, j), Nat.add(j, M), Nat.add_comm(M, j),
+                    z => {Machine.Machine.run(z, s2, bk) == Some{o} : Maybe<&2, Source.Obs>},
+                    Run.mono(M, s2, bk, j, o, next(s2, ok2,
+                      SP.Maybe.some_inj(Source.Term, St.rb(s2), u,
+                        Equal.trans(Maybe<&2, Source.Term>, Some{St.rb(s2)}, Source.Term.step(t, bk), Some{u},
+                          Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(t, bk), Some{St.rb(s2)}, st), hst)))))
+    case Machine.Move.done{+v}:
+      match mvd:
+        case (okv, +eqv):
+          match g:
+            case Goal.val{hv, ho}:
+              Equal.trans(Maybe<&2, Source.Obs>, Machine.Val.observe(v), Source.Term.observe(Val.rb(v)), Some{o}, Obs.eq(v, bk, okv),
+                Equal.trans(Maybe<&2, Source.Obs>, Source.Term.observe(Val.rb(v)), Source.Term.observe(t), Some{o},
+                  Equal.cong(Source.Term, Maybe<&2, Source.Obs>, z => Source.Term.observe(z), Val.rb(v), t, eqv), ho))
+            case Goal.step{u, hst, next}:
+              Empty.absurd({Machine.Val.observe(v) == Some{o} : Maybe<&2, Source.Obs>},
+                Shared.Maybe.no_none(Source.Term, u,
+                  Equal.trans(Maybe<&2, Source.Term>, None{}, Source.Term.step(t, bk), Some{u},
+                    Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(t, bk), None{},
+                      Eq.rw(Source.Term, Val.rb(v), t, eqv, z => {Source.Term.step(z, bk) == None{} : Maybe<&2, Source.Term>},
+                        Vals.step(Val.rb(v), False{}, bk, Val.value(v, bk, okv)))), hst)))
+    case Machine.Move.stuck{}:
+      match mvd:
+        case (nv, ns):
+          match g:
+            case Goal.val{hv, ho}:
+              Empty.absurd({None{} == Some{o} : Maybe<&2, Source.Obs>},
+                Bool.true_false(Equal.trans(Bool, True{}, Source.Term.is_value(t, False{}, bk), False{},
+                  Equal.sym(Bool, Source.Term.is_value(t, False{}, bk), True{}, hv), nv)))
+            case Goal.step{u, hst, next}:
+              Empty.absurd({None{} == Some{o} : Maybe<&2, Source.Obs>},
+                Shared.Maybe.no_none(Source.Term, u,
+                  Equal.trans(Maybe<&2, Source.Term>, None{}, Source.Term.step(t, bk), Some{u},
+                    Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(t, bk), None{}, ns), hst)))
+
+# from a state whose measure is at most j, the machine reaches its goal in
+# at most j + 1 steps
+def Inner(+j: Nat, +s: Machine.St, +M: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs, hs: {St.ok(s, bk) == True{} : Bool},
+  hj: {Nat.is_le(St.mu(s), j) == True{} : Bool}, g: Goal<St.rb(s), o, M, bk>) ->
+  {Machine.Machine.run(Nat.add(1n+j, M), s, bk) == Some{o} : Maybe<&2, Source.Obs>}:
+  match j:
+    case 0n:
+      Inner.of(Machine.Machine.step(s, bk), 0n, St.rb(s), St.mu(s), M, bk, o, Step.ok(s, bk, hs), hj, g,
+        s2 => ok2 => lt2 => g2 => Shared.Bool.absurd({Machine.Machine.run(M, s2, bk) == Some{o} : Maybe<&2, Source.Obs>}, lt2))
+    case 1n+j2:
+      Inner.of(Machine.Machine.step(s, bk), 1n+j2, St.rb(s), St.mu(s), M, bk, o, Step.ok(s, bk, hs), hj, g,
+        s2 => ok2 => lt2 => g2 => Inner(j2, s2, M, bk, o, ok2, lt2, g2))
+
+def Fuel.rest(v: Bool, ms: Maybe<&2, Source.Term>, go: Source.Term -> Nat) -> Nat:
+  match v:
+    case True{}:
+      0n
+    case False{}:
+      match ms:
+        case Some{u}:
+          go(u)
+        case None{}:
+          0n
+
+# the machine's fuel for n steps of the source from t: the weights of the
+# terms of the run, and 2 for each term
+def Fuel.of(n: Nat, +t: Source.Term, +bk: List<&2, Source.Def>) -> Nat:
+  match n:
+    case 0n:
+      0n
+    case 1n+m:
+      2n+Nat.add(Term.w(t), Fuel.rest(Source.Term.is_value(t, False{}, bk), Source.Term.step(t, bk), u => Fuel.of(m, u, bk)))
+
+def Keeps.inner(+t: Source.Term, +s: Machine.St, +M: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  +hs: {St.ok(s, bk) == True{} : Bool}, +eq: {St.rb(s) == t : Source.Term}, g: Goal<t, o, M, bk>) ->
+  {Machine.Machine.run(Nat.add(2n+Term.w(t), M), s, bk) == Some{o} : Maybe<&2, Source.Obs>}:
+  Inner(1n+Term.w(t), s, M, bk, o, hs,
+    Eq.rw(Source.Term, St.rb(s), t, eq, z => {Nat.is_le(St.mu(s), 1n+Term.w(z)) == True{} : Bool}, St.bound(s, bk, hs)),
+    Eq.rw(Source.Term, t, St.rb(s), Equal.sym(Source.Term, St.rb(s), t, eq), z => Goal<z, o, M, bk>, g))
+
+def Keeps.next(ms: Maybe<&2, Source.Term>, +t: Source.Term, +m: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  hc: {Source.Term.is_value(t, False{}, bk) == False{} : Bool}, hms: {Source.Term.step(t, bk) == ms : Maybe<&2, Source.Term>},
+  h: {Source.Maybe.observe(Source.Term.run.next(ms, t, z => Source.Term.run(m, z, bk))) == Some{o} : Maybe<&2, Source.Obs>},
+  +N: Nat, +s: Machine.St, +hs: {St.ok(s, bk) == True{} : Bool}, +eq: {St.rb(s) == t : Source.Term},
+  rec: @u: Source.Term -> {Source.Maybe.observe(Source.Term.run(m, u, bk)) == Some{o} : Maybe<&2, Source.Obs>} ->
+    @s2: Machine.St -> {St.ok(s2, bk) == True{} : Bool} -> {St.rb(s2) == u : Source.Term} ->
+    {Machine.Machine.run(Nat.add(Fuel.of(m, u, bk), N), s2, bk) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Machine.Machine.run(Nat.add(2n+Nat.add(Term.w(t), Fuel.rest(False{}, ms, u => Fuel.of(m, u, bk))), N), s, bk) == Some{o} : Maybe<&2, Source.Obs>}:
+  match ms:
+    case Some{+u}:
+      Eq.rw(Nat, Nat.add(Term.w(t), Nat.add(Fuel.of(m, u, bk), N)), Nat.add(Nat.add(Term.w(t), Fuel.of(m, u, bk)), N),
+        Equal.sym(Nat, Nat.add(Nat.add(Term.w(t), Fuel.of(m, u, bk)), N), Nat.add(Term.w(t), Nat.add(Fuel.of(m, u, bk), N)),
+          Nat.add_assoc(Term.w(t), Fuel.of(m, u, bk), N)),
+        z => {Machine.Machine.run(2n+z, s, bk) == Some{o} : Maybe<&2, Source.Obs>},
+        Keeps.inner(t, s, Nat.add(Fuel.of(m, u, bk), N), bk, o, hs, eq,
+          Goal.step{u, hms, s2 => ok2 => eq2 => rec(u, h, s2, ok2, eq2)}))
+    case None{}:
+      Empty.absurd({Machine.Machine.run(Nat.add(2n+Nat.add(Term.w(t), 0n), N), s, bk) == Some{o} : Maybe<&2, Source.Obs>},
+        Bool.true_false(Equal.trans(Bool, True{}, Source.Term.is_value(t, False{}, bk), False{},
+          Equal.sym(Bool, Source.Term.is_value(t, False{}, bk), True{}, Obs.value(t, bk, o, h)), hc)))
+
+def Keeps.of(c: Bool, +t: Source.Term, +m: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  hc: {Source.Term.is_value(t, False{}, bk) == c : Bool},
+  h: {Source.Maybe.observe(Source.Term.run.of(c, t, z => Source.Term.step(t, bk), z => Source.Term.run(m, z, bk))) == Some{o} : Maybe<&2, Source.Obs>},
+  +N: Nat, +s: Machine.St, +hs: {St.ok(s, bk) == True{} : Bool}, +eq: {St.rb(s) == t : Source.Term},
+  rec: @u: Source.Term -> {Source.Maybe.observe(Source.Term.run(m, u, bk)) == Some{o} : Maybe<&2, Source.Obs>} ->
+    @s2: Machine.St -> {St.ok(s2, bk) == True{} : Bool} -> {St.rb(s2) == u : Source.Term} ->
+    {Machine.Machine.run(Nat.add(Fuel.of(m, u, bk), N), s2, bk) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Machine.Machine.run(Nat.add(2n+Nat.add(Term.w(t), Fuel.rest(c, Source.Term.step(t, bk), u => Fuel.of(m, u, bk))), N), s, bk) == Some{o} : Maybe<&2, Source.Obs>}:
+  match c:
+    case True{}:
+      Eq.rw(Nat, Term.w(t), Nat.add(Term.w(t), 0n), Equal.sym(Nat, Nat.add(Term.w(t), 0n), Term.w(t), Nat.add_zero(Term.w(t))),
+        z => {Machine.Machine.run(Nat.add(2n+z, N), s, bk) == Some{o} : Maybe<&2, Source.Obs>},
+        Keeps.inner(t, s, N, bk, o, hs, eq, Goal.val{hc, h}))
+    case False{}:
+      Keeps.next(Source.Term.step(t, bk), t, m, bk, o, hc, {==}, h, N, s, hs, eq, rec)
+
+# a result of n steps of the source from t is a result of the machine from each
+# state of t, with Fuel.of(n, t) steps
+def Keeps.go(+n: Nat, +t: Source.Term, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  h: {Source.Maybe.observe(Source.Term.run(n, t, bk)) == Some{o} : Maybe<&2, Source.Obs>},
+  +N: Nat, +s: Machine.St, +hs: {St.ok(s, bk) == True{} : Bool}, +eq: {St.rb(s) == t : Source.Term}) ->
+  {Machine.Machine.run(Nat.add(Fuel.of(n, t, bk), N), s, bk) == Some{o} : Maybe<&2, Source.Obs>}:
+  match n:
+    case 0n:
+      Empty.absurd({Machine.Machine.run(N, s, bk) == Some{o} : Maybe<&2, Source.Obs>}, Shared.Maybe.no_none(Source.Obs, o, h))
+    case 1n+m:
+      Keeps.of(Source.Term.is_value(t, False{}, bk), t, m, bk, o, {==}, h, N, s, hs, eq,
+        u => hu => s2 => hs2 => eq2 => Keeps.go(m, u, bk, o, hu, N, s2, hs2, eq2))
+
+# Adds none
+# =========
+
+def Adds.step(c: Bool, +t: Source.Term, +m: Nat, +bk: List<&2, Source.Def>, -r: Source.Term,
+  hc: {Source.Term.is_value(t, False{}, bk) == c : Bool}, st: {Source.Term.step(t, bk) == Some{r} : Maybe<&2, Source.Term>}) ->
+  {Source.Term.run.of(c, t, z => Source.Term.step(t, bk), z => Source.Term.run(1n+m, z, bk)) == Source.Term.run(1n+m, r, bk) : Maybe<&2, Source.Term>}:
+  match c:
+    case True{}:
+      Empty.absurd({Some{t} == Source.Term.run(1n+m, r, bk) : Maybe<&2, Source.Term>},
+        Shared.Maybe.no_none(Source.Term, r,
+          Equal.trans(Maybe<&2, Source.Term>, None{}, Source.Term.step(t, bk), Some{r},
+            Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(t, bk), None{}, Vals.step(t, False{}, bk, hc)), st)))
+    case False{}:
+      Eq.rw(Maybe<&2, Source.Term>, Some{r}, Source.Term.step(t, bk), Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(t, bk), Some{r}, st),
+        z => {Source.Term.run.next(z, t, a => Source.Term.run(1n+m, a, bk)) == Source.Term.run(1n+m, r, bk) : Maybe<&2, Source.Term>}, {==})
+
+def Adds.done(c: Bool, +t: Source.Term, -m: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  hc: {Source.Term.is_value(t, False{}, bk) == c : Bool}, hv: {Source.Term.is_value(t, False{}, bk) == True{} : Bool},
+  ho: {Source.Term.observe(t) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Source.Maybe.observe(Source.Term.run.of(c, t, z => Source.Term.step(t, bk), z => Source.Term.run(1n+m, z, bk))) == Some{o} : Maybe<&2, Source.Obs>}:
+  match c:
+    case True{}:
+      ho
+    case False{}:
+      Empty.absurd({Source.Maybe.observe(Source.Term.run.next(Source.Term.step(t, bk), t, z => Source.Term.run(1n+m, z, bk))) == Some{o} : Maybe<&2, Source.Obs>},
+        Bool.true_false(Equal.trans(Bool, True{}, Source.Term.is_value(t, False{}, bk), False{},
+          Equal.sym(Bool, Source.Term.is_value(t, False{}, bk), True{}, hv), hc)))
+
+def Adds.of(mv: Machine.Move, +m: Nat, +t: Source.Term, -mu: Nat, +bk: List<&2, Source.Def>, -o: Source.Obs,
+  mvd: Moved(mv, t, mu, bk), h: {Machine.Run.next(mv, s2 => Machine.Machine.run(m, s2, bk)) == Some{o} : Maybe<&2, Source.Obs>},
+  rec: @s2: Machine.St -> {St.ok(s2, bk) == True{} : Bool} -> {Machine.Machine.run(m, s2, bk) == Some{o} : Maybe<&2, Source.Obs>} ->
+    {Source.Maybe.observe(Source.Term.run(1n+m, St.rb(s2), bk)) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Source.Maybe.observe(Source.Term.run(2n+m, t, bk)) == Some{o} : Maybe<&2, Source.Obs>}:
+  match mv:
+    case Machine.Move.go{+s2}:
+      match mvd:
+        case (ok2, r):
+          match r:
+            case Inl{(eq2, lt2)}:
+              Obs.mono(t, 1n+m, bk, o,
+                Eq.rw(Source.Term, St.rb(s2), t, eq2, z => {Source.Maybe.observe(Source.Term.run(1n+m, z, bk)) == Some{o} : Maybe<&2, Source.Obs>},
+                  rec(s2, ok2, h)))
+            case Inr{st}:
+              Eq.rw(Maybe<&2, Source.Term>, Source.Term.run(1n+m, St.rb(s2), bk), Source.Term.run(2n+m, t, bk),
+                Equal.sym(Maybe<&2, Source.Term>, Source.Term.run(2n+m, t, bk), Source.Term.run(1n+m, St.rb(s2), bk),
+                  Adds.step(Source.Term.is_value(t, False{}, bk), t, m, bk, St.rb(s2), {==}, st)),
+                z => {Source.Maybe.observe(z) == Some{o} : Maybe<&2, Source.Obs>}, rec(s2, ok2, h))
+    case Machine.Move.done{+v}:
+      match mvd:
+        case (+okv, +eqv):
+          Adds.done(Source.Term.is_value(t, False{}, bk), t, m, bk, o, {==},
+            Eq.rw(Source.Term, Val.rb(v), t, eqv, z => {Source.Term.is_value(z, False{}, bk) == True{} : Bool}, Val.value(v, bk, okv)),
+            Equal.trans(Maybe<&2, Source.Obs>, Source.Term.observe(t), Machine.Val.observe(v), Some{o},
+              Equal.trans(Maybe<&2, Source.Obs>, Source.Term.observe(t), Source.Term.observe(Val.rb(v)), Machine.Val.observe(v),
+                Equal.cong(Source.Term, Maybe<&2, Source.Obs>, z => Source.Term.observe(z), t, Val.rb(v), Equal.sym(Source.Term, Val.rb(v), t, eqv)),
+                Equal.sym(Maybe<&2, Source.Obs>, Machine.Val.observe(v), Source.Term.observe(Val.rb(v)), Obs.eq(v, bk, okv))), h))
+    case Machine.Move.stuck{}:
+      Empty.absurd({Source.Maybe.observe(Source.Term.run(2n+m, t, bk)) == Some{o} : Maybe<&2, Source.Obs>}, Shared.Maybe.no_none(Source.Obs, o, h))
+
+# a result of the machine in n steps from s is a result of the source in n + 1
+# steps from the term of s
+def Adds.go(+n: Nat, +s: Machine.St, +bk: List<&2, Source.Def>, -o: Source.Obs, +hs: {St.ok(s, bk) == True{} : Bool},
+  h: {Machine.Machine.run(n, s, bk) == Some{o} : Maybe<&2, Source.Obs>}) ->
+  {Source.Maybe.observe(Source.Term.run(1n+n, St.rb(s), bk)) == Some{o} : Maybe<&2, Source.Obs>}:
+  match n:
+    case 0n:
+      Empty.absurd({Source.Maybe.observe(Source.Term.run(1n, St.rb(s), bk)) == Some{o} : Maybe<&2, Source.Obs>},
+        Shared.Maybe.no_none(Source.Obs, o, h))
+    case 1n+m:
+      Adds.of(Machine.Machine.step(s, bk), m, St.rb(s), St.mu(s), bk, o, Step.ok(s, bk, hs), h,
+        s2 => hs2 => h2 => Adds.go(m, s2, bk, o, hs2, h2))
+
+# Laws
+# ====
+
+def Obs.is_eq_self(a: Source.Obs) -> {Source.Obs.is_eq(a, a) == True{} : Bool}:
+  match a:
+    case Source.Obs.lab{k}:
+      SP.Name.is_eq_self(k)
+    case Source.Obs.rfl{}:
+      {==}
+    case Source.Obs.tup{+a1, +a2}:
+      %Equal.sym(Bool, Source.Obs.is_eq(a1, a1), True{}, Obs.is_eq_self(a1)) :
+        {Bool.and(_, Source.Obs.is_eq(a2, a2)) == True{} : Bool}
+      Obs.is_eq_self(a2)
+    case Source.Obs.tup0{a2}:
+      Obs.is_eq_self(a2)
+
+def Spec.fuel_m(bk, k, n):
+  Fuel.of(n, Source.Term.Ref{k}, bk)
+
+def Spec.fuel_s(bk, k, n):
+  1n+n
+
+def Keeps.law(mo: Maybe<&2, Source.Obs>, +bk: List<&2, Source.Def>, +k: List<&2, Nat>, +n: Nat,
+  hm: {Source.Maybe.observe(Source.Term.run(n, Source.Term.Ref{k}, bk)) == mo : Maybe<&2, Source.Obs>}) ->
+  {Source.Obs.is_kept(mo, Machine.Machine.start(Fuel.of(n, Source.Term.Ref{k}, bk), bk, k)) == True{} : Bool}:
+  match mo:
+    case None{}:
+      {==}
+    case Some{+o}:
+      Eq.rw(Maybe<&2, Source.Obs>, Some{o}, Machine.Machine.start(Fuel.of(n, Source.Term.Ref{k}, bk), bk, k),
+        Equal.sym(Maybe<&2, Source.Obs>, Machine.Machine.start(Fuel.of(n, Source.Term.Ref{k}, bk), bk, k), Some{o},
+          Eq.rw(Nat, Nat.add(Fuel.of(n, Source.Term.Ref{k}, bk), 0n), Fuel.of(n, Source.Term.Ref{k}, bk),
+            Nat.add_zero(Fuel.of(n, Source.Term.Ref{k}, bk)),
+            z => {Machine.Machine.run(z, Machine.St.eval{Source.Term.Ref{k}, Machine.Val.nil{}, []}, bk) == Some{o} : Maybe<&2, Source.Obs>},
+            Keeps.go(n, Source.Term.Ref{k}, bk, o, hm, 0n, Machine.St.eval{Source.Term.Ref{k}, Machine.Val.nil{}, []}, {==}, {==}))),
+        z => {Source.Obs.is_kept(Some{o}, z) == True{} : Bool}, Obs.is_eq_self(o))
+
+def Keeps.law.of(+bk: List<&2, Source.Def>, +k: List<&2, Nat>, +n: Nat) ->
+  {Source.Obs.is_kept(Source.Maybe.observe(Source.Term.run(n, Source.Term.Ref{k}, bk)),
+    Machine.Machine.start(Fuel.of(n, Source.Term.Ref{k}, bk), bk, k)) == True{} : Bool}:
+  Keeps.law(Source.Maybe.observe(Source.Term.run(n, Source.Term.Ref{k}, bk)), bk, k, n, {==})
+
+def Spec.keeps(bk, k, n):
+  Keeps.law.of(bk, k, n)
+
+def Adds.law(mo: Maybe<&2, Source.Obs>, +bk: List<&2, Source.Def>, +k: List<&2, Nat>, +n: Nat,
+  hm: {Machine.Machine.start(n, bk, k) == mo : Maybe<&2, Source.Obs>}) ->
+  {Source.Obs.is_kept(mo, Source.Maybe.observe(Source.Term.run(1n+n, Source.Term.Ref{k}, bk))) == True{} : Bool}:
+  match mo:
+    case None{}:
+      {==}
+    case Some{+o}:
+      Eq.rw(Maybe<&2, Source.Obs>, Some{o}, Source.Maybe.observe(Source.Term.run(1n+n, Source.Term.Ref{k}, bk)),
+        Equal.sym(Maybe<&2, Source.Obs>, Source.Maybe.observe(Source.Term.run(1n+n, Source.Term.Ref{k}, bk)), Some{o},
+          Adds.go(n, Machine.St.eval{Source.Term.Ref{k}, Machine.Val.nil{}, []}, bk, o, {==}, hm)),
+        z => {Source.Obs.is_kept(Some{o}, z) == True{} : Bool}, Obs.is_eq_self(o))
+
+def Adds.law.of(+bk: List<&2, Source.Def>, +k: List<&2, Nat>, +n: Nat) ->
+  {Source.Obs.is_kept(Machine.Machine.start(n, bk, k), Source.Maybe.observe(Source.Term.run(1n+n, Source.Term.Ref{k}, bk))) == True{} : Bool}:
+  Adds.law(Machine.Machine.start(n, bk, k), bk, k, n, {==})
+
+def Spec.adds_none(bk, k, n):
+  Adds.law.of(bk, k, n)
