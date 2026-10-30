@@ -55,16 +55,23 @@ def Kernel.strip (text : String) : Except String String := do
 def Kernel.want (dir : FilePath) : IO (Except String String) :=
   return Kernel.strip (← IO.FS.readFile (dir / ".." / ".." / "bend2" / "bendtt.lean"))
 
-target kernel pkg : Unit := Job.async do
-  match ← Kernel.want pkg.dir with
-  | .error e => error s!"bend2/bendtt.lean: {e}"
+-- why src/Kernel.lean is not that text, or none
+def Kernel.check (dir : FilePath) : IO (Option String) := do
+  match ← Kernel.want dir with
+  | .error e => return some s!"bend2/bendtt.lean: {e}"
   | .ok want =>
-    let file := pkg.dir / "src" / "Kernel.lean"
+    let file := dir / "src" / "Kernel.lean"
     unless ← file.pathExists do
-      error "src/Kernel.lean is missing. Run `lake run regen`."
+      return some "src/Kernel.lean is missing. Run `lake run regen`."
     unless LF (← IO.FS.readFile file) == want do
-      error ("src/Kernel.lean is not bend2/bendtt.lean minus its Main section. "
+      return some ("src/Kernel.lean is not bend2/bendtt.lean minus its Main section. "
         ++ "Run `lake run regen`, review the diff, and commit.")
+    return none
+
+target kernel pkg : Unit := Job.async do
+  match ← Kernel.check pkg.dir with
+  | some e => error e
+  | none => pure ()
 
 script regen (_args) do
   let dir := (← getWorkspace).root.dir
@@ -75,38 +82,142 @@ script regen (_args) do
 -- Pins
 -- ====
 
--- each reviewed file, and the hash of its text after the review. A change
--- to a file fails the build until its pin is updated by hand, so each
+-- the part of a file that a pin covers: from its first line up to the next
+-- line that ends it (not included), or to the end of the file
+inductive Pin.Part where
+  -- the whole file
+  | all
+  -- from the line a up to the line b
+  | span (a b : String)
+  -- a def: from the line that starts with h up to an empty line
+  | block (h : String)
+
+-- each reviewed text, and the hash of its text after the review. A change
+-- to a text fails the build until its pin is updated by hand, so each
 -- change shows in review as a change to its line here.
 -- - Contract/Spec.lean: the contract.
 -- - Contract/Proof.lean: the claims, stated for what the CLI runs, and the
 --   guards.
 -- - Guard.lean: the guards' code.
 -- - Main.lean: the glue that no proof covers.
+-- - ../bend/main.bend: main, which must be λsrc. compile(src), as claim 7
+--   names the call of a law only through main.
 -- - ../bend/src/compile/spec.bend: the contract of the compiler in Bend.
 -- - ../bend/src/source/impl.bend: the meaning of its source.
 -- - ../bend/src/source/spec.bend: the kernel's relations, copied, that its
 --   laws tie that meaning to.
-def Pins : List (String × UInt64) := [
-  ("src/Contract/Spec.lean", 1941511504593986303),
-  ("src/Contract/Proof.lean", 13366616450239201674),
-  ("src/Guard.lean", 15051376749205065931),
-  ("src/Main.lean", 10677801529969707441),
-  ("../bend/src/compile/spec.bend", 16295624150471894959),
-  ("../bend/src/source/impl.bend", 16563396131937143125),
-  ("../bend/src/source/spec.bend", 5629837982964475826)]
+-- - ../../bend2/bendtt.lean: the parts of the kernel that impl.bend and
+--   spec.bend copy: Types up to Ctx (the terms, substitution and the book),
+--   the Parser, and Evaluation (the run-time relations). When one changes,
+--   check the copy again.
+-- - ../../bend2/base.bend: each Base def that the meaning reaches: in the
+--   .bendtt of ../bend/main.bend, from the defs of impl.bend and spec.bend,
+--   and from the types of the laws. A pinned def that starts to call another
+--   Base def changes, so its review adds that def here.
+def Pins : List (String × Pin.Part × UInt64) := [
+  ("src/Contract/Spec.lean", .all, 1941511504593986303),
+  ("src/Contract/Proof.lean", .all, 13366616450239201674),
+  ("src/Guard.lean", .all, 15051376749205065931),
+  ("src/Main.lean", .all, 10677801529969707441),
+  ("../bend/main.bend", .all, 12787539127806695791),
+  ("../bend/src/compile/spec.bend", .all, 16295624150471894959),
+  ("../bend/src/source/impl.bend", .all, 16563396131937143125),
+  ("../bend/src/source/spec.bend", .all, 5629837982964475826),
+  ("../../bend2/bendtt.lean", .span "-- Types" "-- Ctx", 14875125228840285785),
+  ("../../bend2/bendtt.lean", .span "-- Parser" "-- Evaluator", 15025253426444512988),
+  ("../../bend2/bendtt.lean", .span "-- Evaluation" "-- Claims", 4021871860510412546),
+  ("../../bend2/base.bend", .block "type Empty ", 13328514820168334527),
+  ("../../bend2/base.bend", .block "type Unit ", 11655013887032649838),
+  ("../../bend2/base.bend", .block "type Bool ", 10837456009245346379),
+  ("../../bend2/base.bend", .block "type Cmp ", 1356910975501632879),
+  ("../../bend2/base.bend", .block "type Either<", 15328778016285137708),
+  ("../../bend2/base.bend", .block "type Sigma<", 9217934299523109552),
+  ("../../bend2/base.bend", .block "type Nat ", 2600738686466065594),
+  ("../../bend2/base.bend", .block "type Maybe<", 17874651699370011728),
+  ("../../bend2/base.bend", .block "type List<", 17002992440093265846),
+  ("../../bend2/base.bend", .block "type Word.Nil ", 3326355874253803456),
+  ("../../bend2/base.bend", .block "type Word.Con<", 13608246266612647673),
+  ("../../bend2/base.bend", .block "def Word(", 6078558829838616308),
+  ("../../bend2/base.bend", .block "type U32 ", 17049118783817157415),
+  ("../../bend2/base.bend", .block "type Char ", 11568173190120668437),
+  ("../../bend2/base.bend", .block "type String ", 1425772917372064238),
+  ("../../bend2/base.bend", .block "def Pair(", 16586760494593832162),
+  ("../../bend2/base.bend", .block "def Or(", 10185388648639581221),
+  ("../../bend2/base.bend", .block "def Bool.not(", 11689238119106776062),
+  ("../../bend2/base.bend", .block "def Bool.and(", 13836908075683677256),
+  ("../../bend2/base.bend", .block "def Bool.or(", 18017131119575026037),
+  ("../../bend2/base.bend", .block "def Cmp.is_lt(", 7913983619305019013),
+  ("../../bend2/base.bend", .block "def Cmp.is_eq(", 2439583826802733364),
+  ("../../bend2/base.bend", .block "def Cmp.is_le(", 7659969790581787967),
+  ("../../bend2/base.bend", .block "def Nat.double(", 13782423285035845449),
+  ("../../bend2/base.bend", .block "def Nat.add(", 4659165431988668479),
+  ("../../bend2/base.bend", .block "def Nat.sub(", 7425936745064968018),
+  ("../../bend2/base.bend", .block "def Nat.cmp(", 9808790773107524040),
+  ("../../bend2/base.bend", .block "def Nat.is_lt(", 15841316101325720444),
+  ("../../bend2/base.bend", .block "def Nat.is_eq(", 1051263939805551333),
+  ("../../bend2/base.bend", .block "def Nat.is_le(", 12695900786442840810),
+  ("../../bend2/base.bend", .block "def List.append(", 15630691666062795272),
+  ("../../bend2/base.bend", .block "def List.reverse.go(", 3740530639075124172),
+  ("../../bend2/base.bend", .block "def List.reverse(", 5721769233288835689),
+  ("../../bend2/base.bend", .block "def Word.to_nat(", 723743634680710343),
+  ("../../bend2/base.bend", .block "def U32.to_nat(", 15123021057519108580)]
 
 def Pin.hash (text : String) : UInt64 :=
   Hashable.hash (LF text)
 
-target pins pkg : Unit := Job.async do
+-- the index of the first line, from i on, that p holds for
+def Pin.find (ls : Array String) (i : Nat) (p : String → Bool) : Option Nat :=
+  (List.range ls.size).find? fun k => i ≤ k && p ls[k]!
+
+-- the line that begins part, and the line that ends it
+def Pin.Part.bounds : Pin.Part → (String → Bool) × (String → Bool)
+  | .all => ((fun _ => true), (fun _ => false))
+  | .span a b => ((· == a), (· == b))
+  | .block h => ((·.startsWith h), (· == ""))
+
+-- part in a message, after its file's path
+def Pin.Part.label : Pin.Part → String
+  | .all => ""
+  | .span a _ => s!" from '{a}'"
+  | .block h => s!" at '{h}'"
+
+-- the text that part covers in a file's text
+def Pin.Part.text (text : String) (part : Pin.Part) : Except String String := do
+  let ls := ((LF text).splitOn "\n").toArray
+  let (starts, stops) := part.bounds
+  let some i := Pin.find ls 0 starts
+    | throw s!"no line{part.label}"
+  let j := (Pin.find ls (i + 1) stops).getD ls.size
+  return "\n".intercalate (ls.extract i j).toList
+
+-- each pin whose text is not the pinned one, and why
+def Pins.check (dir : FilePath) : IO (Array String) := do
   let mut bad := #[]
-  for (path, pin) in Pins do
-    let h := Pin.hash (← IO.FS.readFile (pkg.dir / path))
-    unless h == pin do
-      bad := bad.push s!"{path} changed. Review it, then set its pin in lakefile.lean to {h}"
+  for (path, part, pin) in Pins do
+    match Pin.Part.text (← IO.FS.readFile (dir / path)) part with
+    | .error e => bad := bad.push s!"{path}: {e}"
+    | .ok text =>
+      let h := Pin.hash text
+      unless h == pin do
+        bad := bad.push
+          s!"{path}{part.label} changed. Review it, then set its pin in lakefile.lean to {h}"
+  return bad
+
+target pins pkg : Unit := Job.async do
+  let bad ← Pins.check pkg.dir
   unless bad.isEmpty do
     error ("\n".intercalate bad.toList)
+
+-- the guards of the reviewed texts, outside a build: the kernel copy and the
+-- pins. The harness runs it before its cases (`lake run pinned`).
+script pinned (_args) do
+  let dir := (← getWorkspace).root.dir
+  let mut bad ← Pins.check dir
+  if let some e := (← Kernel.check dir) then
+    bad := bad.push e
+  for b in bad do
+    IO.eprintln b
+  return if bad.isEmpty then 0 else 1
 
 -- Scan
 -- ====
