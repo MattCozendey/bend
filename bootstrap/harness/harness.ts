@@ -11,8 +11,9 @@
 //   is the input file. A word that names {input} goes when the case has no
 //   input. The implementation writes the output bytes to stdout, and exits
 //   non-zero to refuse.
-// - --make turns a .bend program into .bendtt: {source} and {out}. Its
-//   default needs the existing bend command, which runs in WSL on Windows.
+// - --make turns a .bend program into .bendtt: {source} (its path from the
+//   work directory) and {out}. Its default needs the existing bend command,
+//   which runs in WSL on Windows.
 // - A case has a name, a program (a path in the folder of the case list),
 //   an input (hex, optional) and an expect (optional):
 //   hex (the output bytes), text (the output), or refused (a text that the
@@ -120,12 +121,17 @@ const tryMake = (source: string, out: string, o: Options): string | undefined =>
 };
 
 // writeFiles c i dir o: the files of case number i in the work directory. It
-// gives their names, or why the program was not made.
+// gives their names, or why the program was not made. A .bend program is made
+// where it is, so that its imports resolve; other programs are copied.
 const writeFiles = (c: Case, i: number, dir: string, o: Options): Files | string => {
-  const source = `${i}${path.extname(c.program)}`;
-  fs.copyFileSync(path.join(dir, c.program), path.join(o.work, source));
-  const program = source.endsWith(".bend") ? `${i}.bendtt` : source;
-  const failure = source.endsWith(".bend") ? tryMake(source, program, o) : undefined;
+  const file = path.join(dir, c.program);
+  const isBend = file.endsWith(".bend");
+  const program = isBend ? `${i}.bendtt` : `${i}${path.extname(file)}`;
+  if (!isBend) {
+    fs.copyFileSync(file, path.join(o.work, program));
+  }
+  const source = path.relative(o.work, file).split(path.sep).join("/");
+  const failure = isBend ? tryMake(source, program, o) : undefined;
   if (failure !== undefined) {
     return failure;
   }
