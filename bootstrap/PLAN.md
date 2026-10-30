@@ -184,15 +184,8 @@ Parts, in `bootstrap/bend/`:
    by proof. The copy differs only in form: equalities in place of
    indices, `X.when(c)` for a premise `(c = true → X)`, `Values` as a def,
    and `Walk` without the book, which no rule of it reads.
-6. `runner.bend` and `src/runner/`: the runner in Bend. Its `main` reads a
-   job (fuel, program text, input), runs the program by the source meaning
-   (`run`), and writes the result as the CLI does. It refuses a program with
-   an opaque def. The header of `impl.bend` gives the format. It checks what
-   it reads and writes, so `spec.bend` proves: the job that it reads writes
-   exactly the bytes it read (`Job.write_after_read`), and the bytes after an
-   output byte 1 show the result (`Obs.bytes_show_result`).
 
-The build pins parts 1, 2, 4, 5 and 6, and what they copy and reach (see
+The build pins parts 1, 2, 4 and 5, and what they copy and reach (see
 Guards, item 1). The proofs tie `step`, `walk`, `is_value`, `is_data` and
 the run to the copy of the rules. All else is review-only. No proof finds an
 error in it:
@@ -202,13 +195,11 @@ error in it:
   `Term.takes`, `Term.node`, `Book.get`, `Quan`, `Term.qmin`, `Name`).
   `step` calls the same helpers, so an error in one is on both sides.
 - part 5: the copy of the rules.
-- part 6: `Job.write` (the format), `Fuel.number`, the check for opaque
-  defs, the call of `run`, and the text after an output byte 2.
-- the Base defs that parts 4, 5 and 6 reach. The laws fix some of them, for
+- the Base defs that parts 4 and 5 reach. The laws fix some of them, for
   example `Nat.is_eq` through the hit and miss rules, but not all.
 
-The books of the compiler and of the runner hold all the proofs, so each run
-of the CLI has the kernel check them.
+The compiler's book holds all the proofs, so each run of the CLI has the
+kernel check them.
 
 ## The WASM target
 
@@ -361,9 +352,8 @@ How the interpreter stays correct as it grows.
 ## Tests
 
 Status: the harness is done, with 4 cases for the interpreter
-(`interp.json`), 1 for the compiler in Bend (`compile.json`), 5 for the
-runner in Bend (`runner.json`), and 23 for the WASM meaning (`wasm.json`)
-and the engines (`wasm_engines.json`).
+(`interp.json`), 1 for the compiler in Bend (`compile.json`), and 23 for
+the WASM meaning (`wasm.json`) and the engines (`wasm_engines.json`).
 
 The tests cover what the proofs do not:
 - reading files, the kernel's parser, and `render`;
@@ -404,11 +394,6 @@ know which implementation it tests. A command-line parameter names it:
   `#|` lines of the existing tests are not cases, because they come from
   the existing JS and C runs.
 - Run a few cases at a time. Never run the full suite.
-- The runner in Bend runs the source meaning on the interpreter, slowly:
-  on `echo`, 6 s; on 7 divided by 2, 30 s; on `sum`, more than 50 minutes,
-  as it runs U32 code bit by bit. So its tests against the interpreter
-  (kind b) use small programs only. Each case packs a fixed program text in
-  its input; `bend -o` does not remake it.
 - The WASM meaning has two case lists. `harness/gen_wasm.ts` makes both
   from `i32.wast` of the official testsuite (the script names its commit)
   and from tests written by hand. `wasm.json` runs the modules of

@@ -106,9 +106,6 @@ inductive Pin.Part where
 -- - ../bend/src/source/impl.bend: the meaning of its source.
 -- - ../bend/src/source/spec.bend: the kernel's relations, copied, that its
 --   laws tie that meaning to.
--- - ../bend/runner.bend and ../bend/src/runner/impl.bend: the runner in Bend,
---   which runs a program by that meaning.
--- - ../bend/src/runner/spec.bend: the laws of the runner.
 -- - ../bend/src/wasm/impl.bend: the meaning of the WebAssembly that the
 --   compiler will write, and its binary format.
 -- - ../harness/wasm.ts: the glue that runs such a module on an engine.
@@ -116,11 +113,10 @@ inductive Pin.Part where
 --   spec.bend copy: Types up to Ctx (the terms, substitution and the book),
 --   the Parser, and Evaluation (the run-time relations). When one changes,
 --   check the copy again.
--- - ../../bend2/base.bend: each Base def that the meanings or the runner
---   reach: in the .bendtt of ../bend/main.bend, ../bend/runner.bend and
---   ../harness/cases/wasm.bend, from the defs of source/impl.bend,
---   source/spec.bend, runner/impl.bend and wasm/impl.bend, and from the types
---   of the laws. A pinned def that starts to call another
+-- - ../../bend2/base.bend: each Base def that the meanings reach: in the
+--   .bendtt of ../bend/main.bend and ../harness/cases/wasm.bend, from the defs
+--   of source/impl.bend, source/spec.bend and wasm/impl.bend, and from the
+--   types of the laws. A pinned def that starts to call another
 --   Base def changes, so its review adds that def here.
 def Pins : List (String × Pin.Part × UInt64) := [
   ("src/Contract/Spec.lean", .all, 1941511504593986303),
@@ -131,9 +127,6 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../bend/src/compile/spec.bend", .all, 16295624150471894959),
   ("../bend/src/source/impl.bend", .all, 16563396131937143125),
   ("../bend/src/source/spec.bend", .all, 5629837982964475826),
-  ("../bend/runner.bend", .all, 5273200584563642721),
-  ("../bend/src/runner/impl.bend", .all, 10091874320944690480),
-  ("../bend/src/runner/spec.bend", .all, 12877080248927091342),
   ("../bend/src/wasm/impl.bend", .all, 3706523269112784333),
   ("../harness/wasm.ts", .all, 16879184372834895701),
   ("../../bend2/bendtt.lean", .span "-- Types" "-- Ctx", 14875125228840285785),
