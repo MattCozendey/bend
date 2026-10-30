@@ -2905,3 +2905,61 @@ def Term.step_sound.go(t: Source.Term, +bk: List<&2, Source.Def>, +u: Source.Ter
 def Spec.Term.step_sound(bk, t, u, h):
   Term.step_sound.go(t, bk, u, h)
 
+
+# Runs
+# ====
+
+def Term.run.of.by(-R: Type, c: Bool, -t: Source.Term, -next: Unit -> Maybe<&2, Source.Term>,
+  -go: Source.Term -> Maybe<&2, Source.Term>, -r: Maybe<&2, Source.Term>,
+  h: {Source.Term.run.of(c, t, next, go) == r : Maybe<&2, Source.Term>},
+  yes: {c == True{} : Bool} -> {Some{t} == r : Maybe<&2, Source.Term>} -> R,
+  no: {c == False{} : Bool} -> {Source.Term.run.next(next(Unit{}), t, go) == r : Maybe<&2, Source.Term>} -> R) -> R:
+  match c:
+    case True{}:
+      yes({==}, h)
+    case False{}:
+      no({==}, h)
+
+def Term.run.next.by(-R: Type, -m0: Maybe<&2, Source.Term>, m: Maybe<&2, Source.Term>,
+  em: {m == m0 : Maybe<&2, Source.Term>}, -t: Source.Term, -go: Source.Term -> Maybe<&2, Source.Term>,
+  -r: Maybe<&2, Source.Term>, h: {Source.Term.run.next(m, t, go) == r : Maybe<&2, Source.Term>},
+  some: @a: Source.Term -> {m0 == Some{a} : Maybe<&2, Source.Term>} -> {go(a) == r : Maybe<&2, Source.Term>} -> R,
+  none: {m0 == None{} : Maybe<&2, Source.Term>} -> {Some{t} == r : Maybe<&2, Source.Term>} -> R) -> R:
+  match m:
+    case Some{a}:
+      some(a, Equal.sym(Maybe<&2, Source.Term>, Some{a}, m0, em), h)
+    case None{}:
+      none(Equal.sym(Maybe<&2, Source.Term>, None{}, m0, em), h)
+
+def Term.run_sound.res(bk: List<&2, Source.Def>, t: Source.Term, u: Source.Term) -> Type:
+  Spec.Term.Evals<bk, t, u> &
+    (Spec.Term.Value<bk, u> | {Source.Term.step(u, bk) == None{} : Maybe<&2, Source.Term>})
+
+def Term.run_sound.cons(-bk: List<&2, Source.Def>, -t: Source.Term, a: Source.Term, -u: Source.Term,
+  s: Spec.Term.Eval<bk, t, a>, r: Term.run_sound.res(bk, a, u)) -> Term.run_sound.res(bk, t, u):
+  match r:
+    case (es, x):
+      (Spec.Term.Evals.step{a, s, es}, x)
+
+# stepUntil_some, at stop = isValue: by induction on the fuel
+def Term.run_sound.go(n: Nat, +t: Source.Term, +bk: List<&2, Source.Def>, +u: Source.Term,
+  h: {Source.Term.run(n, t, bk) == Some{u} : Maybe<&2, Source.Term>}) -> Term.run_sound.res(bk, t, u):
+  match n:
+    case 0n:
+      Empty.elim(Term.run_sound.res(bk, t, u), Maybe.no_none(u, h))
+    case 1n+m:
+      Term.run.of.by(Term.run_sound.res(bk, t, u), Source.Term.is_value(t, False{}, bk), t,
+        z => Source.Term.step(t, bk), z => Source.Term.run(m, z, bk), Some{u}, h,
+        ec => +hs => (Spec.Term.Evals.refl{Maybe.some_inj(t, u, hs)},
+          Inl{Term.Value.cast(bk, t, u, Maybe.some_inj(t, u, hs), Spec.Term.is_value_sound(bk, t, ec))}),
+        ec => hn => Term.run.next.by(Term.run_sound.res(bk, t, u), Source.Term.step(t, bk), Source.Term.step(t, bk),
+          {==}, t, z => Source.Term.run(m, z, bk), Some{u}, hn,
+          +a => es => hg => Term.run_sound.cons(bk, t, a, u, Spec.Term.step_sound(bk, t, a, es),
+            Term.run_sound.go(m, a, bk, u, hg)),
+          es => +hs => (Spec.Term.Evals.refl{Maybe.some_inj(t, u, hs)},
+            Inr{Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(u, bk), Source.Term.step(t, bk), None{},
+              Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Source.Term.step(z, bk), u, t,
+                Equal.sym(Source.Term, t, u, Maybe.some_inj(t, u, hs))), es)})))
+
+def Spec.Term.run_sound(n, bk, t, u, h):
+  Term.run_sound.go(n, t, bk, u, h)
