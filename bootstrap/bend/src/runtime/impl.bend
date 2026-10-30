@@ -52,10 +52,11 @@ def Enc.args(xs: List<&2, Fun.A>, acc: Fun.V) -> Fun.V:
 
 # a call of the function f with the arguments xs, as tag (6: call, 7: jump)
 # and k; stop when the program has no function f. Its tag is the offset 4 f of
-# f in the table of the image.
-def Enc.call(tag: Nat, +f: Nat, +len: Nat, xs: List<&2, Fun.A>, k: Fun.V) -> Fun.V:
+# f in the table of the image, and room is the bytes that it allocates.
+def Enc.call(tag: Nat, +f: Nat, +len: Nat, +xs: List<&2, Fun.A>, room: Nat, k: Fun.V) -> Fun.V:
   Bool.pick(Fun.V, Nat.is_lt(f, len),
-    Fun.V.n{tag, Fun.V.n{Nat.double(Nat.double(f)), Enc.args(xs, Fun.V.z{}), Fun.V.z{}}, k},
+    Fun.V.n{tag, Fun.V.n{Nat.double(Nat.double(f)), Enc.args(xs, Fun.V.z{}),
+      Fun.V.num(Nat.add(Nat.mul(12n, List.length(&2, Fun.A, xs)), room))}, k},
     Fun.V.num(8n))
 
 # the code c, in a program of len functions
@@ -74,9 +75,9 @@ def Enc.code(c: Fun.C, +len: Nat) -> Fun.V:
     case Fun.C.inc{a, k}:
       Fun.V.n{5n, Enc.atom(a), Enc.code(k, len)}
     case Fun.C.call{f, xs, k}:
-      Enc.call(6n, f, len, xs, Enc.code(k, len))
+      Enc.call(6n, f, len, xs, 24n, Enc.code(k, len))
     case Fun.C.jump{f, xs}:
-      Enc.call(7n, f, len, xs, Fun.V.z{})
+      Enc.call(7n, f, len, xs, 0n, Fun.V.z{})
     case Fun.C.stop{}:
       Fun.V.num(8n)
 
@@ -208,44 +209,52 @@ def S.oom(d: Nat) -> Imp.Stm:
     Imp.Stm.break{d}])
 
 # Out.oom when fewer than n bytes are free
-def S.room(+n: U32, d: Nat) -> Imp.Stm:
-  S.if(E.lt(E.sub(E.l(1n), E.l(0n)), E.k(n)), S.oom(d), Imp.Stm.skip{})
+def S.room(n: Imp.Exp, d: Nat) -> Imp.Stm:
+  S.if(E.lt(E.sub(E.l(1n), E.l(0n)), n), S.oom(d), Imp.Stm.skip{})
 
-# the node {t, a, b} at hp + off
-def S.node(+off: U32, t: Imp.Exp, a: Imp.Exp, b: Imp.Exp) -> Imp.Stm:
-  S.all([Imp.Stm.store{off, E.l(0n), t}, Imp.Stm.store{U32.add(off, 4), E.l(0n), a},
-    Imp.Stm.store{U32.add(off, 8), E.l(0n), b}])
+# the node {t, a, b} at hp, then w := its address and hp := hp + 12. t, a
+# and b read only locals and constants. The caller checks the room.
+def S.alloc(t: Imp.Exp, a: Imp.Exp, b: Imp.Exp) -> Imp.Stm:
+  S.all([Imp.Stm.store{0, E.l(0n), t}, Imp.Stm.store{4, E.l(0n), a}, Imp.Stm.store{8, E.l(0n), b},
+    Imp.Stm.set{17n, E.l(0n)}, Imp.Stm.set{0n, E.add(E.l(0n), E.k(12))}])
 
-# the node x, then env := {0, x, env}: 24 bytes, which the caller checks
+# env := {0, {t, a, b}, env}: 24 bytes, which the caller checks
 def S.push(t: Imp.Exp, a: Imp.Exp, b: Imp.Exp) -> Imp.Stm:
-  S.all([S.node(0, t, a, b), S.node(12, E.k(0), E.l(0n), E.l(4n)), Imp.Stm.set{4n, E.add(E.l(0n), E.k(12))},
-    Imp.Stm.set{0n, E.add(E.l(0n), E.k(24))}])
+  S.all([S.alloc(t, a, b), S.alloc(E.k(0), E.l(17n), E.l(4n)), Imp.Stm.set{4n, E.l(17n)}])
 
-# the value of the atom at e into the local dst; a trap when the environment
-# has no such variable
-def S.atom(e: Imp.Exp, +dst: Nat) -> Imp.Stm:
+# w := the cell of the variable i of the environment at w; a trap when the
+# environment has no such variable
+def S.walk.body() -> Imp.Stm:
+  S.all([S.if(Imp.Exp.eqz{E.l(17n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
+    S.if(Imp.Exp.eqz{E.l(16n)}, Imp.Stm.break{0n}, Imp.Stm.skip{}),
+    Imp.Stm.set{17n, E.ld(8, E.l(17n))},
+    Imp.Stm.set{16n, E.sub(E.l(16n), E.k(1))}])
+
+def S.walk() -> Imp.Stm:
+  Imp.Stm.loop{S.walk.body()}
+
+# y := the value of the atom at e, and a, i, w := 0
+def S.atom(e: Imp.Exp) -> Imp.Stm:
   S.all([Imp.Stm.set{15n, e},
     S.if(E.eq(E.ld(0, E.l(15n)), E.k(1)),
-      Imp.Stm.set{dst, E.ld(4, E.l(15n))},
-      S.all([Imp.Stm.set{16n, E.ld(0, E.ld(4, E.l(15n)))}, Imp.Stm.set{17n, E.l(4n)},
-        Imp.Stm.loop{S.all([
-          S.if(Imp.Exp.eqz{E.l(17n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
-          S.if(Imp.Exp.eqz{E.l(16n)}, Imp.Stm.break{0n}, Imp.Stm.skip{}),
-          Imp.Stm.set{17n, E.ld(8, E.l(17n))},
-          Imp.Stm.set{16n, E.sub(E.l(16n), E.k(1))}])},
-        Imp.Stm.set{dst, E.ld(4, E.l(17n))}]))])
+      Imp.Stm.set{11n, E.ld(4, E.l(15n))},
+      S.all([Imp.Stm.set{16n, E.ld(0, E.ld(4, E.l(15n)))}, Imp.Stm.set{17n, E.l(4n)}, S.walk(),
+        Imp.Stm.set{11n, E.ld(4, E.l(17n))}])),
+    Imp.Stm.set{15n, E.k(0)}, Imp.Stm.set{16n, E.k(0)}, Imp.Stm.set{17n, E.k(0)}])
 
-# the environment of a call, from the atoms at e, into acc
+def S.args.body() -> Imp.Stm:
+  S.all([S.if(Imp.Exp.eqz{E.l(13n)}, Imp.Stm.break{0n}, Imp.Stm.skip{}),
+    S.atom(E.ld(4, E.l(13n))),
+    S.alloc(E.k(0), E.l(11n), E.l(14n)),
+    Imp.Stm.set{14n, E.l(17n)},
+    Imp.Stm.set{13n, E.ld(8, E.l(13n))}])
+
+# acc := the environment of a call, from the atoms at e, and y, q, a, i,
+# w := 0. The caller checks the room: 12 bytes for each atom.
 def S.args(e: Imp.Exp) -> Imp.Stm:
-  S.all([Imp.Stm.set{13n, e}, Imp.Stm.set{14n, E.k(0)},
-    Imp.Stm.loop{S.all([
-      S.if(Imp.Exp.eqz{E.l(13n)}, Imp.Stm.break{0n}, Imp.Stm.skip{}),
-      S.atom(E.ld(4, E.l(13n)), 11n),
-      S.room(12, 2n),
-      S.node(0, E.k(0), E.l(11n), E.l(14n)),
-      Imp.Stm.set{14n, E.l(0n)},
-      Imp.Stm.set{0n, E.add(E.l(0n), E.k(12))},
-      Imp.Stm.set{13n, E.ld(8, E.l(13n))}])}])
+  S.all([Imp.Stm.set{13n, e}, Imp.Stm.set{14n, E.k(0)}, Imp.Stm.loop{S.args.body()},
+    Imp.Stm.set{11n, E.k(0)}, Imp.Stm.set{13n, E.k(0)}, Imp.Stm.set{15n, E.k(0)}, Imp.Stm.set{16n, E.k(0)},
+    Imp.Stm.set{17n, E.k(0)}])
 
 # the code of the function whose offset is at x
 def E.fun() -> Imp.Exp:
@@ -255,50 +264,57 @@ def E.fun() -> Imp.Exp:
 # =========
 
 def I.ret() -> Imp.Stm:
-  S.all([S.atom(E.ld(4, E.l(3n)), 6n), Imp.Stm.set{7n, E.k(1)}])
+  S.all([S.atom(E.ld(4, E.l(3n))), Imp.Stm.set{6n, E.l(11n)}, Imp.Stm.set{7n, E.k(1)}, Imp.Stm.set{3n, E.k(0)},
+    Imp.Stm.set{4n, E.k(0)}])
 
 def I.mk() -> Imp.Stm:
-  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, S.atom(E.ld(4, E.l(10n)), 11n), S.atom(E.ld(8, E.l(10n)), 12n),
-    S.room(24, 1n), S.push(E.ld(0, E.l(10n)), E.l(11n), E.l(12n)), Imp.Stm.set{3n, E.ld(8, E.l(3n))}])
+  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, S.atom(E.ld(4, E.l(10n))), Imp.Stm.set{12n, E.l(11n)},
+    S.atom(E.ld(8, E.l(10n))), Imp.Stm.set{9n, E.ld(0, E.l(10n))}, S.room(E.k(24), 1n),
+    S.push(E.l(9n), E.l(12n), E.l(11n)),
+    Imp.Stm.set{3n, E.ld(8, E.l(3n))}])
 
 def I.case() -> Imp.Stm:
-  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, S.atom(E.ld(4, E.l(10n)), 11n),
+  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, S.atom(E.ld(4, E.l(10n))),
     S.if(Imp.Exp.eqz{E.l(11n)}, Imp.Stm.set{3n, E.ld(8, E.l(3n))},
       S.if(E.eq(E.ld(0, E.l(11n)), E.ld(0, E.l(10n))),
-        S.all([S.room(24, 1n), S.node(0, E.k(0), E.ld(4, E.l(11n)), E.l(4n)),
-          S.node(12, E.k(0), E.ld(8, E.l(11n)), E.l(0n)), Imp.Stm.set{4n, E.add(E.l(0n), E.k(12))},
-          Imp.Stm.set{0n, E.add(E.l(0n), E.k(24))}, Imp.Stm.set{3n, E.ld(8, E.l(10n))}]),
+        S.all([S.room(E.k(24), 1n), Imp.Stm.set{12n, E.ld(4, E.l(11n))}, Imp.Stm.set{13n, E.ld(8, E.l(11n))},
+          S.alloc(E.k(0), E.l(12n), E.l(4n)), S.alloc(E.k(0), E.l(13n), E.l(17n)), Imp.Stm.set{4n, E.l(17n)},
+          Imp.Stm.set{3n, E.ld(8, E.l(10n))}]),
         Imp.Stm.set{3n, E.ld(8, E.l(3n))}))])
 
 def I.same() -> Imp.Stm:
-  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, S.atom(E.ld(4, E.l(10n)), 11n), S.atom(E.ld(8, E.l(10n)), 12n),
-    S.if(Imp.Exp.eqz{E.l(11n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
+  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, S.atom(E.ld(4, E.l(10n))), Imp.Stm.set{12n, E.l(11n)},
+    S.atom(E.ld(8, E.l(10n))),
     S.if(Imp.Exp.eqz{E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
+    S.if(Imp.Exp.eqz{E.l(11n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
     Imp.Stm.set{10n, E.ld(8, E.l(3n))},
-    S.if(E.eq(E.ld(0, E.l(11n)), E.ld(0, E.l(12n))), Imp.Stm.set{3n, E.ld(4, E.l(10n))},
+    S.if(E.eq(E.ld(0, E.l(12n)), E.ld(0, E.l(11n))), Imp.Stm.set{3n, E.ld(4, E.l(10n))},
       Imp.Stm.set{3n, E.ld(8, E.l(10n))})])
 
 def I.dec() -> Imp.Stm:
-  S.all([S.atom(E.ld(4, E.l(3n)), 11n), S.if(Imp.Exp.eqz{E.l(11n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
+  S.all([S.atom(E.ld(4, E.l(3n))), S.if(Imp.Exp.eqz{E.l(11n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
     Imp.Stm.set{9n, E.ld(0, E.l(11n))}, Imp.Stm.set{10n, E.ld(8, E.l(3n))},
     S.if(Imp.Exp.eqz{E.l(9n)}, Imp.Stm.set{3n, E.ld(4, E.l(10n))},
-      S.all([S.room(24, 1n), S.push(E.sub(E.l(9n), E.k(1)), E.k(0), E.k(0)),
+      S.all([S.room(E.k(24), 1n), S.push(E.sub(E.l(9n), E.k(1)), E.k(0), E.k(0)),
         Imp.Stm.set{3n, E.ld(8, E.l(10n))}]))])
 
 def I.inc() -> Imp.Stm:
-  S.all([S.atom(E.ld(4, E.l(3n)), 11n), S.if(Imp.Exp.eqz{E.l(11n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
+  S.all([S.atom(E.ld(4, E.l(3n))), S.if(Imp.Exp.eqz{E.l(11n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
     Imp.Stm.set{9n, E.ld(0, E.l(11n))},
     S.if(E.eq(E.l(9n), E.k(4294967295)), S.oom(1n), Imp.Stm.skip{}),
-    S.room(24, 1n), S.push(E.add(E.l(9n), E.k(1)), E.k(0), E.k(0)), Imp.Stm.set{3n, E.ld(8, E.l(3n))}])
+    S.room(E.k(24), 1n), S.push(E.add(E.l(9n), E.k(1)), E.k(0), E.k(0)), Imp.Stm.set{3n, E.ld(8, E.l(3n))}])
+
+# the room of the call at x
+def S.call_room() -> Imp.Stm:
+  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, Imp.Stm.set{9n, E.ld(0, E.ld(8, E.l(10n)))}, S.room(E.l(9n), 1n)])
 
 def I.call() -> Imp.Stm:
-  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, S.args(E.ld(4, E.l(10n))), S.room(24, 1n),
-    S.node(0, E.k(0), E.ld(8, E.l(3n)), E.l(4n)), S.node(12, E.k(0), E.l(0n), E.l(5n)),
-    Imp.Stm.set{5n, E.add(E.l(0n), E.k(12))}, Imp.Stm.set{0n, E.add(E.l(0n), E.k(24))},
-    Imp.Stm.set{4n, E.l(14n)}, Imp.Stm.set{3n, E.fun()}])
+  S.all([S.call_room(), S.args(E.ld(4, E.l(10n))),
+    Imp.Stm.set{12n, E.ld(8, E.l(3n))}, S.alloc(E.k(0), E.l(12n), E.l(4n)), S.alloc(E.k(0), E.l(17n), E.l(5n)),
+    Imp.Stm.set{5n, E.l(17n)}, Imp.Stm.set{4n, E.l(14n)}, Imp.Stm.set{3n, E.fun()}])
 
 def I.jump() -> Imp.Stm:
-  S.all([Imp.Stm.set{10n, E.ld(4, E.l(3n))}, S.args(E.ld(4, E.l(10n))), Imp.Stm.set{4n, E.l(14n)},
+  S.all([S.call_room(), S.args(E.ld(4, E.l(10n))), Imp.Stm.set{4n, E.l(14n)},
     Imp.Stm.set{3n, E.fun()}])
 
 # the instruction at c, by its tag t
@@ -316,7 +332,7 @@ def I.run() -> Imp.Stm:
 # the output: the bytes of the list at v, at out; Out.oom when one is above
 # 255 or when they do not fit
 def I.halt() -> Imp.Stm:
-  S.all([S.room(4, 1n), Imp.Stm.set{8n, E.l(0n)}, Imp.Stm.set{16n, E.k(0)}, Imp.Stm.set{12n, E.l(6n)},
+  S.all([S.room(E.k(4), 1n), Imp.Stm.set{8n, E.l(0n)}, Imp.Stm.set{16n, E.k(0)}, Imp.Stm.set{12n, E.l(6n)},
     Imp.Stm.loop{S.all([
       S.if(Imp.Exp.eqz{E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
       Imp.Stm.set{9n, E.ld(0, E.l(12n))},
@@ -335,11 +351,12 @@ def I.halt() -> Imp.Stm:
 # the return of v to the innermost frame, or the output when there is none
 def I.back() -> Imp.Stm:
   S.if(Imp.Exp.eqz{E.l(5n)}, I.halt(),
-    S.all([S.room(12, 1n), Imp.Stm.set{10n, E.ld(4, E.l(5n))}, S.node(0, E.k(0), E.l(6n), E.ld(8, E.l(10n))),
-      Imp.Stm.set{4n, E.l(0n)}, Imp.Stm.set{0n, E.add(E.l(0n), E.k(12))}, Imp.Stm.set{3n, E.ld(4, E.l(10n))},
-      Imp.Stm.set{5n, E.ld(8, E.l(5n))}, Imp.Stm.set{7n, E.k(0)}]))
+    S.all([S.room(E.k(12), 1n), Imp.Stm.set{10n, E.ld(4, E.l(5n))}, Imp.Stm.set{12n, E.ld(8, E.l(10n))},
+      S.alloc(E.k(0), E.l(6n), E.l(12n)), Imp.Stm.set{4n, E.l(17n)}, Imp.Stm.set{3n, E.ld(4, E.l(10n))},
+      Imp.Stm.set{5n, E.ld(8, E.l(5n))}, Imp.Stm.set{6n, E.k(0)}, Imp.Stm.set{7n, E.k(0)}]))
 
-# a step of the abstract machine
+# a step of the abstract machine. c and env are 0 when it returns v, and v
+# is 0 when it runs c.
 def I.step() -> Imp.Stm:
   S.if(Imp.Exp.eqz{E.l(7n)}, I.run(), I.back())
 
@@ -350,20 +367,18 @@ def I.step() -> Imp.Stm:
 def S.input() -> Imp.Stm:
   S.all([Imp.Stm.set{9n, E.ld(0, E.k(0))},
     S.if(E.eq(E.l(9n), E.k(4294967295)),
-      S.all([Imp.Stm.set{0n, E.k(4)}, S.room(12, 0n), S.node(0, E.k(0), E.k(0), E.k(0)),
-        Imp.Stm.set{10n, E.l(0n)}, Imp.Stm.set{0n, E.add(E.l(0n), E.k(12))}]),
-      S.all([Imp.Stm.set{0n, E.add(E.k(4), E.l(9n))}, S.room(12, 0n), S.node(0, E.k(0), E.k(0), E.k(0)),
-        Imp.Stm.set{14n, E.l(0n)}, Imp.Stm.set{0n, E.add(E.l(0n), E.k(12))}, Imp.Stm.set{16n, E.l(9n)},
+      S.all([Imp.Stm.set{0n, E.k(4)}, S.room(E.k(12), 0n), S.alloc(E.k(0), E.k(0), E.k(0)), Imp.Stm.set{10n, E.l(17n)}]),
+      S.all([Imp.Stm.set{0n, E.add(E.k(4), E.l(9n))}, S.room(E.k(12), 0n), S.alloc(E.k(0), E.k(0), E.k(0)),
+        Imp.Stm.set{14n, E.l(17n)}, Imp.Stm.set{16n, E.l(9n)},
         Imp.Stm.loop{S.all([
           S.if(Imp.Exp.eqz{E.l(16n)}, Imp.Stm.break{0n}, Imp.Stm.skip{}),
           Imp.Stm.set{16n, E.sub(E.l(16n), E.k(1))},
-          S.room(24, 1n),
-          S.node(0, Imp.Exp.load8{4, E.l(16n)}, E.k(0), E.k(0)),
-          S.node(12, E.k(1), E.l(0n), E.l(14n)),
-          Imp.Stm.set{14n, E.add(E.l(0n), E.k(12))},
-          Imp.Stm.set{0n, E.add(E.l(0n), E.k(24))}])},
-        S.room(12, 0n), S.node(0, E.k(1), E.l(14n), E.k(0)), Imp.Stm.set{10n, E.l(0n)},
-        Imp.Stm.set{0n, E.add(E.l(0n), E.k(12))}]))])
+          S.room(E.k(24), 1n),
+          Imp.Stm.set{9n, Imp.Exp.load8{4, E.l(16n)}},
+          S.alloc(E.l(9n), E.k(0), E.k(0)),
+          S.alloc(E.k(1), E.l(17n), E.l(14n)),
+          Imp.Stm.set{14n, E.l(17n)}])},
+        S.room(E.k(12), 0n), S.alloc(E.k(1), E.l(14n), E.k(0)), Imp.Stm.set{10n, E.l(17n)}]))])
 
 # the stores of the words ws at base + off on
 def S.load(ws: List<&2, W>, +off: Nat) -> Imp.Stm:
@@ -379,24 +394,46 @@ def S.load(ws: List<&2, W>, +off: Nat) -> Imp.Stm:
 # of entry. len: the number of functions.
 def S.image(+ws: List<&2, W>, +len: Nat, entry: Nat) -> Imp.Stm:
   +size = U32.from_nat(Nat.double(Nat.double(List.length(&2, W, ws))))
-  S.all([S.room(size, 0n), Imp.Stm.set{2n, E.l(0n)}, S.load(ws, 0n),
+  S.all([S.room(E.k(size), 0n), Imp.Stm.set{2n, E.l(0n)}, S.load(ws, 0n),
     Imp.Stm.set{0n, E.add(E.l(0n), E.k(size))},
-    S.room(24, 0n),
-    S.node(0, E.k(0), E.l(10n), E.ld(U32.from_nat(Nat.double(Nat.double(1n+len))), E.l(2n))),
-    S.node(12, E.k(0), E.ld(U32.from_nat(Nat.double(Nat.double(len))), E.l(2n)), E.l(0n)),
-    Imp.Stm.set{4n, E.add(E.l(0n), E.k(12))}, Imp.Stm.set{0n, E.add(E.l(0n), E.k(24))},
+    S.room(E.k(24), 0n),
+    Imp.Stm.set{12n, E.ld(U32.from_nat(Nat.double(Nat.double(1n+len))), E.l(2n))},
+    Imp.Stm.set{13n, E.ld(U32.from_nat(Nat.double(Nat.double(len))), E.l(2n))},
+    S.alloc(E.k(0), E.l(10n), E.l(12n)), S.alloc(E.k(0), E.l(13n), E.l(17n)), Imp.Stm.set{4n, E.l(17n)},
     Imp.Stm.set{3n, E.ld(U32.from_nat(Nat.double(Nat.double(entry))), E.l(2n))},
     Imp.Stm.set{5n, E.k(0)}, Imp.Stm.set{7n, E.k(0)}])
 
 # The program
 # ===========
 
+# the image of the code of prog, head and tail
+def Img.prog(+prog: List<&2, Fun.C>, head: Fun.V, tail: List<&2, Fun.V>) -> List<&2, W>:
+  Img.of(List.append(&2, Fun.V, Enc.codes(prog, List.length(&2, Fun.C, prog)), [head, Enc.list(tail)]))
+
+def W.fits(w: W) -> Bool:
+  match w:
+    case W.k{n}:
+      Nat.is_le(n, 4294967295n)
+    case W.p{off}:
+      Nat.is_le(off, 4294967295n)
+
+def Ws.fits(ws: List<&2, W>) -> Bool:
+  match ws:
+    case Nil{}:
+      True{}
+    case Con{w, rest}:
+      W.fits(w) && Ws.fits(rest)
+
+# whether each word of the image fits in an i32, and the image in the memory
+def fits(+prog: List<&2, Fun.C>, head: Fun.V, tail: List<&2, Fun.V>) -> Bool:
+  +ws = Img.prog(prog, head, tail)
+  Ws.fits(ws) && Nat.is_le(Nat.double(Nat.double(List.length(&2, W, ws))), 4294967295n)
+
 # the run time of the program prog from its function entry, with the
 # environment head, the input, then the values of tail
 def RT(+prog: List<&2, Fun.C>, entry: Nat, head: Fun.V, tail: List<&2, Fun.V>) -> Imp.Prog:
-  +len = List.length(&2, Fun.C, prog)
   Imp.Prog{18n,
     Imp.Stm.loop{S.all([Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, E.k(16)}}, S.input(),
-      S.image(Img.of(List.append(&2, Fun.V, Enc.codes(prog, len), [head, Enc.list(tail)])), len, entry),
+      S.image(Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry),
       Imp.Stm.loop{I.step()}])},
     E.l(8n)}
