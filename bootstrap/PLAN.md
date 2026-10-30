@@ -79,7 +79,10 @@ meaning.
    - Claim 6, `shut`: `Eval` from a `Pure` def meets no opaque def.
    - Claim 7, `input`: when the CLI gives a result for an input, each law
      of the book for all inputs of `main` holds at that input, about a
-     value that shows the result.
+     value that shows the result. A law can have more `for` binders after
+     the input: it holds for each closed value of them. It can name `main`,
+     or `f` when `main` is `λx. f(x)`: `bend -o` puts a path before the
+     names of an imported file, so a law there cannot name `main`.
    - `Answer`: a value that `Eval` reaches shows the result. Each value
      that `Eval` reaches shows the same result.
    - `observe`: the plain data in a value. It is the kernel's `Data`: it
@@ -116,8 +119,9 @@ it is an interpreter. Each item below adds speed or a new meaning.
 
 ## The compiler in Bend
 
-Status: not started. Its contract comes first. Write it and review it before
-the compiler, as `Contract/Spec.lean` came before the interpreter. A law that
+Status: decided (below); the contract is next. Its contract comes first.
+Write it and review it before the compiler, as `Contract/Spec.lean` came
+before the interpreter. A law that
 holds is not always the law we need. These three requirements decide what the
 contract holds:
 1. A preservation law: the output means what the source means, for each
@@ -136,6 +140,29 @@ to the bytes that the interpreter writes.
 
 Tests do not replace a law: a test samples, and a law covers all inputs.
 A test finds a law that is too weak or empty, and an assumption that fails.
+
+Decisions:
+1. The source is `.bendtt` text, as `bend -o` gives it. Assumption 1
+   already trusts `bend -o`. The source meaning is the kernel's parser and
+   `Eval`, written in Bend. `Eval` has no typing premise, so the laws hold
+   for each program, typed or not, and the compiler needs no type checker.
+   A program's own laws hold only when the kernel checks it (`--verdict`).
+   A frontend for `.bend` can come later: the laws hold for each `.bendtt`
+   text that it gives.
+2. The target is `.bendtt` now. The first compiler passes the source
+   through, as the interpreter did, to test the chain: the source meaning,
+   claim 7 and the harness. WASM is planned. Its meaning must take the
+   memory size as a parameter: with a fixed size, the law is false for
+   large programs; if out of memory counts as no result, the law is empty.
+3. The interpreter's limits (`Pure`) bind only what it runs: the compiler,
+   which is bytes to bytes, and the output of the `.bendtt` target. The
+   source meaning can grow past `Eval`, for example to effects.
+4. A law is `for src: List<Nat>`, more `for` binders (for example the
+   fuel), then an equality. Claim 7 carries it. Bend's `exs` is Base's
+   `Exists` datatype, not a binder, so claim 7 does not carry it.
+5. The contract is a module's `spec.bend`, with laws only, pinned as
+   `Contract/Spec.lean` is. `main` is `λsrc. compile(src)`, so the laws
+   name `compile` (claim 7).
 
 ## Speed
 
