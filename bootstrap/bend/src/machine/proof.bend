@@ -16,34 +16,11 @@ import ./spec.bend as Spec
 # of the term, so the fuel of the machine for a run of the source sums the
 # weights of its terms.
 
-# Choices
-# =======
-
-def Bool.split(c: Bool, -P: Bool -> Type, t: {c == True{} : Bool} -> P(True{}),
-  f: {c == False{} : Bool} -> P(False{})) -> P(c):
-  match c:
-    case True{}:
-      t({==})
-    case False{}:
-      f({==})
-
-def Maybe.split(-A: Data, m: Maybe<&2, A>, -P: Maybe<&2, A> -> Type,
-  s: @x: A -> {m == Some{x} : Maybe<&2, A>} -> P(Some{x}), n: {m == None{} : Maybe<&2, A>} -> P(None{})) -> P(m):
-  match m:
-    case Some{x}:
-      s(x, {==})
-    case None{}:
-      n({==})
+# Booleans
+# ========
 
 def Bool.true_false(e: {True{} == False{} : Bool}) -> Empty:
   Shared.Bool.no(Equal.sym(Bool, True{}, False{}, e))
-
-def Bool.or_true(a: Bool) -> {Bool.or(a, True{}) == True{} : Bool}:
-  match a:
-    case True{}:
-      {==}
-    case False{}:
-      {==}
 
 def Bool.and_false(a: Bool) -> {Bool.and(a, False{}) == False{} : Bool}:
   match a:
@@ -131,14 +108,6 @@ def Nat.is_le_one(v: Nat, +a: Nat, h: {Nat.is_le(v, 1n) == True{} : Bool}) ->
         case 1n+r:
           Shared.Bool.absurd({Nat.is_le(Nat.add(2n+r, a), 1n+a) == True{} : Bool}, h)
 
-def Nat.is_le_trans(+a: Nat, +b: Nat, +c: Nat, h1: {Nat.is_le(a, b) == True{} : Bool},
-  h2: {Nat.is_le(b, c) == True{} : Bool}) -> {Nat.is_le(a, c) == True{} : Bool}:
-  Shared.Nat.is_le_trans(a, b, c, h1, h2)
-
-# Readback
-# ========
-
-# the terms of an environment, from its readback
 def Tm.list(t: Source.Term) -> List<&2, Source.Term>:
   match t:
     case Source.Term.Tup{q, a, b}:
@@ -800,12 +769,6 @@ def Term.sub_var(+i: Nat, +L: List<&2, Source.Term>) ->
   %Equal.sym(Nat, Nat.sub(i, 0n), i, Nat.sub_zero(i)) :
     {Source.Term.shift(Source.Env.sub(L, _), 0n, 0n) == Source.Env.sub(L, i) : Source.Term}
   Term.shift_zero(Source.Env.sub(L, i), 0n)
-
-# the value x entering the environment of t, as the β step's substitution
-def Term.sub_one(+t: Source.Term, +L: List<&2, Source.Term>, +X: Source.Term) ->
-  {Source.Term.sub(Source.Term.sub(t, 1n, Source.Sub.env{L}), 0n, Source.Sub.one{X}) ==
-    Source.Term.sub(t, 0n, Source.Sub.env{Con{X, L}}) : Source.Term}:
-  Term.sub_sub(t, 0n, L, X)
 
 # Calls
 # =====
@@ -3551,7 +3514,7 @@ def Ctx.min2(+a: Source.Term, +u: Source.Term, +bk: List<&2, Source.Def>,
   ({==}, Ctx.min2_step(a, u, bk, ha, hu))
 
 
-def Snd.ok(q: Source.Quan, a: Machine.Val, +bk: List<&2, Source.Def>, h: {Val.ok(a, Mode.field(q), bk) == True{} : Bool}) ->
+def Field.value(q: Source.Quan, a: Machine.Val, +bk: List<&2, Source.Def>, h: {Val.ok(a, Mode.field(q), bk) == True{} : Bool}) ->
   {Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(Val.rb(a), False{}, bk)) == True{} : Bool}:
   match q:
     case Source.Q0{}:
@@ -3576,7 +3539,7 @@ def Fr.ctx(fr: Machine.Fr, +u: Source.Term, +bk: List<&2, Source.Def>, +hfr: {Fr
     case Machine.Fr.fst{+q, b, +e}:
       Ctx.fst(q, u, Clo.rb(b, e), bk, SP.Bool.and_left(Source.Quan.live(q), Val.ok(e, Mode.env{}, bk), hfr), hu)
     case Machine.Fr.snd{+q, +a}:
-      Ctx.snd(q, Val.rb(a), u, bk, Snd.ok(q, a, bk, hfr), hu)
+      Ctx.snd(q, Val.rb(a), u, bk, Field.value(q, a, bk, hfr), hu)
     case Machine.Fr.rwt{p, f, +e}:
       Ctx.rwt(u, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hu)
     case Machine.Fr.min1{b, e}:
@@ -4186,7 +4149,7 @@ def Lam.step(+q: Source.Quan, +p: Source.Quan, +b: Source.Term, +x: Machine.Val,
   %Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.App{q, Source.Term.Lam{p, b}, Val.rb(x)}, bk), Source.Term.redex(bk, q, Source.Term.Lam{p, b}, Val.rb(x)),
     App.red(q, Source.Term.Lam{p, b}, x, bk, {==}, {==}, hx)) :
     {_ == Source.Maybe.when(Source.Term, Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(Val.rb(x)))), w => Some{Source.Term.sub(b, 0n, Source.Sub.one{Val.rb(x)})}) : Maybe<&2, Source.Term>}
-  %Equal.sym(Bool, Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(Val.rb(x), False{}, bk)), True{}, Snd.ok(q, x, bk, hx)) :
+  %Equal.sym(Bool, Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(Val.rb(x), False{}, bk)), True{}, Field.value(q, x, bk, hx)) :
     {Source.Maybe.when(Source.Term, Bool.and(Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), _),
       Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(Val.rb(x)))), w => Some{Source.Term.sub(b, 0n, Source.Sub.one{Val.rb(x)})}) ==
       Source.Maybe.when(Source.Term, Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(Val.rb(x)))), w => Some{Source.Term.sub(b, 0n, Source.Sub.one{Val.rb(x)})}) : Maybe<&2, Source.Term>}
@@ -4212,7 +4175,7 @@ def S.lam.of(c: Bool, +q: Source.Quan, +p: Source.Quan, +b: Source.Term, +e: Mac
           Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.App{q, Source.Term.Lam{p, Source.Term.sub(b, 1n, Source.Sub.env{Env.rb(e)})}, Val.rb(x)}, bk), Some{Source.Term.sub(Source.Term.sub(b, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(x)})},
             Some{Clo.rb(b, Machine.Val.env{x, e})}, hst,
             Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Some{z}, Source.Term.sub(Source.Term.sub(b, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(x)}),
-              Clo.rb(b, Machine.Val.env{x, e}), Term.sub_one(b, Env.rb(e), Val.rb(x)))))})
+              Clo.rb(b, Machine.Val.env{x, e}), Term.sub_sub(b, 0n, Env.rb(e), Val.rb(x)))))})
     case False{}:
       Ctx.stuck(fs, Source.Term.App{q, Source.Term.Lam{p, Source.Term.sub(b, 1n, Source.Sub.env{Env.rb(e)})}, Val.rb(x)}, bk, hfs, {==}, hst)
 
@@ -4669,7 +4632,7 @@ def S.apply(f: Machine.Val, +q: Source.Quan, +x: Machine.Val, +fs: List<&2, Mach
           Eq.rw(Source.Term, Source.Term.App{q, Val.rb(Machine.Val.call{v0, v1}), Val.rb(x)}, Val.rb(Machine.Val.call{v0, Machine.Args.snoc(v1, q, x)}), Equal.sym(Source.Term, Val.rb(Machine.Val.call{v0, Machine.Args.snoc(v1, q, x)}), Source.Term.App{q, Val.rb(Machine.Val.call{v0, v1}), Val.rb(x)}, Snoc.rb(v0, v1, q, x, bk, SP.Bool.and_left(Val.ok(v1, Mode.args{}, bk), Source.Term.is_value(Val.rb(Machine.Val.call{v0, v1}), False{}, bk), hf))),
             z => {Source.Term.is_value(z, True{}, bk) == True{} : Bool},
             SP.Bool.and_intro(Source.Term.is_value(Val.rb(Machine.Val.call{v0, v1}), True{}, bk), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(Val.rb(x), False{}, bk)),
-              Call.vt(Val.rb(Machine.Val.call{v0, v1}), bk, SP.Bool.and_right(Val.ok(v1, Mode.args{}, bk), Source.Term.is_value(Val.rb(Machine.Val.call{v0, v1}), False{}, bk), hf), Call.rb_is_call(v0, v1)), Snd.ok(q, x, bk, hx))),
+              Call.vt(Val.rb(Machine.Val.call{v0, v1}), bk, SP.Bool.and_right(Val.ok(v1, Mode.args{}, bk), Source.Term.is_value(Val.rb(Machine.Val.call{v0, v1}), False{}, bk), hf), Call.rb_is_call(v0, v1)), Field.value(q, x, bk, hx))),
           hfs, mu, hmu))
 # Steps
 # =====
@@ -4748,7 +4711,7 @@ def S.eval(t: Source.Term, +e: Machine.Val, +fs: List<&2, Machine.Fr>, +bk: List
           (SP.Bool.and_intro(Val.ok(Machine.Val.env{Machine.Val.clo{z1, e}, e}, Mode.env{}, bk), Frs.ok(fs, bk), SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Val.ok(e, Mode.env{}, bk), he, he), hfs),
             Inr{Ctx.go(fs, Source.Term.Let{Source.Q0{}, Clo.rb(z1, e), Source.Term.sub(z2, 1n, Source.Sub.env{Env.rb(e)})}, Clo.rb(z2, Machine.Val.env{Machine.Val.clo{z1, e}, e}), bk, hfs, {==},
               Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Some{z}, Source.Term.sub(Source.Term.sub(z2, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Clo.rb(z1, e)}), Clo.rb(z2, Machine.Val.env{Machine.Val.clo{z1, e}, e}),
-                Term.sub_one(z2, Env.rb(e), Clo.rb(z1, e))))})
+                Term.sub_sub(z2, 0n, Env.rb(e), Clo.rb(z1, e))))})
         case Source.Q1{}:
           (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.let{Source.Q1{}, z2, e}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.let{Source.Q1{}, z2, e}, bk), Frs.ok(fs, bk), he, hfs)), Inl{({==}, Frs.lt(fs, Nat.add(Term.var(z1), Term.w(Clo.rb(z1, e))), 5n+Term.w(Clo.rb(z1, e)), Le.push0(z1, Term.w(Clo.rb(z1, e)))))})
         case Source.Q2{}:
@@ -4835,7 +4798,7 @@ def S.let.of.Q1(c: Bool, +v: Machine.Val, +f: Source.Term, +e: Machine.Val, +res
           Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk), Some{Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)})},
             Some{Clo.rb(f, Machine.Val.env{v, e})}, hst,
             Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Some{z}, Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)}),
-              Clo.rb(f, Machine.Val.env{v, e}), Term.sub_one(f, Env.rb(e), Val.rb(v)))))})
+              Clo.rb(f, Machine.Val.env{v, e}), Term.sub_sub(f, 0n, Env.rb(e), Val.rb(v)))))})
     case False{}:
       Ctx.stuck(rest, Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk, hrest, {==}, hst)
 
@@ -4880,7 +4843,7 @@ def S.let.of.Q2(c: Bool, +v: Machine.Val, +f: Source.Term, +e: Machine.Val, +res
           Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk), Some{Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)})},
             Some{Clo.rb(f, Machine.Val.env{v, e})}, hst,
             Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Some{z}, Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)}),
-              Clo.rb(f, Machine.Val.env{v, e}), Term.sub_one(f, Env.rb(e), Val.rb(v)))))})
+              Clo.rb(f, Machine.Val.env{v, e}), Term.sub_sub(f, 0n, Env.rb(e), Val.rb(v)))))})
     case False{}:
       Ctx.stuck(rest, Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk, hrest, {==}, hst)
 
@@ -5264,7 +5227,7 @@ def Bnd.three(+acc: Nat, +x: Nat, +wu: Nat, h: {Nat.is_le(acc, 1n+wu) == True{} 
 
 def Bnd.one(+acc: Nat, +wu: Nat, +x: Nat, h: {Nat.is_le(acc, 1n+wu) == True{} : Bool}) ->
   {Nat.is_le(Nat.add(1n, acc), 1n+5n+Nat.add(wu, x)) == True{} : Bool}:
-  Le.add(acc, 1n+Nat.add(wu, x), Nat.is_le_trans(acc, 1n+wu, 1n+Nat.add(wu, x), h, Shared.Nat.is_le_add(1n+wu, x)), 4n)
+  Le.add(acc, 1n+Nat.add(wu, x), Shared.Nat.is_le_trans(acc, 1n+wu, 1n+Nat.add(wu, x), h, Shared.Nat.is_le_add(1n+wu, x)), 4n)
 
 def Bnd.onez(+acc: Nat, +wu: Nat, h: {Nat.is_le(acc, 1n+wu) == True{} : Bool}) ->
   {Nat.is_le(Nat.add(1n, acc), 1n+5n+Nat.add(0n, wu)) == True{} : Bool}:
@@ -5509,7 +5472,7 @@ def Inner.of(mv: Machine.Move, +j: Nat, +t: Source.Term, +mu: Nat, +M: Nat, +bk:
         case (ok2, r):
           match r:
             case Inl{(eq2, lt2)}:
-              rec(s2, ok2, Nat.is_le_trans(1n+St.mu(s2), mu, j, lt2, hj),
+              rec(s2, ok2, Shared.Nat.is_le_trans(1n+St.mu(s2), mu, j, lt2, hj),
                 Eq.rw(Source.Term, t, St.rb(s2), Equal.sym(Source.Term, St.rb(s2), t, eq2), z => Goal<z, o, M, bk>, g))
             case Inr{st}:
               match g:

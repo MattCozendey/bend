@@ -126,8 +126,8 @@ def Val.form(x: Val) -> Form:
   Val.form.of(Env.find(Val.env{x, Val.nil{}}, 0n))
 
 # Source.Term.is_data of the term that a value stands for. c: the term t under
-# the environment e; else the value e (t is not read). The rows of c name each
-# form of e, so that a match on a value of c never reads t.
+# the environment e; else the value e, and t is not read. The rows for the
+# term name each form of an environment, so that a value's row never reads t.
 def Val.data.go(+e: Val, t: Source.Term, c: Bool) -> Bool:
   match e t c:
     case Val.env{x, rest} Source.Term.Var{0n} True{}:
@@ -175,6 +175,10 @@ def Val.observe(v: Val) -> Maybe<&2, Source.Obs>:
     case _:
       None{}
 
+# whether λp takes x at q: the quantities agree, and x is data at Q2
+def Lam.takes(+p: Source.Quan, q: Source.Quan, x: Val) -> Bool:
+  Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)) && (Bool.not(Source.Quan.is_q2(p)) || Val.is_data(x))
+
 # Walks
 # =====
 
@@ -183,9 +187,7 @@ def Val.observe(v: Val) -> Maybe<&2, Source.Obs>:
 def Walk.lam(+p: Source.Quan, xs: Val, e: Val, go: Val -> Val -> Leaf) -> Leaf:
   match xs:
     case Val.arg{q, +x, rest}:
-      Source.Bool.lazy(Leaf,
-        Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)) &&
-          (Bool.not(Source.Quan.is_q2(p)) || Val.is_data(x)),
+      Source.Bool.lazy(Leaf, Lam.takes(p, q, x),
         u => go(Val.env{x, e}, rest),
         u => Leaf.fail{})
     case _:
@@ -319,9 +321,7 @@ def Apply.mat(l: Bool, x: Val, q: Source.Quan, +k: List<&2, Nat>, h: Source.Term
 def Apply.go(f: Val, +q: Source.Quan, +x: Val, bk: List<&2, Source.Def>, fs: List<&2, Fr>) -> Move:
   match f:
     case Val.clo{Source.Term.Lam{+p, b}, e}:
-      Source.Bool.lazy(Move,
-        Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)) &&
-          (Bool.not(Source.Quan.is_q2(p)) || Val.is_data(x)),
+      Source.Bool.lazy(Move, Lam.takes(p, q, x),
         u => Move.go{St.eval{b, Val.env{x, e}, fs}},
         u => Move.stuck{})
     case Val.clo{Source.Term.Prj{h}, e}:
