@@ -177,6 +177,25 @@ def entry (bk : Book) : Option (List UInt8) → Option (Book × String)
   | none => some (bk, "main")
   | some bs => (Input.apply bk bs).map (·, RUN)
 
+-- Instances
+-- =========
+
+-- Call dm q x t: t is the call that a law names for main(x). dm is the def
+-- main, and q is the quantity of its input.
+-- - main(x).
+-- - f(x), when main is λy. f(y). bend -o puts a path before the names of an
+--   imported file, so a law in such a file can name f, but not main.
+inductive Call (dm : Def) (q : Quan) (x : Term) : Term → Prop
+  | main : Call dm q x (App q (Ref "main") x)
+  | body : dm.v = Lam p (App p' (Ref f) (Var 0)) → Call dm q x (App p' (Ref f) x)
+
+-- Inst bk P ys R: R is P with its leading ∀ binders (Bend's `for`) filled by
+-- ys, in order. Each y is closed and live, and has the type of its binder.
+inductive Inst (bk : Book) : Term → List Term → Term → Prop
+  | nil : Inst bk P [] P
+  | all : Term.Closed y → Term.Live bk y → Typed bk [] y D → Inst bk (Term.inst Q y) ys R →
+      Inst bk (All q D Q) (y :: ys) R
+
 -- Claims
 -- ======
 
@@ -251,16 +270,21 @@ def Claim.shut : Prop :=
 -- Claim 7, input. When the CLI gives a result o for input bs, each law for all
 -- inputs of main holds at bs.
 -- - A law for all inputs is a def L : ∀r x:A -> P of bk, where A is the input
---   type of main. Its instance P(bs) is an equality {C(main(bs)) == b : T}. C
---   has one hole, Var 0.
--- - "Holds at bs" means: a value v that shows o makes C(v) and b convert.
+--   type of main.
+-- - An instance of L fills x with bs, and each further ∀ binder of P with a
+--   closed value (see Inst). It is an equality {C(t) == b : T}, where t is
+--   main(bs) or the call that main makes (see Call). C has one hole, Var 0.
+-- - "Holds at bs" means: a value v that shows o makes C(v) and b convert, for
+--   each instance.
 -- It joins claims 4 and 5 for the CLI's own book.
 def Claim.input (cli : Nat → Book → Option (List UInt8) → Except String Obs) : Prop :=
-  ∀ n bk bs o dm q A B L dL r P C b T, cli n bk (some bs) = .ok o →
+  ∀ n bk bs o dm q A B L dL r P, cli n bk (some bs) = .ok o →
     Book.get bk "main" = some dm → dm.T = All q A B → Book.get bk L = some dL →
     dL.T = All r A P →
-    Term.inst P (Bytes.term bs) = Eql (Term.inst C (App q (Ref "main") (Bytes.term bs))) b T →
     ∃ bk' v, entry bk (some bs) = some (bk', RUN) ∧ Evals bk' (Ref RUN) v ∧ Value bk' v ∧
-      observe v = some o ∧ Conv bk' (Term.inst C v) b
+      observe v = some o ∧
+      ∀ ys t C b T, Call dm q (Bytes.term bs) t →
+        Inst bk' (Term.inst P (Bytes.term bs)) ys (Eql (Term.inst C t) b T) →
+        Conv bk' (Term.inst C v) b
 
 end Contract

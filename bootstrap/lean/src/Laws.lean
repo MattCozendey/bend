@@ -7,10 +7,10 @@ import Cli
 -- - Claim 5: a law about def k, or about its body, holds about each value
 --   that Eval reaches from k. It joins the kernel's adequate with Eval's
 --   reduction, and with one δ step for the body.
--- - Claim 7: the instance of a law at the CLI's input is a closed, live,
---   typed proof in the CLI's book, so claim 5 applies to it. Its equality
---   names main(bs), and the body of RUN is main(INPUT): one δ step joins
---   them.
+-- - Claim 7: an instance of a law at the CLI's input is a closed, live,
+--   typed proof in the CLI's book, so the kernel's adequate applies to it.
+--   Its equality names main(bs), or the call f(bs) that main makes. RUN
+--   reaches that call by δ steps, and by one β step for f(bs).
 
 open Quan Term Contract
 
@@ -80,31 +80,86 @@ theorem bytes_live (g : Guard) (bs : List UInt8) : Term.live g true (Bytes.term 
   | nil => rfl
   | cons b bs ih => simp [Bytes.term, Term.live, ih, nat, Quan.live]
 
+-- in a checked book with more defs, a def of bk is still the def that its name
+-- finds
+theorem get_of (hc : Book.check (Book.of (bk.defs ++ ds)) = .ok ()) (h : Book.get bk k = some d) :
+    Book.get (Book.of (bk.defs ++ ds)) k = some d := by
+  rw [get_find] at h
+  obtain ⟨-, j, hj, hdj, -⟩ := List.find?_eq_some_iff_getElem.1 h
+  obtain rfl : d.k = k := by simpa using List.find?_some h
+  exact check_get (j := j) hc (by
+    simp only [Book.of]; rw [List.getElem?_append_left hj, List.getElem?_eq_getElem hj, hdj])
+
+-- the head of a spine does not depend on the arguments taken so far
+theorem unspine_head (t : Term) (xs ys : List Arg) :
+    (unspine t xs).1 = (unspine t ys).1 := by
+  induction t generalizing xs ys with
+  | App q f x ihf _ => exact ihf _ _
+  | _ => rfl
+
+-- at the top, the live check of a call adds the check that the call may run
+theorem live_top (h : (unspine t []).1 = Ref k) :
+    Term.live g true t = (Term.called g t && Term.live g false t) := by
+  cases t <;> simp_all [unspine, Term.live, Bool.and_assoc]
+
+-- a call of a def of the book may run outside the book
+theorem called_ref (h : (unspine t []).1 = Ref k) (hi : Book.index bk k = some i) :
+    Term.called ⟨bk, bk.length, [], [], []⟩ t = true := by
+  rcases hu : unspine t [] with ⟨hd, xs⟩
+  simp only [hu] at h
+  subst h
+  simp [Term.called, hu, hi, index_lt hi]
+
+-- a proof p of P, applied to the values ys that fill the binders of P, proves
+-- R. It stays closed, live below the top, and a call of the same def.
+theorem inst_proof (hi : Inst bk P ys R) (cp : Term.Closed p) (tp : Typed bk [] p P)
+    (lp : Term.live ⟨bk, bk.length, [], [], []⟩ false p = true) (hp : (unspine p []).1 = Ref k) :
+    ∃ p', Term.Closed p' ∧ Typed bk [] p' R ∧
+      Term.live ⟨bk, bk.length, [], [], []⟩ false p' = true ∧ (unspine p' []).1 = Ref k := by
+  induction hi generalizing p with
+  | nil => exact ⟨p, cp, tp, lp, hp⟩
+  | all cy ly ty _ ih =>
+    refine ih (p := App _ p _) (fun σ => by simp [sub, cp σ, cy σ]) (.app tp ty) ?_ ?_
+    · simp only [Term.Live] at ly
+      simp [Term.live, lp, ly]
+    · simp only [unspine]; rw [unspine_head p _ []]; exact hp
+
+-- RUN reaches the call t that a law names
+theorem run_call (hcl : Book.Closed bk)
+    (hR : Book.get bk RUN = some ⟨RUN, T, App q (Ref "main") (Ref INPUT), false⟩)
+    (hI : Book.get bk INPUT = some ⟨INPUT, A, x, false⟩) (hm : Book.get bk "main" = some dm)
+    (h : Call dm q x t) : Pars bk (Ref RUN) t := by
+  have hmain : Pars bk (Ref RUN) (App q (Ref "main") x) :=
+    .step (.delta hR (hcl _ _ hR)) (.step (.app .ref (.delta hI (hcl _ _ hI))) .refl)
+  cases h with
+  | main => exact hmain
+  | body hb =>
+    refine pars_trans hmain (.step (.app (.delta hm (hcl _ _ hm)) par_refl) ?_)
+    rw [hb]
+    exact .step (.beta par_refl par_refl) .refl
+
 theorem claim_input : Claim.input cli := by
-  intro n bk bs o dm q A B L dL r P C b T h hm hT hL hP hI
+  intro n bk bs o dm q A B L dL r P h hm hT hL hP
   obtain ⟨bk', k, he, hc, hc', -, ⟨v, ev, vv, ov⟩, -⟩ := claim_cli.1 n bk (some bs) o h
   simp only [entry, Input.apply, hm, hT, Option.map_some, Option.some.injEq, Prod.mk.injEq] at he
   obtain ⟨rfl, rfl⟩ := he
-  generalize hx : Bytes.term bs = x at *
-  have at_ (j : Nat) (d : Def) (e : _) := check_get (j := j) (d := d) hc' e
-  have hI' := at_ bk.defs.length ⟨INPUT, A, x, false⟩ (by simp [Book.of])
-  have hR' := at_ (bk.defs.length + 1)
-    ⟨RUN, inst B (Ref INPUT), App q (Ref "main") (Ref INPUT), false⟩ (by simp [Book.of])
-  rw [get_find] at hL
-  obtain ⟨-, j, hj, hdj, -⟩ := List.find?_eq_some_iff_getElem.1 hL
-  obtain rfl : dL.k = L := by simpa using List.find?_some hL
-  have hL' := at_ j dL (by simp only [Book.of]; rw [List.getElem?_append_left hj, List.getElem?_eq_getElem hj, hdj])
-  have hx' : Typed _ [] x A := ((book_check _ hc').1 _ _ hI').2.1
-  have tp := Typed.app (by simpa [sub_var, hP] using Typed.ref (Γ := []) (σ := Var) hL') hx'
-  rw [hI] at tp
-  have tp' : Typed _ [] _ (Eql (inst C (App q (Ref "main") (Ref INPUT))) b T) :=
-    .conv tp (.conv ⟨_, .refl, .step (.eql (par_inst par_refl
-      (.app par_refl (.delta hI' (hx ▸ bytes_closed bs)))) par_refl par_refl) .refl⟩)
-  have cp : Term.Closed (App r (Ref dL.k) x) := fun σ => by
-    simp [sub, ← hx, bytes_closed bs σ]
-  refine ⟨_, v, by simp [entry, Input.apply, hm, hT, ← hx], ev, vv, ov, claim_laws _ RUN _ v _ C b T hc' (.inr ⟨_, hR', rfl⟩) ev cp ?_ tp'⟩
-  obtain ⟨i, hi⟩ := index_of_get hL'
-  subst hx
-  simp [Term.Live, Term.live, Term.called, unspine, hi, index_lt hi, bytes_live]
+  refine ⟨_, v, by simp [entry, Input.apply, hm, hT], ev, vv, ov, fun ys t C b T hcall hi => ?_⟩
+  obtain ⟨wt, lv⟩ := book_check _ hc'
+  have hI' := check_get (j := bk.defs.length) (d := ⟨INPUT, A, Bytes.term bs, false⟩) hc'
+    (by simp [Book.of])
+  have hR' := check_get (j := bk.defs.length + 1)
+    (d := ⟨RUN, inst B (Ref INPUT), App q (Ref "main") (Ref INPUT), false⟩) hc' (by simp [Book.of])
+  have hL' := get_of hc' hL
+  -- the proof of the instance: L applied to bs, then to ys
+  have tp := Typed.app (by simpa [sub_var, hP] using Typed.ref (Γ := []) (σ := Var) hL')
+    (wt _ _ hI').2.1
+  obtain ⟨p, cp, tp, lp, hp⟩ := inst_proof hi (fun σ => by simp [sub, bytes_closed bs σ]) tp
+    (by simp [Term.live, bytes_live]) rfl
+  obtain ⟨i, hiL⟩ := index_of_get hL'
+  have h1 := adequate _ p _ _ b T hc' cp
+    (by simp only [Term.Live]; rw [live_top hp, called_ref hp hiL, lp]; rfl) tp crefl
+  have h2 := pars_hole (C := C) (evals_pars lv.1 ev)
+  have h0 := pars_hole (C := C) (run_call lv.1 hR' hI' (get_of hc' hm) hcall)
+  exact conv_trans (conv_trans ⟨_, .refl, h2⟩ ⟨_, h0, .refl⟩) h1
 
 end Interp
