@@ -3961,3 +3961,785 @@ def P.call(+f: Nat, +xs: List<&2, Fun.A>, +k: Fun.C, +env: List<&2, Fun.V>, +ks:
   +hn: {Nat.is_le(Args.need(Rev(xs, [])), n) == True{} : Bool}) ->
   {Pass.ok(Fun.C.step(Fun.C.call{f, xs, k}, env, ks, prog), Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), prog, size) == True{} : Bool}:
   P.call.m(List.get(&2, Fun.C, prog, f), Nat.is_lt(f, List.length(&2, Fun.C, prog)), f, xs, k, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, {==}, {==}, hinv, hn)
+
+# Bytes
+# =====
+
+# the bytes bs at the addresses A on
+def Bytes.at(bs: List<&2, Nat>, +m: Wasm.Mem, +A: Nat) -> Bool:
+  match bs:
+    case Nil{}:
+      True{}
+    case Con{b, rest}:
+      Bool.and(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), b), Bytes.at(rest, m, 1n+A))
+
+# a byte below a byte store
+def G.skip(+A: Nat, +Q: Nat, +m: Wasm.Mem, +b: Nat, +size: U32, +h: {Nat.is_le(1n+A, Q) == True{} : Bool},
+  +hq: {Nat.is_le(1n+Q, U32.to_nat(size)) == True{} : Bool}) ->
+  {Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.set_at(U32.from_nat(Q), m, b)) == Wasm.Mem.get_at(U32.from_nat(A), m) : Nat}:
+  +hQ = Shared.Nat.is_le_pred(Q, U32.to_nat(size), hq)
+  WP.M.get_skip(A, Q, m, b, Fits.le(A, size, Le.t(A, Q, U32.to_nat(size), Shared.Nat.is_le_pred(A, Q, h), hQ)),
+    Fits.le(Q, size, hQ), WP.Nat.ne_lt(A, Q, h))
+
+# a load below a byte store
+def Ld.far8(+p: U32, +q: U32, +m: Wasm.Mem, +b: Nat, +size: U32,
+  +hpq: {Nat.is_le(4n+U32.to_nat(p), U32.to_nat(q)) == True{} : Bool},
+  +hq: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}) ->
+  {Wasm.Mem.load(p, Wasm.Mem.set_at(q, m, b)) == Wasm.Mem.load(p, m) : U32}:
+  +P = U32.to_nat(p)
+  +Q = U32.to_nat(q)
+  +m2 = Wasm.Mem.set_at(U32.from_nat(Q), m, b)
+  %WP.U.from_to_nat(p) : {Wasm.Mem.load(_, Wasm.Mem.set_at(q, m, b)) == Wasm.Mem.load(_, m) : U32}
+  %WP.U.from_to_nat(q) : {Wasm.Mem.load(U32.from_nat(P), Wasm.Mem.set_at(_, m, b)) == Wasm.Mem.load(U32.from_nat(P), m) : U32}
+  %Equal.sym(U32, Wasm.Mem.load(U32.from_nat(P), m2), WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m2), Wasm.Mem.get_at(U32.from_nat(1n+P), m2), Wasm.Mem.get_at(U32.from_nat(2n+P), m2), Wasm.Mem.get_at(U32.from_nat(3n+P), m2)), WP.M.load_eq(P, m2)) :
+    {_ == Wasm.Mem.load(U32.from_nat(P), m) : U32}
+  %Equal.sym(U32, Wasm.Mem.load(U32.from_nat(P), m), WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m), Wasm.Mem.get_at(U32.from_nat(1n+P), m), Wasm.Mem.get_at(U32.from_nat(2n+P), m), Wasm.Mem.get_at(U32.from_nat(3n+P), m)), WP.M.load_eq(P, m)) : {WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m2), Wasm.Mem.get_at(U32.from_nat(1n+P), m2),
+    Wasm.Mem.get_at(U32.from_nat(2n+P), m2), Wasm.Mem.get_at(U32.from_nat(3n+P), m2)) == _ : U32}
+  %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(P), m2), Wasm.Mem.get_at(U32.from_nat(P), m), G.skip(P, Q, m, b, size, Le.t(1n+P, 4n+P, Q, Shared.Nat.is_le_add_left(1n+P, 3n), hpq), hq)) :
+    {WP.Bytes.load(_, Wasm.Mem.get_at(U32.from_nat(1n+P), m2), Wasm.Mem.get_at(U32.from_nat(2n+P), m2),
+      Wasm.Mem.get_at(U32.from_nat(3n+P), m2)) == WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m), Wasm.Mem.get_at(U32.from_nat(1n+P), m),
+        Wasm.Mem.get_at(U32.from_nat(2n+P), m), Wasm.Mem.get_at(U32.from_nat(3n+P), m)) : U32}
+  %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(1n+P), m2), Wasm.Mem.get_at(U32.from_nat(1n+P), m), G.skip(1n+P, Q, m, b, size, Le.t(2n+P, 4n+P, Q, Shared.Nat.is_le_add_left(2n+P, 2n), hpq), hq)) :
+    {WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m), _, Wasm.Mem.get_at(U32.from_nat(2n+P), m2),
+      Wasm.Mem.get_at(U32.from_nat(3n+P), m2)) == WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m), Wasm.Mem.get_at(U32.from_nat(1n+P), m),
+        Wasm.Mem.get_at(U32.from_nat(2n+P), m), Wasm.Mem.get_at(U32.from_nat(3n+P), m)) : U32}
+  %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(2n+P), m2), Wasm.Mem.get_at(U32.from_nat(2n+P), m), G.skip(2n+P, Q, m, b, size, Le.t(3n+P, 4n+P, Q, Shared.Nat.is_le_add_left(3n+P, 1n), hpq), hq)) :
+    {WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m), Wasm.Mem.get_at(U32.from_nat(1n+P), m), _,
+      Wasm.Mem.get_at(U32.from_nat(3n+P), m2)) == WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m), Wasm.Mem.get_at(U32.from_nat(1n+P), m),
+        Wasm.Mem.get_at(U32.from_nat(2n+P), m), Wasm.Mem.get_at(U32.from_nat(3n+P), m)) : U32}
+  %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(3n+P), m2), Wasm.Mem.get_at(U32.from_nat(3n+P), m), G.skip(3n+P, Q, m, b, size, hpq, hq)) :
+    {WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m), Wasm.Mem.get_at(U32.from_nat(1n+P), m),
+      Wasm.Mem.get_at(U32.from_nat(2n+P), m), _) == WP.Bytes.load(Wasm.Mem.get_at(U32.from_nat(P), m), Wasm.Mem.get_at(U32.from_nat(1n+P), m),
+        Wasm.Mem.get_at(U32.from_nat(2n+P), m), Wasm.Mem.get_at(U32.from_nat(3n+P), m)) : U32}
+  {==}
+
+# a byte store at hp or above keeps each value below hp
+def Rd.set8(v: Fun.V, +mem: Wasm.Mem, +hp: Nat, +p: U32, +q: U32, +b: Nat, +size: U32,
+  +hpq: {Nat.is_le(hp, U32.to_nat(q)) == True{} : Bool},
+  +hq: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool},
+  +h: {Rd(v, mem, hp, p) == True{} : Bool}) ->
+  {Rd(v, Wasm.Mem.set_at(q, mem, b), hp, p) == True{} : Bool}:
+  match v:
+    case Fun.V.z{}:
+      h
+    case Fun.V.n{+t, +a, +c}:
+      +m2 = Wasm.Mem.set_at(q, mem, b)
+      +hn = Rd.hi(mem, hp, p, t, a, c, h)
+      +hs = Le.t(12n+U32.to_nat(p), U32.to_nat(size), U32.to_nat(size),
+        Le.t(12n+U32.to_nat(p), hp, U32.to_nat(size), hn,
+          Le.t(hp, U32.to_nat(q), U32.to_nat(size), hpq, Le.t(U32.to_nat(q), 1n+U32.to_nat(q), U32.to_nat(size),
+            Shared.Nat.is_le_add_left(U32.to_nat(q), 1n), hq))), Shared.Nat.is_le_refl(U32.to_nat(size)))
+      Rd.mk(m2, hp, p, t, a, c, Rd.nz(mem, hp, p, t, a, c, h), hn,
+        %Equal.sym(U32, Wasm.Mem.load(p, m2), Wasm.Mem.load(p, mem),
+          Ld.far8(p, q, mem, b, size,
+            Le.t(4n+U32.to_nat(p), hp, U32.to_nat(q),
+              Le.t(4n+U32.to_nat(p), 12n+U32.to_nat(p), hp, Shared.Nat.is_le_add_left(U32.to_nat(p), 8n), hn), hpq), hq)) :
+          {Nat.is_eq(U32.to_nat(_), t) == True{} : Bool}
+        Rd.tag(mem, hp, p, t, a, c, h),
+        %Equal.sym(U32, Wasm.Mem.load(U32.add(p, 4), m2), Wasm.Mem.load(U32.add(p, 4), mem),
+          Ld.far8(U32.add(p, 4), q, mem, b, size,
+            %Equal.sym(Nat, U32.to_nat(U32.add(p, 4)), 4n+U32.to_nat(p), T4(p, size, hs)) :
+              {Nat.is_le(4n+_, U32.to_nat(q)) == True{} : Bool}
+            Le.t(8n+U32.to_nat(p), hp, U32.to_nat(q),
+              Le.t(8n+U32.to_nat(p), 12n+U32.to_nat(p), hp, Shared.Nat.is_le_add_left(U32.to_nat(p), 4n), hn), hpq), hq)) :
+          {Rd(a, m2, hp, _) == True{} : Bool}
+        Rd.set8(a, mem, hp, Wasm.Mem.load(U32.add(p, 4), mem), q, b, size, hpq, hq, Rd.a(mem, hp, p, t, a, c, h)),
+        %Equal.sym(U32, Wasm.Mem.load(U32.add(p, 8), m2), Wasm.Mem.load(U32.add(p, 8), mem),
+          Ld.far8(U32.add(p, 8), q, mem, b, size,
+            %Equal.sym(Nat, U32.to_nat(U32.add(p, 8)), 8n+U32.to_nat(p), T8(p, size, hs)) :
+              {Nat.is_le(4n+_, U32.to_nat(q)) == True{} : Bool}
+            Le.t(12n+U32.to_nat(p), hp, U32.to_nat(q), hn, hpq), hq)) :
+          {Rd(c, m2, hp, _) == True{} : Bool}
+        Rd.set8(c, mem, hp, Wasm.Mem.load(U32.add(p, 8), mem), q, b, size, hpq, hq, Rd.b(mem, hp, p, t, a, c, h)))
+
+# a byte after the bytes bs
+def Bytes.snoc(bs: List<&2, Nat>, +m: Wasm.Mem, +A: Nat, +b: Nat, +size: U32,
+  +hq: {Nat.is_le(1n+Nat.add(List.length(&2, Nat, bs), A), U32.to_nat(size)) == True{} : Bool},
+  +h: {Bytes.at(bs, m, A) == True{} : Bool}) ->
+  {Bytes.at(List.append(&2, Nat, bs, [b]), Wasm.Mem.set_at(U32.from_nat(Nat.add(List.length(&2, Nat, bs), A)), m, b), A) == True{} : Bool}:
+  match bs:
+    case Nil{}:
+      %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.set_at(U32.from_nat(A), m, b)), b,
+        WP.M.get_hit(A, m, b, Fits.le(A, size, Shared.Nat.is_le_pred(A, U32.to_nat(size), hq)))) :
+        {Bool.and(Nat.is_eq(_, b), True{}) == True{} : Bool}
+      And.mk(Nat.is_eq(b, b), True{}, WP.Nat.is_eq_refl(b), {==})
+    case Con{+c, +rest}:
+      +L = List.length(&2, Nat, rest)
+      +m2 = Wasm.Mem.set_at(U32.from_nat(1n+Nat.add(L, A)), m, b)
+      +hr = And.r(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), c), Bytes.at(rest, m, 1n+A), h)
+      And.mk(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m2), c), Bytes.at(List.append(&2, Nat, rest, [b]), m2, 1n+A),
+        %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(A), m2), Wasm.Mem.get_at(U32.from_nat(A), m),
+          G.skip(A, 1n+Nat.add(L, A), m, b, size, Shared.Nat.is_le_add_left(A, L), hq)) :
+          {Nat.is_eq(_, c) == True{} : Bool}
+        And.l(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), c), Bytes.at(rest, m, 1n+A), h),
+        %MP.Nat.add_succ(L, A) : {Bytes.at(List.append(&2, Nat, rest, [b]), Wasm.Mem.set_at(U32.from_nat(_), m, b), 1n+A) == True{} : Bool}
+        Bytes.snoc(rest, m, 1n+A, b, size,
+          %Equal.sym(Nat, Nat.add(L, 1n+A), 1n+Nat.add(L, A), MP.Nat.add_succ(L, A)) : {Nat.is_le(1n+_, U32.to_nat(size)) == True{} : Bool}
+          hq, hr))
+
+# a word store below the bytes keeps them
+def Bytes.store_far(bs: List<&2, Nat>, +m: Wasm.Mem, +A: Nat, +B: Nat, +w: U32, +size: U32,
+  +h: {Nat.is_le(4n+B, A) == True{} : Bool},
+  +hend: {Nat.is_le(Nat.add(List.length(&2, Nat, bs), A), U32.to_nat(size)) == True{} : Bool},
+  +hb: {Bytes.at(bs, m, A) == True{} : Bool}) ->
+  {Bytes.at(bs, Wasm.Mem.store(U32.from_nat(B), m, w), A) == True{} : Bool}:
+  match bs:
+    case Nil{}:
+      {==}
+    case Con{+c, +rest}:
+      +L = List.length(&2, Nat, rest)
+      +m2 = Wasm.Mem.store(U32.from_nat(B), m, w)
+      +hA = Le.t(1n+A, 1n+Nat.add(L, A), U32.to_nat(size), Shared.Nat.is_le_add_left(A, L), hend)
+      +hA0 = Shared.Nat.is_le_pred(A, U32.to_nat(size), hA)
+      And.mk(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m2), c), Bytes.at(rest, m2, 1n+A),
+        %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(A), m2), Wasm.Mem.get_at(U32.from_nat(A), m),
+          WP.M.get_store_far(A, B, m, w, Fits.le(A, size, hA0),
+            Fits.le(3n+B, size, Le.t(3n+B, A, U32.to_nat(size), Shared.Nat.is_le_pred(3n+B, A, h), hA0)),
+            WP.Nat.ne_gt(A, B, Le.t(1n+B, 4n+B, A, Shared.Nat.is_le_add_left(1n+B, 3n), h)),
+            WP.Nat.ne_gt(A, 1n+B, Le.t(2n+B, 4n+B, A, Shared.Nat.is_le_add_left(2n+B, 2n), h)),
+            WP.Nat.ne_gt(A, 2n+B, Le.t(3n+B, 4n+B, A, Shared.Nat.is_le_add_left(3n+B, 1n), h)),
+            WP.Nat.ne_gt(A, 3n+B, h))) :
+          {Nat.is_eq(_, c) == True{} : Bool}
+        And.l(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), c), Bytes.at(rest, m, 1n+A), hb),
+        Bytes.store_far(rest, m, 1n+A, B, w, size, Le.t(4n+B, A, 1n+A, h, Shared.Nat.is_le_add_left(A, 1n)),
+          %Equal.sym(Nat, Nat.add(L, 1n+A), 1n+Nat.add(L, A), MP.Nat.add_succ(L, A)) : {Nat.is_le(_, U32.to_nat(size)) == True{} : Bool}
+          hend,
+          And.r(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), c), Bytes.at(rest, m, 1n+A), hb)))
+
+# the bytes, as Mem.read reads them
+def Read.bytes(bs: List<&2, Nat>, +m: Wasm.Mem, +A: Nat, +size: U32,
+  +hend: {Nat.is_le(Nat.add(List.length(&2, Nat, bs), A), U32.to_nat(size)) == True{} : Bool},
+  +hb: {Bytes.at(bs, m, A) == True{} : Bool}) ->
+  {Wasm.Mem.read(List.length(&2, Nat, bs), U32.from_nat(A), m) == bs : List<&2, Nat>}:
+  match bs:
+    case Nil{}:
+      {==}
+    case Con{+c, +rest}:
+      +L = List.length(&2, Nat, rest)
+      %Equal.sym(U32, U32.add(U32.from_nat(A), U32.from_nat(1n)), U32.from_nat(1n+A), WP.M.add_k(A, 1n)) :
+        {Con{Wasm.Mem.get_at(U32.from_nat(A), m), Wasm.Mem.read(L, _, m)} == Con{c, rest} : List<&2, Nat>}
+      %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(A), m), c,
+        Nat.eq_of(Wasm.Mem.get_at(U32.from_nat(A), m), c, And.l(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), c), Bytes.at(rest, m, 1n+A), hb))) :
+        {Con{_, Wasm.Mem.read(L, U32.from_nat(1n+A), m)} == Con{c, rest} : List<&2, Nat>}
+      Equal.cong(List<&2, Nat>, List<&2, Nat>, t => Con{c, t}, Wasm.Mem.read(L, U32.from_nat(1n+A), m), rest,
+        Read.bytes(rest, m, 1n+A, size,
+          %Equal.sym(Nat, Nat.add(L, 1n+A), 1n+Nat.add(L, A), MP.Nat.add_succ(L, A)) : {Nat.is_le(_, U32.to_nat(size)) == True{} : Bool}
+          hend,
+          And.r(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), c), Bytes.at(rest, m, 1n+A), hb)))
+
+def Len.snoc(xs: List<&2, Nat>, +b: Nat) -> {List.length(&2, Nat, List.append(&2, Nat, xs, [b])) == 1n+List.length(&2, Nat, xs) : Nat}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{x, rest}:
+      Equal.cong(Nat, Nat, l => 1n+l, List.length(&2, Nat, List.append(&2, Nat, rest, [b])), 1n+List.length(&2, Nat, rest), Len.snoc(rest, b))
+
+def App.snoc(xs: List<&2, Nat>, +b: Nat, ys: List<&2, Nat>) ->
+  {List.append(&2, Nat, List.append(&2, Nat, xs, [b]), ys) == List.append(&2, Nat, xs, Con{b, ys}) : List<&2, Nat>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{x, rest}:
+      Equal.cong(List<&2, Nat>, List<&2, Nat>, t => Con{x, t}, List.append(&2, Nat, List.append(&2, Nat, rest, [b]), ys),
+        List.append(&2, Nat, rest, Con{b, ys}), App.snoc(rest, b, ys))
+
+def Nat.app_nil(xs: List<&2, Nat>) -> {List.append(&2, Nat, xs, []) == xs : List<&2, Nat>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{x, rest}:
+      Equal.cong(List<&2, Nat>, List<&2, Nat>, t => Con{x, t}, List.append(&2, Nat, rest, []), rest, Nat.app_nil(rest))
+
+def Bytes.eq_refl(xs: List<&2, Nat>) -> {Spec.Bytes.is_eq(xs, xs) == True{} : Bool}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+x, +rest}:
+      And.mk(Nat.is_eq(x, x), Spec.Bytes.is_eq(rest, rest), WP.Nat.is_eq_refl(x), Bytes.eq_refl(rest))
+
+def Bor.r(a: Bool, -b: Bool, +h: {b == True{} : Bool}) -> {Bool.or(a, b) == True{} : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      h
+
+# the output so far, then what m decodes to
+def Dec.cat(done: List<&2, Nat>, m: Maybe<&2, List<&2, Nat>>) -> Maybe<&2, List<&2, Nat>>:
+  match m:
+    case Some{bs}:
+      Some{List.append(&2, Nat, done, bs)}
+    case None{}:
+      None{}
+
+def Dec.step(+done: List<&2, Nat>, +x: Nat, m: Maybe<&2, List<&2, Nat>>) ->
+  {Dec.cat(done, Spec.Out.dec.con(x, m)) == Dec.cat(List.append(&2, Nat, done, [x]), m) : Maybe<&2, List<&2, Nat>>}:
+  match m:
+    case Some{+bs}:
+      Equal.cong(List<&2, Nat>, Maybe<&2, List<&2, Nat>>, t => Some{t}, List.append(&2, Nat, done, Con{x, bs}),
+        List.append(&2, Nat, List.append(&2, Nat, done, [x]), bs),
+        Equal.sym(List<&2, Nat>, List.append(&2, Nat, List.append(&2, Nat, done, [x]), bs), List.append(&2, Nat, done, Con{x, bs}),
+          App.snoc(done, x, bs)))
+    case None{}:
+      {==}
+
+def Dec.nil(m: Maybe<&2, List<&2, Nat>>) -> {Dec.cat([], m) == m : Maybe<&2, List<&2, Nat>>}:
+  match m:
+    case Some{bs}:
+      {==}
+    case None{}:
+      {==}
+
+# the fuel of the writer on the list v
+def Wn(v: Fun.V) -> Nat:
+  match v:
+    case Fun.V.n{1n, a, rest}:
+      1n+Wn(rest)
+    case _:
+      1n
+
+# The writer
+# ==========
+
+def Nat.sub_add_r(+L: Nat, K: Nat) -> {Nat.sub(Nat.add(L, K), K) == L : Nat}:
+  match K:
+    case 0n:
+      %Equal.sym(Nat, Nat.add(L, 0n), L, MP.Nat.add_zero(L)) : {Nat.sub(_, 0n) == L : Nat}
+      MP.Nat.sub_zero(L)
+    case 1n++k:
+      %Equal.sym(Nat, Nat.add(L, 1n+k), 1n+Nat.add(L, k), MP.Nat.add_succ(L, k)) : {Nat.sub(_, 1n+k) == L : Nat}
+      Nat.sub_add_r(L, k)
+
+def Cond.ne(+x: U32, +y: U32, +c: Bool, +h: {Nat.is_eq(U32.to_nat(x), U32.to_nat(y)) == c : Bool}) ->
+  {U32.is_ne(Bool.to_u32(U32.is_ne(x, y)), 0) == Bool.not(c) : Bool}:
+  %Equal.sym(Cmp, U32.cmp(x, y), Nat.cmp(U32.to_nat(x), U32.to_nat(y)), WP.U.cmp(x, y)) :
+    {U32.is_ne(Bool.to_u32(Bool.not(Cmp.is_eq(_))), 0) == Bool.not(c) : Bool}
+  %Equal.sym(Bool, Nat.is_eq(U32.to_nat(x), U32.to_nat(y)), c, h) : {U32.is_ne(Bool.to_u32(Bool.not(_)), 0) == Bool.not(c) : Bool}
+  Cond.b(Bool.not(c))
+
+def Cond.lt(+x: U32, +y: U32, +c: Bool, +h: {Nat.is_lt(U32.to_nat(x), U32.to_nat(y)) == c : Bool}) ->
+  {U32.is_ne(Bool.to_u32(U32.is_lt(x, y)), 0) == c : Bool}:
+  %Equal.sym(Cmp, U32.cmp(x, y), Nat.cmp(U32.to_nat(x), U32.to_nat(y)), WP.U.cmp(x, y)) :
+    {U32.is_ne(Bool.to_u32(Cmp.is_lt(_)), 0) == c : Bool}
+  %Equal.sym(Bool, Nat.is_lt(U32.to_nat(x), U32.to_nat(y)), c, h) : {U32.is_ne(Bool.to_u32(_), 0) == c : Bool}
+  Cond.b(c)
+
+def Lt.le(a: Nat, b: Nat, h: {Nat.is_lt(a, b) == True{} : Bool}) -> {Nat.is_le(1n+a, b) == True{} : Bool}:
+  match a b:
+    case 0n 0n:
+      Shared.Bool.absurd({Nat.is_le(1n, 0n) == True{} : Bool}, h)
+    case 0n 1n+q:
+      Shared.Nat.is_le_zero(q)
+    case 1n+p 0n:
+      Shared.Bool.absurd({Nat.is_le(2n+p, 0n) == True{} : Bool}, h)
+    case 1n+p 1n+q:
+      Lt.le(p, q, h)
+
+# a byte at p, below the end of the memory
+def Ad0b(+p: U32, +size: U32, +h: {Nat.is_le(1n+U32.to_nat(p), U32.to_nat(size)) == True{} : Bool}) ->
+  {Wasm.Mem.addr(p, 0, 1, size) == Some{p} : Maybe<&2, U32>}:
+  %WP.U.add_zero(p) : {Wasm.Mem.addr(p, 0, 1, size) == Some{_} : Maybe<&2, U32>}
+  Addr(p, 0, 1, size,
+    %Nat.add_add(U32.to_nat(p), 0n, 1n) : {Nat.is_le(_, U32.to_nat(size)) == True{} : Bool}
+    h)
+
+def Wn.pos(v: Fun.V) -> {Nat.is_le(1n, Wn(v)) == True{} : Bool}:
+  match v:
+    case Fun.V.n{1n, a, rest}:
+      Shared.Nat.is_le_zero(Wn(rest))
+    case Fun.V.n{0n, a, b}:
+      {==}
+    case Fun.V.n{2n+t, a, b}:
+      {==}
+    case Fun.V.z{}:
+      {==}
+
+# the byte that store8 writes
+def Low.byte(+w: U32, +b: Nat, +hc: {Nat.is_eq(U32.to_nat(U32.and(w, 255)), U32.to_nat(w)) == True{} : Bool},
+  +ht: {Nat.is_eq(U32.to_nat(w), b) == True{} : Bool}) -> {Wasm.U32.low(w) == b : Nat}:
+  Equal.trans(Nat, U32.to_nat(U32.and(w, 255)), U32.to_nat(w), b, Nat.eq_of(U32.to_nat(U32.and(w, 255)), U32.to_nat(w), hc),
+    Nat.eq_of(U32.to_nat(w), b, ht))
+
+# the end of the output fits
+def Wr.end(+L: Nat, +out: U32, +q: U32, +size: U32,
+  +hq: {U32.to_nat(q) == Nat.add(L, 4n+U32.to_nat(out)) : Nat},
+  +hqs: {Nat.is_le(U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}) ->
+  {Nat.is_le(Nat.add(L, 4n+U32.to_nat(out)), U32.to_nat(size)) == True{} : Bool}:
+  %hq : {Nat.is_le(_, U32.to_nat(size)) == True{} : Bool}
+  hqs
+
+def Wr.h4(+L: Nat, +out: U32, +size: U32,
+  +hend: {Nat.is_le(Nat.add(L, 4n+U32.to_nat(out)), U32.to_nat(size)) == True{} : Bool}) ->
+  {Nat.is_le(4n+U32.to_nat(out), U32.to_nat(size)) == True{} : Bool}:
+  Le.t(4n+U32.to_nat(out), Nat.add(L, 4n+U32.to_nat(out)), U32.to_nat(size), Shared.Nat.is_le_add_left(4n+U32.to_nat(out), L), hend)
+
+def Wr.a4(+out: U32, +size: U32, +h4: {Nat.is_le(4n+U32.to_nat(out), U32.to_nat(size)) == True{} : Bool}) ->
+  {U32.to_nat(U32.add(out, 4)) == 4n+U32.to_nat(out) : Nat}:
+  U.add_lit(out, 4, Fits.le(4n+U32.to_nat(out), size, h4))
+
+def Wr.le(+L: Nat, +out: U32, +q: U32, +size: U32,
+  +hq: {U32.to_nat(q) == Nat.add(L, 4n+U32.to_nat(out)) : Nat},
+  +hA: {U32.to_nat(U32.add(out, 4)) == 4n+U32.to_nat(out) : Nat}) ->
+  {Nat.is_le(U32.to_nat(U32.add(out, 4)), U32.to_nat(q)) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(U32.add(out, 4)), 4n+U32.to_nat(out), hA) : {Nat.is_le(_, U32.to_nat(q)) == True{} : Bool}
+  %Equal.sym(Nat, U32.to_nat(q), Nat.add(L, 4n+U32.to_nat(out)), hq) : {Nat.is_le(4n+U32.to_nat(out), _) == True{} : Bool}
+  Shared.Nat.is_le_add_left(4n+U32.to_nat(out), L)
+
+# the length that the writer stores
+def Wr.len(+L: Nat, +out: U32, +q: U32, +size: U32,
+  +hq: {U32.to_nat(q) == Nat.add(L, 4n+U32.to_nat(out)) : Nat},
+  +hA: {U32.to_nat(U32.add(out, 4)) == 4n+U32.to_nat(out) : Nat}) ->
+  {U32.to_nat(U32.sub(q, U32.add(out, 4))) == L : Nat}:
+  %Equal.sym(Nat, U32.to_nat(U32.sub(q, U32.add(out, 4))), Nat.sub(U32.to_nat(q), U32.to_nat(U32.add(out, 4))),
+    U.sub_nat(q, U32.add(out, 4), Wr.le(L, out, q, size, hq, hA))) :
+    {_ == L : Nat}
+  %Equal.sym(Nat, U32.to_nat(U32.add(out, 4)), 4n+U32.to_nat(out), hA) : {Nat.sub(U32.to_nat(q), _) == L : Nat}
+  %Equal.sym(Nat, U32.to_nat(q), Nat.add(L, 4n+U32.to_nat(out)), hq) : {Nat.sub(_, 4n+U32.to_nat(out)) == L : Nat}
+  Nat.sub_add_r(L, 4n+U32.to_nat(out))
+
+def Wr.at(+out: U32, +hA: {U32.to_nat(U32.add(out, 4)) == 4n+U32.to_nat(out) : Nat}) ->
+  {U32.from_nat(4n+U32.to_nat(out)) == U32.add(out, 4) : U32}:
+  Equal.trans(U32, U32.from_nat(4n+U32.to_nat(out)), U32.from_nat(U32.to_nat(U32.add(out, 4))), U32.add(out, 4),
+    Equal.cong(Nat, U32, x => U32.from_nat(x), 4n+U32.to_nat(out), U32.to_nat(U32.add(out, 4)),
+      Equal.sym(Nat, U32.to_nat(U32.add(out, 4)), 4n+U32.to_nat(out), hA)),
+    WP.U.from_to_nat(U32.add(out, 4)))
+
+def Wr.fits(+L: Nat, +out: U32, +len: U32, +size: U32,
+  +hL: {U32.to_nat(len) == L : Nat},
+  +hend: {Nat.is_le(Nat.add(L, 4n+U32.to_nat(out)), U32.to_nat(size)) == True{} : Bool}) ->
+  {Nat.is_le(Nat.add(Nat.add(U32.to_nat(out), 4n), U32.to_nat(len)), U32.to_nat(size)) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(len), L, hL) : {Nat.is_le(Nat.add(Nat.add(U32.to_nat(out), 4n), _), U32.to_nat(size)) == True{} : Bool}
+  %MP.Nat.add_comm(4n, U32.to_nat(out)) : {Nat.is_le(Nat.add(_, L), U32.to_nat(size)) == True{} : Bool}
+  %MP.Nat.add_comm(L, 4n+U32.to_nat(out)) : {Nat.is_le(_, U32.to_nat(size)) == True{} : Bool}
+  hend
+
+def Wr.far(+done: List<&2, Nat>, +mem: Wasm.Mem, +out: U32, +len: U32, +size: U32,
+  +hend: {Nat.is_le(Nat.add(List.length(&2, Nat, done), 4n+U32.to_nat(out)), U32.to_nat(size)) == True{} : Bool},
+  +hb: {Bytes.at(done, mem, 4n+U32.to_nat(out)) == True{} : Bool}) ->
+  {Bytes.at(done, Wasm.Mem.store(out, mem, len), 4n+U32.to_nat(out)) == True{} : Bool}:
+  %WP.U.from_to_nat(out) : {Bytes.at(done, Wasm.Mem.store(_, mem, len), 4n+U32.to_nat(out)) == True{} : Bool}
+  Bytes.store_far(done, mem, 4n+U32.to_nat(out), U32.to_nat(out), len, size, Shared.Nat.is_le_refl(4n+U32.to_nat(out)), hend, hb)
+
+# the output that the writer leaves: the length at out, and the bytes after it
+def Wr.fin(+done: List<&2, Nat>, +mem: Wasm.Mem, +out: U32, +q: U32, +size: U32,
+  +hq: {U32.to_nat(q) == Nat.add(List.length(&2, Nat, done), 4n+U32.to_nat(out)) : Nat},
+  +hqs: {Nat.is_le(U32.to_nat(q), U32.to_nat(size)) == True{} : Bool},
+  +hb: {Bytes.at(done, mem, 4n+U32.to_nat(out)) == True{} : Bool}) ->
+  {Wasm.Halted.output(Some{Wasm.Halted{out, Wasm.Mem.store(out, mem, U32.sub(q, U32.add(out, 4)))}}, size) == Some{done} :
+    Maybe<&2, List<&2, Nat>>}:
+  +L = List.length(&2, Nat, done)
+  +len = U32.sub(q, U32.add(out, 4))
+  +m = Wasm.Mem.store(out, mem, len)
+  +hend = Wr.end(L, out, q, size, hq, hqs)
+  +h4 = Wr.h4(L, out, size, hend)
+  +hA = Wr.a4(out, size, h4)
+  +hL = Wr.len(L, out, q, size, hq, hA)
+  %Equal.sym(Maybe<&2, U32>, Wasm.Mem.addr(out, 0, 4, size), Some{out}, Ad0w(out, size, h4)) :
+    {Wasm.Halted.output.of(out, m, size, _) == Some{done} : Maybe<&2, List<&2, Nat>>}
+  %Equal.sym(U32, Wasm.Mem.load(out, m), len, Ld.same(out, mem, len, size, h4)) :
+    {Wasm.Halted.output.at(Wasm.Mem.addr(out, 4, _, size), _, m) == Some{done} : Maybe<&2, List<&2, Nat>>}
+  %Equal.sym(Maybe<&2, U32>, Wasm.Mem.addr(out, 4, len, size), Some{U32.add(out, 4)},
+    Addr(out, 4, len, size, Wr.fits(L, out, len, size, hL, hend))) :
+    {Wasm.Halted.output.at(_, len, m) == Some{done} : Maybe<&2, List<&2, Nat>>}
+  %Equal.sym(Nat, U32.to_nat(len), L, hL) : {Some{Wasm.Mem.read(_, U32.add(out, 4), m)} == Some{done} : Maybe<&2, List<&2, Nat>>}
+  %Wr.at(out, hA) : {Some{Wasm.Mem.read(L, _, m)} == Some{done} : Maybe<&2, List<&2, Nat>>}
+  Equal.cong(List<&2, Nat>, Maybe<&2, List<&2, Nat>>, t => Some{t}, Wasm.Mem.read(L, U32.from_nat(4n+U32.to_nat(out)), m), done,
+    Read.bytes(done, m, 4n+U32.to_nat(out), size, hend, Wr.far(done, mem, out, len, size, hend, hb)))
+
+# Writer passes
+# =============
+
+def Cond.eq(+x: U32, +y: U32, +c: Bool, +h: {Nat.is_eq(U32.to_nat(x), U32.to_nat(y)) == c : Bool}) ->
+  {U32.is_ne(Bool.to_u32(U32.is_eq(x, y)), 0) == c : Bool}:
+  %Equal.sym(Cmp, U32.cmp(x, y), Nat.cmp(U32.to_nat(x), U32.to_nat(y)), WP.U.cmp(x, y)) :
+    {U32.is_ne(Bool.to_u32(Cmp.is_eq(_)), 0) == c : Bool}
+  %Equal.sym(Bool, Nat.is_eq(U32.to_nat(x), U32.to_nat(y)), c, h) : {U32.is_ne(Bool.to_u32(_), 0) == c : Bool}
+  Cond.b(c)
+
+def Tag.ne(+w: U32, +k: Nat, +t: Nat, +h: {Nat.is_eq(U32.to_nat(w), t) == True{} : Bool},
+  +hk: {Nat.is_eq(t, k) == False{} : Bool}) -> {Nat.is_eq(U32.to_nat(w), k) == False{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(w), t, Nat.eq_of(U32.to_nat(w), t, h)) : {Nat.is_eq(_, k) == False{} : Bool}
+  hk
+
+# a pass of the writer at z
+def Wb.z(+x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +t9: U32, +t10: U32, +x11: U32, +p: U32, +q: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +n: Nat, +size: U32, +mem: Wasm.Mem, +hv: {Rd(Fun.V.z{}, mem, U32.to_nat(x0), p) == True{} : Bool}) ->
+  {Imp.Stm.run(RT.S.write(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem) == Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>}:
+  R.seq_end(RT.S.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>}, {==},
+    R.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(p, 0)), True{}, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.eqz(p, True{}, hv),
+      {==}))
+
+# a pass of the writer at the end of the list
+def Wb.end(+x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +t9: U32, +t10: U32, +x11: U32, +p: U32, +q: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +n: Nat, +size: U32, +mem: Wasm.Mem, +a: Fun.V, +b: Fun.V, +hv: {Rd(Fun.V.n{0n, a, b}, mem, U32.to_nat(x0), p) == True{} : Bool}, +hs: {Nat.is_le(U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}) ->
+  {Imp.Stm.run(RT.S.write(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem) == Some{Imp.Res.brk{0n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>}:
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{0n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(p, 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(p, Rd.nz(mem, U32.to_nat(x0), p, 0n, a, b, hv)),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(0n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{0n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, U32.from_nat(0n), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(0n), t10, x11, p, q, x14, x15, x16, x17), E.tag(RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.to_nat(x0), 0n, a, b, {==}, hv, hs), {==}),
+  R.seq_end(RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(0n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{0n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>}, {==},
+    R.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(0n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(0n), 0)), True{}, {Some{Imp.Res.brk{0n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}))))
+
+# a pass of the writer at a cell with z for its number
+def Wb.a(+x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +t9: U32, +t10: U32, +x11: U32, +p: U32, +q: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +n: Nat, +size: U32, +mem: Wasm.Mem, +rest: Fun.V, +hv: {Rd(Fun.V.n{1n, Fun.V.z{}, rest}, mem, U32.to_nat(x0), p) == True{} : Bool}, +hs: {Nat.is_le(U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}) ->
+  {Imp.Stm.run(RT.S.write(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem) == Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>}:
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(p, 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(p, Rd.nz(mem, U32.to_nat(x0), p, 1n, Fun.V.z{}, rest, hv)),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, U32.from_nat(1n), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), E.tag(RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.to_nat(x0), 1n, Fun.V.z{}, rest, {==}, hv, hs), {==}),
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(1n), 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}),
+  R.seq(RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), RT.S.all([Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+    R.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(1n), 1)), True{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}),
+  R.seq(Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+    R.set(10n, RT.E.ld(4, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(U32.add(p, 4), mem), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), E.load(4, RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.add(p, 4), {==}, Ad4(p, U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), p, 1n, Fun.V.z{}, rest, hv), hs)), {==}),
+  R.seq_end(RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>}, {==},
+    R.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(Wasm.Mem.load(U32.add(p, 4), mem), 0)), True{}, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.eqz(Wasm.Mem.load(U32.add(p, 4), mem), True{}, Rd.a(mem, U32.to_nat(x0), p, 1n, Fun.V.z{}, rest, hv)),
+      {==})))))))
+
+# a pass of the writer at a node that is not a list
+def Wb.t(+x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +t9: U32, +t10: U32, +x11: U32, +p: U32, +q: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +n: Nat, +size: U32, +mem: Wasm.Mem, +t: Nat, +a: Fun.V, +b: Fun.V, +hv: {Rd(Fun.V.n{2n+t, a, b}, mem, U32.to_nat(x0), p) == True{} : Bool}, +hs: {Nat.is_le(U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}) ->
+  {Imp.Stm.run(RT.S.write(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem) == Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>}:
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(p, 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(p, Rd.nz(mem, U32.to_nat(x0), p, 2n+t, a, b, hv)),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(2n+t), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, U32.from_nat(2n+t), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(2n+t), t10, x11, p, q, x14, x15, x16, x17), E.tag(RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.to_nat(x0), 2n+t, a, b, {==}, hv, hs), {==}),
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(2n+t), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(2n+t), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(2n+t), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(2n+t), 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(2n+t), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.eqz(U32.from_nat(2n+t), False{}, Tag.ne(U32.from_nat(2n+t), 0n, 2n+t, Tag.fits(p, mem, U32.to_nat(x0), 2n+t, a, b, hv), {==})),
+      {==}),
+  R.seq_end(RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), RT.S.all([Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(2n+t), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>}, {==},
+    R.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(2n+t), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(2n+t), 1)), False{}, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.eq(U32.from_nat(2n+t), 1, False{}, Tag.ne(U32.from_nat(2n+t), 1n, 2n+t, Tag.fits(p, mem, U32.to_nat(x0), 2n+t, a, b, hv), {==})),
+      {==})))))
+
+# a pass of the writer at a number above 255
+def Wb.big(+x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +t9: U32, +t10: U32, +x11: U32, +p: U32, +q: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +n: Nat, +size: U32, +mem: Wasm.Mem, +bb: Nat, +c: Fun.V, +d: Fun.V, +rest: Fun.V, +hv: {Rd(Fun.V.n{1n, Fun.V.n{bb, c, d}, rest}, mem, U32.to_nat(x0), p) == True{} : Bool}, +hs: {Nat.is_le(U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}, +hs5: {Nat.is_le(5n, U32.to_nat(size)) == True{} : Bool}, +hB: {Nat.is_eq(U32.to_nat(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255)), U32.to_nat(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))) == False{} : Bool}) ->
+  {Imp.Stm.run(RT.S.write(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem) == Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>}:
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(p, 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(p, Rd.nz(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv)),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, U32.from_nat(1n), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), E.tag(RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.to_nat(x0), 1n, Fun.V.n{bb, c, d}, rest, {==}, hv, hs), {==}),
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(1n), 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}),
+  R.seq(RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), RT.S.all([Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(1n), 1)), True{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}),
+  R.seq(Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.set(10n, RT.E.ld(4, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(U32.add(p, 4), mem), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), E.load(4, RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.add(p, 4), {==}, Ad4(p, U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv), hs)), {==}),
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(Wasm.Mem.load(U32.add(p, 4), mem), 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(Wasm.Mem.load(U32.add(p, 4), mem), Rd.nz(mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 4), mem), bb, c, d, Rd.a(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv))),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.all([RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(10n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), E.load(0, RT.E.l(10n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(U32.add(p, 4), mem), Wasm.Mem.load(U32.add(p, 4), mem), {==}, Ad0(Wasm.Mem.load(U32.add(p, 4), mem), U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 4), mem), bb, c, d, Rd.a(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv)), hs)), {==}),
+  R.seq_end(RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>}, {==},
+    R.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_ne(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255), Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), True{}, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.ne(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255), Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), False{}, hB),
+      R.oom(2n, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), hs5, {==}))))))))))
+
+# a pass of the writer with no room for the byte
+def Wb.room(+x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +t9: U32, +t10: U32, +x11: U32, +p: U32, +q: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +n: Nat, +size: U32, +mem: Wasm.Mem, +bb: Nat, +c: Fun.V, +d: Fun.V, +rest: Fun.V, +hv: {Rd(Fun.V.n{1n, Fun.V.n{bb, c, d}, rest}, mem, U32.to_nat(x0), p) == True{} : Bool}, +hs: {Nat.is_le(U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}, +hs5: {Nat.is_le(5n, U32.to_nat(size)) == True{} : Bool}, +hB: {Nat.is_eq(U32.to_nat(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255)), U32.to_nat(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))) == True{} : Bool}, +hR: {Nat.is_lt(U32.to_nat(q), U32.to_nat(x1)) == False{} : Bool}) ->
+  {Imp.Stm.run(RT.S.write(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem) == Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>}:
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(p, 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(p, Rd.nz(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv)),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, U32.from_nat(1n), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), E.tag(RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.to_nat(x0), 1n, Fun.V.n{bb, c, d}, rest, {==}, hv, hs), {==}),
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(1n), 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}),
+  R.seq(RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), RT.S.all([Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(1n), 1)), True{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}),
+  R.seq(Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.set(10n, RT.E.ld(4, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(U32.add(p, 4), mem), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), E.load(4, RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.add(p, 4), {==}, Ad4(p, U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv), hs)), {==}),
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(Wasm.Mem.load(U32.add(p, 4), mem), 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(Wasm.Mem.load(U32.add(p, 4), mem), Rd.nz(mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 4), mem), bb, c, d, Rd.a(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv))),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.all([RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(10n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), E.load(0, RT.E.l(10n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(U32.add(p, 4), mem), Wasm.Mem.load(U32.add(p, 4), mem), {==}, Ad0(Wasm.Mem.load(U32.add(p, 4), mem), U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 4), mem), bb, c, d, Rd.a(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv)), hs)), {==}),
+  R.seq(RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_ne(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255), Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.ne(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255), Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), True{}, hB),
+      {==}),
+  R.seq_end(RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), RT.S.all([Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>}, {==},
+    R.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_lt(q, x1)), False{}, {Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.lt(q, x1, False{}, hR),
+      R.oom(2n, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), hs5, {==})))))))))))
+
+# a pass of the writer that writes a byte
+def Wb.elem(+x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +t9: U32, +t10: U32, +x11: U32, +p: U32, +q: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +n: Nat, +size: U32, +mem: Wasm.Mem, +bb: Nat, +c: Fun.V, +d: Fun.V, +rest: Fun.V, +hv: {Rd(Fun.V.n{1n, Fun.V.n{bb, c, d}, rest}, mem, U32.to_nat(x0), p) == True{} : Bool}, +hs: {Nat.is_le(U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}, +hB: {Nat.is_eq(U32.to_nat(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255)), U32.to_nat(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))) == True{} : Bool}, +hR: {Nat.is_lt(U32.to_nat(q), U32.to_nat(x1)) == True{} : Bool},
+  +hq1: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}) ->
+  {Imp.Stm.run(RT.S.write(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem) == Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>}:
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(p, 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(p, Rd.nz(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv)),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, U32.from_nat(1n), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), E.tag(RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.to_nat(x0), 1n, Fun.V.n{bb, c, d}, rest, {==}, hv, hs), {==}),
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(9n)}, RT.S.all([Imp.Stm.set{9n, RT.E.k(0)}, Imp.Stm.set{10n, RT.E.k(0)}, Imp.Stm.set{12n, RT.E.k(0)}, Imp.Stm.break{0n}]), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(1n), 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}),
+  R.seq(RT.S.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}), RT.S.all([Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.if(RT.E.eq(RT.E.l(9n), RT.E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(U32.from_nat(1n), 1)), True{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, {==},
+      {==}),
+  R.seq(Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(12n))}, RT.S.all([RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.set(10n, RT.E.ld(4, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(U32.add(p, 4), mem), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), E.load(4, RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), t10, x11, p, q, x14, x15, x16, x17), mem, p, U32.add(p, 4), {==}, Ad4(p, U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv), hs)), {==}),
+  R.seq(RT.S.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}), RT.S.all([Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.eqz{RT.E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(Wasm.Mem.load(U32.add(p, 4), mem), 0)), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.node(Wasm.Mem.load(U32.add(p, 4), mem), Rd.nz(mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 4), mem), bb, c, d, Rd.a(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv))),
+      {==}),
+  R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(10n))}, RT.S.all([RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.set(9n, RT.E.ld(0, RT.E.l(10n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), E.load(0, RT.E.l(10n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, U32.from_nat(1n), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Wasm.Mem.load(U32.add(p, 4), mem), Wasm.Mem.load(U32.add(p, 4), mem), {==}, Ad0(Wasm.Mem.load(U32.add(p, 4), mem), U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 4), mem), bb, c, d, Rd.a(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv)), hs)), {==}),
+  R.seq(RT.S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}), RT.S.all([RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, RT.E.l(9n), RT.E.k(255)}, RT.E.l(9n)}, RT.S.oom(2n), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_ne(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255), Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), False{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.ne(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255), Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), True{}, hB),
+      {==}),
+  R.seq(RT.S.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n)), RT.S.all([Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.if(RT.E.lt(RT.E.l(13n), RT.E.l(1n)), Imp.Stm.skip{}, RT.S.oom(2n), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_lt(q, x1)), True{}, {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.lt(q, x1, True{}, hR),
+      {==}),
+  R.seq(Imp.Stm.store8{0, RT.E.l(13n), RT.E.l(9n)}, RT.S.all([Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.store8(0, RT.E.l(13n), RT.E.l(9n), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, q, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), q, {==}, {==}, Ad0b(q, size, hq1)),
+  R.seq(Imp.Stm.set{13n, RT.E.add(RT.E.l(13n), RT.E.k(1))}, RT.S.all([Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.set(13n, RT.E.add(RT.E.l(13n), RT.E.k(1)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), U32.add(q, 1), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, U32.add(q, 1), x14, x15, x16, x17), {==}, {==}),
+  R.seq(Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(12n))}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), {Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}} : Maybe<&2, Imp.Res>},
+    R.set(12n, RT.E.ld(8, RT.E.l(12n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), E.load(8, RT.E.l(12n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), p, U32.add(p, 8), {==}, Ad8(p, U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv), hs)), {==}),
+  {==}))))))))))))
+
+# Writer loop
+# ===========
+
+def Wr.inc(+q: U32, +size: U32, +hq1: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}) ->
+  {U32.to_nat(U32.add(q, 1)) == 1n+U32.to_nat(q) : Nat}:
+  U.add_lit(q, 1, Fits.le(1n+U32.to_nat(q), size, hq1))
+
+def Wr.ql(+q: U32, +x1: U32, +size: U32, +hR: {Nat.is_lt(U32.to_nat(q), U32.to_nat(x1)) == True{} : Bool},
+  +hq1: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}) -> {Nat.is_le(U32.to_nat(U32.add(q, 1)), U32.to_nat(x1)) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(U32.add(q, 1)), 1n+U32.to_nat(q), Wr.inc(q, size, hq1)) : {Nat.is_le(_, U32.to_nat(x1)) == True{} : Bool}
+  Lt.le(U32.to_nat(q), U32.to_nat(x1), hR)
+
+def Wr.Hq(+L: Nat, +x0: U32, +q: U32, +hq: {U32.to_nat(q) == Nat.add(L, 4n+U32.to_nat(x0)) : Nat}) -> {Nat.is_le(U32.to_nat(x0), U32.to_nat(q)) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(q), Nat.add(L, 4n+U32.to_nat(x0)), hq) : {Nat.is_le(U32.to_nat(x0), _) == True{} : Bool}
+  Le.t(U32.to_nat(x0), 4n+U32.to_nat(x0), Nat.add(L, 4n+U32.to_nat(x0)), Shared.Nat.is_le_add_left(U32.to_nat(x0), 4n), Shared.Nat.is_le_add_left(4n+U32.to_nat(x0), L))
+
+def Wr.qn(+L: Nat, +x0: U32, +q: U32, +hq: {U32.to_nat(q) == Nat.add(L, 4n+U32.to_nat(x0)) : Nat}) ->
+  {U32.from_nat(Nat.add(L, 4n+U32.to_nat(x0))) == q : U32}:
+  Equal.trans(U32, U32.from_nat(Nat.add(L, 4n+U32.to_nat(x0))), U32.from_nat(U32.to_nat(q)), q,
+    Equal.cong(Nat, U32, x => U32.from_nat(x), Nat.add(L, 4n+U32.to_nat(x0)), U32.to_nat(q), Equal.sym(Nat, U32.to_nat(q), Nat.add(L, 4n+U32.to_nat(x0)), hq)),
+    WP.U.from_to_nat(q))
+
+def Wr.q1(+L: Nat, +x0: U32, +q: U32, +size: U32, +hq: {U32.to_nat(q) == Nat.add(L, 4n+U32.to_nat(x0)) : Nat},
+  +hq1: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}) -> {Nat.is_le(1n+Nat.add(L, 4n+U32.to_nat(x0)), U32.to_nat(size)) == True{} : Bool}:
+  %hq : {Nat.is_le(1n+_, U32.to_nat(size)) == True{} : Bool}
+  hq1
+
+# the bytes after one more
+def Wr.snoc(+done: List<&2, Nat>, +mem: Wasm.Mem, +x0: U32, +q: U32, +w: U32, +bb: Nat, +size: U32,
+  +hq: {U32.to_nat(q) == Nat.add(List.length(&2, Nat, done), 4n+U32.to_nat(x0)) : Nat},
+  +hq1: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}, +hw: {Wasm.U32.low(w) == bb : Nat},
+  +hb: {Bytes.at(done, mem, 4n+U32.to_nat(x0)) == True{} : Bool}) ->
+  {Bytes.at(List.append(&2, Nat, done, [bb]), Wasm.Mem.set_at(q, mem, Wasm.U32.low(w)), 4n+U32.to_nat(x0)) == True{} : Bool}:
+  %Equal.sym(Nat, Wasm.U32.low(w), bb, hw) : {Bytes.at(List.append(&2, Nat, done, [bb]), Wasm.Mem.set_at(q, mem, _), 4n+U32.to_nat(x0)) == True{} : Bool}
+  %Wr.qn(List.length(&2, Nat, done), x0, q, hq) : {Bytes.at(List.append(&2, Nat, done, [bb]), Wasm.Mem.set_at(_, mem, bb), 4n+U32.to_nat(x0)) == True{} : Bool}
+  Bytes.snoc(done, mem, 4n+U32.to_nat(x0), bb, size, Wr.q1(List.length(&2, Nat, done), x0, q, size, hq, hq1), hb)
+
+def Wr.q(+done: List<&2, Nat>, +bb: Nat, +x0: U32, +q: U32, +size: U32, +hq: {U32.to_nat(q) == Nat.add(List.length(&2, Nat, done), 4n+U32.to_nat(x0)) : Nat},
+  +hq1: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}) ->
+  {U32.to_nat(U32.add(q, 1)) == Nat.add(List.length(&2, Nat, List.append(&2, Nat, done, [bb])), 4n+U32.to_nat(x0)) : Nat}:
+  %Equal.sym(Nat, U32.to_nat(U32.add(q, 1)), 1n+U32.to_nat(q), Wr.inc(q, size, hq1)) :
+    {_ == Nat.add(List.length(&2, Nat, List.append(&2, Nat, done, [bb])), 4n+U32.to_nat(x0)) : Nat}
+  %Equal.sym(Nat, List.length(&2, Nat, List.append(&2, Nat, done, [bb])), 1n+List.length(&2, Nat, done), Len.snoc(done, bb)) :
+    {1n+U32.to_nat(q) == Nat.add(_, 4n+U32.to_nat(x0)) : Nat}
+  %Equal.sym(Nat, U32.to_nat(q), Nat.add(List.length(&2, Nat, done), 4n+U32.to_nat(x0)), hq) : {1n+_ == Nat.add(1n+List.length(&2, Nat, done), 4n+U32.to_nat(x0)) : Nat}
+  {==}
+
+def Wr.p8(+x0: U32, +p: U32, +q: U32, +size: U32, +hhi: {Nat.is_le(12n+U32.to_nat(p), U32.to_nat(x0)) == True{} : Bool},
+  +hHq: {Nat.is_le(U32.to_nat(x0), U32.to_nat(q)) == True{} : Bool}, +hs: {Nat.is_le(U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}) ->
+  {Nat.is_le(4n+U32.to_nat(U32.add(p, 8)), U32.to_nat(q)) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(U32.add(p, 8)), 8n+U32.to_nat(p), T8(p, size, Le.t(12n+U32.to_nat(p), U32.to_nat(x0), U32.to_nat(size), hhi, hs))) :
+    {Nat.is_le(4n+_, U32.to_nat(q)) == True{} : Bool}
+  Le.t(12n+U32.to_nat(p), U32.to_nat(x0), U32.to_nat(q), hhi, hHq)
+
+# the rest of the list, after the byte
+def Wr.rd(+rest: Fun.V, +mem: Wasm.Mem, +x0: U32, +p: U32, +q: U32, +w: U32, +size: U32,
+  +hv8: {Rd(rest, mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 8), mem)) == True{} : Bool},
+  +hhi: {Nat.is_le(12n+U32.to_nat(p), U32.to_nat(x0)) == True{} : Bool}, +hHq: {Nat.is_le(U32.to_nat(x0), U32.to_nat(q)) == True{} : Bool},
+  +hs: {Nat.is_le(U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}, +hq1: {Nat.is_le(1n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool}) ->
+  {Rd(rest, Wasm.Mem.set_at(q, mem, Wasm.U32.low(w)), U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(w)))) == True{} : Bool}:
+  %Equal.sym(U32, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(w))), Wasm.Mem.load(U32.add(p, 8), mem),
+    Ld.far8(U32.add(p, 8), q, mem, Wasm.U32.low(w), size, Wr.p8(x0, p, q, size, hhi, hHq, hs), hq1)) :
+    {Rd(rest, Wasm.Mem.set_at(q, mem, Wasm.U32.low(w)), U32.to_nat(x0), _) == True{} : Bool}
+  Rd.set8(rest, mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 8), mem), q, Wasm.U32.low(w), size, hHq, hq1, hv8)
+
+# the end of the output
+def Wr.stb(+x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +x11: U32, +q: U32,
+  +x14: U32, +x15: U32, +x16: U32, +x17: U32, +n: Nat, +size: U32, +mem: Wasm.Mem,
+  +h4: {Nat.is_le(4n+U32.to_nat(x0), U32.to_nat(size)) == True{} : Bool}) ->
+  {Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem) == Some{Imp.Res.brk{1n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), Wasm.Mem.store(x0, mem, U32.sub(q, U32.add(x0, 4)))}} : Maybe<&2, Imp.Res>}:
+  R.seq(Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, RT.S.all([Imp.Stm.break{1n}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), Wasm.Mem.store(x0, mem, U32.sub(q, U32.add(x0, 4))), {Some{Imp.Res.brk{1n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), Wasm.Mem.store(x0, mem, U32.sub(q, U32.add(x0, 4)))}} : Maybe<&2, Imp.Res>},
+    R.store(0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4))), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem, x0, U32.sub(q, U32.add(x0, 4)), x0, {==}, {==}, Ad0w(x0, size, h4)),
+    {==})
+
+def Wr.ok(+v0: Fun.V, +done: List<&2, Nat>, +a: Fun.V, +b: Fun.V,
+  +hd: {Spec.Out.dec(v0) == Dec.cat(done, Spec.Out.dec(Fun.V.n{0n, a, b})) : Maybe<&2, List<&2, Nat>>}) ->
+  {Halt.ok(Fun.Step.halt{v0}, Some{done}) == True{} : Bool}:
+  %Equal.sym(Maybe<&2, List<&2, Nat>>, Spec.Out.dec(v0), Dec.cat(done, Spec.Out.dec(Fun.V.n{0n, a, b})), hd) :
+    {Out.same(_, Some{done}) == True{} : Bool}
+  %Equal.sym(List<&2, Nat>, List.append(&2, Nat, done, []), done, Nat.app_nil(done)) : {Spec.Bytes.is_eq(done, _) == True{} : Bool}
+  Bytes.eq_refl(done)
+
+# the writer's loop: from the cell p of the list v, after the bytes done
+def Wr.loop(n: Nat, v: Fun.V, +v0: Fun.V, +done: List<&2, Nat>, +N: Nat, +prog: List<&2, Fun.C>, +size: U32,
+  +x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +t9: U32, +t10: U32, +x11: U32, +p: U32, +q: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +mem: Wasm.Mem,
+  +hv: {Rd(v, mem, U32.to_nat(x0), p) == True{} : Bool},
+  +hb: {Bytes.at(done, mem, 4n+U32.to_nat(x0)) == True{} : Bool},
+  +hq: {U32.to_nat(q) == Nat.add(List.length(&2, Nat, done), 4n+U32.to_nat(x0)) : Nat},
+  +hql: {Nat.is_le(U32.to_nat(q), U32.to_nat(x1)) == True{} : Bool},
+  +hls: {Nat.is_le(U32.to_nat(x1), U32.to_nat(size)) == True{} : Bool},
+  +hs5: {Nat.is_le(5n, U32.to_nat(size)) == True{} : Bool},
+  +hd: {Spec.Out.dec(v0) == Dec.cat(done, Spec.Out.dec(v)) : Maybe<&2, List<&2, Nat>>},
+  +hn: {Nat.is_le(Wn(v), n) == True{} : Bool}) ->
+  {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}:
+  match n v:
+    case 0n +w:
+      Shared.Bool.absurd({Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, 0n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}, Le.t(1n, Wn(w), 0n, Wn.pos(w), hn))
+    case 1n++k Fun.V.z{}:
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.write(), k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), Some{Imp.Res.trap{}},
+        Wb.z(x0, x1, x2, x3, x4, x5, x6, x7, t9, t10, x11, p, q, x14, x15, x16, x17, k, size, mem, hv)) :
+        {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Res.loop(_, x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, k, size, x, y)), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}
+      %Equal.sym(Maybe<&2, List<&2, Nat>>, Spec.Out.dec(v0), Dec.cat(done, Spec.Out.dec(Fun.V.z{})), hd) :
+        {Bool.not(Maybe.is_some(&2, List<&2, Nat>, _)) == True{} : Bool}
+      {==}
+    case 1n++k Fun.V.n{0n, +a, +b}:
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.write(), k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), Some{Imp.Res.brk{0n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem}},
+        Wb.end(x0, x1, x2, x3, x4, x5, x6, x7, t9, t10, x11, p, q, x14, x15, x16, x17, k, size, mem, a, b, hv, Le.t(U32.to_nat(x0), U32.to_nat(q), U32.to_nat(size), Wr.Hq(List.length(&2, Nat, done), x0, q, hq), Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls)))) :
+        {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Res.loop(_, x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, k, size, x, y)), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), mem), Some{Imp.Res.brk{1n, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, 0, 0, x11, 0, q, x14, x15, x16, x17), Wasm.Mem.store(x0, mem, U32.sub(q, U32.add(x0, 4)))}},
+        Wr.stb(x0, x1, x2, x3, x4, x5, x6, x7, x11, q, x14, x15, x16, x17, N, size, mem, Wr.h4(List.length(&2, Nat, done), x0, size, Wr.end(List.length(&2, Nat, done), x0, q, size, hq, Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls))))) :
+        {Pass.ok(Fun.Step.halt{v0}, _, prog, size) == True{} : Bool}
+      %Equal.sym(Maybe<&2, List<&2, Nat>>, Wasm.Halted.output(Some{Wasm.Halted{x0, Wasm.Mem.store(x0, mem, U32.sub(q, U32.add(x0, 4)))}}, size), Some{done}, Wr.fin(done, mem, x0, q, size, hq, Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls), hb)) :
+        {Bool.or(Out.is_oom(_), Halt.ok(Fun.Step.halt{v0}, _)) == True{} : Bool}
+      Bor.r(Out.is_oom(Some{done}), Halt.ok(Fun.Step.halt{v0}, Some{done}), Wr.ok(v0, done, a, b, hd))
+    case 1n++k Fun.V.n{1n, Fun.V.z{}, +rest}:
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.write(), k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), Some{Imp.Res.trap{}},
+        Wb.a(x0, x1, x2, x3, x4, x5, x6, x7, t9, t10, x11, p, q, x14, x15, x16, x17, k, size, mem, rest, hv, Le.t(U32.to_nat(x0), U32.to_nat(q), U32.to_nat(size), Wr.Hq(List.length(&2, Nat, done), x0, q, hq), Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls)))) :
+        {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Res.loop(_, x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, k, size, x, y)), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}
+      %Equal.sym(Maybe<&2, List<&2, Nat>>, Spec.Out.dec(v0), Dec.cat(done, Spec.Out.dec(Fun.V.n{1n, Fun.V.z{}, rest})), hd) :
+        {Bool.not(Maybe.is_some(&2, List<&2, Nat>, _)) == True{} : Bool}
+      {==}
+    case 1n++k Fun.V.n{1n, Fun.V.n{+bb, +c, +d}, +rest}:
+      Shared.Bool.elim(Nat.is_eq(U32.to_nat(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255)), U32.to_nat(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))), bq => {Nat.is_eq(U32.to_nat(U32.and(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), 255)), U32.to_nat(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))) == bq : Bool} -> {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, 1n+k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool},
+        +hB =>
+          Shared.Bool.elim(Nat.is_lt(U32.to_nat(q), U32.to_nat(x1)), bq => {Nat.is_lt(U32.to_nat(q), U32.to_nat(x1)) == bq : Bool} -> {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, 1n+k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool},
+            +hR =>
+              %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.write(), k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), Some{Imp.Res.next{L(x0, x1, x2, x3, x4, x5, x6, x7, x0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))}},
+                Wb.elem(x0, x1, x2, x3, x4, x5, x6, x7, t9, t10, x11, p, q, x14, x15, x16, x17, k, size, mem, bb, c, d, rest, hv, Le.t(U32.to_nat(x0), U32.to_nat(q), U32.to_nat(size), Wr.Hq(List.length(&2, Nat, done), x0, q, hq), Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls)), hB, hR, Le.t(1n+U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), Lt.le(U32.to_nat(q), U32.to_nat(x1), hR), hls))) :
+                {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Res.loop(_, x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, k, size, x, y)), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}
+              Wr.loop(k, rest, v0, List.append(&2, Nat, done, [bb]), N, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, Wasm.Mem.load(U32.add(p, 8), Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem)))), U32.add(q, 1), x14, x15, x16, x17, Wasm.Mem.set_at(q, mem, Wasm.U32.low(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem))),
+                Wr.rd(rest, mem, x0, p, q, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), size, Rd.b(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv), Rd.hi(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv), Wr.Hq(List.length(&2, Nat, done), x0, q, hq), Le.t(U32.to_nat(x0), U32.to_nat(q), U32.to_nat(size), Wr.Hq(List.length(&2, Nat, done), x0, q, hq), Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls)), Le.t(1n+U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), Lt.le(U32.to_nat(q), U32.to_nat(x1), hR), hls)),
+                Wr.snoc(done, mem, x0, q, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), bb, size, hq, Le.t(1n+U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), Lt.le(U32.to_nat(q), U32.to_nat(x1), hR), hls), Low.byte(Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), bb, hB, Rd.tag(mem, U32.to_nat(x0), Wasm.Mem.load(U32.add(p, 4), mem), bb, c, d, Rd.a(mem, U32.to_nat(x0), p, 1n, Fun.V.n{bb, c, d}, rest, hv))), hb),
+                Wr.q(done, bb, x0, q, size, hq, Le.t(1n+U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), Lt.le(U32.to_nat(q), U32.to_nat(x1), hR), hls)),
+                Wr.ql(q, x1, size, hR, Le.t(1n+U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), Lt.le(U32.to_nat(q), U32.to_nat(x1), hR), hls)), hls, hs5,
+                Equal.trans(Maybe<&2, List<&2, Nat>>, Spec.Out.dec(v0), Dec.cat(done, Spec.Out.dec.con(bb, Spec.Out.dec(rest))), Dec.cat(List.append(&2, Nat, done, [bb]), Spec.Out.dec(rest)),
+                  hd, Dec.step(done, bb, Spec.Out.dec(rest))),
+                hn)
+            ,
+            +hR =>
+              %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.write(), k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}},
+                Wb.room(x0, x1, x2, x3, x4, x5, x6, x7, t9, t10, x11, p, q, x14, x15, x16, x17, k, size, mem, bb, c, d, rest, hv, Le.t(U32.to_nat(x0), U32.to_nat(q), U32.to_nat(size), Wr.Hq(List.length(&2, Nat, done), x0, q, hq), Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls)), hs5, hB, hR)) :
+                {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Res.loop(_, x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, k, size, x, y)), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}
+              Pass.oom(Fun.Step.halt{v0}, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, prog, size, Oom.out(mem, size, hs5))
+            )({==}),
+        +hB =>
+          %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.write(), k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), Some{Imp.Res.brk{2n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), Oom.mem(mem)}},
+            Wb.big(x0, x1, x2, x3, x4, x5, x6, x7, t9, t10, x11, p, q, x14, x15, x16, x17, k, size, mem, bb, c, d, rest, hv, Le.t(U32.to_nat(x0), U32.to_nat(q), U32.to_nat(size), Wr.Hq(List.length(&2, Nat, done), x0, q, hq), Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls)), hs5, hB)) :
+            {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Res.loop(_, x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, k, size, x, y)), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}
+          Pass.oom(Fun.Step.halt{v0}, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, Wasm.Mem.load(Wasm.Mem.load(U32.add(p, 4), mem), mem), Wasm.Mem.load(U32.add(p, 4), mem), x11, p, q, x14, x15, x16, x17), mem, prog, size, Oom.out(mem, size, hs5))
+        )({==})
+    case 1n++k Fun.V.n{2n+t, +a, +b}:
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.write(), k, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, t9, t10, x11, p, q, x14, x15, x16, x17), mem), Some{Imp.Res.trap{}},
+        Wb.t(x0, x1, x2, x3, x4, x5, x6, x7, t9, t10, x11, p, q, x14, x15, x16, x17, k, size, mem, t, a, b, hv, Le.t(U32.to_nat(x0), U32.to_nat(q), U32.to_nat(size), Wr.Hq(List.length(&2, Nat, done), x0, q, hq), Le.t(U32.to_nat(q), U32.to_nat(x1), U32.to_nat(size), hql, hls)))) :
+        {Pass.ok(Fun.Step.halt{v0}, Imp.Res.then(Imp.Res.loop(_, x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, k, size, x, y)), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), N, size, ls, mm)), prog, size) == True{} : Bool}
+      %Equal.sym(Maybe<&2, List<&2, Nat>>, Spec.Out.dec(v0), Dec.cat(done, Spec.Out.dec(Fun.V.n{2n+t, a, b})), hd) :
+        {Bool.not(Maybe.is_some(&2, List<&2, Nat>, _)) == True{} : Bool}
+      {==}
+
+def Halt.ql(+x0: U32, +x1: U32, +size: U32, +hq: {U32.to_nat(U32.add(x0, 4)) == 4n+U32.to_nat(x0) : Nat},
+  +h: {Nat.is_le(4n+U32.to_nat(x0), U32.to_nat(x1)) == True{} : Bool}) -> {Nat.is_le(U32.to_nat(U32.add(x0, 4)), U32.to_nat(x1)) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(U32.add(x0, 4)), 4n+U32.to_nat(x0), hq) : {Nat.is_le(_, U32.to_nat(x1)) == True{} : Bool}
+  h
+
+# the return of v with no frame: the output
+def P.halt(+vv: Fun.V, +n: Nat, +prog: List<&2, Fun.C>, +size: U32, +x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +x8: U32, +x9: U32, +x10: U32, +x11: U32, +x12: U32, +x13: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +mem: Wasm.Mem,
+  +hinv: {Inv.s(Fun.S.ret{vv, []}, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size) == True{} : Bool}, +hn: {Nat.is_le(Wn(vv), n) == True{} : Bool}) ->
+  {Pass.ok(Fun.F.step(prog, Fun.S.ret{vv, []}), Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), prog, size) == True{} : Bool}:
+  +hic = Inv.ret.ic(vv, [], x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+  +hmode = Inv.ret.mode(vv, [], x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+  +hv = Inv.ret.v(vv, [], x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+  +hks = Inv.ret.ks(vv, [], x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+  +hz = Inv.c.hz(x0, x1, x2, mem, prog, size, hic)
+  +hl = Inv.c.hl(x0, x1, x2, mem, prog, size, hic)
+  +hls = Inv.c.ls(x0, x1, x2, mem, prog, size, hic)
+  +hs5 = Inv.c.s5(x0, x1, x2, mem, prog, size, hic)
+  +htab = Inv.c.tab(x0, x1, x2, mem, prog, size, hic)
+  +hs = Le.t(U32.to_nat(x0), U32.to_nat(x1), U32.to_nat(size), hl, hls)
+  Shared.Bool.elim(Nat.is_lt(Nat.sub(U32.to_nat(x1), U32.to_nat(x0)), 4n), bq => {Nat.is_lt(Nat.sub(U32.to_nat(x1), U32.to_nat(x0)), 4n) == bq : Bool} -> {Pass.ok(Fun.F.step(prog, Fun.S.ret{vv, []}), Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), prog, size) == True{} : Bool},
+    +hok =>
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), Some{Imp.Res.brk{1n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, x9, x10, x11, x12, x13, x14, x15, x16, x17), Oom.mem(mem)}},
+        R.if(Imp.Exp.eqz{RT.E.l(7n)}, RT.I.run(), RT.I.back(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(x7, 0)), False{}, {Some{Imp.Res.brk{1n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, x9, x10, x11, x12, x13, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+            {==}, Cond.eqz(x7, False{}, %Equal.sym(Nat, U32.to_nat(x7), 1n, Nat.eq_of(U32.to_nat(x7), 1n, hmode)) : {Nat.is_eq(_, 0n) == False{} : Bool}
+              {==}),
+            R.if(Imp.Exp.eqz{RT.E.l(5n)}, RT.I.halt(), RT.S.all([RT.S.room(RT.E.k(12), 1n), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(5n))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(10n))}, RT.S.alloc(RT.E.k(0), RT.E.l(6n), RT.E.l(12n)), Imp.Stm.set{4n, RT.E.l(17n)}, Imp.Stm.set{3n, RT.E.ld(4, RT.E.l(10n))}, Imp.Stm.set{5n, RT.E.ld(8, RT.E.l(5n))}, Imp.Stm.set{6n, RT.E.k(0)}, Imp.Stm.set{7n, RT.E.k(0)}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(x5, 0)), True{}, {Some{Imp.Res.brk{1n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, x9, x10, x11, x12, x13, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>},
+              {==}, Cond.eqz(x5, True{}, hks),
+              R.seq_end(RT.S.room(RT.E.k(4), 1n), RT.S.all([Imp.Stm.set{8n, RT.E.l(0n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(0n), RT.E.k(4))}, Imp.Stm.set{12n, RT.E.l(6n)}, Imp.Stm.loop{RT.S.write()}, Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, {Some{Imp.Res.brk{1n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, x9, x10, x11, x12, x13, x14, x15, x16, x17), Oom.mem(mem)}} : Maybe<&2, Imp.Res>}, {==},
+          Equal.trans(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.S.room(RT.E.k(4), 1n), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), Imp.Stm.run(RT.S.oom(1n), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), Some{Imp.Res.brk{1n, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, x9, x10, x11, x12, x13, x14, x15, x16, x17), Oom.mem(mem)}},
+              R.room_oom(RT.E.k(4), 4, 1n, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, x0, x1, {==}, {==}, {==}, hl, hok),
+              R.oom(1n, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, 0, x9, x10, x11, x12, x13, x14, x15, x16, x17), hs5, {==})))))) :
+        {Pass.ok(Fun.F.step(prog, Fun.S.ret{vv, []}), _, prog, size) == True{} : Bool}
+      Pass.oom(Fun.F.step(prog, Fun.S.ret{vv, []}), L(x0, x1, x2, x3, x4, x5, x6, x7, 0, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, prog, size, Oom.out(mem, size, hs5)),
+    +hok =>
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, ls, mm)),
+        R.if(Imp.Exp.eqz{RT.E.l(7n)}, RT.I.run(), RT.I.back(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(x7, 0)), False{}, {Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, ls, mm)) : Maybe<&2, Imp.Res>},
+            {==}, Cond.eqz(x7, False{}, %Equal.sym(Nat, U32.to_nat(x7), 1n, Nat.eq_of(U32.to_nat(x7), 1n, hmode)) : {Nat.is_eq(_, 0n) == False{} : Bool}
+              {==}),
+            R.if(Imp.Exp.eqz{RT.E.l(5n)}, RT.I.halt(), RT.S.all([RT.S.room(RT.E.k(12), 1n), Imp.Stm.set{10n, RT.E.ld(4, RT.E.l(5n))}, Imp.Stm.set{12n, RT.E.ld(8, RT.E.l(10n))}, RT.S.alloc(RT.E.k(0), RT.E.l(6n), RT.E.l(12n)), Imp.Stm.set{4n, RT.E.l(17n)}, Imp.Stm.set{3n, RT.E.ld(4, RT.E.l(10n))}, Imp.Stm.set{5n, RT.E.ld(8, RT.E.l(5n))}, Imp.Stm.set{6n, RT.E.k(0)}, Imp.Stm.set{7n, RT.E.k(0)}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(x5, 0)), True{}, {Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, ls, mm)) : Maybe<&2, Imp.Res>},
+              {==}, Cond.eqz(x5, True{}, hks),
+              R.seq(RT.S.room(RT.E.k(4), 1n), RT.S.all([Imp.Stm.set{8n, RT.E.l(0n)}, Imp.Stm.set{13n, RT.E.add(RT.E.l(0n), RT.E.k(4))}, Imp.Stm.set{12n, RT.E.l(6n)}, Imp.Stm.loop{RT.S.write()}, Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, {Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, ls, mm)) : Maybe<&2, Imp.Res>},
+                R.room_ok(RT.E.k(4), 4, 1n, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, x0, x1, {==}, {==}, {==}, hl, hok),
+              R.seq(Imp.Stm.set{8n, RT.E.l(0n)}, RT.S.all([Imp.Stm.set{13n, RT.E.add(RT.E.l(0n), RT.E.k(4))}, Imp.Stm.set{12n, RT.E.l(6n)}, Imp.Stm.loop{RT.S.write()}, Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, {Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, ls, mm)) : Maybe<&2, Imp.Res>},
+                R.set(8n, RT.E.l(0n), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, x0, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x12, x13, x14, x15, x16, x17), {==}, {==}),
+              R.seq(Imp.Stm.set{13n, RT.E.add(RT.E.l(0n), RT.E.k(4))}, RT.S.all([Imp.Stm.set{12n, RT.E.l(6n)}, Imp.Stm.loop{RT.S.write()}, Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x12, U32.add(x0, 4), x14, x15, x16, x17), mem, {Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, ls, mm)) : Maybe<&2, Imp.Res>},
+                R.set(13n, RT.E.add(RT.E.l(0n), RT.E.k(4)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, U32.add(x0, 4), L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x12, U32.add(x0, 4), x14, x15, x16, x17), {==}, {==}),
+              R.seq(Imp.Stm.set{12n, RT.E.l(6n)}, RT.S.all([Imp.Stm.loop{RT.S.write()}, Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x12, U32.add(x0, 4), x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), mem, {Imp.Res.then(Imp.Stm.run(Imp.Stm.loop{RT.S.write()}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), mem), ls => mm => Imp.Stm.run(RT.S.all([Imp.Stm.store{0, RT.E.l(8n), RT.E.sub(RT.E.l(13n), RT.E.add(RT.E.l(8n), RT.E.k(4)))}, Imp.Stm.break{1n}]), n, size, ls, mm)) : Maybe<&2, Imp.Res>},
+                R.set(12n, RT.E.l(6n), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x12, U32.add(x0, 4), x14, x15, x16, x17), mem, x6, L(x0, x1, x2, x3, x4, x5, x6, x7, x0, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17), {==}, {==}),
+              {==}))))))) :
+        {Pass.ok(Fun.F.step(prog, Fun.S.ret{vv, []}), _, prog, size) == True{} : Bool}
+      Wr.loop(n, vv, vv, [], n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x9, x10, x11, x6, U32.add(x0, 4), x14, x15, x16, x17, mem,
+        hv, {==}, H.add(x0, U32.to_nat(x0), 4, {==}, size, Le.t(4n+U32.to_nat(x0), U32.to_nat(x1), U32.to_nat(size), Room.fits(U32.to_nat(x1), U32.to_nat(x0), 4n, hl, hok), hls)), Halt.ql(x0, x1, size, H.add(x0, U32.to_nat(x0), 4, {==}, size, Le.t(4n+U32.to_nat(x0), U32.to_nat(x1), U32.to_nat(size), Room.fits(U32.to_nat(x1), U32.to_nat(x0), 4n, hl, hok), hls)), Room.fits(U32.to_nat(x1), U32.to_nat(x0), 4n, hl, hok)), hls, hs5,
+        Equal.sym(Maybe<&2, List<&2, Nat>>, Dec.cat([], Spec.Out.dec(vv)), Spec.Out.dec(vv), Dec.nil(Spec.Out.dec(vv))), hn)
+)({==})

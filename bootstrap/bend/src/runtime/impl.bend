@@ -332,24 +332,30 @@ def I.disp() -> Imp.Stm:
 def I.run() -> Imp.Stm:
   S.all([Imp.Stm.set{9n, E.ld(0, E.l(3n))}, I.disp()])
 
-# the output: the bytes of the list at v, at out; Out.oom when one is above
-# 255 or when they do not fit
+# a pass of the writer of the output: the number of the cell at p into the
+# byte at q; at the end of the list, t, x, p := 0 and the end of the loop. A
+# number above 255, or no room, gives Out.oom.
+def S.write() -> Imp.Stm:
+  S.all([S.if(Imp.Exp.eqz{E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
+    Imp.Stm.set{9n, E.ld(0, E.l(12n))},
+    S.if(Imp.Exp.eqz{E.l(9n)},
+      S.all([Imp.Stm.set{9n, E.k(0)}, Imp.Stm.set{10n, E.k(0)}, Imp.Stm.set{12n, E.k(0)}, Imp.Stm.break{0n}]),
+      Imp.Stm.skip{}),
+    S.if(E.eq(E.l(9n), E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}),
+    Imp.Stm.set{10n, E.ld(4, E.l(12n))},
+    S.if(Imp.Exp.eqz{E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
+    Imp.Stm.set{9n, E.ld(0, E.l(10n))},
+    S.if(Imp.Exp.bin{Wasm.Bin.ne{}, Imp.Exp.bin{Wasm.Bin.and{}, E.l(9n), E.k(255)}, E.l(9n)}, S.oom(2n), Imp.Stm.skip{}),
+    S.if(E.lt(E.l(13n), E.l(1n)), Imp.Stm.skip{}, S.oom(2n)),
+    Imp.Stm.store8{0, E.l(13n), E.l(9n)},
+    Imp.Stm.set{13n, E.add(E.l(13n), E.k(1))},
+    Imp.Stm.set{12n, E.ld(8, E.l(12n))}])
+
+# the output: the numbers of the list at v, as bytes at out + 4, and their
+# count at out
 def I.halt() -> Imp.Stm:
-  S.all([S.room(E.k(4), 1n), Imp.Stm.set{8n, E.l(0n)}, Imp.Stm.set{16n, E.k(0)}, Imp.Stm.set{12n, E.l(6n)},
-    Imp.Stm.loop{S.all([
-      S.if(Imp.Exp.eqz{E.l(12n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
-      Imp.Stm.set{9n, E.ld(0, E.l(12n))},
-      S.if(Imp.Exp.eqz{E.l(9n)}, Imp.Stm.break{0n}, Imp.Stm.skip{}),
-      S.if(E.eq(E.l(9n), E.k(1)), Imp.Stm.skip{}, Imp.Stm.trap{}),
-      Imp.Stm.set{10n, E.ld(4, E.l(12n))},
-      S.if(Imp.Exp.eqz{E.l(10n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
-      Imp.Stm.set{9n, E.ld(0, E.l(10n))},
-      S.if(E.lt(E.k(255), E.l(9n)), S.oom(2n), Imp.Stm.skip{}),
-      S.if(E.lt(E.l(16n), E.sub(E.sub(E.l(1n), E.l(8n)), E.k(4))), Imp.Stm.skip{}, S.oom(2n)),
-      Imp.Stm.store8{4, E.add(E.l(8n), E.l(16n)), E.l(9n)},
-      Imp.Stm.set{16n, E.add(E.l(16n), E.k(1))},
-      Imp.Stm.set{12n, E.ld(8, E.l(12n))}])},
-    Imp.Stm.store{0, E.l(8n), E.l(16n)}, Imp.Stm.break{1n}])
+  S.all([S.room(E.k(4), 1n), Imp.Stm.set{8n, E.l(0n)}, Imp.Stm.set{13n, E.add(E.l(0n), E.k(4))}, Imp.Stm.set{12n, E.l(6n)},
+    Imp.Stm.loop{S.write()}, Imp.Stm.store{0, E.l(8n), E.sub(E.l(13n), E.add(E.l(8n), E.k(4)))}, Imp.Stm.break{1n}])
 
 # the return of v to the innermost frame, or the output when there is none
 def I.back() -> Imp.Stm:
