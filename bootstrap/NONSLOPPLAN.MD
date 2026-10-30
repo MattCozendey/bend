@@ -7,5 +7,5 @@ WHAT WE TRUST:
 4 - The .bendtt text produced from a .bend file via `bend -o` means what said .bend file says.
 
 WHAT WE DON'T TRUST:
-1 - The current Bend compiler written in Typescript.
+1 - The current Bend compiler written in TypeScript.
 2 - A checker result without --verdict.
