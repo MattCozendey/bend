@@ -117,3 +117,31 @@ def Nat.is_le_below(a: Nat, b: Nat, h: {Nat.is_le(1n+a, b) == True{} : Bool}) ->
       Bool.absurd({Nat.is_le(a, 0n) == True{} : Bool}, h)
     case 1n+q:
       h
+
+def Nat.is_le_add_left(+b: Nat, +a: Nat) -> {Nat.is_le(b, Nat.add(a, b)) == True{} : Bool}:
+  match a:
+    case 0n:
+      Nat.is_le_refl(b)
+    case 1n+p:
+      Nat.is_le_succ(b, Nat.add(p, b), Nat.is_le_add_left(b, p))
+
+def Nat.is_le_one_add(+a: Nat, +b: Nat, h: {Nat.is_le(1n, a) == True{} : Bool}) -> {Nat.is_le(1n+b, Nat.add(a, b)) == True{} : Bool}:
+  match a:
+    case 0n:
+      Bool.absurd({Nat.is_le(1n+b, b) == True{} : Bool}, h)
+    case 1n+p:
+      Nat.is_le_add_left(b, p)
+
+def Nat.is_le_dec_self(+x: Nat) -> {Nat.is_le(Nat.dec(x), x) == True{} : Bool}:
+  match x:
+    case 0n:
+      {==}
+    case 1n+p:
+      Nat.is_le_succ(p, p, Nat.is_le_refl(p))
+
+def Nat.is_le_double(+x: Nat) -> {Nat.is_le(x, Nat.double(x)) == True{} : Bool}:
+  match x:
+    case 0n:
+      {==}
+    case 1n+p:
+      Nat.is_le_succ(p, Nat.double(p), Nat.is_le_double(p))

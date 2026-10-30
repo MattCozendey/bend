@@ -245,15 +245,19 @@ reviewed before the next starts:
    `break`), with a meaning and a proven translation to the WASM meaning.
    All later run-time code is Imp, so no later proof reads WASM. Status:
    done (`src/imp/`).
-2. The numbered book: the parse (with enough fuel), the entry, and a number
-   for each def and each label. Its run gives `Source.run`.
-3. The machine: an environment machine on the numbered book, with no
+2. The front: the parse with a fuel that the text's length gives
+   (`Front.fuel`), as `Source.run` parses with the fuel of the run.
+   `parse_above` proves that each fuel from `Front.fuel` on parses each
+   text that some fuel parses, to the same defs. Status: done
+   (`src/front/`).
+3. The machine: an environment machine on the parsed book, with no
    substitution, after the Lean machine (`Machine/`). It is exact for
    untyped books too, where the Lean machine hands the run to `stepUntil`:
    a dead term is a closure, and the machine reads its form when a case
-   tree asks for it. Its result is step 2's.
+   tree asks for it. Its result is the source's run on the parsed book.
 4. The layout: the machine's values, environments and frames as bytes in
-   the memory. A full memory gives `Out.oom`. It does what step 3 does.
+   the memory, with a number for each def and each label. A full memory
+   gives `Out.oom`. It does what step 3 does.
 5. The run time in Imp: the machine's loop, the loader (the book into the
    memory, by stores, as the WASM part has no data segments), the input
    (its `Nat`s 0 to 255 shared) and the output (`Out.of`). It computes what
