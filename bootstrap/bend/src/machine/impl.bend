@@ -70,6 +70,11 @@ type Leaf is Data:
   Leaf.at{t: Source.Term, e: Val, xs: Val}
   Leaf.fail{}
 
+# what a variable stands for: a value, or the free variable j
+type Look is Data:
+  Look.val{v: Val}
+  Look.free{j: Nat}
+
 # the form of the term that a value stands for, where a case tree reads it
 type Form is Data:
   Form.tup{r: Source.Quan, a: Val, b: Val}
@@ -91,27 +96,27 @@ def Env.get(e: Val, i: Nat) -> Val:
       Val.clo{Source.Term.Var{j}, Val.nil{}}
 
 # what the variable i of e stands for: a value or a closure of a term that is
-# not a variable, through closures of variables; none for a free variable
-def Env.find(e: Val, i: Nat) -> Maybe<&2, Val>:
+# not a variable, through closures of variables
+def Env.find(e: Val, i: Nat) -> Look:
   match e i:
     case Val.env{Val.clo{Source.Term.Var{j}, e2}, rest} 0n:
       Env.find(e2, j)
     case Val.env{x, rest} 0n:
-      Some{x}
+      Look.val{x}
     case Val.env{x, rest} 1n+j:
       Env.find(rest, j)
-    case _ _:
-      None{}
+    case _ j:
+      Look.free{j}
 
-def Val.form.of(m: Maybe<&2, Val>) -> Form:
-  match m:
-    case Some{Val.clo{Source.Term.Tup{r, a, b}, +e}}:
+def Val.form.of(l: Look) -> Form:
+  match l:
+    case Look.val{Val.clo{Source.Term.Tup{r, a, b}, +e}}:
       Form.tup{r, Val.clo{a, e}, Val.clo{b, e}}
-    case Some{Val.clo{Source.Term.Lab{k}, e}}:
+    case Look.val{Val.clo{Source.Term.Lab{k}, e}}:
       Form.lab{k}
-    case Some{Val.tup{r, a, b}}:
+    case Look.val{Val.tup{r, a, b}}:
       Form.tup{r, a, b}
-    case Some{Val.lab{k}}:
+    case Look.val{Val.lab{k}}:
       Form.lab{k}
     case _:
       Form.other{}
@@ -121,23 +126,29 @@ def Val.form(x: Val) -> Form:
   Val.form.of(Env.find(Val.env{x, Val.nil{}}, 0n))
 
 # Source.Term.is_data of the term that a value stands for. c: the term t under
-# the environment e; else the value e (t is not read).
+# the environment e; else the value e (t is not read). The rows of c name each
+# form of e, so that a match on a value of c never reads t.
 def Val.data.go(+e: Val, t: Source.Term, c: Bool) -> Bool:
   match e t c:
     case Val.env{x, rest} Source.Term.Var{0n} True{}:
       Val.data.go(x, Source.Term.Efq{}, False{})
     case Val.env{x, rest} Source.Term.Var{1n+j} True{}:
       Val.data.go(rest, Source.Term.Var{j}, True{})
-    case _ Source.Term.Var{i} True{}:
+    case Val.nil{} Source.Term.Var{i} True{}:
       False{}
-    case e Source.Term.Tup{+q, a, b} True{}:
-      (Bool.not(Source.Quan.live(q)) || Val.data.go(e, a, True{})) && Val.data.go(e, b, True{})
-    case _ Source.Term.Lab{k} True{}:
+    case Val.env{+x, +rest} Source.Term.Tup{+q, a, b} True{}:
+      (Bool.not(Source.Quan.live(q)) || Val.data.go(Val.env{x, rest}, a, True{})) &&
+        Val.data.go(Val.env{x, rest}, b, True{})
+    case Val.nil{} Source.Term.Tup{+q, a, b} True{}:
+      (Bool.not(Source.Quan.live(q)) || Val.data.go(Val.nil{}, a, True{})) && Val.data.go(Val.nil{}, b, True{})
+    case Val.env{x, rest} Source.Term.Lab{k} True{}:
       True{}
-    case _ Source.Term.Rfl{} True{}:
+    case Val.nil{} Source.Term.Lab{k} True{}:
       True{}
-    case _ _ True{}:
-      False{}
+    case Val.env{x, rest} Source.Term.Rfl{} True{}:
+      True{}
+    case Val.nil{} Source.Term.Rfl{} True{}:
+      True{}
     case Val.clo{t2, e2} _ False{}:
       Val.data.go(e2, t2, True{})
     case Val.tup{+q, a, b} +t False{}:
@@ -146,7 +157,7 @@ def Val.data.go(+e: Val, t: Source.Term, c: Bool) -> Bool:
       True{}
     case Val.rfl{} _ False{}:
       True{}
-    case _ _ False{}:
+    case _ _ _:
       False{}
 
 def Val.is_data(x: Val) -> Bool:
@@ -330,11 +341,11 @@ def Val.force(x: Val, fs: List<&2, Fr>) -> Move:
     case v:
       Move.go{St.ret{v, fs}}
 
-def Eval.var(m: Maybe<&2, Val>, fs: List<&2, Fr>) -> Move:
-  match m:
-    case Some{x}:
+def Eval.var(l: Look, fs: List<&2, Fr>) -> Move:
+  match l:
+    case Look.val{x}:
       Val.force(x, fs)
-    case None{}:
+    case Look.free{j}:
       Move.stuck{}
 
 # the step from St.eval t e fs
