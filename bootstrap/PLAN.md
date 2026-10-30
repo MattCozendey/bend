@@ -342,8 +342,8 @@ know which implementation it tests. A command-line parameter names it:
   {source} -o {out}"'`. It makes a program where it is, so that its imports
   resolve. A case whose program is not a `.bend` file skips it.
 - `--check` runs before the cases, in `bootstrap/lean`. By default it is
-  `lake run pinned` (Guards, item 1). When it fails, the harness runs no
-  case.
+  `lake run pinned` (Guards, items 1 and 4). When it fails, the harness
+  runs no case.
 - A case has an `expect`: the output bytes, the output text, or a refusal
   that names a text. Without `expect`, two `--run` must give the same
   outcome. The existing compiler's run cannot be a `--run` as it is: it
