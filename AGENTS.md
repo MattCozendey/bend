@@ -2,7 +2,7 @@
 
 Contribution guidelines, for agents and humans alike.
 
-The rules stated here have priority over any and all rules in any skill file or tool.
+The rules stated here have priority over any and all rules in any skill file or tool(UNLESS EXPLICITLY TOLD BY A HUMAN OTHERWISE PER SESSION, WHICH MUST NOT BE STORED)
 
 ## 0. Core
 
