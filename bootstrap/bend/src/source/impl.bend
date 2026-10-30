@@ -45,6 +45,11 @@ type Term is Data:
 type Def is Data:
   Def{k: List<&2, Nat>, t: Term, v: Term, o: Bool}
 
+def Def.body(d: Def) -> Term:
+  match d:
+    case Def{k, t, v, o}:
+      v
+
 # a spine argument and its quantity
 type Arg is Data:
   Arg{q: Quan, x: Term}
@@ -317,6 +322,15 @@ def Spine.head.takes(s: Spine) -> Bool:
   match s:
     case Spine{h, xs}:
       Term.takes(h)
+
+# Term.node: a node of a case tree: a λ, a λ-match, or a spine of one on a
+# variable
+def Term.node(t: Term) -> Bool:
+  match t:
+    case Term.App{q, f, Term.Var{v}}:
+      Spine.head.takes(Term.unspine(f, []))
+    case t:
+      Term.takes(t)
 
 # Book
 # ====
