@@ -301,7 +301,7 @@ def I.dec() -> Imp.Stm:
 def I.inc() -> Imp.Stm:
   S.all([S.atom(E.ld(4, E.l(3n))), S.if(Imp.Exp.eqz{E.l(11n)}, Imp.Stm.trap{}, Imp.Stm.skip{}),
     Imp.Stm.set{9n, E.ld(0, E.l(11n))},
-    S.if(E.eq(E.l(9n), E.k(4294967295)), S.oom(1n), Imp.Stm.skip{}),
+    S.if(Imp.Exp.eqz{E.add(E.l(9n), E.k(1))}, S.oom(1n), Imp.Stm.skip{}),
     S.room(E.k(24), 1n), S.push(E.add(E.l(9n), E.k(1)), E.k(0), E.k(0)), Imp.Stm.set{3n, E.ld(8, E.l(3n))}])
 
 # the room of the call at x
@@ -317,17 +317,20 @@ def I.jump() -> Imp.Stm:
   S.all([S.call_room(), S.args(E.ld(4, E.l(10n))), Imp.Stm.set{4n, E.l(14n)},
     Imp.Stm.set{3n, E.fun()}])
 
-# the instruction at c, by its tag t
+# the instruction of the tag t
+def I.disp() -> Imp.Stm:
+  S.if(E.eq(E.l(9n), E.k(0)), I.ret(),
+  S.if(E.eq(E.l(9n), E.k(1)), I.mk(),
+  S.if(E.eq(E.l(9n), E.k(2)), I.case(),
+  S.if(E.eq(E.l(9n), E.k(3)), I.same(),
+  S.if(E.eq(E.l(9n), E.k(4)), I.dec(),
+  S.if(E.eq(E.l(9n), E.k(5)), I.inc(),
+  S.if(E.eq(E.l(9n), E.k(6)), I.call(),
+  S.if(E.eq(E.l(9n), E.k(7)), I.jump(), Imp.Stm.trap{}))))))))
+
+# the instruction at c, by its tag
 def I.run() -> Imp.Stm:
-  S.all([Imp.Stm.set{9n, E.ld(0, E.l(3n))},
-    S.if(E.eq(E.l(9n), E.k(0)), I.ret(),
-    S.if(E.eq(E.l(9n), E.k(1)), I.mk(),
-    S.if(E.eq(E.l(9n), E.k(2)), I.case(),
-    S.if(E.eq(E.l(9n), E.k(3)), I.same(),
-    S.if(E.eq(E.l(9n), E.k(4)), I.dec(),
-    S.if(E.eq(E.l(9n), E.k(5)), I.inc(),
-    S.if(E.eq(E.l(9n), E.k(6)), I.call(),
-    S.if(E.eq(E.l(9n), E.k(7)), I.jump(), Imp.Stm.trap{}))))))))])
+  S.all([Imp.Stm.set{9n, E.ld(0, E.l(3n))}, I.disp()])
 
 # the output: the bytes of the list at v, at out; Out.oom when one is above
 # 255 or when they do not fit
@@ -366,7 +369,7 @@ def I.step() -> Imp.Stm:
 # the input as a Maybe of a list of numbers, into x
 def S.input() -> Imp.Stm:
   S.all([Imp.Stm.set{9n, E.ld(0, E.k(0))},
-    S.if(E.eq(E.l(9n), E.k(4294967295)),
+    S.if(Imp.Exp.eqz{E.add(E.l(9n), E.k(1))},
       S.all([Imp.Stm.set{0n, E.k(4)}, S.room(E.k(12), 0n), S.alloc(E.k(0), E.k(0), E.k(0)), Imp.Stm.set{10n, E.l(17n)}]),
       S.all([Imp.Stm.set{0n, E.add(E.k(4), E.l(9n))}, S.room(E.k(12), 0n), S.alloc(E.k(0), E.k(0), E.k(0)),
         Imp.Stm.set{14n, E.l(17n)}, Imp.Stm.set{16n, E.l(9n)},
