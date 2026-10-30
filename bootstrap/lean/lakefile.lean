@@ -120,7 +120,7 @@ inductive Pin.Part where
 --   program that imports them shows the reach). A pinned def that starts to
 --   call another Base def changes, so its review adds that def here.
 def Pins : List (String × Pin.Part × UInt64) := [
-  ("src/Contract/Spec.lean", .all, 1941511504593986303),
+  ("src/Contract/Spec.lean", .all, 6953014994170078921),
   ("src/Contract/Proof.lean", .all, 13366616450239201674),
   ("src/Guard.lean", .all, 15051376749205065931),
   ("src/Main.lean", .all, 10677801529969707441),

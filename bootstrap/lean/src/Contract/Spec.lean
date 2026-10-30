@@ -180,14 +180,20 @@ def entry (bk : Book) : Option (List UInt8) → Option (Book × String)
 -- Instances
 -- =========
 
--- Call dm q x t: t is the call that a law names for main(x). dm is the def
--- main, and q is the quantity of its input.
--- - main(x).
--- - f(x), when main is λy. f(y). bend -o puts a path before the names of an
---   imported file, so a law in such a file can name f, but not main.
-inductive Call (dm : Def) (q : Quan) (x : Term) : Term → Prop
-  | main : Call dm q x (App q (Ref "main") x)
-  | body : dm.v = Lam p (App p' (Ref f) (Var 0)) → Call dm q x (App p' (Ref f) x)
+-- Call dm q x W t: t is the call that a law names for main(x), and main(x)
+-- becomes W(t). W has one hole, Var 0. dm is the def main, and q is the
+-- quantity of its input.
+-- - main(x), and W is the hole.
+-- - f(x), when main is λy. f(y), and W is the hole. bend -o puts a path
+--   before the names of an imported file, so a law in such a file can name
+--   f, but not main.
+-- - f(x), when main is λy. g(f(y)), and W is g(hole). The law speaks of
+--   f(x); the output is g of it.
+inductive Call (dm : Def) (q : Quan) (x : Term) : Term → Term → Prop
+  | main : Call dm q x (Var 0) (App q (Ref "main") x)
+  | body : dm.v = Lam p (App p' (Ref f) (Var 0)) → Call dm q x (Var 0) (App p' (Ref f) x)
+  | inner : dm.v = Lam p (App p' (Ref g) (App p'' (Ref f) (Var 0))) →
+      Call dm q x (App p' (Ref g) (Var 0)) (App p'' (Ref f) x)
 
 -- Inst bk P ys R: R is P with its leading ∀ binders (Bend's `for`) filled by
 -- ys, in order. Each y is closed and live, and has the type of its binder.
@@ -274,8 +280,9 @@ def Claim.shut : Prop :=
 -- - An instance of L fills x with bs, and each further ∀ binder of P with a
 --   closed value (see Inst). It is an equality {C(t) == b : T}, where t is
 --   main(bs) or the call that main makes (see Call). C has one hole, Var 0.
--- - "Holds at bs" means: a value v that shows o makes C(v) and b convert, for
---   each instance.
+-- - "Holds at bs" means, for each instance: C(t) and b convert, and W(t)
+--   converts with a value v that shows o. When W is the hole, so t and v
+--   convert, C(v) and b convert too.
 -- It joins claims 4 and 5 for the CLI's own book.
 def Claim.input (cli : Nat → Book → Option (List UInt8) → Except String Obs) : Prop :=
   ∀ n bk bs o dm q A B L dL r P, cli n bk (some bs) = .ok o →
@@ -283,8 +290,8 @@ def Claim.input (cli : Nat → Book → Option (List UInt8) → Except String Ob
     dL.T = All r A P →
     ∃ bk' v, entry bk (some bs) = some (bk', RUN) ∧ Evals bk' (Ref RUN) v ∧ Value bk' v ∧
       observe v = some o ∧
-      ∀ ys t C b T, Call dm q (Bytes.term bs) t →
+      ∀ ys W t C b T, Call dm q (Bytes.term bs) W t →
         Inst bk' (Term.inst P (Bytes.term bs)) ys (Eql (Term.inst C t) b T) →
-        Conv bk' (Term.inst C v) b
+        Conv bk' (Term.inst W t) v ∧ Conv bk' (Term.inst C t) b
 
 end Contract

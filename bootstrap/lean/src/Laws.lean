@@ -10,7 +10,8 @@ import Cli
 -- - Claim 7: an instance of a law at the CLI's input is a closed, live,
 --   typed proof in the CLI's book, so the kernel's adequate applies to it.
 --   Its equality names main(bs), or the call f(bs) that main makes. RUN
---   reaches that call by δ steps, and by one β step for f(bs).
+--   reaches W(t), the hole around that call, by δ steps, and by one β step
+--   for f(bs); RUN reaches v too, so W(t) and v convert.
 
 open Quan Term Contract
 
@@ -124,16 +125,20 @@ theorem inst_proof (hi : Inst bk P ys R) (cp : Term.Closed p) (tp : Typed bk [] 
       simp [Term.live, lp, ly]
     · simp only [unspine]; rw [unspine_head p _ []]; exact hp
 
--- RUN reaches the call t that a law names
+-- RUN reaches W(t), for the call t that a law names
 theorem run_call (hcl : Book.Closed bk)
     (hR : Book.get bk RUN = some ⟨RUN, T, App q (Ref "main") (Ref INPUT), false⟩)
     (hI : Book.get bk INPUT = some ⟨INPUT, A, x, false⟩) (hm : Book.get bk "main" = some dm)
-    (h : Call dm q x t) : Pars bk (Ref RUN) t := by
+    (h : Call dm q x W t) : Pars bk (Ref RUN) (inst W t) := by
   have hmain : Pars bk (Ref RUN) (App q (Ref "main") x) :=
     .step (.delta hR (hcl _ _ hR)) (.step (.app .ref (.delta hI (hcl _ _ hI))) .refl)
   cases h with
   | main => exact hmain
   | body hb =>
+    refine pars_trans hmain (.step (.app (.delta hm (hcl _ _ hm)) par_refl) ?_)
+    rw [hb]
+    exact .step (.beta par_refl par_refl) .refl
+  | inner hb =>
     refine pars_trans hmain (.step (.app (.delta hm (hcl _ _ hm)) par_refl) ?_)
     rw [hb]
     exact .step (.beta par_refl par_refl) .refl
@@ -143,7 +148,7 @@ theorem claim_input : Claim.input cli := by
   obtain ⟨bk', k, he, hc, hc', -, ⟨v, ev, vv, ov⟩, -⟩ := claim_cli.1 n bk (some bs) o h
   simp only [entry, Input.apply, hm, hT, Option.map_some, Option.some.injEq, Prod.mk.injEq] at he
   obtain ⟨rfl, rfl⟩ := he
-  refine ⟨_, v, by simp [entry, Input.apply, hm, hT], ev, vv, ov, fun ys t C b T hcall hi => ?_⟩
+  refine ⟨_, v, by simp [entry, Input.apply, hm, hT], ev, vv, ov, fun ys W t C b T hcall hi => ?_⟩
   obtain ⟨wt, lv⟩ := book_check _ hc'
   have hI' := check_get (j := bk.defs.length) (d := ⟨INPUT, A, Bytes.term bs, false⟩) hc'
     (by simp [Book.of])
@@ -158,8 +163,15 @@ theorem claim_input : Claim.input cli := by
   obtain ⟨i, hiL⟩ := index_of_get hL'
   have h1 := adequate _ p _ _ b T hc' cp
     (by simp only [Term.Live]; rw [live_top hp, called_ref hp hiL, lp]; rfl) tp crefl
-  have h2 := pars_hole (C := C) (evals_pars lv.1 ev)
-  have h0 := pars_hole (C := C) (run_call lv.1 hR' hI' (get_of hc' hm) hcall)
-  exact conv_trans (conv_trans ⟨_, .refl, h2⟩ ⟨_, h0, .refl⟩) h1
+  have h2 := evals_pars lv.1 ev
+  have h0 := run_call lv.1 hR' hI' (get_of hc' hm) hcall
+  exact ⟨conv_trans ⟨_, .refl, h0⟩ ⟨_, h2, .refl⟩, h1⟩
+
+-- when W is the hole, a law holds of the value v itself: C(v) and b convert,
+-- as claim 7 said before W
+theorem input_hole (hv : Conv bk (inst (Var 0) t) v) (hb : Conv bk (inst C t) b) :
+    Conv bk (inst C v) b := by
+  obtain ⟨c, h1, h2⟩ := hv
+  exact conv_trans ⟨_, pars_hole h2, pars_hole h1⟩ hb
 
 end Interp

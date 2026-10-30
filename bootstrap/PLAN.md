@@ -82,7 +82,9 @@ meaning.
      value that shows the result. A law can have more `for` binders after
      the input: it holds for each closed value of them. It can name `main`,
      or `f` when `main` is `λx. f(x)`: `bend -o` puts a path before the
-     names of an imported file, so a law there cannot name `main`.
+     names of an imported file, so a law there cannot name `main`. When
+     `main` is `λx. g(f(x))`, a law that names `f` holds about `f(x)`, and
+     the value that shows the result is `g` of it.
    - `Answer`: a value that `Eval` reaches shows the result. Each value
      that `Eval` reaches shows the same result.
    - `observe`: the plain data in a value. It is the kernel's `Data`: it
@@ -274,8 +276,8 @@ reviewed before the next starts:
    The laws of steps 1 to 5 give the contract's laws. `main.bend` becomes
    `λsrc. Wasm.encode(compile(src))`, and `src/compile/` goes. Status:
    `compile` and the proof of the contract are done (`src/compile_wasm/`).
-   `main.bend` and `src/compile/` wait: claim 7's `Call` takes only a
-   `main` of the form `λsrc. f(src)`.
+   Claim 7 now takes a `main` of the form `λsrc. g(f(src))`. `main.bend`
+   and `src/compile/` stay as they are for now.
 
 So the first compiler interprets the book; it is likely no faster than the
 Lean interpreter. Then, each optional and proven against the step below it:
