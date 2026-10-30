@@ -34,11 +34,13 @@ function allow(at: string | RegExp, cap = Infinity): void {
     .replace(/[.]/g, "\\.") + "$") : at, cap });
 }
 
+allow(/^\.agents\/skills\/[a-z0-9-]+\/SKILL\.md$/);
 allow(/^\.github\/ISSUE_TEMPLATE\/(bug|feature|config)\.yml$/);
 allow(".github/workflows/repo-gate.yml");
 allow(".gitattributes");
 allow(".gitignore");
 allow("AGENTS.md");
+allow("AGENTS-OLD.md");
 allow("CHANGELOG.md");
 allow("README.md", 4000);
 allow("WONTFIX.txt");
