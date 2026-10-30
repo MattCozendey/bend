@@ -7,8 +7,10 @@ import ./impl.bend as Source
 # The kernel's run-time relations, copied rule by rule from bend2/bendtt.lean
 # (Evaluation), and the laws of Step.lean that tie the meaning's step to them.
 # A person reviews the relations against the kernel; proof.bend proves the
-# laws. Each rule states its terms as equalities (et, eu, ex, eo). Walk drops
-# the kernel's book parameter, which no rule of Walk reads.
+# laws. Each rule states its terms as equalities (et, eu, ex, eo). A premise
+# (c = true → X) is X.when(c), so that a proof can go into it. Walk drops the
+# kernel's book parameter, which no rule of Walk reads. Values is a def over the
+# list, as Bend datatypes cannot name each other across an import.
 
 # Relations
 # =========
@@ -18,8 +20,16 @@ type Term.Data<-t: Source.Term> is Type:
   Term.Data.lab{k: List<&2, Nat>, et: {t == Source.Term.Lab{k} : Source.Term}}
   Term.Data.rfl{et: {t == Source.Term.Rfl{} : Source.Term}}
   Term.Data.tup{q: Source.Quan, a: Source.Term, b: Source.Term,
-    da: {Source.Quan.live(q) == True{} : Bool} -> Term.Data<a>, db: Term.Data<b>,
+    da: Term.Data.when(Source.Quan.live(q), a), db: Term.Data<b>,
     et: {t == Source.Term.Tup{q, a, b} : Source.Term}}
+
+# Data t when c holds, else nothing to show
+def Term.Data.when(c: Bool, t: Source.Term) -> Type:
+  match c:
+    case True{}:
+      Term.Data<t>
+    case False{}:
+      Unit
 
 # Walk: a def's case tree walked on a spine, with an environment e for the
 # variables its λs bind: some leaf (under e, on the rest of the spine) when it
@@ -29,7 +39,7 @@ type Term.Walk<-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<&2, Source.
   Term.Walk.lam{p: Source.Quan, q: Source.Quan, f: Source.Term, x: Source.Term,
     rest: List<&2, Source.Arg>,
     l: {Source.Quan.live(p) == Source.Quan.live(q) : Bool},
-    d: {p == Source.Q2{} : Source.Quan} -> Term.Data<x>,
+    d: Term.Data.when(Source.Quan.is_q2(p), x),
     w: Term.Walk<f, Con{x, e}, rest, o>,
     et: {t == Source.Term.Lam{p, f} : Source.Term},
     ex: {xs == Con{Source.Arg{q, x}, rest} : List<&2, Source.Arg>}}
@@ -83,20 +93,29 @@ type Term.Value<-bk: List<&2, Source.Def>, -t: Source.Term> is Type:
   Term.Value.eql{a: Source.Term, b: Source.Term, c: Source.Term,
     et: {t == Source.Term.Eql{a, b, c} : Source.Term}}
   Term.Value.tup{q: Source.Quan, a: Source.Term, b: Source.Term,
-    va: {Source.Quan.live(q) == True{} : Bool} -> Term.Value<bk, a>, vb: Term.Value<bk, b>,
+    va: Term.Value.when(Source.Quan.live(q), bk, a), vb: Term.Value<bk, b>,
     et: {t == Source.Term.Tup{q, a, b} : Source.Term}}
   Term.Value.call{k: List<&2, Nat>, d: Source.Def, xs: List<&2, Source.Arg>,
     g: {Source.Book.get(bk, k) == Some{d} : Maybe<&2, Source.Def>},
-    vs: Term.Values<bk, xs>,
+    vs: Term.Values(bk, xs),
     w: Term.Walk<Source.Def.body(d), [], xs, None{}>,
     et: {t == Source.Term.spine(xs, Source.Term.Ref{k}) : Source.Term}}
 
+# Value t when c holds, else nothing to show
+def Term.Value.when(c: Bool, bk: List<&2, Source.Def>, t: Source.Term) -> Type:
+  match c:
+    case True{}:
+      Term.Value<bk, t>
+    case False{}:
+      Unit
+
 # Values: every live argument is a value
-type Term.Values<-bk: List<&2, Source.Def>, -xs: List<&2, Source.Arg>> is Type:
-  Term.Values.nil{ex: {xs == Nil{} : List<&2, Source.Arg>}}
-  Term.Values.cons{q: Source.Quan, x: Source.Term, rest: List<&2, Source.Arg>,
-    v: {Source.Quan.live(q) == True{} : Bool} -> Term.Value<bk, x>, vs: Term.Values<bk, rest>,
-    ex: {xs == Con{Source.Arg{q, x}, rest} : List<&2, Source.Arg>}}
+def Term.Values(bk: List<&2, Source.Def>, xs: List<&2, Source.Arg>) -> Type:
+  match xs:
+    case Nil{}:
+      Unit
+    case Con{Source.Arg{q, x}, rest}:
+      Term.Value.when(Source.Quan.live(q), bk, x) & Term.Values(bk, rest)
 
 # Eval: call-by-value evaluation of the live part
 type Term.Eval<-bk: List<&2, Source.Def>, -t: Source.Term, -u: Source.Term> is Type:
@@ -112,8 +131,8 @@ type Term.Eval<-bk: List<&2, Source.Def>, -t: Source.Term, -u: Source.Term> is T
     eu: {u == Source.Term.App{q, f, y} : Source.Term}}
   Term.Eval.beta{q: Source.Quan, p: Source.Quan, f: Source.Term, x: Source.Term,
     l: {Source.Quan.live(p) == Source.Quan.live(q) : Bool},
-    v: {Source.Quan.live(q) == True{} : Bool} -> Term.Value<bk, x>,
-    d: {p == Source.Q2{} : Source.Quan} -> Term.Data<x>,
+    v: Term.Value.when(Source.Quan.live(q), bk, x),
+    d: Term.Data.when(Source.Quan.is_q2(p), x),
     et: {t == Source.Term.App{q, Source.Term.Lam{p, f}, x} : Source.Term},
     eu: {u == Source.Term.sub(f, 0n, Source.Sub.one{x}) : Source.Term}}
   Term.Eval.split{q: Source.Quan, r: Source.Quan, h: Source.Term, a: Source.Term, b: Source.Term,
@@ -131,7 +150,7 @@ type Term.Eval<-bk: List<&2, Source.Def>, -t: Source.Term, -u: Source.Term> is T
     eu: {u == Source.Term.App{q, m, Source.Term.Lab{j}} : Source.Term}}
   Term.Eval.call{k: List<&2, Nat>, d: Source.Def, xs: List<&2, Source.Arg>,
     g: {Source.Book.get(bk, k) == Some{d} : Maybe<&2, Source.Def>},
-    vs: Term.Values<bk, xs>,
+    vs: Term.Values(bk, xs),
     w: Term.Walk<Source.Def.body(d), [], xs, Some{u}>,
     et: {t == Source.Term.spine(xs, Source.Term.Ref{k}) : Source.Term}}
   Term.Eval.lett{q: Source.Quan, v: Source.Term, w: Source.Term, f: Source.Term,
@@ -139,8 +158,8 @@ type Term.Eval<-bk: List<&2, Source.Def>, -t: Source.Term, -u: Source.Term> is T
     et: {t == Source.Term.Let{q, v, f} : Source.Term},
     eu: {u == Source.Term.Let{q, w, f} : Source.Term}}
   Term.Eval.unlet{q: Source.Quan, v: Source.Term, f: Source.Term,
-    l: {Source.Quan.live(q) == True{} : Bool} -> Term.Value<bk, v>,
-    d: {q == Source.Q2{} : Source.Quan} -> Term.Data<v>,
+    l: Term.Value.when(Source.Quan.live(q), bk, v),
+    d: Term.Data.when(Source.Quan.is_q2(q), v),
     et: {t == Source.Term.Let{q, v, f} : Source.Term},
     eu: {u == Source.Term.sub(f, 0n, Source.Sub.one{v}) : Source.Term}}
   Term.Eval.tup_a{q: Source.Quan, a: Source.Term, c: Source.Term, b: Source.Term,
@@ -148,7 +167,7 @@ type Term.Eval<-bk: List<&2, Source.Def>, -t: Source.Term, -u: Source.Term> is T
     et: {t == Source.Term.Tup{q, a, b} : Source.Term},
     eu: {u == Source.Term.Tup{q, c, b} : Source.Term}}
   Term.Eval.tup_b{q: Source.Quan, a: Source.Term, b: Source.Term, c: Source.Term,
-    v: {Source.Quan.live(q) == True{} : Bool} -> Term.Value<bk, a>, s: Term.Eval<bk, b, c>,
+    v: Term.Value.when(Source.Quan.live(q), bk, a), s: Term.Eval<bk, b, c>,
     et: {t == Source.Term.Tup{q, a, b} : Source.Term},
     eu: {u == Source.Term.Tup{q, a, c} : Source.Term}}
   Term.Eval.rwt{e: Source.Term, c: Source.Term, p: Source.Term, f: Source.Term,
