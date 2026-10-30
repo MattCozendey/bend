@@ -91,9 +91,9 @@ def Enc.codes(cs: List<&2, Fun.C>, +len: Nat) -> List<&2, Fun.V>:
 # The image
 # =========
 #
-# The words that the run time stores from the address base on: the address
-# of the code of each function, the address of head and of tail, then the
-# nodes of these values, each child before its node.
+# The words that the run time stores from the address base on: the nodes of
+# the values, each child before its node, then the table: the address of the
+# code of each function, of head and of tail.
 
 # a word: the number n, or the address base plus off
 type W is Data:
@@ -160,10 +160,14 @@ def Imgs.vals(vs: List<&2, Fun.V>, ws: List<&2, W>, off: Nat) -> Imgs:
       +i = Img.val(v, Imgs.ws(f), Imgs.off(f))
       Imgs{Img.ws(i), Con{Img.r(i), Imgs.rs(f)}, Img.off(i)}
 
-# the image of the values vs: the word of each value from 0 on, then the
-# nodes
-def Img.of(+vs: List<&2, Fun.V>) -> Imgs:
-  Imgs.vals(vs, [], Nat.double(Nat.double(List.length(&2, Fun.V, vs))))
+# the image of the values vs: the nodes from 0 on, then the word of each
+# value
+def Img.of(vs: List<&2, Fun.V>) -> Imgs:
+  Imgs.vals(vs, [], 0n)
+
+# the bytes of the image
+def Imgs.size(+im: Imgs) -> Nat:
+  Nat.add(Nat.double(Nat.double(List.length(&2, W, Imgs.rs(im)))), Imgs.off(im))
 
 # Imp code
 # ========
@@ -422,19 +426,19 @@ def S.load(ws: List<&2, W>, +off: Nat) -> Imp.Stm:
       Imp.Stm.seq{Imp.Stm.store{U32.from_nat(off), E.l(2n), W.exp(w)}, S.load(rest, 4n+off)}
 
 # the stores of the words ws (the last first) below base + end
-def S.loadr(ws: List<&2, W>, +end: Nat) -> Imp.Stm:
-  match ws:
-    case Nil{}:
-      Imp.Stm.skip{}
-    case Con{w, rest}:
-      +e = Nat.sub(end, 4n)
+def S.loadr(ws: List<&2, W>, end: Nat) -> Imp.Stm:
+  match ws end:
+    case Con{w, rest} 4n++e:
       Imp.Stm.seq{Imp.Stm.store{U32.from_nat(e), E.l(2n), W.exp(w)}, S.loadr(rest, e)}
+    case _ _:
+      Imp.Stm.skip{}
 
-# the image im at hp, then env := [head, input, tail...] and c := the code
-# of entry. len: the number of functions.
+# the image im at hp, then base := its table, env := [head, input, tail...]
+# and c := the code of entry. len: the number of functions.
 def S.image(+im: Imgs, +len: Nat, entry: Nat) -> Imp.Stm:
-  +size = U32.from_nat(Imgs.off(im))
-  S.all([S.room(E.k(size), 0n), Imp.Stm.set{2n, E.l(0n)}, S.load(Imgs.rs(im), 0n), S.loadr(Imgs.ws(im), Imgs.off(im)),
+  +size = U32.from_nat(Imgs.size(im))
+  S.all([S.room(E.k(size), 0n), Imp.Stm.set{2n, E.l(0n)}, S.loadr(Imgs.ws(im), Imgs.off(im)), S.load(Imgs.rs(im), Imgs.off(im)),
+    Imp.Stm.set{2n, E.add(E.l(2n), E.n(Imgs.off(im)))},
     Imp.Stm.set{0n, E.add(E.l(0n), E.k(size))},
     S.room(E.k(24), 0n),
     Imp.Stm.set{12n, E.ld(U32.from_nat(Nat.double(Nat.double(1n+len))), E.l(2n))},
@@ -453,9 +457,9 @@ def Img.prog(+prog: List<&2, Fun.C>, head: Fun.V, tail: List<&2, Fun.V>) -> Imgs
 def W.fits(w: W) -> Bool:
   match w:
     case W.k{n}:
-      Nat.is_le(n, 4294967295n)
+      Wasm.Nat.at_most(n, 4294967295)
     case W.p{off}:
-      Nat.is_le(off, 4294967295n)
+      Wasm.Nat.at_most(off, 4294967295)
 
 def Ws.fits(ws: List<&2, W>) -> Bool:
   match ws:
@@ -467,7 +471,7 @@ def Ws.fits(ws: List<&2, W>) -> Bool:
 # whether each word of the image fits in an i32, and the image in the memory
 def fits(+prog: List<&2, Fun.C>, head: Fun.V, tail: List<&2, Fun.V>) -> Bool:
   +im = Img.prog(prog, head, tail)
-  Ws.fits(Imgs.rs(im)) && Ws.fits(Imgs.ws(im)) && Nat.is_le(Imgs.off(im), 4294967295n)
+  Ws.fits(Imgs.rs(im)) && Ws.fits(Imgs.ws(im)) && Wasm.Nat.at_most(Imgs.size(im), 4294967295)
 
 # the run time of the program prog from its function entry, with the
 # environment head, the input, then the values of tail
