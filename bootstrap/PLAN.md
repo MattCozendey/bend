@@ -272,7 +272,10 @@ reviewed before the next starts:
    Status: done (`src/runtime/`).
 6. The assembly: `compile(src)` is the WASM of the loader and the run time.
    The laws of steps 1 to 5 give the contract's laws. `main.bend` becomes
-   `λsrc. Wasm.encode(compile(src))`, and `src/compile/` goes.
+   `λsrc. Wasm.encode(compile(src))`, and `src/compile/` goes. Status:
+   `compile` and the proof of the contract are done (`src/compile_wasm/`).
+   `main.bend` and `src/compile/` wait: claim 7's `Call` takes only a
+   `main` of the form `λsrc. f(src)`.
 
 So the first compiler interprets the book; it is likely no faster than the
 Lean interpreter. Then, each optional and proven against the step below it:
