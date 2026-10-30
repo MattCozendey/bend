@@ -5810,3 +5810,88 @@ def Img.rd(v: Fun.V, +ws: List<&2, RT.W>, +off: Nat, +mem: Wasm.Mem, +H: Nat, +b
           Img.rd(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)), mem, H, base, size, Ws.at3(RT.Img.r(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), RT.Img.r(RT.Img.val(a, ws, off)), RT.W.k{t}, RT.Img.ws(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), mem, base, RT.Img.off(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), hat), Ws.fits3(RT.Img.r(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), RT.Img.r(RT.Img.val(a, ws, off)), RT.W.k{t}, RT.Img.ws(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), hf),
             Le.t(Nat.add(RT.Img.off(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), U32.to_nat(base)), Nat.add(12n+RT.Img.off(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), U32.to_nat(base)), H, Nat.le_add_r(RT.Img.off(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), 12n+RT.Img.off(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), U32.to_nat(base), Shared.Nat.is_le_add_left(RT.Img.off(RT.Img.val(b, RT.Img.ws(RT.Img.val(a, ws, off)), RT.Img.off(RT.Img.val(a, ws, off)))), 12n)), hH),
             hs, hb)))
+
+# The table
+# =========
+
+def Imgs.ext(vs: List<&2, Fun.V>, +ws: List<&2, RT.W>, +off: Nat, +mem: Wasm.Mem, +base: U32,
+  +h: {Ws.at(RT.Imgs.ws(RT.Imgs.vals(vs, ws, off)), mem, base, RT.Imgs.off(RT.Imgs.vals(vs, ws, off))) == True{} : Bool}) -> {Ws.at(ws, mem, base, off) == True{} : Bool}:
+  match vs:
+    case Nil{}:
+      h
+    case Con{+v, +rest}:
+      Imgs.ext(rest, ws, off, mem, base, Img.ext(v, RT.Imgs.ws(RT.Imgs.vals(rest, ws, off)), RT.Imgs.off(RT.Imgs.vals(rest, ws, off)), mem, base, h))
+
+def Imgs.fext(vs: List<&2, Fun.V>, +ws: List<&2, RT.W>, +off: Nat, +h: {RT.Ws.fits(RT.Imgs.ws(RT.Imgs.vals(vs, ws, off))) == True{} : Bool}) -> {RT.Ws.fits(ws) == True{} : Bool}:
+  match vs:
+    case Nil{}:
+      h
+    case Con{+v, +rest}:
+      Imgs.fext(rest, ws, off, Img.fext(v, RT.Imgs.ws(RT.Imgs.vals(rest, ws, off)), RT.Imgs.off(RT.Imgs.vals(rest, ws, off)), h))
+
+def Imgs.offle(vs: List<&2, Fun.V>, +ws: List<&2, RT.W>, +off: Nat) -> {Nat.is_le(off, RT.Imgs.off(RT.Imgs.vals(vs, ws, off))) == True{} : Bool}:
+  match vs:
+    case Nil{}:
+      Shared.Nat.is_le_refl(off)
+    case Con{+v, +rest}:
+      Le.t(off, RT.Imgs.off(RT.Imgs.vals(rest, ws, off)), RT.Img.off(RT.Img.val(v, RT.Imgs.ws(RT.Imgs.vals(rest, ws, off)), RT.Imgs.off(RT.Imgs.vals(rest, ws, off)))), Imgs.offle(rest, ws, off), Img.offle(v, RT.Imgs.ws(RT.Imgs.vals(rest, ws, off)), RT.Imgs.off(RT.Imgs.vals(rest, ws, off))))
+
+# the values vs, each read from its word at base + 4 i on
+def Vs.rd(vs: List<&2, Fun.V>, +i: Nat, +mem: Wasm.Mem, +H: Nat, +base: U32) -> Bool:
+  match vs:
+    case Nil{}:
+      True{}
+    case Con{v, rest}:
+      Bool.and(Nat.is_le(4n+Nat.add(U32.to_nat(base), Nat.double(Nat.double(i))), H),
+        Bool.and(Rd(v, mem, H, Wasm.Mem.load(U32.add(base, U32.from_nat(Nat.double(Nat.double(i)))), mem)), Vs.rd(rest, 1n+i, mem, H, base)))
+
+def Le.d(a: Nat, b: Nat, h: {Nat.is_le(a, b) == True{} : Bool}) -> {Nat.is_le(Nat.double(a), Nat.double(b)) == True{} : Bool}:
+  match a b:
+    case 0n _:
+      Shared.Nat.is_le_zero(Nat.double(b))
+    case 1n+p 0n:
+      Shared.Bool.absurd({Nat.is_le(Nat.double(1n+p), 0n) == True{} : Bool}, h)
+    case 1n+p 1n+q:
+      Le.d(p, q, h)
+
+def Le.dd(+a: Nat, +b: Nat, +h: {Nat.is_le(a, b) == True{} : Bool}) -> {Nat.is_le(Nat.double(Nat.double(a)), Nat.double(Nat.double(b))) == True{} : Bool}:
+  Le.d(Nat.double(a), Nat.double(b), Le.d(a, b, h))
+
+def Add.swap(+a: Nat, +b: Nat, +c: Nat) -> {Nat.add(Nat.add(a, b), c) == Nat.add(Nat.add(c, a), b) : Nat}:
+  Equal.trans(Nat, Nat.add(Nat.add(a, b), c), Nat.add(a, Nat.add(b, c)), Nat.add(Nat.add(c, a), b), MP.Nat.add_assoc(a, b, c),
+    Equal.trans(Nat, Nat.add(a, Nat.add(b, c)), Nat.add(a, Nat.add(c, b)), Nat.add(Nat.add(c, a), b),
+      Equal.cong(Nat, Nat, x => Nat.add(a, x), Nat.add(b, c), Nat.add(c, b), MP.Nat.add_comm(b, c)),
+      Equal.trans(Nat, Nat.add(a, Nat.add(c, b)), Nat.add(Nat.add(a, c), b), Nat.add(Nat.add(c, a), b),
+        Equal.sym(Nat, Nat.add(Nat.add(a, c), b), Nat.add(a, Nat.add(c, b)), MP.Nat.add_assoc(a, c, b)),
+        Equal.cong(Nat, Nat, x => Nat.add(x, b), Nat.add(a, c), Nat.add(c, a), MP.Nat.add_comm(a, c)))))
+
+def Q.tkf(+base: U32, +o0: Nat, +k: Nat, +size: U32, +hk: {U32.to_nat(U32.from_nat(k)) == k : Nat},
+  +hT: {U32.to_nat(U32.add(base, U32.from_nat(o0))) == Nat.add(o0, U32.to_nat(base)) : Nat}, +h: {Nat.is_le(Nat.add(Nat.add(k, o0), U32.to_nat(base)), U32.to_nat(size)) == True{} : Bool}) ->
+  WD.Fits(Nat.add(U32.to_nat(U32.add(base, U32.from_nat(o0))), U32.to_nat(U32.from_nat(k)))):
+  %Equal.sym(Nat, U32.to_nat(U32.add(base, U32.from_nat(o0))), Nat.add(o0, U32.to_nat(base)), hT) : WD.Fits(Nat.add(_, U32.to_nat(U32.from_nat(k))))
+  %Equal.sym(Nat, U32.to_nat(U32.from_nat(k)), k, hk) : WD.Fits(Nat.add(Nat.add(o0, U32.to_nat(base)), _))
+  %Equal.sym(Nat, Nat.add(Nat.add(o0, U32.to_nat(base)), k), Nat.add(Nat.add(k, o0), U32.to_nat(base)), Add.swap(o0, U32.to_nat(base), k)) : WD.Fits(_)
+  Fits.le(Nat.add(Nat.add(k, o0), U32.to_nat(base)), size, h)
+
+def Q.tk(+base: U32, +o0: Nat, +k: Nat, +size: U32, +hk: {U32.to_nat(U32.from_nat(k)) == k : Nat},
+  +hT: {U32.to_nat(U32.add(base, U32.from_nat(o0))) == Nat.add(o0, U32.to_nat(base)) : Nat}, +h: {Nat.is_le(Nat.add(Nat.add(k, o0), U32.to_nat(base)), U32.to_nat(size)) == True{} : Bool}) ->
+  {U32.to_nat(U32.add(U32.add(base, U32.from_nat(o0)), U32.from_nat(k))) == Nat.add(Nat.add(o0, U32.to_nat(base)), k) : Nat}:
+  %hT : {U32.to_nat(U32.add(U32.add(base, U32.from_nat(o0)), U32.from_nat(k))) == Nat.add(_, k) : Nat}
+  %hk : {U32.to_nat(U32.add(U32.add(base, U32.from_nat(o0)), U32.from_nat(k))) == Nat.add(U32.to_nat(U32.add(base, U32.from_nat(o0))), _) : Nat}
+  U.add_nat(U32.add(base, U32.from_nat(o0)), U32.from_nat(k), Q.tkf(base, o0, k, size, hk, hT, h))
+
+# the address of the word k of the table at base + o0
+def Q.assoc(+base: U32, +o0: Nat, +k: Nat, +size: U32, +h: {Nat.is_le(Nat.add(Nat.add(k, o0), U32.to_nat(base)), U32.to_nat(size)) == True{} : Bool}) ->
+  {U32.add(U32.add(base, U32.from_nat(o0)), U32.from_nat(k)) == U32.add(base, U32.from_nat(Nat.add(k, o0))) : U32}:
+  +hk = {Fits.le(k, size, Le.t(k, Nat.add(Nat.add(k, o0), U32.to_nat(base)), U32.to_nat(size),
+    Le.t(k, Nat.add(k, o0), Nat.add(Nat.add(k, o0), U32.to_nat(base)), Shared.Nat.is_le_add(k, o0), Shared.Nat.is_le_add(Nat.add(k, o0), U32.to_nat(base))), h)) :
+    {U32.to_nat(U32.from_nat(k)) == k : Nat}}
+  +ho = Le.t(Nat.add(o0, U32.to_nat(base)), Nat.add(Nat.add(k, o0), U32.to_nat(base)), U32.to_nat(size),
+    Nat.le_add_r(o0, Nat.add(k, o0), U32.to_nat(base), Shared.Nat.is_le_add_left(o0, k)), h)
+  +hT = {Q.nat(base, o0, size, ho) : {U32.to_nat(U32.add(base, U32.from_nat(o0))) == Nat.add(o0, U32.to_nat(base)) : Nat}}
+  U.eq_nat(U32.add(U32.add(base, U32.from_nat(o0)), U32.from_nat(k)), U32.add(base, U32.from_nat(Nat.add(k, o0))),
+    Equal.trans(Nat, U32.to_nat(U32.add(U32.add(base, U32.from_nat(o0)), U32.from_nat(k))), Nat.add(Nat.add(o0, U32.to_nat(base)), k), U32.to_nat(U32.add(base, U32.from_nat(Nat.add(k, o0)))),
+      Q.tk(base, o0, k, size, hk, hT, h),
+      Equal.trans(Nat, Nat.add(Nat.add(o0, U32.to_nat(base)), k), Nat.add(Nat.add(k, o0), U32.to_nat(base)), U32.to_nat(U32.add(base, U32.from_nat(Nat.add(k, o0)))),
+        Add.swap(o0, U32.to_nat(base), k),
+        Equal.sym(Nat, U32.to_nat(U32.add(base, U32.from_nat(Nat.add(k, o0)))), Nat.add(Nat.add(k, o0), U32.to_nat(base)), Q.nat(base, Nat.add(k, o0), size, h)))))
