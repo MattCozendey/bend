@@ -1013,3 +1013,337 @@ def Term.walk_complete.go(-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<
 def Spec.Term.walk_complete(t, e, xs, o, w):
   Term.walk_complete.go(t, e, xs, o, w, t, {==})
 
+
+# Spines
+# ======
+
+def List.append_nil(ys: List<&2, Source.Arg>) -> {List.append(&2, Source.Arg, ys, []) == ys : List<&2, Source.Arg>}:
+  match ys:
+    case Nil{}:
+      {==}
+    case Con{a, rest}:
+      Equal.cong(List<&2, Source.Arg>, List<&2, Source.Arg>, z => Con{a, z}, List.append(&2, Source.Arg, rest, []),
+        rest, List.append_nil(rest))
+
+# a spine with one more argument at its end is an application
+def Term.spine_snoc(ys: List<&2, Source.Arg>, -h: Source.Term, -q: Source.Quan, -x: Source.Term) ->
+  {Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), h) ==
+    Source.Term.App{q, Source.Term.spine(ys, h), x} : Source.Term}:
+  match ys:
+    case Nil{}:
+      {==}
+    case Con{Source.Arg{qa, xa}, rest}:
+      Term.spine_snoc(rest, Source.Term.App{qa, h, xa}, q, x)
+
+def Term.unspine_spine(ys: List<&2, Source.Arg>, -h: Source.Term, -zs: List<&2, Source.Arg>) ->
+  {Source.Term.unspine(Source.Term.spine(ys, h), zs) ==
+    Source.Term.unspine(h, List.append(&2, Source.Arg, ys, zs)) : Source.Spine}:
+  match ys:
+    case Nil{}:
+      {==}
+    case Con{Source.Arg{qa, xa}, rest}:
+      Term.unspine_spine(rest, Source.Term.App{qa, h, xa}, zs)
+
+# Values
+# ======
+
+def Term.Values.join(-bk: List<&2, Source.Def>, ys: List<&2, Source.Arg>, -zs: List<&2, Source.Arg>,
+  vy: Spec.Term.Values(bk, ys), vz: Spec.Term.Values(bk, zs)) ->
+  Spec.Term.Values(bk, List.append(&2, Source.Arg, ys, zs)):
+  match ys:
+    case Nil{}:
+      vz
+    case Con{Source.Arg{q, x}, rest}:
+      match vy:
+        case (vx, vr):
+          (vx, Term.Values.join(bk, rest, zs, vr, vz))
+
+# t is a spine on a def, and each live argument is a value (isArgs_iff)
+type Term.Args<-bk: List<&2, Source.Def>, -t: Source.Term> is Type:
+  Term.Args.of{k: List<&2, Nat>, ys: List<&2, Source.Arg>,
+    et: {t == Source.Term.spine(ys, Source.Term.Ref{k}) : Source.Term}, vs: Spec.Term.Values(bk, ys)}
+
+def Term.is_value.res(args: Bool, bk: List<&2, Source.Def>, t: Source.Term) -> Type:
+  match args:
+    case True{}:
+      Term.Args<bk, t>
+    case False{}:
+      Spec.Term.Value<bk, t>
+
+# the def and the walk of a call that stops
+type Term.Stop<-bk: List<&2, Source.Def>, -k: List<&2, Nat>, -xs: List<&2, Source.Arg>> is Type:
+  Term.Stop.of{d: Source.Def, g: {Source.Book.get(bk, k) == Some{d} : Maybe<&2, Source.Def>},
+    w: Spec.Term.Walk<Source.Def.body(d), [], xs, None{}>}
+
+def Walk.is_need_true(w: Source.Walk, h: {Source.Walk.is_need(w) == True{} : Bool}) ->
+  {w == Spec.Walk.of(None{}) : Source.Walk}:
+  match w:
+    case Source.Walk.need{}:
+      {==}
+    case Source.Walk.done{t}:
+      Bool.absurd({Source.Walk.done{t} == Source.Walk.need{} : Source.Walk}, h)
+    case Source.Walk.fail{}:
+      Bool.absurd({Source.Walk.fail{} == Source.Walk.need{} : Source.Walk}, h)
+
+def Term.got_need(-bk: List<&2, Source.Def>, -k: List<&2, Nat>, m: Maybe<&2, Source.Def>,
+  +xs: List<&2, Source.Arg>, hm: {Source.Book.get(bk, k) == m : Maybe<&2, Source.Def>},
+  h: {Source.Walk.is_need(Source.Term.walk_call.got(m, xs)) == True{} : Bool}) -> Term.Stop<bk, k, xs>:
+  match m:
+    case None{}:
+      Bool.absurd(Term.Stop<bk, k, xs>, h)
+    case Some{Source.Def{dk, dt, +dv, dop}}:
+      Term.Stop.of{Source.Def{dk, dt, dv, dop}, hm,
+        Spec.Term.walk_sound(dv, [], xs, None{}, Walk.is_need_true(Source.Term.walk(dv, [], xs), h))}
+
+# a call that stops has a def, and its walk needs more arguments
+def Term.stops_call(+bk: List<&2, Source.Def>, +k: List<&2, Nat>, +xs: List<&2, Source.Arg>,
+  h: {Source.Term.stops(bk, Source.Term.spine(xs, Source.Term.Ref{k})) == True{} : Bool}) -> Term.Stop<bk, k, xs>:
+  Term.got_need(bk, k, Source.Book.get(bk, k), xs, {==},
+    Equal.trans(Bool, Source.Walk.is_need(Source.Term.walk_call.got(Source.Book.get(bk, k), xs)),
+      Source.Term.stops(bk, Source.Term.spine(xs, Source.Term.Ref{k})), True{},
+      Equal.sym(Bool, Source.Term.stops(bk, Source.Term.spine(xs, Source.Term.Ref{k})),
+        Source.Walk.is_need(Source.Term.walk_call.got(Source.Book.get(bk, k), xs)),
+        Equal.trans(Bool, Source.Term.stops(bk, Source.Term.spine(xs, Source.Term.Ref{k})),
+          Source.Walk.is_need(Source.Term.walk_call.got(Source.Book.get(bk, k),
+            List.append(&2, Source.Arg, xs, []))),
+          Source.Walk.is_need(Source.Term.walk_call.got(Source.Book.get(bk, k), xs)),
+          Equal.cong(Source.Spine, Bool, z => Source.Walk.is_need(Source.Term.walk_call.of(bk, z)),
+            Source.Term.unspine(Source.Term.spine(xs, Source.Term.Ref{k}), []),
+            Source.Term.unspine(Source.Term.Ref{k}, List.append(&2, Source.Arg, xs, [])),
+            Term.unspine_spine(xs, Source.Term.Ref{k}, [])),
+          Equal.cong(List<&2, Source.Arg>, Bool,
+            z => Source.Walk.is_need(Source.Term.walk_call.got(Source.Book.get(bk, k), z)),
+            List.append(&2, Source.Arg, xs, []), xs, List.append_nil(xs)))),
+      h))
+
+def Term.value_of_stop(-bk: List<&2, Source.Def>, k: List<&2, Nat>, xs: List<&2, Source.Arg>,
+  s: Term.Stop<bk, k, xs>, vs: Spec.Term.Values(bk, xs)) ->
+  Spec.Term.Value<bk, Source.Term.spine(xs, Source.Term.Ref{k})>:
+  match s:
+    case Term.Stop.of{d, g, w}:
+      Spec.Term.Value.call{k, d, xs, g, vs, w, {==}}
+
+# App q f x is the spine of f with x at its end
+def Term.app_spine(-q: Source.Quan, -f: Source.Term, -x: Source.Term, -k: List<&2, Nat>, ys: List<&2, Source.Arg>,
+  et: {f == Source.Term.spine(ys, Source.Term.Ref{k}) : Source.Term}) ->
+  {Source.Term.App{q, f, x} == Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}) : Source.Term}:
+  Equal.trans(Source.Term, Source.Term.App{q, f, x},
+    Source.Term.App{q, Source.Term.spine(ys, Source.Term.Ref{k}), x},
+    Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}),
+    Equal.cong(Source.Term, Source.Term, z => Source.Term.App{q, z, x}, f,
+      Source.Term.spine(ys, Source.Term.Ref{k}), et),
+    Equal.sym(Source.Term, Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}),
+      Source.Term.App{q, Source.Term.spine(ys, Source.Term.Ref{k}), x},
+      Term.spine_snoc(ys, Source.Term.Ref{k}, q, x)))
+
+def Term.args_app(-bk: List<&2, Source.Def>, +q: Source.Quan, -f: Source.Term, +x: Source.Term,
+  ra: Term.Args<bk, f>, vx: Spec.Term.Value.when(Source.Quan.live(q), bk, x)) ->
+  Term.Args<bk, Source.Term.App{q, f, x}>:
+  match ra:
+    case Term.Args.of{k, +ys, et, vs}:
+      Term.Args.of{k, List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Term.app_spine(q, f, x, k, ys, et),
+        Term.Values.join(bk, ys, Con{Source.Arg{q, x}, Nil{}}, vs, (vx, Unit{}))}
+
+def Term.value_app(+bk: List<&2, Source.Def>, +q: Source.Quan, -f: Source.Term, +x: Source.Term,
+  ra: Term.Args<bk, f>, vx: Spec.Term.Value.when(Source.Quan.live(q), bk, x),
+  hs: {Source.Term.stops(bk, Source.Term.App{q, f, x}) == True{} : Bool}) ->
+  Spec.Term.Value<bk, Source.Term.App{q, f, x}>:
+  match ra:
+    case Term.Args.of{+k, +ys, et, vs}:
+      +e = Term.app_spine(q, f, x, k, ys, et)
+      %Equal.sym(Source.Term, Source.Term.App{q, f, x}, Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}), e) :
+        Spec.Term.Value<bk, _>
+      Term.value_of_stop(bk, k, List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}),
+        Term.stops_call(bk, k, List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}),
+          Equal.trans(Bool, Source.Term.stops(bk, Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k})),
+            Source.Term.stops(bk, Source.Term.App{q, f, x}), True{},
+            Equal.cong(Source.Term, Bool, z => Source.Term.stops(bk, z),
+              Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}), Source.Term.App{q, f, x},
+              Equal.sym(Source.Term, Source.Term.App{q, f, x}, Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}), e)),
+            hs)),
+        Term.Values.join(bk, ys, Con{Source.Arg{q, x}, Nil{}}, vs, (vx, Unit{})))
+
+# isValue_iff and isArgs_iff, sound side, in one def as is_value is one def
+def Term.is_value_sound.go(t: Source.Term, args: Bool, +bk: List<&2, Source.Def>,
+  h: {Source.Term.is_value(t, args, bk) == True{} : Bool}) -> Term.is_value.res(args, bk, t):
+  match t:
+    case Source.Term.Var{+z0}:
+      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Var{z0}), h)
+    case Source.Term.Ref{+z0}:
+      match args:
+        case True{}:
+          Term.Args.of{z0, [], {==}, Unit{}}
+        case False{}:
+          Term.value_of_stop(bk, z0, [], Term.stops_call(bk, z0, [], h), Unit{})
+    case Source.Term.Ann{+z0, +z1}:
+      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Ann{z0, z1}), h)
+    case Source.Term.Let{+z0, +z1, +z2}:
+      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Let{z0, z1, z2}), h)
+    case Source.Term.Typ{+z0}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Typ{z0}>, h)
+        case False{}:
+          Spec.Term.Value.typ{z0, {==}}
+    case Source.Term.Min{+z0, +z1}:
+      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Min{z0, z1}), h)
+    case Source.Term.All{+z0, +z1, +z2}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.All{z0, z1, z2}>, h)
+        case False{}:
+          Spec.Term.Value.all{z0, z1, z2, {==}}
+    case Source.Term.Lam{+z0, +z1}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Lam{z0, z1}>, h)
+        case False{}:
+          Spec.Term.Value.lam{z0, z1, {==}}
+    case Source.Term.App{+z0, +z1, +z2}:
+      match z0:
+        case Source.Q0{}:
+          match args:
+            case True{}:
+              Term.args_app(bk, Source.Q0{}, z1, z2,
+                Term.is_value_sound.go(z1, True{}, bk,
+                  Bool.and_left(Source.Term.is_value(z1, True{}, bk), True{}, h)), Unit{})
+            case False{}:
+              +g = h
+              Term.value_app(bk, Source.Q0{}, z1, z2,
+                Term.is_value_sound.go(z1, True{}, bk,
+                  Bool.and_left(Source.Term.is_value(z1, True{}, bk), True{},
+                    Bool.and_left(Bool.and(Source.Term.is_value(z1, True{}, bk), True{}),
+                      Source.Term.stops(bk, Source.Term.App{Source.Q0{}, z1, z2}), g))),
+                Unit{},
+                Bool.and_right(Bool.and(Source.Term.is_value(z1, True{}, bk), True{}),
+                  Source.Term.stops(bk, Source.Term.App{Source.Q0{}, z1, z2}), g))
+        case Source.Q1{}:
+          match args:
+            case True{}:
+              +g = h
+              Term.args_app(bk, Source.Q1{}, z1, z2,
+                Term.is_value_sound.go(z1, True{}, bk,
+                  Bool.and_left(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk), g)),
+                Term.is_value_sound.go(z2, False{}, bk,
+                  Bool.and_right(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk), g)))
+            case False{}:
+              +g = h
+              Term.value_app(bk, Source.Q1{}, z1, z2,
+                Term.is_value_sound.go(z1, True{}, bk,
+                  Bool.and_left(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk),
+                    Bool.and_left(Bool.and(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk)),
+                      Source.Term.stops(bk, Source.Term.App{Source.Q1{}, z1, z2}), g))),
+                Term.is_value_sound.go(z2, False{}, bk,
+                  Bool.and_right(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk),
+                    Bool.and_left(Bool.and(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk)),
+                      Source.Term.stops(bk, Source.Term.App{Source.Q1{}, z1, z2}), g))),
+                Bool.and_right(Bool.and(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk)),
+                  Source.Term.stops(bk, Source.Term.App{Source.Q1{}, z1, z2}), g))
+        case Source.Q2{}:
+          match args:
+            case True{}:
+              +g = h
+              Term.args_app(bk, Source.Q2{}, z1, z2,
+                Term.is_value_sound.go(z1, True{}, bk,
+                  Bool.and_left(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk), g)),
+                Term.is_value_sound.go(z2, False{}, bk,
+                  Bool.and_right(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk), g)))
+            case False{}:
+              +g = h
+              Term.value_app(bk, Source.Q2{}, z1, z2,
+                Term.is_value_sound.go(z1, True{}, bk,
+                  Bool.and_left(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk),
+                    Bool.and_left(Bool.and(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk)),
+                      Source.Term.stops(bk, Source.Term.App{Source.Q2{}, z1, z2}), g))),
+                Term.is_value_sound.go(z2, False{}, bk,
+                  Bool.and_right(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk),
+                    Bool.and_left(Bool.and(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk)),
+                      Source.Term.stops(bk, Source.Term.App{Source.Q2{}, z1, z2}), g))),
+                Bool.and_right(Bool.and(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk)),
+                  Source.Term.stops(bk, Source.Term.App{Source.Q2{}, z1, z2}), g))
+    case Source.Term.Sig{+z0, +z1, +z2}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Sig{z0, z1, z2}>, h)
+        case False{}:
+          Spec.Term.Value.sig{z0, z1, z2, {==}}
+    case Source.Term.Tup{+z0, +z1, +z2}:
+      match z0:
+        case Source.Q0{}:
+          match args:
+            case True{}:
+              Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q0{}, z1, z2}>, h)
+            case False{}:
+              Spec.Term.Value.tup{Source.Q0{}, z1, z2, Unit{}, Term.is_value_sound.go(z2, False{}, bk, h), {==}}
+        case Source.Q1{}:
+          match args:
+            case True{}:
+              Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q1{}, z1, z2}>, h)
+            case False{}:
+              +g = h
+              Spec.Term.Value.tup{Source.Q1{}, z1, z2,
+                Term.is_value_sound.go(z1, False{}, bk,
+                  Bool.and_left(Source.Term.is_value(z1, False{}, bk), Source.Term.is_value(z2, False{}, bk), g)),
+                Term.is_value_sound.go(z2, False{}, bk,
+                  Bool.and_right(Source.Term.is_value(z1, False{}, bk), Source.Term.is_value(z2, False{}, bk), g)),
+                {==}}
+        case Source.Q2{}:
+          match args:
+            case True{}:
+              Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q2{}, z1, z2}>, h)
+            case False{}:
+              +g = h
+              Spec.Term.Value.tup{Source.Q2{}, z1, z2,
+                Term.is_value_sound.go(z1, False{}, bk,
+                  Bool.and_left(Source.Term.is_value(z1, False{}, bk), Source.Term.is_value(z2, False{}, bk), g)),
+                Term.is_value_sound.go(z2, False{}, bk,
+                  Bool.and_right(Source.Term.is_value(z1, False{}, bk), Source.Term.is_value(z2, False{}, bk), g)),
+                {==}}
+    case Source.Term.Prj{+z0}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Prj{z0}>, h)
+        case False{}:
+          Spec.Term.Value.prj{z0, {==}}
+    case Source.Term.Enu{+z0}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Enu{z0}>, h)
+        case False{}:
+          Spec.Term.Value.enu{z0, {==}}
+    case Source.Term.Lab{+z0}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Lab{z0}>, h)
+        case False{}:
+          Spec.Term.Value.lab{z0, {==}}
+    case Source.Term.Mat{+z0, +z1, +z2}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Mat{z0, z1, z2}>, h)
+        case False{}:
+          Spec.Term.Value.mat{z0, z1, z2, {==}}
+    case Source.Term.Efq{}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Efq{}>, h)
+        case False{}:
+          Spec.Term.Value.efq{{==}}
+    case Source.Term.Eql{+z0, +z1, +z2}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Eql{z0, z1, z2}>, h)
+        case False{}:
+          Spec.Term.Value.eql{z0, z1, z2, {==}}
+    case Source.Term.Rfl{}:
+      match args:
+        case True{}:
+          Bool.absurd(Term.Args<bk, Source.Term.Rfl{}>, h)
+        case False{}:
+          Spec.Term.Value.rfl{{==}}
+    case Source.Term.Rwt{+z0, +z1, +z2}:
+      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Rwt{z0, z1, z2}), h)
+
+def Spec.Term.is_value_sound(bk, t, h):
+  Term.is_value_sound.go(t, False{}, bk, h)
+
