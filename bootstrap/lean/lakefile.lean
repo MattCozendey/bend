@@ -108,6 +108,7 @@ inductive Pin.Part where
 --   laws tie that meaning to.
 -- - ../bend/runner.bend and ../bend/src/runner/impl.bend: the runner in Bend,
 --   which runs a program by that meaning.
+-- - ../bend/src/runner/spec.bend: the laws of the runner.
 -- - ../../bend2/bendtt.lean: the parts of the kernel that impl.bend and
 --   spec.bend copy: Types up to Ctx (the terms, substitution and the book),
 --   the Parser, and Evaluation (the run-time relations). When one changes,
@@ -126,8 +127,9 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../bend/src/compile/spec.bend", .all, 16295624150471894959),
   ("../bend/src/source/impl.bend", .all, 16563396131937143125),
   ("../bend/src/source/spec.bend", .all, 5629837982964475826),
-  ("../bend/runner.bend", .all, 1850732974300312482),
-  ("../bend/src/runner/impl.bend", .all, 12737539636974758867),
+  ("../bend/runner.bend", .all, 5273200584563642721),
+  ("../bend/src/runner/impl.bend", .all, 10091874320944690480),
+  ("../bend/src/runner/spec.bend", .all, 12877080248927091342),
   ("../../bend2/bendtt.lean", .span "-- Types" "-- Ctx", 14875125228840285785),
   ("../../bend2/bendtt.lean", .span "-- Parser" "-- Evaluator", 15025253426444512988),
   ("../../bend2/bendtt.lean", .span "-- Evaluation" "-- Claims", 4021871860510412546),
@@ -172,10 +174,7 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../../bend2/base.bend", .block "def Nat.divmod.go(", 6487796413967987314),
   ("../../bend2/base.bend", .block "def Nat.divmod(", 12078178798127432727),
   ("../../bend2/base.bend", .block "def Nat.div(", 84019639989369007),
-  ("../../bend2/base.bend", .block "def Nat.mod(", 1601870151355992951),
-  ("../../bend2/base.bend", .block "def List.length(", 18432464484018013776),
-  ("../../bend2/base.bend", .block "def List.take(", 8769491522669272524),
-  ("../../bend2/base.bend", .block "def List.drop(", 17352358031024133288)]
+  ("../../bend2/base.bend", .block "def Nat.mod(", 1601870151355992951)]
 
 -- the index of the first line, from i on, that p holds for
 def Pin.find (ls : Array String) (i : Nat) (p : String → Bool) : Option Nat :=

@@ -6,10 +6,10 @@ import ../source/impl.bend as Source
 #
 # A runner of pure kernel programs, written in Bend. It gives the result that
 # Source.run gives, as the CLI (Main.lean) writes it. The interpreter runs it on
-# one list of bytes, a job:
+# the bytes of a job, as Job.write writes them:
 # - the fuel n: 4 bytes, the high byte first;
-# - the length k of the program text: 4 bytes, the high byte first;
-# - the program text (.bendtt): k bytes;
+# - the program text (.bendtt), with each 0 written as 0 1;
+# - 0 0: the end of the text;
 # - the input of its main: the rest of the bytes.
 # A job runs as Source.run(n, text, Some{input}), unless a def of the text is
 # opaque: Eval runs the model of an opaque def, which is no real result. Eval
@@ -25,30 +25,87 @@ import ../source/impl.bend as Source
 # Jobs
 # ====
 
+# the 4 bytes of a fuel, the high byte first
+type Fuel is Data:
+  Fuel{b3: Nat, b2: Nat, b1: Nat, b0: Nat}
+
 type Job is Data:
-  Job{fuel: Nat, src: List<&2, Nat>, input: List<&2, Nat>}
+  Job{fuel: Fuel, src: List<&2, Nat>, input: List<&2, Nat>}
 
-# the number that the bytes bs show after acc, the high byte first
-def Job.number(bs: List<&2, Nat>, acc: Nat) -> Nat:
-  match bs:
+# a program text, and the bytes after its end
+type Split is Data:
+  Split{src: List<&2, Nat>, rest: List<&2, Nat>}
+
+# the fuel that f shows
+def Fuel.number(f: Fuel) -> Nat:
+  match f:
+    case Fuel{b3, b2, b1, b0}:
+      Nat.add(Nat.mul(Nat.add(Nat.mul(Nat.add(Nat.mul(b3, 256n), b2), 256n), b1), 256n), b0)
+
+# the bytes of the text src, each 0 as 0 1, then 0 0, then rest
+def Text.write(src: List<&2, Nat>, rest: List<&2, Nat>) -> List<&2, Nat>:
+  match src:
     case Nil{}:
-      acc
-    case Con{b, rest}:
-      Job.number(rest, Nat.add(Nat.mul(acc, 256n), b))
+      Con{0n, Con{0n, rest}}
+    case Con{0n, t}:
+      Con{0n, Con{1n, Text.write(t, rest)}}
+    case Con{1n+p, t}:
+      Con{1n+p, Text.write(t, rest)}
 
-# the job of the fuel n, the text length k and the bytes after them; none when
-# they hold fewer than k bytes
-def Job.of(+n: Nat, +k: Nat, +rest: List<&2, Nat>) -> Maybe<&2, Job>:
-  Source.Maybe.when(Job, Nat.is_le(k, List.length(&2, Nat, rest)),
-    u => Some{Job{n, List.take(&2, Nat, rest, k), List.drop(&2, Nat, rest, k)}})
+# the bytes of the job j (see the header)
+def Job.write(j: Job) -> List<&2, Nat>:
+  match j:
+    case Job{Fuel{b3, b2, b1, b0}, src, input}:
+      Con{b3, Con{b2, Con{b1, Con{b0, Text.write(src, input)}}}}
 
-# the job that the bytes bs hold, or none
-def Job.read(bs: List<&2, Nat>) -> Maybe<&2, Job>:
+# b before the text of m
+def Text.read.con(+b: Nat, m: Maybe<&2, Split>) -> Maybe<&2, Split>:
+  match m:
+    case Some{Split{s, r}}:
+      Some{Split{Con{b, s}, r}}
+    case None{}:
+      None{}
+
+# the text at the start of bs, and the bytes after its end; none when it has no
+# end. Job.read checks the result, so this reads 0 and any byte but 0 as 0.
+def Text.read(bs: List<&2, Nat>) -> Maybe<&2, Split>:
   match bs:
-    case Con{n0, Con{n1, Con{n2, Con{n3, Con{k0, Con{k1, Con{k2, Con{k3, rest}}}}}}}}:
-      Job.of(Job.number([n0, n1, n2, n3], 0n), Job.number([k0, k1, k2, k3], 0n), rest)
+    case Con{0n, Con{0n, rest}}:
+      Some{Split{[], rest}}
+    case Con{0n, Con{1n+p, rest}}:
+      Text.read.con(0n, Text.read(rest))
+    case Con{1n+p, rest}:
+      Text.read.con(1n+p, Text.read(rest))
     case _:
       None{}
+
+# the job of the fuel f and the text m
+def Job.parse.of(f: Fuel, m: Maybe<&2, Split>) -> Maybe<&2, Job>:
+  match m:
+    case Some{Split{s, r}}:
+      Some{Job{f, s, r}}
+    case None{}:
+      None{}
+
+# the job that the bytes bs hold, read with no check
+def Job.parse(bs: List<&2, Nat>) -> Maybe<&2, Job>:
+  match bs:
+    case Con{b3, Con{b2, Con{b1, Con{b0, rest}}}}:
+      Job.parse.of(Fuel{b3, b2, b1, b0}, Text.read(rest))
+    case _:
+      None{}
+
+# m, when it writes the bytes bs
+def Job.read.check(m: Maybe<&2, Job>, +bs: List<&2, Nat>) -> Maybe<&2, Job>:
+  match m:
+    case Some{+j}:
+      Source.Maybe.when(Job, Source.Name.is_eq(Job.write(j), bs), u => Some{j})
+    case None{}:
+      None{}
+
+# the job that the bytes bs hold, or none
+def Job.read(+bs: List<&2, Nat>) -> Maybe<&2, Job>:
+  Job.read.check(Job.parse(bs), bs)
 
 # no def of the book bk is opaque
 def Book.is_transparent(bk: List<&2, Source.Def>) -> Bool:
@@ -72,7 +129,8 @@ def Job.parsed(+n: Nat, m: Maybe<&2, List<&2, Source.Def>>, input: List<&2, Nat>
 # the result of the job j, or none
 def Job.run(j: Maybe<&2, Job>) -> Maybe<&2, Source.Obs>:
   match j:
-    case Some{Job{+n, src, input}}:
+    case Some{Job{f, src, input}}:
+      +n = Fuel.number(f)
       Job.parsed(n, Source.Book.parse(n, src), input)
     case None{}:
       None{}
@@ -117,16 +175,29 @@ def Obs.to_bytes.con(h: Maybe<&2, Nat>, t: Maybe<&2, List<&2, Nat>>) ->
       None{}
 
 # Bytes.ofObs: the bytes that o shows, when o is a List of Nat below 256
-def Obs.to_bytes(o: Source.Obs) -> Maybe<&2, List<&2, Nat>>:
+def Obs.to_bytes.go(o: Source.Obs) -> Maybe<&2, List<&2, Nat>>:
   match o:
     case Source.Obs.tup{t, Source.Obs.tup{h, Source.Obs.tup{r, u}}}:
       Source.Maybe.when(List<&2, Nat>, Obs.is_lab(t, "Con") && Obs.is_lab(u, "()"),
-        w => Obs.to_bytes.con(Obs.to_nat(h), Obs.to_bytes(r)))
+        w => Obs.to_bytes.con(Obs.to_nat(h), Obs.to_bytes.go(r)))
     case Source.Obs.tup{t, u}:
       Source.Maybe.when(List<&2, Nat>, Obs.is_lab(t, "Nil") && Obs.is_lab(u, "()"),
         w => Some{[]})
     case _:
       None{}
+
+# m, when its bytes show o: as an input, they show o back
+def Obs.to_bytes.check(m: Maybe<&2, List<&2, Nat>>, +o: Source.Obs) -> Maybe<&2, List<&2, Nat>>:
+  match m:
+    case Some{+bs}:
+      Source.Maybe.when(List<&2, Nat>,
+        Source.Obs.is_kept(Some{o}, Source.Term.observe(Source.Bytes.term(bs))), u => Some{bs})
+    case None{}:
+      None{}
+
+# the bytes that o shows, when it shows bytes
+def Obs.to_bytes(+o: Source.Obs) -> Maybe<&2, List<&2, Nat>>:
+  Obs.to_bytes.check(Obs.to_bytes.go(o), o)
 
 # the decimal digits of n, as bytes, before acc; f bounds their count
 def digits(f: Nat, +n: Nat, +acc: List<&2, Nat>) -> List<&2, Nat>:
@@ -182,5 +253,5 @@ def Obs.output(r: Maybe<&2, Source.Obs>) -> List<&2, Nat>:
 # ===
 
 # the output of the job that the bytes bs hold
-def run(bs: List<&2, Nat>) -> List<&2, Nat>:
+def run(+bs: List<&2, Nat>) -> List<&2, Nat>:
   Obs.output(Job.run(Job.read(bs)))
