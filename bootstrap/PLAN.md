@@ -164,9 +164,9 @@ Decisions:
    `Exists` datatype, not a binder, so claim 7 does not carry it. A law says
    "some fuel" with a fuel function that the compiler gives: a proof of
    `exs` computes that fuel anyway.
-5. The contract is a module's `spec.bend`, with laws only, pinned as
-   `Contract/Spec.lean` is. `main` is `λsrc. compile(src)`, so the laws
-   name `compile` (claim 7).
+5. The contract is a module's `spec.bend`: its laws, and the defs that
+   only they use. It is pinned as `Contract/Spec.lean` is. `main` is
+   `λsrc. compile(src)`, so the laws name `compile` (claim 7).
 
 Parts, in `bootstrap/bend/`:
 1. `main.bend`: `main` is `λsrc. compile(src)`.
@@ -234,17 +234,13 @@ Decisions:
    engines): they are pinned, as are the Base defs that the meaning reaches.
 
 Status: the meaning, the encoder and the glue are done, and tested (see
-Tests). Next, in order, each reviewed before the next starts:
-1. The contract, in `src/compile_wasm/spec.bend`. Status: written, in
-   review, not pinned. For each source, the module gives each result that
-   the source gives, or runs out of memory, and gives no other result. A
-   result that is a list of bytes shows as those bytes, as the interpreter
-   writes it; another result shows in a tagged form. Its header lists its
-   excuses. It is a new module, so the compiler in `src/compile/` stays
-   until the new one replaces it.
-2. The compiler, as proven steps, each a module with its laws: no `Let` and
+Tests). The contract, `src/compile_wasm/spec.bend`, is reviewed and
+pinned; its header states what it promises and its excuses. It is a new
+module, so the compiler in `src/compile/` stays until the new one replaces
+it. Next, in order, each reviewed before the next starts:
+1. The compiler, as proven steps, each a module with its laws: no `Let` and
    no `Ann`, flat case trees, closures as data, data in memory, WASM.
-3. The compiler compiled by itself, so that compiling is fast too.
+2. The compiler compiled by itself, so that compiling is fast too.
 
 ## Speed
 

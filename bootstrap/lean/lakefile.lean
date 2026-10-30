@@ -103,6 +103,8 @@ inductive Pin.Part where
 -- - ../bend/main.bend: main, which must be λsrc. compile(src), as claim 7
 --   names the call of a law only through main.
 -- - ../bend/src/compile/spec.bend: the contract of the compiler in Bend.
+-- - ../bend/src/compile_wasm/spec.bend: the contract of the compiler in Bend
+--   that will write WebAssembly.
 -- - ../bend/src/source/impl.bend: the meaning of its source.
 -- - ../bend/src/source/spec.bend: the kernel's relations, copied, that its
 --   laws tie that meaning to.
@@ -115,8 +117,8 @@ inductive Pin.Part where
 --   check the copy again.
 -- - ../../bend2/base.bend: each Base def that the meanings reach: in the
 --   .bendtt of ../bend/main.bend and ../harness/cases/wasm.bend, from the defs
---   of source/impl.bend, source/spec.bend and wasm/impl.bend, and from the
---   types of the laws. A pinned def that starts to call another
+--   of source/impl.bend, source/spec.bend, wasm/impl.bend and
+--   compile_wasm/spec.bend, and from the types of the laws. A pinned def that starts to call another
 --   Base def changes, so its review adds that def here.
 def Pins : List (String × Pin.Part × UInt64) := [
   ("src/Contract/Spec.lean", .all, 1941511504593986303),
@@ -125,6 +127,7 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("src/Main.lean", .all, 10677801529969707441),
   ("../bend/main.bend", .all, 12787539127806695791),
   ("../bend/src/compile/spec.bend", .all, 16295624150471894959),
+  ("../bend/src/compile_wasm/spec.bend", .all, 3316507365639489500),
   ("../bend/src/source/impl.bend", .all, 16563396131937143125),
   ("../bend/src/source/spec.bend", .all, 5629837982964475826),
   ("../bend/src/wasm/impl.bend", .all, 9918954888416210165),
