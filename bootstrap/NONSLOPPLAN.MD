@@ -13,7 +13,7 @@ WHAT WE TRUST:
 WHAT WE DON'T TRUST:
 1 - The current Bend compiler written in TypeScript.
 2 - A checker result without --verdict.
-3 - OUR OWN BOOTSTRAP CODE UNTIL IT'S SOMEHOW PROOF-OR-EXTENSIVELY-TEST-VALIDATED.
+3 - OUR OWN BOOTSTRAP CODE UNTIL IT'S SOMEHOW PROOF-VALIDATED.
 
 STEPS:
 1 - We must write BEND LAWS IN BEND'S SYNTAX about >OUR OWN< compiler, so that `--verdict` proves that it is correct by the rules of `Eval`. This is because our compiler is Bend code, and a Bend proof can talk about it directly(a Lean proof could only reason about it from the outside).
