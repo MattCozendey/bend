@@ -20,10 +20,6 @@ STEPS:
 2 - We must write a BEND INTERPRETER IN LEAN, with a Lean proof that it gives what `Eval` gives, so that we have a trusted way to RUN >OUR OWN< compiler (it runs any Bend program, ours included). This is because `Eval` is a list of rules, not a program (it can't run anything), we don't trust the current compiler, and our compiler can't run itself before it is compiled.
 3 - We must write a LEAN PROOF THAT JOINS #1 AND #2: when the interpreter runs >OUR OWN< compiler, the bytes it writes follow the laws of #1 (it works for any Bend program and its laws, ours included). This is because #1 only says that the compiler is correct by the rules of `Eval`, and #2 only says that the interpreter follows `Eval`. Without this proof, nothing says that the laws hold for what actually runs on the PC.
 
-DESIRED EXTRAS(MAY GIVE UP):
-1 - FLOATS OF ANY WIDTH, AS OUR OWN PLAIN BEND CODE, WITH PROOFS. IF WE DO THAT, WE HAVE TO KEEP OUR OWN COPY OF BASE.BEND (ALWAYS UP TO DATE WITH MAIN'S + THE DEFINITION)
-
-
 NOTES:
 1 - The current UNTRUSTED TypeScript compiler is only a reference guide for ideas.
 2 - EVERY BOOTSTRAP CODE LIVES STRICTLY INSIDE HERE(BOOTSTRAP FOLDER). DON'T CARE ABOUT REPO GATES OR STUFF LIKE THAT.
