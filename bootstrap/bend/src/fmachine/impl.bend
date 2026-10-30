@@ -2,6 +2,7 @@ import Base
 import ../source/impl.bend as Source
 import ../machine/impl.bend as Machine
 import ../fun/impl.bend as Fun
+import ./code.bend as Code
 
 # The machine in F
 # ================
@@ -243,3 +244,107 @@ def Enc.mname(m: Maybe<&2, List<&2, Nat>>) -> Fun.V:
       Fun.V.num(0n)
     case Some{k}:
       Enc.one(1n, Enc.name(k))
+
+# The input
+# =========
+#
+# The F program builds Source.Bytes.term of the input with one shared term
+# for each number to 255: Input.term with the terms of Nats.from(255, 0).
+
+# the terms of the numbers i to i + c
+def Nats.from(c: Nat, +i: Nat) -> List<&2, Source.Term>:
+  match c:
+    case 0n:
+      [Source.Bytes.nat(i)]
+    case 1n+d:
+      Con{Source.Bytes.nat(i), Nats.from(d, 1n+i)}
+
+# the item of ts at b, or Efq
+def Terms.at(ts: List<&2, Source.Term>, b: Nat) -> Source.Term:
+  match ts b:
+    case Con{t, rest} 0n:
+      t
+    case Con{t, rest} 1n+p:
+      Terms.at(rest, p)
+    case Nil{} _:
+      Source.Term.Efq{}
+
+# Source.Bytes.term of bs, with the term of each number from ts
+def Input.term(bs: List<&2, Nat>, +ts: List<&2, Source.Term>) -> Source.Term:
+  match bs:
+    case Nil{}:
+      Source.Term.Tup{Source.Q1{}, Source.Term.Lab{Source.Name.of("Nil")}, Source.Term.Lab{Source.Name.of("()")}}
+    case Con{b, rest}:
+      Source.Term.Tup{Source.Q1{}, Source.Term.Lab{Source.Name.of("Con")},
+        Source.Term.Tup{Source.Q1{}, Terms.at(ts, b),
+          Source.Term.Tup{Source.Q1{}, Input.term(rest, ts), Source.Term.Lab{Source.Name.of("()")}}}}
+
+# The start
+# =========
+
+# the state and the book of the start of a run
+type Start is Data:
+  Start{s: Machine.St, bk: List<&2, Source.Def>}
+
+def Enc.start(x: Start) -> Fun.V:
+  match x:
+    case Start{s, bk}:
+      Fun.V.n{0n, Enc.st(s), Enc.book(bk)}
+
+def Enc.mstart(m: Maybe<&2, Start>) -> Fun.V:
+  match m:
+    case None{}:
+      Fun.V.num(0n)
+    case Some{x}:
+      Enc.one(1n, Enc.start(x))
+
+def Start.eval(k: List<&2, Nat>) -> Machine.St:
+  Machine.St.eval{Source.Term.Ref{k}, Machine.Val.nil{}, []}
+
+# the start of the run of bk on the input: Source.entry, with ty the type of
+# the input, the terms of the numbers to c, and rd the def bootstrap.run
+def Start.of(+bk: List<&2, Source.Def>, input: Maybe<&2, List<&2, Nat>>, ty: Source.Term, c: Nat,
+  rd: Maybe<&2, Source.Def>) -> Maybe<&2, Start>:
+  match input rd:
+    case None{} _:
+      Some{Start{Start.eval(Source.Name.of("main")), bk}}
+    case Some{bs} Some{d}:
+      Some{Start{Start.eval(Source.Name.of("bootstrap.run")),
+        List.append(&2, Source.Def, bk,
+          [Source.Def{Source.Name.of("bootstrap.input"), ty, Input.term(bs, Nats.from(c, 0n)), False{}}, d])}}
+    case Some{bs} None{}:
+      None{}
+
+def Input.arg_type.of(d: Maybe<&2, Source.Def>) -> Source.Term:
+  match d:
+    case Some{Source.Def{k, Source.Term.All{q, a, b}, v, o}}:
+      a
+    case _:
+      Source.Term.Efq{}
+
+# the type of main's input
+def Input.arg_type(+bk: List<&2, Source.Def>) -> Source.Term:
+  Input.arg_type.of(Source.Book.get(bk, Source.Name.of("main")))
+
+def Input.run_def.of(d: Maybe<&2, Source.Def>) -> Maybe<&2, Source.Def>:
+  match d:
+    case Some{Source.Def{k, Source.Term.All{q, a, b}, v, o}}:
+      Some{Source.Def{Source.Name.of("bootstrap.run"),
+        Source.Term.sub(b, 0n, Source.Sub.one{Source.Term.Ref{Source.Name.of("bootstrap.input")}}),
+        Source.Term.App{q, Source.Term.Ref{Source.Name.of("main")}, Source.Term.Ref{Source.Name.of("bootstrap.input")}},
+        False{}}}
+    case _:
+      None{}
+
+# the def bootstrap.run that Source.Input.apply adds to bk, when main takes an
+# input
+def Input.run_def(+bk: List<&2, Source.Def>) -> Maybe<&2, Source.Def>:
+  Input.run_def.of(Source.Book.get(bk, Source.Name.of("main")))
+
+# the start of the program on the book bk and the input (none: no input), with
+# a term for each number to c
+def start.of(+bk: List<&2, Source.Def>, input: Maybe<&2, List<&2, Nat>>, c: Nat) -> Fun.S:
+  Fun.S.run{Code.F.Main(), [Enc.book(bk), Enc.mname(input), Enc.mdef(Input.run_def(bk)), Enc.nat(c)], []}
+
+def start(+bk: List<&2, Source.Def>, input: Maybe<&2, List<&2, Nat>>) -> Fun.S:
+  start.of(bk, input, 255n)

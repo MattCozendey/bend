@@ -211,3 +211,11 @@ def Step.out(x: Step) -> Maybe<&2, V>:
 # or when n is not enough
 def F.run(n: Nat, prog: List<&2, C>, s: S) -> Maybe<&2, V>:
   Step.out(F.iter(n, prog, Step.go{s}))
+
+# s reaches t in some number of steps
+def Reach(+prog: List<&2, C>, +s: Step, +t: Step) -> Type:
+  Sigma<&1, &1, Nat, n => {F.iter(n, prog, s) == t : Step}>
+
+# s reaches t in at least one step
+def Reach1(+prog: List<&2, C>, +s: Step, +t: Step) -> Type:
+  Sigma<&1, &1, Nat, n => {F.iter(1n+n, prog, s) == t : Step}>

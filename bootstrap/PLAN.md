@@ -263,7 +263,7 @@ reviewed before the next starts:
    children), with calls. Its meaning is an abstract machine with a stack
    of frames. The machine of step 3 is an F program, whose output is
    `Out.of` of the machine's result. Names stay lists of bytes. It does
-   what step 3 does.
+   what step 3 does. Status: done (`src/fun/`, `src/fmachine/`).
 5. The run time in Imp: F's abstract machine as a loop on nodes in the
    memory, the loader (the book and the F program into the memory, by
    stores, as the WASM part has no data segments), the input and the
