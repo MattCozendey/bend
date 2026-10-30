@@ -129,7 +129,7 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../bend/src/compile_wasm/spec.bend", .all, 3316507365639489500),
   ("../bend/src/source/impl.bend", .all, 16563396131937143125),
   ("../bend/src/source/spec.bend", .all, 5629837982964475826),
-  ("../bend/src/wasm/impl.bend", .all, 9918954888416210165),
+  ("../bend/src/wasm/impl.bend", .all, 17462869270679055233),
   ("../harness/wasm.ts", .all, 2942585474200374196),
   ("../../bend2/bendtt.lean", .span "-- Types" "-- Ctx", 14875125228840285785),
   ("../../bend2/bendtt.lean", .span "-- Parser" "-- Evaluator", 15025253426444512988),

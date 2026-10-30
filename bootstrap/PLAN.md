@@ -214,7 +214,8 @@ Decisions:
 2. A module is one function, of type `[] -> [i32]`. The compiled code keeps
    its own stack in linear memory, not on the engine's call stack, so only
    the memory size bounds a run, and the meaning has that size as a
-   parameter. Its blocks and loops have the empty type.
+   parameter. The code reads it with `memory.size`. Its blocks and loops
+   have the empty type.
 3. The module imports its memory (`env.memory`), so the host chooses its
    size. The input's length goes at 0 and its bytes at 4, or 0xffffffff
    goes at 0 for no input; `main` returns an address whose length and
@@ -258,13 +259,16 @@ reviewed before the next starts:
    its fuel for a run of the source sums the weights of the run's terms,
    and the source needs one step more than the machine. Status: done
    (`src/machine/`).
-4. The layout: the machine's values, environments and frames as bytes in
-   the memory, with a number for each def and each label. A full memory
-   gives `Out.oom`. It does what step 3 does.
-5. The run time in Imp: the machine's loop, the loader (the book into the
-   memory, by stores, as the WASM part has no data segments), the input
-   (its `Nat`s 0 to 255 shared) and the output (`Out.of`). It computes what
-   step 4 computes.
+4. F: a small first-order language whose values are trees (a tag and two
+   children), with calls. Its meaning is an abstract machine with a stack
+   of frames. The machine of step 3 is an F program, whose output is
+   `Out.of` of the machine's result. Names stay lists of bytes. It does
+   what step 3 does.
+5. The run time in Imp: F's abstract machine as a loop on nodes in the
+   memory, the loader (the book and the F program into the memory, by
+   stores, as the WASM part has no data segments), the input and the
+   output. Each allocation checks the memory size; a full memory gives
+   `Out.oom`. It computes what step 4 computes, for each F program.
 6. The assembly: `compile(src)` is the WASM of the loader and the run time.
    The laws of steps 1 to 5 give the contract's laws. `main.bend` becomes
    `λsrc. Wasm.encode(compile(src))`, and `src/compile/` goes.

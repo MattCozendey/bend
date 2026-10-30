@@ -46,6 +46,7 @@ type Code is Data:
   Code.load8_u{off: U32, k: Code}
   Code.store{off: U32, k: Code}
   Code.store8{off: U32, k: Code}
+  Code.size{k: Code}
   Code.get{i: Nat, k: Code}
   Code.set{i: Nat, k: Code}
   Code.tee{i: Nat, k: Code}
@@ -380,6 +381,8 @@ def Step.of(+size: U32, f: Frame) -> Step:
       Step.store(off, 4, size, s, k, locals, mem, labels, a => m => v => Mem.store(a, m, v))
     case Frame{Code.store8{off, k}, s, locals, mem, labels}:
       Step.store(off, 1, size, s, k, locals, mem, labels, a => m => v => Mem.set_at(a, m, U32.low(v)))
+    case Frame{Code.size{k}, s, locals, mem, labels}:
+      Step.next{Frame{k, Con{U32.shrn(size, 16n), s}, locals, mem, labels}}
     case Frame{Code.get{i, k}, s, +locals, mem, labels}:
       Frame.with(Step.get(List.at(locals, i), s), k, locals, mem, labels)
     case Frame{Code.set{i, k}, s, locals, mem, labels}:
@@ -641,6 +644,8 @@ def Code.bytes(c: Code) -> List<&2, Nat>:
       Code.with([54n, 2n], Leb.u32.go(5n, off), Code.bytes(k))
     case Code.store8{off, k}:
       Code.with([58n, 0n], Leb.u32.go(5n, off), Code.bytes(k))
+    case Code.size{k}:
+      Code.with([63n], [0n], Code.bytes(k))
     case Code.get{i, k}:
       Code.with([32n], Leb.nat(i), Code.bytes(k))
     case Code.set{i, k}:

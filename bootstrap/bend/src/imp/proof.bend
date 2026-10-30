@@ -27,6 +27,8 @@ def Exp.fuel(e: Imp.Exp, F: Nat) -> Nat:
       Exp.fuel(a, 1n+F)
     case Imp.Exp.load8{off, a}:
       Exp.fuel(a, 1n+F)
+    case Imp.Exp.size{}:
+      1n+F
 
 # the run after an expression gave m: its value on top of st, then k
 def Exp.after(m: Maybe<&2, U32>, +size: U32, k: Wasm.Code, st: List<&2, U32>, ls: List<&2, U32>,
@@ -126,6 +128,8 @@ def Exp.runs(e: Imp.Exp, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem, +k: Was
                 mem, L, F) : Maybe<&2, Wasm.Halted>},
             ea => {==}, {==}),
           {==}))
+    case Imp.Exp.size{}:
+      {==}
 
 # Statements
 # ==========
@@ -551,6 +555,8 @@ def Exp.fuel_ge(e: Imp.Exp, +F: Nat) -> {Nat.is_le(F, Exp.fuel(e, F)) == True{} 
       Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(a, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(a, 1n+F))
     case Imp.Exp.load8{off, +a}:
       Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(a, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(a, 1n+F))
+    case Imp.Exp.size{}:
+      Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F))
 
 # the fuel that a statement takes at least: n when it ran out, else F
 def Stm.lower(r: Maybe<&2, Imp.Res>, n: Nat, F: Nat) -> Nat:

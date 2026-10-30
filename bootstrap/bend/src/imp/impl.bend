@@ -24,6 +24,7 @@ type Exp is Data:
   Exp.eqz{a: Exp}
   Exp.load{off: U32, a: Exp}
   Exp.load8{off: U32, a: Exp}
+  Exp.size{}
 
 type Stm is Data:
   Stm.skip{}
@@ -88,6 +89,8 @@ def Exp.eval(e: Exp, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem) -> Maybe<&2
     case Exp.load8{off, a}:
       Exp.eval.load(Exp.eval(a, size, ls, mem), off, 1, size, mem,
         x => m => U32.from_nat(Wasm.Mem.get_at(x, m)))
+    case Exp.size{}:
+      Some{U32.shrn(size, 16n)}
 
 # Statements
 # ==========
@@ -238,6 +241,8 @@ def Exp.code(e: Exp, k: Wasm.Code) -> Wasm.Code:
       Exp.code(a, Wasm.Code.load{off, k})
     case Exp.load8{off, a}:
       Exp.code(a, Wasm.Code.load8_u{off, k})
+    case Exp.size{}:
+      Wasm.Code.size{k}
 
 # ds with d more blocks around it
 def Ds.up(ds: List<&2, Nat>, +d: Nat) -> List<&2, Nat>:
