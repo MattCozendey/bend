@@ -184,9 +184,20 @@ Parts, in `bootstrap/bend/`:
    indices, `X.when(c)` for a premise `(c = true → X)`, `Values` as a def,
    and `Walk` without the book, which no rule of it reads.
 
-The build pins parts 2, 4 and 5. Only these stay review-only: the parser,
-`run`, `observe` and the entry of part 4, and the copy of the rules in part
-5. The compiler's book holds all the proofs, so each run of the CLI has the
+The build pins part 1, parts 2, 4 and 5, and what they copy and reach (see
+Guards, item 1). The proofs tie `step`, `walk`, `is_value`, `is_data` and
+the run to the copy of the rules. All else is review-only. No proof finds an
+error in it:
+- part 4: the parser, `run`, `observe`, the entry, `Obs.is_eq`,
+  `Obs.is_kept`, and the helpers that the rules call (`Term.sub`,
+  `Term.shift`, `Sub`, `Env.sub`, `Term.spine`, `Term.unspine`,
+  `Term.takes`, `Term.node`, `Book.get`, `Quan`, `Term.qmin`, `Name`).
+  `step` calls the same helpers, so an error in one is on both sides.
+- part 5: the copy of the rules.
+- the Base defs that parts 4 and 5 reach. The laws fix some of them, for
+  example `Nat.is_eq` through the hit and miss rules, but not all.
+
+The compiler's book holds all the proofs, so each run of the CLI has the
 kernel check them.
 
 ## Speed
@@ -266,11 +277,13 @@ and review the meaning before any code for it. Each waits on a decision.
 
 How the interpreter stays correct as it grows.
 
-1. Reviewed files are frozen: `Contract/Spec.lean`, `Contract/Proof.lean`,
-   `Guard.lean` and `Main.lean` change only by review. The build pins their
-   hashes, so an edit fails the build until its pin is updated by hand. A
-   pin does not stop a person who edits both. It makes each change show in
-   review.
+1. Reviewed texts are frozen: each text that `Pins` (`lakefile.lean`) names
+   changes only by review, for example `Contract/Spec.lean` and the
+   contract of the compiler in Bend. The build pins their hashes, so an edit
+   fails the build until its pin is updated by hand. The harness runs the
+   same check (`lake run pinned`) before its cases, so an edit also stops
+   the tests. A pin does not stop a person who edits both. It makes each
+   change show in review.
 2. No escape hatches:
    - `#guard_runs` walks each def that `Interp.cli` or `Bytes.ofObs` uses.
      It fails on an `unsafe`, `opaque`, `extern` or `implemented_by` def in
@@ -290,6 +303,9 @@ How the interpreter stays correct as it grows.
    must show only the `main` section:
 
        diff bend2/bendtt.lean <(tail -n +4 bootstrap/lean/src/Kernel.lean)
+
+   The meaning in Bend copies parts of `bendtt.lean` by hand. Their pins
+   (item 1) fail when one changes, until a person checks the copy again.
 5. No vacuity: claim 2 makes claim 1 not empty, with no test. `Pure` is
    reviewed as part of the contract. A test must still show that real books
    pass the kernel's check (see Tests).
@@ -311,18 +327,23 @@ One harness serves both parts: `bootstrap/harness/harness.ts`. It does not
 know which implementation it tests. A command-line parameter names it:
 
     bun bootstrap/harness/harness.ts --run '<command>' [--make '<command>']
-      bootstrap/harness/cases/interp.json
+      [--check '<command>'] bootstrap/harness/cases/interp.json
 
 - `--run` is the implementation, for example the bootstrap program, with
   `{program}` (a `.bendtt` file) and `{input}`. It writes the output bytes
   to stdout and exits non-zero to refuse. The compiler in Bend runs on the
   interpreter, so its command is the same, with the `.bendtt` file of the
   compiler as the program. Later, a command can run it with no interpreter.
-- `--make` turns a `.bend` program into `.bendtt`. This is the only step
-  that needs the existing `bend` command, so it is the only step that needs
-  WSL on Windows, for example `--make 'wsl -e bash -lc "bend {source} -o
-  {out}"'`. It makes a program where it is, so that its imports resolve. A
-  case whose program is not a `.bend` file skips it.
+- `--make` turns a `.bend` program into `.bendtt`. By default it runs this
+  repo's Bend (`bend2/main.ts`), because the pins cover its `base.bend` and
+  `bendtt.lean`. Another `--make` must run a Bend with the same files. This
+  is the only step that needs Bend, so it is the only step that needs WSL
+  on Windows, for example `--make 'wsl -e bash -lc "bun <repo>/bend2/main.ts
+  {source} -o {out}"'`. It makes a program where it is, so that its imports
+  resolve. A case whose program is not a `.bend` file skips it.
+- `--check` runs before the cases, in `bootstrap/lean`. By default it is
+  `lake run pinned` (Guards, item 1). When it fails, the harness runs no
+  case.
 - A case has an `expect`: the output bytes, the output text, or a refusal
   that names a text. Without `expect`, two `--run` must give the same
   outcome. The existing compiler's run cannot be a `--run` as it is: it
