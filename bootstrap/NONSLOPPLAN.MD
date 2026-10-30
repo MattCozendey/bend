@@ -16,7 +16,8 @@ WHAT WE DON'T TRUST:
 3 - OUR OWN BOOTSTRAP CODE UNTIL IT'S SOMEHOW PROOF-OR-EXTENSIVELY-TEST-VALIDATED.
 
 STEPS:
-1 - 
+1 - We must write BEND LAWS IN BEND'S SYNTAX about >OUR OWN< compiler, so that `--verdict` proves that it is correct by the rules of `Eval`. This is because our compiler is Bend code, and a Bend proof can talk about it directly(a Lean proof could only reason about it from the outside).
+2 - We must write a BEND INTERPRETER IN LEAN, with a Lean proof that it gives what `Eval` gives, so that we have a trusted way to RUN >OUR OWN< compiler (it runs any Bend program, ours included). This is because `Eval` is a list of rules, not a program (it can't run anything), we don't trust the current compiler, and our compiler can't run itself before it is compiled.
 
 NOTES:
 1 - The current UNTRUSTED TypeScript compiler is only a reference guide for ideas.
