@@ -40,7 +40,7 @@ const ASSERT = /\(assert_return \(invoke "(\w+)"((?: \(i32\.const [^)]+\))+)\) \
 
 const CASES = path.join(import.meta.dirname, "cases");
 
-// tests 12 to 19 of cases/wasm.bend
+// tests 12 to 20 of cases/wasm.bend
 const OTHERS: Test[] = [
   { name: "a loop sums the input's bytes", test: 12, data: [65, 66, 67], out: [198, 0, 0, 0] },
   { name: "a loop sums no bytes", test: 12, data: [], out: [0, 0, 0, 0] },
@@ -56,6 +56,7 @@ const OTHERS: Test[] = [
   { name: "unreachable traps", test: 18, data: [], out: undefined },
   { name: "the length of no bytes is at 0", test: 19, data: [], out: [0, 0, 0, 0] },
   { name: "the input's length is at 0", test: 19, data: [7, 8, 9], out: [3, 0, 0, 0] },
+  { name: "memory.size gives the number of pages", test: 20, data: [], out: [1, 0, 0, 0] },
 ];
 
 // test 19 with no input (mode 2), by the meaning only: each engine case has an

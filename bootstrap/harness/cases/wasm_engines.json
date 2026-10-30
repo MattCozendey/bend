@@ -198,5 +198,13 @@
     "expect": {
       "hex": "03000000"
     }
+  },
+  {
+    "name": "memory.size gives the number of pages",
+    "program": "wasm.bend",
+    "input": "0114",
+    "expect": {
+      "hex": "01000000"
+    }
   }
 ]

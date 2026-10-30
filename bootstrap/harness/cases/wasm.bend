@@ -10,7 +10,7 @@ import ../../bend/src/wasm/impl.bend as Wasm
 # - mode 2 is mode 0 with no input.
 # Tests 0 to 11 store an i32 operation of each vector of the data at 4, 8, ...:
 # the operations of Ops, then eqz. A vector is a and b, 4 bytes each, the low
-# byte first. Tests 12 to 19 are below.
+# byte first. Tests 12 to 20 are below.
 
 def Ops() -> List<&2, Wasm.Bin>:
   [Wasm.Bin.add{}, Wasm.Bin.sub{}, Wasm.Bin.and{}, Wasm.Bin.or{}, Wasm.Bin.xor{}, Wasm.Bin.shl{},
@@ -126,6 +126,9 @@ def Test.module(t: Nat, xs: List<&2, Nat>) -> Wasm.Module:
     case 19n:
       # test 19: the i32 at 0, which holds the input's length or 0xffffffff
       Wasm.Module{1n, Wasm.Code.const{0, Wasm.Code.load{0, Wasm.Code.set{0n, Test.out.i32(0n)}}}}
+    case 20n:
+      # test 20: memory.size, the number of pages
+      Wasm.Module{1n, Wasm.Code.size{Wasm.Code.set{0n, Test.out.i32(0n)}}}
     case _:
       Wasm.Module{0n, Op.vectors(Ops.at(Ops(), t), xs, 4)}
 

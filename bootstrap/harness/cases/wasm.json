@@ -200,6 +200,14 @@
     }
   },
   {
+    "name": "memory.size gives the number of pages",
+    "program": "wasm.bend",
+    "input": "0014",
+    "expect": {
+      "hex": "0101000000"
+    }
+  },
+  {
     "name": "0xffffffff is at 0 for no input",
     "program": "wasm.bend",
     "input": "0213",
