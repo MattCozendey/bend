@@ -10,8 +10,19 @@ import ./spec.bend as Spec
 # The proofs of the laws of spec.bend. The runner checks each job that it reads
 # and each list of bytes that it writes, so each proof takes that check apart.
 
-# Lists
-# =====
+# Maybes and lists
+# ================
+
+# a check that gave some j: f, given that its condition holds and that the
+# value it kept is j
+def Maybe.when_some(-A: Data, -R: Type, c: Bool, -k: A, -j: A,
+  h: {Source.Maybe.when(A, c, u => Some{k}) == Some{j} : Maybe<&2, A>},
+  f: {c == True{} : Bool} -> {k == j : A} -> R) -> R:
+  match c:
+    case True{}:
+      f({==}, SourceProof.Maybe.some_inj(A, k, j, h))
+    case False{}:
+      SourceProof.Empty.elim(R, SourceProof.Maybe.no_none(A, j, h))
 
 # the list l starts with 1
 def starts_with_one(l: List<&2, Nat>) -> Bool:
@@ -24,24 +35,16 @@ def starts_with_one(l: List<&2, Nat>) -> Bool:
 # Jobs
 # ====
 
-# a job k that writes bs, and is the job j, writes bs
-def Job.read.kept(+k: Runner.Job, +bs: List<&2, Nat>, -j: Runner.Job,
-  hc: {Source.Name.is_eq(Runner.Job.write(k), bs) == True{} : Bool},
-  ha: {Some{k} == Some{j} : Maybe<&2, Runner.Job>}) -> {Runner.Job.write(j) == bs : List<&2, Nat>}:
-  %SourceProof.Maybe.some_inj(Runner.Job, k, j, ha) : {Runner.Job.write(_) == bs : List<&2, Nat>}
-  SourceProof.Name.is_eq_true(Runner.Job.write(k), bs, hc)
-
 # the job that the check of m keeps writes bs
 def Job.read.checked(m: Maybe<&2, Runner.Job>, +bs: List<&2, Nat>, -j: Runner.Job,
   h: {Runner.Job.read.check(m, bs) == Some{j} : Maybe<&2, Runner.Job>}) ->
   {Runner.Job.write(j) == bs : List<&2, Nat>}:
   match m:
     case Some{+k}:
-      SourceProof.Bool.lazy.by(Maybe<&2, Runner.Job>, {Runner.Job.write(j) == bs : List<&2, Nat>},
-        Source.Name.is_eq(Runner.Job.write(k), bs), u => Some{k}, u => None{}, Some{j}, h,
-        hc => ha => Job.read.kept(k, bs, j, hc, ha),
-        hc => ha => SourceProof.Empty.elim({Runner.Job.write(j) == bs : List<&2, Nat>},
-          SourceProof.Maybe.no_none(Runner.Job, j, ha)))
+      Maybe.when_some(Runner.Job, {Runner.Job.write(j) == bs : List<&2, Nat>},
+        Source.Name.is_eq(Runner.Job.write(k), bs), k, j, h,
+        hc => hk => (%hk : {Runner.Job.write(_) == bs : List<&2, Nat>};
+          SourceProof.Name.is_eq_true(Runner.Job.write(k), bs, hc)))
     case None{}:
       SourceProof.Empty.elim({Runner.Job.write(j) == bs : List<&2, Nat>},
         SourceProof.Maybe.no_none(Runner.Job, j, h))
@@ -56,22 +59,14 @@ def Spec.Job.write_after_read(bs, j, h):
 def Obs.shows(o: Source.Obs, bs: List<&2, Nat>) -> Type:
   {Source.Obs.is_kept(Some{o}, Source.Term.observe(Source.Bytes.term(bs))) == True{} : Bool}
 
-# bytes cs that show o, and are bs, show o
-def Obs.checked.kept(-o: Source.Obs, -cs: List<&2, Nat>, -bs: List<&2, Nat>, hc: Obs.shows(o, cs),
-  ha: {Some{cs} == Some{bs} : Maybe<&2, List<&2, Nat>>}) -> Obs.shows(o, bs):
-  %SourceProof.Maybe.some_inj(List<&2, Nat>, cs, bs, ha) : Obs.shows(o, _)
-  hc
-
 # the bytes that the check of m keeps for o show o
 def Obs.checked(m: Maybe<&2, List<&2, Nat>>, +o: Source.Obs, -bs: List<&2, Nat>,
   h: {Runner.Obs.to_bytes.check(m, o) == Some{bs} : Maybe<&2, List<&2, Nat>>}) -> Obs.shows(o, bs):
   match m:
     case Some{+cs}:
-      SourceProof.Bool.lazy.by(Maybe<&2, List<&2, Nat>>, Obs.shows(o, bs),
-        Source.Obs.is_kept(Some{o}, Source.Term.observe(Source.Bytes.term(cs))),
-        u => Some{cs}, u => None{}, Some{bs}, h,
-        hc => ha => Obs.checked.kept(o, cs, bs, hc, ha),
-        hc => ha => SourceProof.Empty.elim(Obs.shows(o, bs), SourceProof.Maybe.no_none(List<&2, Nat>, bs, ha)))
+      Maybe.when_some(List<&2, Nat>, Obs.shows(o, bs),
+        Source.Obs.is_kept(Some{o}, Source.Term.observe(Source.Bytes.term(cs))), cs, bs, h,
+        hc => hk => (%hk : Obs.shows(o, _); hc))
     case None{}:
       SourceProof.Empty.elim(Obs.shows(o, bs), SourceProof.Maybe.no_none(List<&2, Nat>, bs, h))
 
