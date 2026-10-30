@@ -119,9 +119,9 @@ it is an interpreter. Each item below adds speed or a new meaning.
 
 ## The compiler in Bend
 
-Status: decided (below); the contract is next. Its contract comes first.
-Write it and review it before the compiler, as `Contract/Spec.lean` came
-before the interpreter. A law that
+Status: the contract is written, reviewed and pinned. The first compiler
+passes the source through and proves it (Parts, below). Its contract came
+first, as `Contract/Spec.lean` came before the interpreter. A law that
 holds is not always the law we need. These three requirements decide what the
 contract holds:
 1. A preservation law: the output means what the source means, for each
@@ -131,8 +131,9 @@ contract holds:
    law 1 holds for a compiler that refuses everything. This is why the
    interpreter has claim 2 beside claim 1.
 3. The meaning of the source and of the target, written in Bend. A person
-   reviews them. No claim ties them to the kernel's `Eval`. If `Eval` does
-   not run the target, the chain of trust ends at that meaning.
+   reviews them. No claim of `Contract/Spec.lean` ties them to the kernel's
+   `Eval`; laws in Bend tie the source meaning to a copy of its rules. If
+   `Eval` does not run the target, the chain of trust ends at that meaning.
 
 Review each law as `.bendtt` text, not as `.bend` text: the proofs speak of
 the `.bendtt` text (assumption 1). Claim 7 carries each law for all inputs
@@ -157,12 +158,36 @@ Decisions:
 3. The interpreter's limits (`Pure`) bind only what it runs: the compiler,
    which is bytes to bytes, and the output of the `.bendtt` target. The
    source meaning can grow past `Eval`, for example to effects.
-4. A law is `for src: List<Nat>`, more `for` binders (for example the
+4. A law is `for src: List<&2, Nat>`, more `for` binders (for example the
    fuel), then an equality. Claim 7 carries it. Bend's `exs` is Base's
-   `Exists` datatype, not a binder, so claim 7 does not carry it.
+   `Exists` datatype, not a binder, so claim 7 does not carry it. A law says
+   "some fuel" with a fuel function that the compiler gives: a proof of
+   `exs` computes that fuel anyway.
 5. The contract is a module's `spec.bend`, with laws only, pinned as
    `Contract/Spec.lean` is. `main` is `λsrc. compile(src)`, so the laws
    name `compile` (claim 7).
+
+Parts, in `bootstrap/bend/`:
+1. `main.bend`: `main` is `λsrc. compile(src)`.
+2. `src/compile/spec.bend`: the contract. `compile`, and the fuel functions
+   `fuel_out` and `fuel_src`. `keeps_results`: the output gives each result
+   that the source gives (as claim 2). `adds_no_results`: it gives no other
+   result (as claim 1).
+3. `src/compile/impl.bend`: the compiler. It passes the source through, so
+   the laws hold at the same fuel.
+4. `src/source/impl.bend`: the source meaning: the kernel's parser, and
+   `step` and `stepUntil` as `Step.lean` has them.
+5. `src/source/spec.bend`: the kernel's run-time relations (`Data`, `Walk`,
+   `Value`, `Eval`), copied rule by rule, and the laws of `Step.lean`.
+   `src/source/proof.bend` proves them, so `step` and the run follow `Eval`
+   by proof. The copy differs only in form: equalities in place of
+   indices, `X.when(c)` for a premise `(c = true → X)`, `Values` as a def,
+   and `Walk` without the book, which no rule of it reads.
+
+The build pins parts 2, 4 and 5. Only these stay review-only: the parser,
+`run`, `observe` and the entry of part 4, and the copy of the rules in part
+5. The compiler's book holds all the proofs, so each run of the CLI has the
+kernel check them.
 
 ## Speed
 
@@ -271,8 +296,8 @@ How the interpreter stays correct as it grows.
 
 ## Tests
 
-Status: the harness is done, with 4 cases for the interpreter. The compiler
-in Bend has no cases yet.
+Status: the harness is done, with 4 cases for the interpreter
+(`interp.json`) and 1 for the compiler in Bend (`compile.json`).
 
 The tests cover what the proofs do not:
 - reading files, the kernel's parser, and `render`;
@@ -295,7 +320,9 @@ know which implementation it tests. A command-line parameter names it:
   compiler as the program. Later, a command can run it with no interpreter.
 - `--make` turns a `.bend` program into `.bendtt`. This is the only step
   that needs the existing `bend` command, so it is the only step that needs
-  WSL on Windows. A case whose program is not a `.bend` file skips it.
+  WSL on Windows, for example `--make 'wsl -e bash -lc "bend {source} -o
+  {out}"'`. It makes a program where it is, so that its imports resolve. A
+  case whose program is not a `.bend` file skips it.
 - A case has an `expect`: the output bytes, the output text, or a refusal
   that names a text. Without `expect`, two `--run` must give the same
   outcome. The existing compiler's run cannot be a `--run` as it is: it
@@ -306,3 +333,7 @@ know which implementation it tests. A command-line parameter names it:
   `#|` lines of the existing tests are not cases, because they come from
   the existing JS and C runs.
 - Run a few cases at a time. Never run the full suite.
+- The source meaning runs on the interpreter too, but slowly: on `echo`,
+  7 s; on `sum`, more than 50 minutes, as it runs U32 code bit by bit. A
+  test of the meaning against the interpreter (kind b) fits small programs
+  only.
