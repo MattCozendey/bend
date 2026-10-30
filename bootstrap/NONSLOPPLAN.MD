@@ -21,7 +21,7 @@ STEPS:
 3 - We must write a LEAN PROOF THAT JOINS #1 AND #2: when the interpreter runs >OUR OWN< compiler, the bytes it writes follow the laws of #1 (it works for any Bend program and its laws, ours included). This is because #1 only says that the compiler is correct by the rules of `Eval`, and #2 only says that the interpreter follows `Eval`. Without this proof, nothing says that the laws hold for what actually runs on the PC.
 
 DESIRED EXTRAS(MAY GIVE UP):
-1 - ARBITRARY WIDTH AND PROOFS FOR floats
+1 - FLOATS OF ANY WIDTH, AS OUR OWN PLAIN BEND CODE, WITH PROOFS.
 
 
 NOTES:
