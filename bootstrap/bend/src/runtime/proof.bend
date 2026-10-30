@@ -1948,6 +1948,76 @@ def Inc.nat(+w: U32, +h: {Nat.is_eq(U32.to_nat(U32.add(w, 1)), 0n) == False{} : 
     %U.add_one(w) : {U32.to_nat(_) == U32.to_nat(U32.add(w, 1)) : Nat}
     {==}, h)
 
+# Steps
+# =====
+
+# ret a
+def P.ret.m(m: Maybe<&2, Fun.V>, +a: Fun.A, +env: List<&2, Fun.V>, +ks: List<&2, Fun.Fr>, +n: Nat, +prog: List<&2, Fun.C>, +size: U32, +x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +x8: U32, +x9: U32, +x10: U32, +x11: U32, +x12: U32, +x13: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +mem: Wasm.Mem, +hm: {Fun.A.get(a, env) == m : Maybe<&2, Fun.V>},
+  +hinv: {Inv.s(Fun.S.run{Fun.C.ret{a}, env, ks}, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size) == True{} : Bool}, +hn: {Nat.is_le(1n+Atom.need(a), n) == True{} : Bool}) ->
+  {Pass.ok(Fun.Step.ret(m, ks), Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), prog, size) == True{} : Bool}:
+  match m:
+    case Some{+v}:
+      +hic = Inv.run.ic(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +hmode = Inv.run.mode(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +hc = Inv.run.c(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +henv = Inv.run.env(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +hks = Inv.run.ks(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +hz = Inv.c.hz(x0, x1, x2, mem, prog, size, hic)
+      +hl = Inv.c.hl(x0, x1, x2, mem, prog, size, hic)
+      +hls = Inv.c.ls(x0, x1, x2, mem, prog, size, hic)
+      +hs5 = Inv.c.s5(x0, x1, x2, mem, prog, size, hic)
+      +htab = Inv.c.tab(x0, x1, x2, mem, prog, size, hic)
+      +hs = Le.t(U32.to_nat(x0), U32.to_nat(x1), U32.to_nat(size), hl, hls)
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}},
+        R.if(Imp.Exp.eqz{RT.E.l(7n)}, RT.I.run(), RT.I.back(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(x7, 0)), True{}, {Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.eqz(x7, True{}, hmode),
+      R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(3n))}, RT.S.all([RT.I.disp()]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17), mem, {Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}} : Maybe<&2, Imp.Res>},
+        R.set(9n, RT.E.ld(0, RT.E.l(3n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, U32.from_nat(0n), L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17),
+          E.tag(RT.E.l(3n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, x3, U32.to_nat(x0), 0n, RT.Enc.atom(a), Fun.V.z{}, {==}, hc, hs), {==}),
+        R.seq(RT.I.disp(), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17), mem, L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, {Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}} : Maybe<&2, Imp.Res>},
+          R.seq(RT.S.atom(RT.E.ld(4, RT.E.l(3n))), RT.S.all([Imp.Stm.set{6n, RT.E.l(11n)}, Imp.Stm.set{7n, RT.E.k(1)}, Imp.Stm.set{3n, RT.E.k(0)}, Imp.Stm.set{4n, RT.E.k(0)}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, {Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}} : Maybe<&2, Imp.Res>},
+    Atom.some(a, env, RT.E.ld(4, RT.E.l(3n)), x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17, Wasm.Mem.load(U32.add(x3, 4), mem), mem, size, U32.to_nat(x0), E.load(4, RT.E.l(3n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17), mem, x3, U32.add(x3, 4), {==}, Ad4(x3, U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), x3, 0n, RT.Enc.atom(a), Fun.V.z{}, hc), hs)), Rd.a(mem, U32.to_nat(x0), x3, 0n, RT.Enc.atom(a), Fun.V.z{}, hc), henv, hs, n, v, hm, hn),
+  R.seq(Imp.Stm.set{6n, RT.E.l(11n)}, RT.S.all([Imp.Stm.set{7n, RT.E.k(1)}, Imp.Stm.set{3n, RT.E.k(0)}, Imp.Stm.set{4n, RT.E.k(0)}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, L(x0, x1, x2, x3, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x7, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, {Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}} : Maybe<&2, Imp.Res>},
+    R.set(6n, RT.E.l(11n), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), L(x0, x1, x2, x3, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x7, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), {==}, {==}),
+  R.seq(Imp.Stm.set{7n, RT.E.k(1)}, RT.S.all([Imp.Stm.set{3n, RT.E.k(0)}, Imp.Stm.set{4n, RT.E.k(0)}]), n, size, L(x0, x1, x2, x3, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x7, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, L(x0, x1, x2, x3, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, {Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}} : Maybe<&2, Imp.Res>},
+    R.set(7n, RT.E.k(1), n, size, L(x0, x1, x2, x3, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x7, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, 1, L(x0, x1, x2, x3, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), {==}, {==}),
+  R.seq(Imp.Stm.set{3n, RT.E.k(0)}, RT.S.all([Imp.Stm.set{4n, RT.E.k(0)}]), n, size, L(x0, x1, x2, x3, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, L(x0, x1, x2, 0, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, {Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}} : Maybe<&2, Imp.Res>},
+    R.set(3n, RT.E.k(0), n, size, L(x0, x1, x2, x3, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, 0, L(x0, x1, x2, 0, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), {==}, {==}),
+  R.seq(Imp.Stm.set{4n, RT.E.k(0)}, Imp.Stm.skip{}, n, size, L(x0, x1, x2, 0, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, {Some{Imp.Res.next{L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem}} : Maybe<&2, Imp.Res>},
+    R.set(4n, RT.E.k(0), n, size, L(x0, x1, x2, 0, x4, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), mem, 0, L(x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, x8, U32.from_nat(0n), x10, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), x12, x13, x14, 0, 0, 0), {==}, {==}),
+  {==}))))), {==})))) :
+        {Pass.ok(Fun.Step.ret(Some{v}, ks), _, prog, size) == True{} : Bool}
+      Inv.ret.mk(v, ks, x0, x1, x2, 0, 0, x5, Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), 1, mem, prog, size, hic, {==},
+        Rdm.some(Fun.A.get(a, env), v, mem, U32.to_nat(x0), Atom.val(a, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem), hm, Atom.rd(a, env, Wasm.Mem.load(U32.add(x3, 4), mem), x4, mem, U32.to_nat(x0), Rd.a(mem, U32.to_nat(x0), x3, 0n, RT.Enc.atom(a), Fun.V.z{}, hc), henv)), hks)
+    case None{}:
+      +hic = Inv.run.ic(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +hmode = Inv.run.mode(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +hc = Inv.run.c(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +henv = Inv.run.env(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +hks = Inv.run.ks(Fun.C.ret{a}, env, ks, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size, hinv)
+      +hz = Inv.c.hz(x0, x1, x2, mem, prog, size, hic)
+      +hl = Inv.c.hl(x0, x1, x2, mem, prog, size, hic)
+      +hls = Inv.c.ls(x0, x1, x2, mem, prog, size, hic)
+      +hs5 = Inv.c.s5(x0, x1, x2, mem, prog, size, hic)
+      +htab = Inv.c.tab(x0, x1, x2, mem, prog, size, hic)
+      +hs = Le.t(U32.to_nat(x0), U32.to_nat(x1), U32.to_nat(size), hl, hls)
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), Some{Imp.Res.trap{}},
+        R.if(Imp.Exp.eqz{RT.E.l(7n)}, RT.I.run(), RT.I.back(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, Bool.to_u32(U32.is_eq(x7, 0)), True{}, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+      {==}, Cond.eqz(x7, True{}, hmode),
+      R.seq(Imp.Stm.set{9n, RT.E.ld(0, RT.E.l(3n))}, RT.S.all([RT.I.disp()]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>},
+        R.set(9n, RT.E.ld(0, RT.E.l(3n)), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, U32.from_nat(0n), L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17),
+          E.tag(RT.E.l(3n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem, x3, U32.to_nat(x0), 0n, RT.Enc.atom(a), Fun.V.z{}, {==}, hc, hs), {==}),
+        R.seq_end(RT.I.disp(), Imp.Stm.skip{}, n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>}, {==},
+          R.seq_end(RT.S.atom(RT.E.ld(4, RT.E.l(3n))), RT.S.all([Imp.Stm.set{6n, RT.E.l(11n)}, Imp.Stm.set{7n, RT.E.k(1)}, Imp.Stm.set{3n, RT.E.k(0)}, Imp.Stm.set{4n, RT.E.k(0)}]), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17), mem, {Some{Imp.Res.trap{}} : Maybe<&2, Imp.Res>}, {==},
+    Atom.none(a, env, RT.E.ld(4, RT.E.l(3n)), x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17, Wasm.Mem.load(U32.add(x3, 4), mem), mem, size, U32.to_nat(x0), E.load(4, RT.E.l(3n), size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, U32.from_nat(0n), x10, x11, x12, x13, x14, x15, x16, x17), mem, x3, U32.add(x3, 4), {==}, Ad4(x3, U32.to_nat(x0), size, Rd.hi(mem, U32.to_nat(x0), x3, 0n, RT.Enc.atom(a), Fun.V.z{}, hc), hs)), Rd.a(mem, U32.to_nat(x0), x3, 0n, RT.Enc.atom(a), Fun.V.z{}, hc), henv, hs, n, hm, hn)))))) :
+        {Pass.ok(Fun.Step.ret(None{}, ks), _, prog, size) == True{} : Bool}
+      {==}
+
+def P.ret(+a: Fun.A, +env: List<&2, Fun.V>, +ks: List<&2, Fun.Fr>, +n: Nat, +prog: List<&2, Fun.C>, +size: U32, +x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +x8: U32, +x9: U32, +x10: U32, +x11: U32, +x12: U32, +x13: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +mem: Wasm.Mem,
+  +hinv: {Inv.s(Fun.S.run{Fun.C.ret{a}, env, ks}, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size) == True{} : Bool}, +hn: {Nat.is_le(1n+Atom.need(a), n) == True{} : Bool}) ->
+  {Pass.ok(Fun.C.step(Fun.C.ret{a}, env, ks, prog), Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), prog, size) == True{} : Bool}:
+  P.ret.m(Fun.A.get(a, env), a, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, {==}, hinv, hn)
+
 # mk t a b k
 def P.mk.m(ma: Maybe<&2, Fun.V>, mb: Maybe<&2, Fun.V>, +t: Nat, +a: Fun.A, +b: Fun.A, +k: Fun.C, +env: List<&2, Fun.V>, +ks: List<&2, Fun.Fr>, +n: Nat, +prog: List<&2, Fun.C>, +size: U32, +x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +x8: U32, +x9: U32, +x10: U32, +x11: U32, +x12: U32, +x13: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +mem: Wasm.Mem,
   +hma: {Fun.A.get(a, env) == ma : Maybe<&2, Fun.V>}, +hmb: {Fun.A.get(b, env) == mb : Maybe<&2, Fun.V>},
@@ -4743,3 +4813,461 @@ def P.halt(+vv: Fun.V, +n: Nat, +prog: List<&2, Fun.C>, +size: U32, +x0: U32, +x
         hv, {==}, H.add(x0, U32.to_nat(x0), 4, {==}, size, Le.t(4n+U32.to_nat(x0), U32.to_nat(x1), U32.to_nat(size), Room.fits(U32.to_nat(x1), U32.to_nat(x0), 4n, hl, hok), hls)), Halt.ql(x0, x1, size, H.add(x0, U32.to_nat(x0), 4, {==}, size, Le.t(4n+U32.to_nat(x0), U32.to_nat(x1), U32.to_nat(size), Room.fits(U32.to_nat(x1), U32.to_nat(x0), 4n, hl, hok), hls)), Room.fits(U32.to_nat(x1), U32.to_nat(x0), 4n, hl, hok)), hls, hs5,
         Equal.sym(Maybe<&2, List<&2, Nat>>, Dec.cat([], Spec.Out.dec(vv)), Spec.Out.dec(vv), Dec.nil(Spec.Out.dec(vv))), hn)
 )({==})
+
+# Passes
+# ======
+
+# the fuel of the loops in a pass from s
+def Need.s(s: Fun.S) -> Nat:
+  match s:
+    case Fun.S.run{c, env, ks}:
+      Need.c(c)
+    case Fun.S.ret{v, Nil{}}:
+      Wn(v)
+    case Fun.S.ret{v, Con{f, ks}}:
+      0n
+
+# a pass that runs c
+def P.run(c: Fun.C, +env: List<&2, Fun.V>, +ks: List<&2, Fun.Fr>, +n: Nat, +prog: List<&2, Fun.C>, +size: U32, +x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +x8: U32, +x9: U32, +x10: U32, +x11: U32, +x12: U32, +x13: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32,
+  +mem: Wasm.Mem, +hinv: {Inv.s(Fun.S.run{c, env, ks}, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size) == True{} : Bool}, +hn: {Nat.is_le(Need.c(c), n) == True{} : Bool}) ->
+  {Pass.ok(Fun.C.step(c, env, ks, prog), Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), prog, size) == True{} : Bool}:
+  match c:
+    case Fun.C.ret{+a}:
+      P.ret(a, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.C.mk{+t, +a, +b, +k}:
+      P.mk(t, a, b, k, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.C.case{+a, +t, +y, +nn}:
+      P.case(a, t, y, nn, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.C.same{+a, +b, +y, +nn}:
+      P.same(a, b, y, nn, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.C.dec{+a, +z, +s}:
+      P.dec(a, z, s, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.C.inc{+a, +k}:
+      P.inc(a, k, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.C.call{+f, +xs, +k}:
+      P.call(f, xs, k, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.C.jump{+f, +xs}:
+      P.jump(f, xs, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.C.stop{}:
+      P.stop(env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv)
+
+# a pass from the state s
+def P.pass(s: Fun.S, +n: Nat, +prog: List<&2, Fun.C>, +size: U32, +x0: U32, +x1: U32, +x2: U32, +x3: U32, +x4: U32, +x5: U32, +x6: U32, +x7: U32, +x8: U32, +x9: U32, +x10: U32, +x11: U32, +x12: U32, +x13: U32, +x14: U32, +x15: U32, +x16: U32, +x17: U32, +mem: Wasm.Mem,
+  +hinv: {Inv.s(s, x0, x1, x2, x3, x4, x5, x6, x7, mem, prog, size) == True{} : Bool}, +hn: {Nat.is_le(Need.s(s), n) == True{} : Bool}) ->
+  {Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mem), prog, size) == True{} : Bool}:
+  match s:
+    case Fun.S.run{+c, +env, +ks}:
+      P.run(c, env, ks, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.S.ret{+v, Nil{}}:
+      P.halt(v, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Fun.S.ret{+v, Con{Fun.Fr{+k, +e}, +rest}}:
+      P.back(v, k, e, rest, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv)
+
+# More fuel
+# =========
+#
+# A run that ends with more fuel ends the same.
+
+def Then.some(r: Maybe<&2, Imp.Res>, go: List<&2, U32> -> Wasm.Mem -> Maybe<&2, Imp.Res>, h: {Maybe.is_some(&2, Imp.Res, Imp.Res.then(r, go)) == True{} : Bool}) -> {Maybe.is_some(&2, Imp.Res, r) == True{} : Bool}:
+  match r:
+    case Some{x}:
+      {==}
+    case None{}:
+      h
+
+def Loop.some(r: Maybe<&2, Imp.Res>, go: List<&2, U32> -> Wasm.Mem -> Maybe<&2, Imp.Res>, h: {Maybe.is_some(&2, Imp.Res, Imp.Res.loop(r, go)) == True{} : Bool}) -> {Maybe.is_some(&2, Imp.Res, r) == True{} : Bool}:
+  match r:
+    case Some{x}:
+      {==}
+    case None{}:
+      h
+
+def Then.mono(r: Maybe<&2, Imp.Res>, +b: Imp.Stm, +n: Nat, +d: Nat, +size: U32,
+  h: {Maybe.is_some(&2, Imp.Res, Imp.Res.then(r, x => y => Imp.Stm.run(b, n, size, x, y))) == True{} : Bool},
+  ih: @ls:List<&2, U32> -> @mem:Wasm.Mem -> {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(b, n, size, ls, mem)) == True{} : Bool} -> {Imp.Stm.run(b, Nat.add(n, d), size, ls, mem) == Imp.Stm.run(b, n, size, ls, mem) : Maybe<&2, Imp.Res>}) ->
+  {Imp.Res.then(r, x => y => Imp.Stm.run(b, Nat.add(n, d), size, x, y)) == Imp.Res.then(r, x => y => Imp.Stm.run(b, n, size, x, y)) : Maybe<&2, Imp.Res>}:
+  match r:
+    case Some{Imp.Res.next{ls, mem}}:
+      ih(ls, mem, h)
+    case Some{Imp.Res.brk{l, ls, mem}}:
+      {==}
+    case Some{Imp.Res.trap{}}:
+      {==}
+    case None{}:
+      {==}
+
+def If.of.mono(c: Bool, +a: Imp.Stm, +b: Imp.Stm, +n: Nat, +d: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem,
+  h: {Maybe.is_some(&2, Imp.Res, Imp.Stm.if.of(c, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem))) == True{} : Bool},
+  ia: {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(a, n, size, ls, mem)) == True{} : Bool} -> {Imp.Stm.run(a, Nat.add(n, d), size, ls, mem) == Imp.Stm.run(a, n, size, ls, mem) : Maybe<&2, Imp.Res>},
+  ib: {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(b, n, size, ls, mem)) == True{} : Bool} -> {Imp.Stm.run(b, Nat.add(n, d), size, ls, mem) == Imp.Stm.run(b, n, size, ls, mem) : Maybe<&2, Imp.Res>}) ->
+  {Imp.Stm.if.of(c, u => Imp.Stm.run(a, Nat.add(n, d), size, ls, mem), u => Imp.Stm.run(b, Nat.add(n, d), size, ls, mem)) ==
+    Imp.Stm.if.of(c, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)) : Maybe<&2, Imp.Res>}:
+  match c:
+    case True{}:
+      ia(h)
+    case False{}:
+      ib(h)
+
+def If.mono(mc: Maybe<&2, U32>, +a: Imp.Stm, +b: Imp.Stm, +n: Nat, +d: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem,
+  h: {Maybe.is_some(&2, Imp.Res, Imp.Stm.if(mc, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem))) == True{} : Bool},
+  ia: {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(a, n, size, ls, mem)) == True{} : Bool} -> {Imp.Stm.run(a, Nat.add(n, d), size, ls, mem) == Imp.Stm.run(a, n, size, ls, mem) : Maybe<&2, Imp.Res>},
+  ib: {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(b, n, size, ls, mem)) == True{} : Bool} -> {Imp.Stm.run(b, Nat.add(n, d), size, ls, mem) == Imp.Stm.run(b, n, size, ls, mem) : Maybe<&2, Imp.Res>}) ->
+  {Imp.Stm.if(mc, u => Imp.Stm.run(a, Nat.add(n, d), size, ls, mem), u => Imp.Stm.run(b, Nat.add(n, d), size, ls, mem)) ==
+    Imp.Stm.if(mc, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)) : Maybe<&2, Imp.Res>}:
+  match mc:
+    case Some{c}:
+      If.of.mono(U32.is_ne(c, 0), a, b, n, d, size, ls, mem, h, ia, ib)
+    case None{}:
+      {==}
+
+def Loop.mono(r: Maybe<&2, Imp.Res>, +body: Imp.Stm, +p: Nat, +d: Nat, +size: U32,
+  h: {Maybe.is_some(&2, Imp.Res, Imp.Res.loop(r, x => y => Imp.Stm.run(Imp.Stm.loop{body}, p, size, x, y))) == True{} : Bool},
+  ih: @ls:List<&2, U32> -> @mem:Wasm.Mem -> {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(Imp.Stm.loop{body}, p, size, ls, mem)) == True{} : Bool} ->
+    {Imp.Stm.run(Imp.Stm.loop{body}, Nat.add(p, d), size, ls, mem) == Imp.Stm.run(Imp.Stm.loop{body}, p, size, ls, mem) : Maybe<&2, Imp.Res>}) ->
+  {Imp.Res.loop(r, x => y => Imp.Stm.run(Imp.Stm.loop{body}, Nat.add(p, d), size, x, y)) ==
+    Imp.Res.loop(r, x => y => Imp.Stm.run(Imp.Stm.loop{body}, p, size, x, y)) : Maybe<&2, Imp.Res>}:
+  match r:
+    case Some{Imp.Res.next{ls, mem}}:
+      ih(ls, mem, h)
+    case Some{Imp.Res.brk{0n, ls, mem}}:
+      {==}
+    case Some{Imp.Res.brk{1n+l, ls, mem}}:
+      {==}
+    case Some{Imp.Res.trap{}}:
+      {==}
+    case None{}:
+      {==}
+
+def Stm.mono(s: Imp.Stm, +n: Nat, +d: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem,
+  +h: {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(s, n, size, ls, mem)) == True{} : Bool}) -> {Imp.Stm.run(s, Nat.add(n, d), size, ls, mem) == Imp.Stm.run(s, n, size, ls, mem) : Maybe<&2, Imp.Res>}:
+  match s:
+    case Imp.Stm.skip{}:
+      {==}
+    case Imp.Stm.set{i, e}:
+      {==}
+    case Imp.Stm.store{off, a, v}:
+      {==}
+    case Imp.Stm.store8{off, a, v}:
+      {==}
+    case Imp.Stm.seq{+a, +b}:
+      %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(a, Nat.add(n, d), size, ls, mem), Imp.Stm.run(a, n, size, ls, mem),
+        Stm.mono(a, n, d, size, ls, mem, Then.some(Imp.Stm.run(a, n, size, ls, mem), x => y => Imp.Stm.run(b, n, size, x, y), h))) :
+        {Imp.Res.then(_, x => y => Imp.Stm.run(b, Nat.add(n, d), size, x, y)) == Imp.Res.then(Imp.Stm.run(a, n, size, ls, mem), x => y => Imp.Stm.run(b, n, size, x, y)) : Maybe<&2, Imp.Res>}
+      Then.mono(Imp.Stm.run(a, n, size, ls, mem), b, n, d, size, h, ls2 => mem2 => h2 => Stm.mono(b, n, d, size, ls2, mem2, h2))
+    case Imp.Stm.if{+c, +a, +b}:
+      If.mono(Imp.Exp.eval(c, size, ls, mem), a, b, n, d, size, ls, mem, h, h2 => Stm.mono(a, n, d, size, ls, mem, h2),
+        h2 => Stm.mono(b, n, d, size, ls, mem, h2))
+    case Imp.Stm.loop{+body}:
+      match n:
+        case 0n:
+          Shared.Bool.absurd({Imp.Stm.run(Imp.Stm.loop{body}, Nat.add(0n, d), size, ls, mem) == Imp.Stm.run(Imp.Stm.loop{body}, 0n, size, ls, mem) : Maybe<&2, Imp.Res>}, h)
+        case 1n++p:
+          %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(body, Nat.add(p, d), size, ls, mem), Imp.Stm.run(body, p, size, ls, mem),
+            Stm.mono(body, p, d, size, ls, mem, Loop.some(Imp.Stm.run(body, p, size, ls, mem), x => y => Imp.Stm.run(Imp.Stm.loop{body}, p, size, x, y), h))) :
+            {Imp.Res.loop(_, x => y => Imp.Stm.run(Imp.Stm.loop{body}, Nat.add(p, d), size, x, y)) ==
+              Imp.Res.loop(Imp.Stm.run(body, p, size, ls, mem), x => y => Imp.Stm.run(Imp.Stm.loop{body}, p, size, x, y)) : Maybe<&2, Imp.Res>}
+          Loop.mono(Imp.Stm.run(body, p, size, ls, mem), body, p, d, size, h, ls2 => mem2 => h2 => Stm.mono(Imp.Stm.loop{body}, p, d, size, ls2, mem2, h2))
+    case Imp.Stm.break{l}:
+      {==}
+    case Imp.Stm.trap{}:
+      {==}
+
+# The main loop
+# =============
+
+# a pass from s, with locals ls
+def Pass.ls(+s: Fun.S, ls: List<&2, U32>, +n: Nat, +prog: List<&2, Fun.C>, +size: U32, +mem: Wasm.Mem,
+  +hinv: {Inv(Fun.Step.go{s}, ls, mem, prog, size) == True{} : Bool}, +hn: {Nat.is_le(Need.s(s), n) == True{} : Bool}) -> {Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, ls, mem), prog, size) == True{} : Bool}:
+  match ls:
+    case Nil{}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Nil{}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Nil{}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Nil{}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Nil{}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Nil{}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Nil{}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Nil{}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Nil{}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Nil{}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Nil{}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Nil{}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Nil{}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Nil{}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Nil{}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Nil{}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Nil{}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Nil{}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Nil{}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Nil{}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Nil{}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Nil{}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Nil{}}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Nil{}}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Nil{}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Nil{}}}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Nil{}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Nil{}}}}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Nil{}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Nil{}}}}}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Nil{}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Nil{}}}}}}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Nil{}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Nil{}}}}}}}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Nil{}}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Con{x16, Nil{}}}}}}}}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Con{+x17, Nil{}}}}}}}}}}}}}}}}}}}:
+      P.pass(s, n, prog, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mem, hinv, hn)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Con{+x17, Con{+y, +rest}}}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Pass.ok(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), n, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Con{x16, Con{x17, Con{y, rest}}}}}}}}}}}}}}}}}}}, mem), prog, size) == True{} : Bool}, hinv)
+
+# what a pass may give, when it ends
+def Pass.okn(+x: Fun.Step, r: Maybe<&2, Imp.Res>, +prog: List<&2, Fun.C>, +size: U32) -> Bool:
+  match r:
+    case Some{+v}:
+      Pass.ok(x, Some{v}, prog, size)
+    case None{}:
+      True{}
+
+def Okn.of(+x: Fun.Step, r: Maybe<&2, Imp.Res>, +prog: List<&2, Fun.C>, +size: U32, h: {Pass.ok(x, r, prog, size) == True{} : Bool}) ->
+  {Pass.okn(x, r, prog, size) == True{} : Bool}:
+  match r:
+    case Some{v}:
+      h
+    case None{}:
+      {==}
+
+def Okn.none(+x: Fun.Step, r: Maybe<&2, Imp.Res>, +prog: List<&2, Fun.C>, +size: U32, h: {Maybe.is_some(&2, Imp.Res, r) == False{} : Bool}) ->
+  {Pass.okn(x, r, prog, size) == True{} : Bool}:
+  match r:
+    case Some{v}:
+      Shared.Bool.absurd({Pass.okn(x, Some{v}, prog, size) == True{} : Bool}, Equal.sym(Bool, True{}, False{}, h))
+    case None{}:
+      {==}
+
+# a pass from s with any fuel
+def Adds.pass(+s: Fun.S, +ls: List<&2, U32>, +p: Nat, +prog: List<&2, Fun.C>, +size: U32, +mem: Wasm.Mem,
+  +hinv: {Inv(Fun.Step.go{s}, ls, mem, prog, size) == True{} : Bool}) -> {Pass.okn(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), p, size, ls, mem), prog, size) == True{} : Bool}:
+  Shared.Bool.elim(Maybe.is_some(&2, Imp.Res, Imp.Stm.run(RT.I.step(), p, size, ls, mem)), bq => {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(RT.I.step(), p, size, ls, mem)) == bq : Bool} ->
+    {Pass.okn(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), p, size, ls, mem), prog, size) == True{} : Bool},
+    +hs =>
+      %Stm.mono(RT.I.step(), p, Need.s(s), size, ls, mem, hs) : {Pass.okn(Fun.F.step(prog, s), _, prog, size) == True{} : Bool}
+      Okn.of(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), Nat.add(p, Need.s(s)), size, ls, mem), prog, size,
+        Pass.ls(s, ls, Nat.add(p, Need.s(s)), prog, size, mem, hinv, Shared.Nat.is_le_add_left(Need.s(s), p))),
+    +hs => Okn.none(Fun.F.step(prog, s), Imp.Stm.run(RT.I.step(), p, size, ls, mem), prog, size, hs))({==})
+
+def Iter.halt(n: Nat, +prog: List<&2, Fun.C>, +w: Fun.V) -> {Fun.F.iter(n, prog, Fun.Step.halt{w}) == Fun.Step.halt{w} : Fun.Step}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      Iter.halt(m, prog, w)
+
+def Iter.stuck(n: Nat, +prog: List<&2, Fun.C>) -> {Fun.F.iter(n, prog, Fun.Step.stuck{}) == Fun.Step.stuck{} : Fun.Step}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      Iter.stuck(m, prog)
+
+def Or.f(a: Bool, h: {Bool.or(a, False{}) == True{} : Bool}) -> {a == True{} : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      h
+
+def Bor.l(a: Bool, -b: Bool, h: {a == True{} : Bool}) -> {Bool.or(a, b) == True{} : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      Shared.Bool.absurd({Bool.or(False{}, b) == True{} : Bool}, h)
+
+def Or.swap(a: Bool, +b: Bool, h: {Bool.or(a, b) == True{} : Bool}) -> {Bool.or(b, a) == True{} : Bool}:
+  match a:
+    case True{}:
+      Bor.r(b, True{}, {==})
+    case False{}:
+      Bor.l(b, False{}, h)
+
+# what the main loop may give, for the state z after as many steps: Out.oom or
+# the output of z, a trap, or no end
+def Loop.ok(z: Fun.Step, r: Maybe<&2, Imp.Res>, +size: U32) -> Bool:
+  match r:
+    case Some{Imp.Res.brk{0n, +ls, +mem}}:
+      Bool.or(Out.is_oom(Fin(ls, mem, size)), Halt.ok(z, Fin(ls, mem, size)))
+    case Some{Imp.Res.trap{}}:
+      True{}
+    case None{}:
+      True{}
+    case _:
+      False{}
+
+def Adds.next(r1: Maybe<&2, Imp.Res>, y: Fun.Step, +p: Nat, +prog: List<&2, Fun.C>, +size: U32, hp: {Pass.okn(y, r1, prog, size) == True{} : Bool},
+  ih: @s:Fun.S -> @ls:List<&2, U32> -> @mem:Wasm.Mem -> {Inv(Fun.Step.go{s}, ls, mem, prog, size) == True{} : Bool} ->
+    {Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{s}), Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, ls, mem), size) == True{} : Bool}) ->
+  {Loop.ok(Fun.F.iter(p, prog, y), Imp.Res.loop(r1, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), size) == True{} : Bool}:
+  match r1 y:
+    case None{} _:
+      {==}
+    case Some{Imp.Res.next{+ls, +mem}} Fun.Step.go{+s}:
+      ih(s, ls, mem, hp)
+    case Some{Imp.Res.next{+ls, +mem}} Fun.Step.halt{+w}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.halt{w}), Imp.Res.loop(Some{Imp.Res.next{ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), size) == True{} : Bool}, hp)
+    case Some{Imp.Res.next{+ls, +mem}} Fun.Step.stuck{}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.stuck{}), Imp.Res.loop(Some{Imp.Res.next{ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), size) == True{} : Bool}, hp)
+    case Some{Imp.Res.brk{0n, +ls, +mem}} +y2:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, y2), Imp.Res.loop(Some{Imp.Res.brk{0n, ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), size) == True{} : Bool}, hp)
+    case Some{Imp.Res.brk{1n, +ls, +mem}} Fun.Step.go{+s}:
+      Bor.l(Out.is_oom(Fin(ls, mem, size)), Halt.ok(Fun.F.iter(p, prog, Fun.Step.go{s}), Fin(ls, mem, size)), Or.f(Out.is_oom(Fin(ls, mem, size)), hp))
+    case Some{Imp.Res.brk{1n, +ls, +mem}} Fun.Step.halt{+w}:
+      %Equal.sym(Fun.Step, Fun.F.iter(p, prog, Fun.Step.halt{w}), Fun.Step.halt{w}, Iter.halt(p, prog, w)) :
+        {Bool.or(Out.is_oom(Fin(ls, mem, size)), Halt.ok(_, Fin(ls, mem, size))) == True{} : Bool}
+      hp
+    case Some{Imp.Res.brk{1n, +ls, +mem}} Fun.Step.stuck{}:
+      Bor.l(Out.is_oom(Fin(ls, mem, size)), Halt.ok(Fun.F.iter(p, prog, Fun.Step.stuck{}), Fin(ls, mem, size)), Or.f(Out.is_oom(Fin(ls, mem, size)), hp))
+    case Some{Imp.Res.brk{2n+l, +ls, +mem}} +y2:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, y2), Imp.Res.loop(Some{Imp.Res.brk{2n+l, ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), size) == True{} : Bool}, hp)
+    case Some{Imp.Res.trap{}} _:
+      {==}
+
+# the main loop from s ends with Out.oom or the output of the state after as
+# many steps, or with no output
+def Adds.loop(m: Nat, +s: Fun.S, +ls: List<&2, U32>, +prog: List<&2, Fun.C>, +size: U32, +mem: Wasm.Mem,
+  +hinv: {Inv(Fun.Step.go{s}, ls, mem, prog, size) == True{} : Bool}) -> {Loop.ok(Fun.F.iter(m, prog, Fun.Step.go{s}), Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, m, size, ls, mem), size) == True{} : Bool}:
+  match m:
+    case 0n:
+      {==}
+    case 1n++p:
+      Adds.next(Imp.Stm.run(RT.I.step(), p, size, ls, mem), Fun.F.step(prog, s), p, prog, size, Adds.pass(s, ls, p, prog, size, mem, hinv),
+        s2 => ls2 => mem2 => h2 => Adds.loop(p, s2, ls2, prog, size, mem2, h2))
+
+# Keeps
+# -----
+
+# the main loop ends with the output bs, or Out.oom
+def Loop.keeps(r: Maybe<&2, Imp.Res>, +bs: List<&2, Nat>, +size: U32) -> Bool:
+  match r:
+    case Some{Imp.Res.brk{0n, +ls, +mem}}:
+      Spec.Out.is(Fin(ls, mem, size), bs)
+    case _:
+      False{}
+
+# the fuel of the main loop for k steps from x
+def Fuel.go(k: Nat, +prog: List<&2, Fun.C>, x: Fun.Step) -> Nat:
+  match k x:
+    case 1n++j Fun.Step.go{+s}:
+      1n+Nat.add(Need.s(s), Fuel.go(j, prog, Fun.F.step(prog, s)))
+    case _ _:
+      0n
+
+def Step.is_halt(x: Fun.Step) -> Bool:
+  match x:
+    case Fun.Step.halt{v}:
+      True{}
+    case _:
+      False{}
+
+def Step.val(x: Fun.Step) -> Fun.V:
+  match x:
+    case Fun.Step.halt{v}:
+      v
+    case _:
+      Fun.V.z{}
+
+def Keep.oom(m: Maybe<&2, List<&2, Nat>>, +bs: List<&2, Nat>, h: {Bool.or(Out.is_oom(m), False{}) == True{} : Bool}) -> {Spec.Out.is(m, bs) == True{} : Bool}:
+  match m:
+    case Some{+x}:
+      Bor.r(Spec.Bytes.is_eq(x, bs), Spec.Bytes.is_eq(x, [255n]), Or.f(Spec.Bytes.is_eq(x, [255n]), h))
+    case None{}:
+      h
+
+def Keep.some(m: Maybe<&2, List<&2, Nat>>, +bs: List<&2, Nat>, h: {Bool.or(Out.is_oom(m), Out.same(Some{bs}, m)) == True{} : Bool}) -> {Spec.Out.is(m, bs) == True{} : Bool}:
+  match m:
+    case Some{+x}:
+      Or.swap(Spec.Bytes.is_eq(x, [255n]), Spec.Bytes.is_eq(x, bs), h)
+    case None{}:
+      h
+
+def Keep.fin(+m: Maybe<&2, List<&2, Nat>>, +w: Fun.V, +bs: List<&2, Nat>, +hd: {Spec.Out.dec(w) == Some{bs} : Maybe<&2, List<&2, Nat>>},
+  +h: {Bool.or(Out.is_oom(m), Halt.ok(Fun.Step.halt{w}, m)) == True{} : Bool}) -> {Spec.Out.is(m, bs) == True{} : Bool}:
+  Keep.some(m, bs, Equal.trans(Bool, Bool.or(Out.is_oom(m), Out.same(Some{bs}, m)), Bool.or(Out.is_oom(m), Out.same(Spec.Out.dec(w), m)), True{},
+    Equal.cong(Maybe<&2, List<&2, Nat>>, Bool, dd => Bool.or(Out.is_oom(m), Out.same(dd, m)), Some{bs}, Spec.Out.dec(w), Equal.sym(Maybe<&2, List<&2, Nat>>, Spec.Out.dec(w), Some{bs}, hd)),
+    h))
+
+def Keep.stuck(+j: Nat, +prog: List<&2, Fun.C>, +w: Fun.V, +h: {Fun.F.iter(j, prog, Fun.Step.stuck{}) == Fun.Step.halt{w} : Fun.Step}) ->
+  {False{} == True{} : Bool}:
+  Equal.cong(Fun.Step, Bool, x => Step.is_halt(x), Fun.Step.stuck{}, Fun.Step.halt{w},
+    Equal.trans(Fun.Step, Fun.Step.stuck{}, Fun.F.iter(j, prog, Fun.Step.stuck{}), Fun.Step.halt{w},
+      Equal.sym(Fun.Step, Fun.F.iter(j, prog, Fun.Step.stuck{}), Fun.Step.stuck{}, Iter.stuck(j, prog)), h))
+
+def Keep.dec(+j: Nat, +prog: List<&2, Fun.C>, +w2: Fun.V, +w: Fun.V, +bs: List<&2, Nat>,
+  +h: {Fun.F.iter(j, prog, Fun.Step.halt{w2}) == Fun.Step.halt{w} : Fun.Step}, +hd: {Spec.Out.dec(w) == Some{bs} : Maybe<&2, List<&2, Nat>>}) ->
+  {Spec.Out.dec(w2) == Some{bs} : Maybe<&2, List<&2, Nat>>}:
+  Equal.trans(Maybe<&2, List<&2, Nat>>, Spec.Out.dec(w2), Spec.Out.dec(w), Some{bs},
+    Equal.cong(Fun.V, Maybe<&2, List<&2, Nat>>, v => Spec.Out.dec(v), w2, w,
+      Equal.cong(Fun.Step, Fun.V, x => Step.val(x), Fun.Step.halt{w2}, Fun.Step.halt{w},
+        Equal.trans(Fun.Step, Fun.Step.halt{w2}, Fun.F.iter(j, prog, Fun.Step.halt{w2}), Fun.Step.halt{w},
+          Equal.sym(Fun.Step, Fun.F.iter(j, prog, Fun.Step.halt{w2}), Fun.Step.halt{w2}, Iter.halt(j, prog, w2)), h))),
+    hd)
+
+def Keep.trap(+w2: Fun.V, +bs: List<&2, Nat>, +hd: {Spec.Out.dec(w2) == Some{bs} : Maybe<&2, List<&2, Nat>>},
+  +h: {Bool.not(Maybe.is_some(&2, List<&2, Nat>, Spec.Out.dec(w2))) == True{} : Bool}) -> {False{} == True{} : Bool}:
+  Equal.trans(Bool, False{}, Bool.not(Maybe.is_some(&2, List<&2, Nat>, Spec.Out.dec(w2))), True{},
+    Equal.cong(Maybe<&2, List<&2, Nat>>, Bool, dd => Bool.not(Maybe.is_some(&2, List<&2, Nat>, dd)), Some{bs}, Spec.Out.dec(w2),
+      Equal.sym(Maybe<&2, List<&2, Nat>>, Spec.Out.dec(w2), Some{bs}, hd)), h)
+
+def Keeps.next(r1: Maybe<&2, Imp.Res>, y: Fun.Step, +j: Nat, +p: Nat, +prog: List<&2, Fun.C>, +size: U32, +w: Fun.V, +bs: List<&2, Nat>,
+  hp: {Pass.ok(y, r1, prog, size) == True{} : Bool}, h: {Fun.F.iter(j, prog, y) == Fun.Step.halt{w} : Fun.Step},
+  +hd: {Spec.Out.dec(w) == Some{bs} : Maybe<&2, List<&2, Nat>>}, hm: {Nat.is_le(Fuel.go(j, prog, y), p) == True{} : Bool},
+  ih: @s:Fun.S -> @ls:List<&2, U32> -> @mem:Wasm.Mem -> {Inv(Fun.Step.go{s}, ls, mem, prog, size) == True{} : Bool} ->
+    {Fun.F.iter(j, prog, Fun.Step.go{s}) == Fun.Step.halt{w} : Fun.Step} -> {Nat.is_le(Fuel.go(j, prog, Fun.Step.go{s}), p) == True{} : Bool} ->
+    {Loop.keeps(Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, ls, mem), bs, size) == True{} : Bool}) ->
+  {Loop.keeps(Imp.Res.loop(r1, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}:
+  match r1 y:
+    case None{} _:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(None{}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, hp)
+    case Some{Imp.Res.next{+ls, +mem}} Fun.Step.go{+s}:
+      ih(s, ls, mem, hp, h, hm)
+    case Some{Imp.Res.next{+ls, +mem}} Fun.Step.halt{+w2}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(Some{Imp.Res.next{ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, hp)
+    case Some{Imp.Res.next{+ls, +mem}} Fun.Step.stuck{}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(Some{Imp.Res.next{ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, hp)
+    case Some{Imp.Res.brk{0n, +ls, +mem}} _:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(Some{Imp.Res.brk{0n, ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, hp)
+    case Some{Imp.Res.brk{1n, +ls, +mem}} Fun.Step.go{+s}:
+      Keep.oom(Fin(ls, mem, size), bs, hp)
+    case Some{Imp.Res.brk{1n, +ls, +mem}} Fun.Step.halt{+w2}:
+      Keep.fin(Fin(ls, mem, size), w2, bs, Keep.dec(j, prog, w2, w, bs, h, hd), hp)
+    case Some{Imp.Res.brk{1n, +ls, +mem}} Fun.Step.stuck{}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(Some{Imp.Res.brk{1n, ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, Keep.stuck(j, prog, w, h))
+    case Some{Imp.Res.brk{2n+l, +ls, +mem}} _:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(Some{Imp.Res.brk{2n+l, ls, mem}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, hp)
+    case Some{Imp.Res.trap{}} Fun.Step.go{+s}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(Some{Imp.Res.trap{}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, hp)
+    case Some{Imp.Res.trap{}} Fun.Step.halt{+w2}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(Some{Imp.Res.trap{}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, Keep.trap(w2, bs, Keep.dec(j, prog, w2, w, bs, h, hd), hp))
+    case Some{Imp.Res.trap{}} Fun.Step.stuck{}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Res.loop(Some{Imp.Res.trap{}}, x => yy => Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, x, yy)), bs, size) == True{} : Bool}, Keep.stuck(j, prog, w, h))
+
+# the main loop from s, when the abstract machine ends in k steps with an
+# output bs: the output bs or Out.oom
+def Keeps.loop(k: Nat, m: Nat, +s: Fun.S, +ls: List<&2, U32>, +prog: List<&2, Fun.C>, +size: U32, +mem: Wasm.Mem, +w: Fun.V,
+  +bs: List<&2, Nat>, +hinv: {Inv(Fun.Step.go{s}, ls, mem, prog, size) == True{} : Bool}, h: {Fun.F.iter(k, prog, Fun.Step.go{s}) == Fun.Step.halt{w} : Fun.Step},
+  +hd: {Spec.Out.dec(w) == Some{bs} : Maybe<&2, List<&2, Nat>>}, +hm: {Nat.is_le(Fuel.go(k, prog, Fun.Step.go{s}), m) == True{} : Bool}) ->
+  {Loop.keeps(Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, m, size, ls, mem), bs, size) == True{} : Bool}:
+  match k m:
+    case 0n +m2:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, m2, size, ls, mem), bs, size) == True{} : Bool},
+        Equal.cong(Fun.Step, Bool, x => Step.is_halt(x), Fun.Step.go{s}, Fun.Step.halt{w}, h))
+    case 1n++j 0n:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, 0n, size, ls, mem), bs, size) == True{} : Bool}, hm)
+    case 1n++j 1n++p:
+      Keeps.next(Imp.Stm.run(RT.I.step(), p, size, ls, mem), Fun.F.step(prog, s), j, p, prog, size, w, bs,
+        Pass.ls(s, ls, p, prog, size, mem, hinv,
+          Le.t(Need.s(s), Nat.add(Need.s(s), Fuel.go(j, prog, Fun.F.step(prog, s))), p,
+            Shared.Nat.is_le_add(Need.s(s), Fuel.go(j, prog, Fun.F.step(prog, s))), hm)),
+        h, hd,
+        Le.t(Fuel.go(j, prog, Fun.F.step(prog, s)), Nat.add(Need.s(s), Fuel.go(j, prog, Fun.F.step(prog, s))), p,
+          Shared.Nat.is_le_add_left(Fuel.go(j, prog, Fun.F.step(prog, s)), Need.s(s)), hm),
+        s2 => ls2 => mem2 => hi2 => h2 => hm2 => Keeps.loop(j, p, s2, ls2, prog, size, mem2, w, bs, hi2, h2, hd, hm2))
