@@ -6851,3 +6851,51 @@ def Inp.some(+xs: List<&2, Nat>, +n: Nat, +lim: U32, +size: U32, +hls: {Nat.is_l
                         Le.rwl(1n+List.length(&2, Nat, xs), 1n+List.length(&2, Nat, RevN(xs, [])), n, Equal.cong(Nat, Nat, y => 1n+y, List.length(&2, Nat, xs), List.length(&2, Nat, RevN(xs, [])),
                           Equal.sym(Nat, List.length(&2, Nat, RevN(xs, [])), List.length(&2, Nat, xs), Equal.trans(Nat, List.length(&2, Nat, RevN(xs, [])), Nat.add(List.length(&2, Nat, xs), 0n), List.length(&2, Nat, xs), Len.revn(xs, []), MP.Nat.add_zero(List.length(&2, Nat, xs))))), hn))
           , ls => mm => hp => Inp.tail(ls, mm, xs, n, size, hs5, hp)))({==}))
+
+# The image of the program
+# ========================
+
+def Imgs.len(vs: List<&2, Fun.V>, +ws: List<&2, RT.W>, +off: Nat) -> {List.length(&2, RT.W, RT.Imgs.rs(RT.Imgs.vals(vs, ws, off))) == List.length(&2, Fun.V, vs) : Nat}:
+  match vs:
+    case Nil{}:
+      {==}
+    case Con{+v, +rest}:
+      Equal.cong(Nat, Nat, y => 1n+y, List.length(&2, RT.W, RT.Imgs.rs(RT.Imgs.vals(rest, ws, off))), List.length(&2, Fun.V, rest), Imgs.len(rest, ws, off))
+
+# the word i of the table at T
+def Addr.tb(+T: U32, +i: Nat, +H: Nat, +size: U32, +hb: {Nat.is_le(4n+Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), H) == True{} : Bool}, +hs: {Nat.is_le(H, U32.to_nat(size)) == True{} : Bool}) ->
+  {Wasm.Mem.addr(T, U32.from_nat(Nat.double(Nat.double(i))), 4, size) == Some{U32.add(T, U32.from_nat(Nat.double(Nat.double(i))))} : Maybe<&2, U32>}:
+  +hHs = Le.t(4n+Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), H, U32.to_nat(size), hb, hs)
+  +fD = {Fits.le(Nat.double(Nat.double(i)), size, Le.t(Nat.double(Nat.double(i)), 4n+Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), U32.to_nat(size),
+    Le.t(Nat.double(Nat.double(i)), Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), 4n+Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), Shared.Nat.is_le_add_left(Nat.double(Nat.double(i)), U32.to_nat(T)),
+      Shared.Nat.is_le_add_left(Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), 4n)), hHs)) : {U32.to_nat(U32.from_nat(Nat.double(Nat.double(i)))) == Nat.double(Nat.double(i)) : Nat}}
+  Addr(T, U32.from_nat(Nat.double(Nat.double(i))), 4, size, Le.rwl(4n+Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), Nat.add(Nat.add(U32.to_nat(T), U32.to_nat(U32.from_nat(Nat.double(Nat.double(i))))), 4n), U32.to_nat(size),
+    Equal.trans(Nat, 4n+Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), Nat.add(Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), 4n), Nat.add(Nat.add(U32.to_nat(T), U32.to_nat(U32.from_nat(Nat.double(Nat.double(i))))), 4n),
+      Equal.sym(Nat, Nat.add(Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), 4n), 4n+Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), MP.Nat.add_comm(Nat.add(U32.to_nat(T), Nat.double(Nat.double(i))), 4n)),
+      Equal.cong(Nat, Nat, y => Nat.add(Nat.add(U32.to_nat(T), y), 4n), Nat.double(Nat.double(i)), U32.to_nat(U32.from_nat(Nat.double(Nat.double(i)))), Equal.sym(Nat, U32.to_nat(U32.from_nat(Nat.double(Nat.double(i)))), Nat.double(Nat.double(i)), fD))),
+    hHs))
+
+# the facts of RT.fits
+def Fit.rs(+prog: List<&2, Fun.C>, +head: Fun.V, +tail: List<&2, Fun.V>, +h: {RT.fits(prog, head, tail) == True{} : Bool}) -> {RT.Ws.fits(RT.Imgs.rs(RT.Img.prog(prog, head, tail))) == True{} : Bool}:
+  And.l(RT.Ws.fits(RT.Imgs.rs(RT.Img.prog(prog, head, tail))), RT.Ws.fits(RT.Imgs.ws(RT.Img.prog(prog, head, tail))), And.l(Bool.and(RT.Ws.fits(RT.Imgs.rs(RT.Img.prog(prog, head, tail))), RT.Ws.fits(RT.Imgs.ws(RT.Img.prog(prog, head, tail)))), Wasm.Nat.at_most(RT.Imgs.size(RT.Img.prog(prog, head, tail)), 4294967295), h))
+
+def Fit.ws(+prog: List<&2, Fun.C>, +head: Fun.V, +tail: List<&2, Fun.V>, +h: {RT.fits(prog, head, tail) == True{} : Bool}) -> {RT.Ws.fits(RT.Imgs.ws(RT.Img.prog(prog, head, tail))) == True{} : Bool}:
+  And.r(RT.Ws.fits(RT.Imgs.rs(RT.Img.prog(prog, head, tail))), RT.Ws.fits(RT.Imgs.ws(RT.Img.prog(prog, head, tail))), And.l(Bool.and(RT.Ws.fits(RT.Imgs.rs(RT.Img.prog(prog, head, tail))), RT.Ws.fits(RT.Imgs.ws(RT.Img.prog(prog, head, tail)))), Wasm.Nat.at_most(RT.Imgs.size(RT.Img.prog(prog, head, tail)), 4294967295), h))
+
+def Fit.sz(+prog: List<&2, Fun.C>, +head: Fun.V, +tail: List<&2, Fun.V>, +h: {RT.fits(prog, head, tail) == True{} : Bool}) ->
+  {U32.to_nat(U32.from_nat(RT.Imgs.size(RT.Img.prog(prog, head, tail)))) == RT.Imgs.size(RT.Img.prog(prog, head, tail)) : Nat}:
+  Fits.le(RT.Imgs.size(RT.Img.prog(prog, head, tail)), 4294967295, AtMost.le(RT.Imgs.size(RT.Img.prog(prog, head, tail)), 4294967295,
+    And.r(Bool.and(RT.Ws.fits(RT.Imgs.rs(RT.Img.prog(prog, head, tail))), RT.Ws.fits(RT.Imgs.ws(RT.Img.prog(prog, head, tail)))), Wasm.Nat.at_most(RT.Imgs.size(RT.Img.prog(prog, head, tail)), 4294967295), h)))
+
+# the end of the table is the end of the image
+def Img.hT(+prog: List<&2, Fun.C>, +head: Fun.V, +tail: List<&2, Fun.V>, +b: Nat) ->
+  {Nat.is_le(Nat.add(Nat.double(Nat.double(Nat.add(List.length(&2, Fun.V, List.append(&2, Fun.V, RT.Enc.codes(prog, List.length(&2, Fun.C, prog)), [head, RT.Enc.list(tail)])), 0n))), Nat.add(RT.Imgs.off(RT.Img.prog(prog, head, tail)), b)), Nat.add(RT.Imgs.size(RT.Img.prog(prog, head, tail)), b)) == True{} : Bool}:
+  +VS = List.append(&2, Fun.V, RT.Enc.codes(prog, List.length(&2, Fun.C, prog)), [head, RT.Enc.list(tail)])
+  +e = Equal.trans(Nat, Nat.double(Nat.double(Nat.add(List.length(&2, Fun.V, VS), 0n))), Nat.double(Nat.double(List.length(&2, Fun.V, VS))), Nat.double(Nat.double(List.length(&2, RT.W, RT.Imgs.rs(RT.Img.prog(prog, head, tail))))),
+    Equal.cong(Nat, Nat, y => Nat.double(Nat.double(y)), Nat.add(List.length(&2, Fun.V, VS), 0n), List.length(&2, Fun.V, VS), MP.Nat.add_zero(List.length(&2, Fun.V, VS))),
+    Equal.cong(Nat, Nat, y => Nat.double(Nat.double(y)), List.length(&2, Fun.V, VS), List.length(&2, RT.W, RT.Imgs.rs(RT.Img.prog(prog, head, tail))), Equal.sym(Nat, List.length(&2, RT.W, RT.Imgs.rs(RT.Img.prog(prog, head, tail))), List.length(&2, Fun.V, VS), Imgs.len(VS, [], 0n))))
+  Le.rwl(Nat.add(RT.Imgs.size(RT.Img.prog(prog, head, tail)), b), Nat.add(Nat.double(Nat.double(Nat.add(List.length(&2, Fun.V, VS), 0n))), Nat.add(RT.Imgs.off(RT.Img.prog(prog, head, tail)), b)), Nat.add(RT.Imgs.size(RT.Img.prog(prog, head, tail)), b),
+    Equal.trans(Nat, Nat.add(RT.Imgs.size(RT.Img.prog(prog, head, tail)), b), Nat.add(Nat.double(Nat.double(List.length(&2, RT.W, RT.Imgs.rs(RT.Img.prog(prog, head, tail))))), Nat.add(RT.Imgs.off(RT.Img.prog(prog, head, tail)), b)), Nat.add(Nat.double(Nat.double(Nat.add(List.length(&2, Fun.V, VS), 0n))), Nat.add(RT.Imgs.off(RT.Img.prog(prog, head, tail)), b)),
+      MP.Nat.add_assoc(Nat.double(Nat.double(List.length(&2, RT.W, RT.Imgs.rs(RT.Img.prog(prog, head, tail))))), RT.Imgs.off(RT.Img.prog(prog, head, tail)), b),
+      Equal.cong(Nat, Nat, y => Nat.add(y, Nat.add(RT.Imgs.off(RT.Img.prog(prog, head, tail)), b)), Nat.double(Nat.double(List.length(&2, RT.W, RT.Imgs.rs(RT.Img.prog(prog, head, tail))))), Nat.double(Nat.double(Nat.add(List.length(&2, Fun.V, VS), 0n))), Equal.sym(Nat, Nat.double(Nat.double(Nat.add(List.length(&2, Fun.V, VS), 0n))), Nat.double(Nat.double(List.length(&2, RT.W, RT.Imgs.rs(RT.Img.prog(prog, head, tail))))), e))),
+    Shared.Nat.is_le_refl(Nat.add(RT.Imgs.size(RT.Img.prog(prog, head, tail)), b)))
