@@ -271,8 +271,10 @@ know which implementation it tests. A command-line parameter names it:
   WSL on Windows. A case whose program is not a `.bend` file skips it.
 - A case has an `expect`: the output bytes, the output text, or a refusal
   that names a text. Without `expect`, two `--run` must give the same
-  outcome. We can point `--run` at the existing compiler's run. Its
-  differences are advice only (assumption 4): `Eval` decides.
+  outcome. The existing compiler's run cannot be a `--run` as it is: it
+  takes `.bend` source, takes no byte input, and prints surface syntax. For
+  a comparison, run `bend file.bend` by hand. Its differences are advice
+  only (assumption 4): `Eval` decides.
 - Cases are data in `bootstrap/harness/cases/`, one list for each part. The
   `#|` lines of the existing tests are not cases, because they come from
   the existing JS and C runs.
