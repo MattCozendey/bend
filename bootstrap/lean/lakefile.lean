@@ -109,14 +109,18 @@ inductive Pin.Part where
 -- - ../bend/runner.bend and ../bend/src/runner/impl.bend: the runner in Bend,
 --   which runs a program by that meaning.
 -- - ../bend/src/runner/spec.bend: the laws of the runner.
+-- - ../bend/src/wasm/impl.bend: the meaning of the WebAssembly that the
+--   compiler will write, and its binary format.
+-- - ../harness/wasm.ts: the glue that runs such a module on an engine.
 -- - ../../bend2/bendtt.lean: the parts of the kernel that impl.bend and
 --   spec.bend copy: Types up to Ctx (the terms, substitution and the book),
 --   the Parser, and Evaluation (the run-time relations). When one changes,
 --   check the copy again.
--- - ../../bend2/base.bend: each Base def that the meaning or the runner
---   reaches: in the .bendtt of ../bend/main.bend and ../bend/runner.bend,
---   from the defs of source/impl.bend, source/spec.bend and runner/impl.bend,
---   and from the types of the laws. A pinned def that starts to call another
+-- - ../../bend2/base.bend: each Base def that the meanings or the runner
+--   reach: in the .bendtt of ../bend/main.bend, ../bend/runner.bend and
+--   ../harness/cases/wasm.bend, from the defs of source/impl.bend,
+--   source/spec.bend, runner/impl.bend and wasm/impl.bend, and from the types
+--   of the laws. A pinned def that starts to call another
 --   Base def changes, so its review adds that def here.
 def Pins : List (String × Pin.Part × UInt64) := [
   ("src/Contract/Spec.lean", .all, 1941511504593986303),
@@ -130,6 +134,8 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../bend/runner.bend", .all, 5273200584563642721),
   ("../bend/src/runner/impl.bend", .all, 10091874320944690480),
   ("../bend/src/runner/spec.bend", .all, 12877080248927091342),
+  ("../bend/src/wasm/impl.bend", .all, 3706523269112784333),
+  ("../harness/wasm.ts", .all, 16879184372834895701),
   ("../../bend2/bendtt.lean", .span "-- Types" "-- Ctx", 14875125228840285785),
   ("../../bend2/bendtt.lean", .span "-- Parser" "-- Evaluator", 15025253426444512988),
   ("../../bend2/bendtt.lean", .span "-- Evaluation" "-- Claims", 4021871860510412546),
@@ -174,7 +180,45 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../../bend2/base.bend", .block "def Nat.divmod.go(", 6487796413967987314),
   ("../../bend2/base.bend", .block "def Nat.divmod(", 12078178798127432727),
   ("../../bend2/base.bend", .block "def Nat.div(", 84019639989369007),
-  ("../../bend2/base.bend", .block "def Nat.mod(", 1601870151355992951)]
+  ("../../bend2/base.bend", .block "def Nat.mod(", 1601870151355992951),
+  ("../../bend2/base.bend", .block "def Bool.xor(", 8734078192967287758),
+  ("../../bend2/base.bend", .block "def Bool.cmp(", 3739093497976504148),
+  ("../../bend2/base.bend", .block "def Bool.full_add(", 5887628646050833629),
+  ("../../bend2/base.bend", .block "def Bool.pick(", 13071839302646731065),
+  ("../../bend2/base.bend", .block "def Bool.to_u32(", 13040543188632856832),
+  ("../../bend2/base.bend", .block "def Cmp.is_ge(", 13524194105349902162),
+  ("../../bend2/base.bend", .block "def Word.inc(", 6464791071825864908),
+  ("../../bend2/base.bend", .block "law Word.adc:", 13924172224617256919),
+  ("../../bend2/base.bend", .block "def Word.adc.con(", 11902463692627529951),
+  ("../../bend2/base.bend", .block "def Word.adc(", 1310370121088770349),
+  ("../../bend2/base.bend", .block "def Word.add(", 12324930896339584),
+  ("../../bend2/base.bend", .block "def Word.sub(", 4118611014724993897),
+  ("../../bend2/base.bend", .block "def Word.and(", 8668485754793923191),
+  ("../../bend2/base.bend", .block "def Word.or(", 16306953360495401485),
+  ("../../bend2/base.bend", .block "def Word.xor(", 6617044975386396266),
+  ("../../bend2/base.bend", .block "def Word.shl.put(", 5555817243628016496),
+  ("../../bend2/base.bend", .block "def Word.shl(", 17737693988635886865),
+  ("../../bend2/base.bend", .block "def Word.shr.pad(", 9134228219377619347),
+  ("../../bend2/base.bend", .block "def Word.shr(", 14811836077840011638),
+  ("../../bend2/base.bend", .block "def Word.cmp.fin(", 1069485214494878343),
+  ("../../bend2/base.bend", .block "def Word.cmp(", 17799153675433812172),
+  ("../../bend2/base.bend", .block "def U32.inc(", 359657127731175723),
+  ("../../bend2/base.bend", .block "def U32.add(", 9007406673262418153),
+  ("../../bend2/base.bend", .block "def U32.sub(", 1159037016534665574),
+  ("../../bend2/base.bend", .block "def U32.and(", 3258601912414203068),
+  ("../../bend2/base.bend", .block "def U32.or(", 2110418628835561910),
+  ("../../bend2/base.bend", .block "def U32.xor(", 5829666708934008079),
+  ("../../bend2/base.bend", .block "def U32.shl(", 795262615261080419),
+  ("../../bend2/base.bend", .block "def U32.shr(", 14434743955127345981),
+  ("../../bend2/base.bend", .block "def U32.shln(", 3795420445998510004),
+  ("../../bend2/base.bend", .block "def U32.shrn(", 10675000531080423097),
+  ("../../bend2/base.bend", .block "def U32.cmp(", 5293550147375110700),
+  ("../../bend2/base.bend", .block "def U32.is_eq(", 10915550912079050589),
+  ("../../bend2/base.bend", .block "def U32.is_ne(", 15680204244339059488),
+  ("../../bend2/base.bend", .block "def U32.is_lt(", 3052774866507127777),
+  ("../../bend2/base.bend", .block "def U32.is_le(", 17483679009855355400),
+  ("../../bend2/base.bend", .block "def U32.is_ge(", 2182709843309590902),
+  ("../../bend2/base.bend", .block "def U32.from_nat(", 14431940280590938519)]
 
 -- the index of the first line, from i on, that p holds for
 def Pin.find (ls : Array String) (i : Nat) (p : String → Bool) : Option Nat :=
