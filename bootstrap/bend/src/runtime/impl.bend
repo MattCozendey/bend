@@ -56,7 +56,7 @@ def Enc.args(xs: List<&2, Fun.A>, acc: Fun.V) -> Fun.V:
 def Enc.call(tag: Nat, +f: Nat, +len: Nat, +xs: List<&2, Fun.A>, room: Nat, k: Fun.V) -> Fun.V:
   Bool.pick(Fun.V, Nat.is_lt(f, len),
     Fun.V.n{tag, Fun.V.n{Nat.double(Nat.double(f)), Enc.args(xs, Fun.V.z{}),
-      Fun.V.num(Nat.add(Nat.mul(12n, List.length(&2, Fun.A, xs)), room))}, k},
+      Fun.V.num(Nat.add(Nat.mul(List.length(&2, Fun.A, xs), 12n), room))}, k},
     Fun.V.num(8n))
 
 # the code c, in a program of len functions
