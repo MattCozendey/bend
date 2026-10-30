@@ -2292,3 +2292,616 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
 def Spec.Term.is_value_complete(bk, t, v):
   Term.is_value_complete.go(t, False{}, bk, v)
 
+
+# Maybes
+# ======
+
+def Maybe.term(m: Maybe<&2, Source.Term>) -> Source.Term:
+  match m:
+    case Some{a}:
+      a
+    case None{}:
+      Source.Term.Rfl{}
+
+def Maybe.some_inj(-a: Source.Term, -b: Source.Term, e: {Some{a} == Some{b} : Maybe<&2, Source.Term>}) -> {a == b : Source.Term}:
+  Equal.cong(Maybe<&2, Source.Term>, Source.Term, Maybe.term, Some{a}, Some{b}, e)
+
+def Maybe.has_term(m: Maybe<&2, Source.Term>) -> Bool:
+  match m:
+    case Some{a}:
+      True{}
+    case None{}:
+      False{}
+
+def Maybe.no_none(-a: Source.Term, e: {None{} == Some{a} : Maybe<&2, Source.Term>}) -> Empty:
+  Bool.no(Equal.cong(Maybe<&2, Source.Term>, Bool, Maybe.has_term, None{}, Some{a}, e))
+
+# a case split on Maybe.else's first side m, which is m0, for a result r
+def Maybe.else.by(-R: Type, -m0: Maybe<&2, Source.Term>, m: Maybe<&2, Source.Term>, em: {m == m0 : Maybe<&2, Source.Term>}, -k: Unit -> Maybe<&2, Source.Term>, -r: Maybe<&2, Source.Term>,
+  h: {Source.Maybe.else(Source.Term, m, k) == r : Maybe<&2, Source.Term>},
+  some: @a: Source.Term -> {m0 == Some{a} : Maybe<&2, Source.Term>} -> {Some{a} == r : Maybe<&2, Source.Term>} -> R,
+  none: {m0 == None{} : Maybe<&2, Source.Term>} -> {k(Unit{}) == r : Maybe<&2, Source.Term>} -> R) -> R:
+  match m:
+    case Some{a}:
+      some(a, Equal.sym(Maybe<&2, Source.Term>, Some{a}, m0, em), h)
+    case None{}:
+      none(Equal.sym(Maybe<&2, Source.Term>, None{}, m0, em), h)
+
+def Maybe.when.by(-A: Data, -R: Type, c: Bool, -k: Unit -> Maybe<&2, A>, -r: Maybe<&2, A>,
+  h: {Source.Maybe.when(A, c, k) == r : Maybe<&2, A>},
+  yes: {c == True{} : Bool} -> {k(Unit{}) == r : Maybe<&2, A>} -> R,
+  no: {c == False{} : Bool} -> {None{} == r : Maybe<&2, A>} -> R) -> R:
+  match c:
+    case True{}:
+      yes({==}, h)
+    case False{}:
+      no({==}, h)
+
+def Maybe.map_term.by(-R: Type, -m0: Maybe<&2, Source.Term>, m: Maybe<&2, Source.Term>, em: {m == m0 : Maybe<&2, Source.Term>}, -f: Source.Term -> Source.Term,
+  -r: Maybe<&2, Source.Term>, h: {Source.Maybe.map_term(m, f) == r : Maybe<&2, Source.Term>},
+  some: @a: Source.Term -> {m0 == Some{a} : Maybe<&2, Source.Term>} -> {Some{f(a)} == r : Maybe<&2, Source.Term>} -> R,
+  none: {m0 == None{} : Maybe<&2, Source.Term>} -> {None{} == r : Maybe<&2, Source.Term>} -> R) -> R:
+  match m:
+    case Some{a}:
+      some(a, Equal.sym(Maybe<&2, Source.Term>, Some{a}, m0, em), h)
+    case None{}:
+      none(Equal.sym(Maybe<&2, Source.Term>, None{}, m0, em), h)
+
+def Bool.if.by(-A: Type, -R: Type, c: Bool, -a: A, -b: A, -r: A, h: {Source.Bool.if(A, c, a, b) == r : A},
+  yes: {c == True{} : Bool} -> {a == r : A} -> R,
+  no: {c == False{} : Bool} -> {b == r : A} -> R) -> R:
+  match c:
+    case True{}:
+      yes({==}, h)
+    case False{}:
+      no({==}, h)
+
+def Term.Value.when_of(+bk: List<&2, Source.Def>, q: Source.Quan, x: Source.Term,
+  h: {Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk)) == True{} : Bool}) ->
+  Spec.Term.Value.when(Source.Quan.live(q), bk, x):
+  match q:
+    case Source.Q0{}:
+      Unit{}
+    case Source.Q1{}:
+      Spec.Term.is_value_sound(bk, x, h)
+    case Source.Q2{}:
+      Spec.Term.is_value_sound(bk, x, h)
+
+# Fires
+# =====
+
+# the def and the walk of a call that fires
+type Term.Fire<-bk: List<&2, Source.Def>, -k: List<&2, Nat>, -xs: List<&2, Source.Arg>, -u: Source.Term> is Type:
+  Term.Fire.of{d: Source.Def, g: {Source.Book.get(bk, k) == Some{d} : Maybe<&2, Source.Def>},
+    w: Spec.Term.Walk<Source.Def.body(d), [], xs, Some{u}>}
+
+def Term.fires_eq(+bk: List<&2, Source.Def>, +k: List<&2, Nat>, +xs: List<&2, Source.Arg>) ->
+  {Source.Term.fires(bk, Source.Term.spine(xs, Source.Term.Ref{k})) ==
+    Source.Walk.done_term(Source.Term.walk_call.got(Source.Book.get(bk, k), xs)) : Maybe<&2, Source.Term>}:
+  Equal.trans(Maybe<&2, Source.Term>, Source.Term.fires(bk, Source.Term.spine(xs, Source.Term.Ref{k})),
+    Source.Walk.done_term(Source.Term.walk_call.got(Source.Book.get(bk, k), List.append(&2, Source.Arg, xs, []))),
+    Source.Walk.done_term(Source.Term.walk_call.got(Source.Book.get(bk, k), xs)),
+    Equal.cong(Source.Spine, Maybe<&2, Source.Term>, z => Source.Walk.done_term(Source.Term.walk_call.of(bk, z)),
+      Source.Term.unspine(Source.Term.spine(xs, Source.Term.Ref{k}), []),
+      Source.Term.unspine(Source.Term.Ref{k}, List.append(&2, Source.Arg, xs, [])),
+      Term.unspine_spine(xs, Source.Term.Ref{k}, [])),
+    Equal.cong(List<&2, Source.Arg>, Maybe<&2, Source.Term>,
+      z => Source.Walk.done_term(Source.Term.walk_call.got(Source.Book.get(bk, k), z)),
+      List.append(&2, Source.Arg, xs, []), xs, List.append_nil(xs)))
+
+def Walk.done_term_some(w: Source.Walk, -u: Source.Term, h: {Source.Walk.done_term(w) == Some{u} : Maybe<&2, Source.Term>}) ->
+  {w == Spec.Walk.of(Some{u}) : Source.Walk}:
+  match w:
+    case Source.Walk.done{t}:
+      Equal.cong(Source.Term, Source.Walk, z => Source.Walk.done{z}, t, u, Maybe.some_inj(t, u, h))
+    case Source.Walk.need{}:
+      Empty.elim({Source.Walk.need{} == Source.Walk.done{u} : Source.Walk}, Maybe.no_none(u, h))
+    case Source.Walk.fail{}:
+      Empty.elim({Source.Walk.fail{} == Source.Walk.done{u} : Source.Walk}, Maybe.no_none(u, h))
+
+def Term.got_done(-bk: List<&2, Source.Def>, -k: List<&2, Nat>, m: Maybe<&2, Source.Def>,
+  +xs: List<&2, Source.Arg>, u: Source.Term, hm: {Source.Book.get(bk, k) == m : Maybe<&2, Source.Def>},
+  h: {Source.Walk.done_term(Source.Term.walk_call.got(m, xs)) == Some{u} : Maybe<&2, Source.Term>}) -> Term.Fire<bk, k, xs, u>:
+  match m:
+    case None{}:
+      Empty.elim(Term.Fire<bk, k, xs, u>, Maybe.no_none(u, h))
+    case Some{Source.Def{dk, dt, +dv, dop}}:
+      Term.Fire.of{Source.Def{dk, dt, dv, dop}, hm,
+        Spec.Term.walk_sound(dv, [], xs, Some{u}, Walk.done_term_some(Source.Term.walk(dv, [], xs), u, h))}
+
+def Term.fires_call(+bk: List<&2, Source.Def>, +k: List<&2, Nat>, +xs: List<&2, Source.Arg>, u: Source.Term,
+  h: {Source.Term.fires(bk, Source.Term.spine(xs, Source.Term.Ref{k})) == Some{u} : Maybe<&2, Source.Term>}) ->
+  Term.Fire<bk, k, xs, u>:
+  Term.got_done(bk, k, Source.Book.get(bk, k), xs, u, {==},
+    Equal.trans(Maybe<&2, Source.Term>, Source.Walk.done_term(Source.Term.walk_call.got(Source.Book.get(bk, k), xs)),
+      Source.Term.fires(bk, Source.Term.spine(xs, Source.Term.Ref{k})), Some{u},
+      Equal.sym(Maybe<&2, Source.Term>, Source.Term.fires(bk, Source.Term.spine(xs, Source.Term.Ref{k})),
+        Source.Walk.done_term(Source.Term.walk_call.got(Source.Book.get(bk, k), xs)), Term.fires_eq(bk, k, xs)),
+      h))
+
+def Term.eval_of_fire(-bk: List<&2, Source.Def>, k: List<&2, Nat>, xs: List<&2, Source.Arg>, -u: Source.Term,
+  f: Term.Fire<bk, k, xs, u>, vs: Spec.Term.Values(bk, xs)) ->
+  Spec.Term.Eval<bk, Source.Term.spine(xs, Source.Term.Ref{k}), u>:
+  match f:
+    case Term.Fire.of{d, g, w}:
+      Spec.Term.Eval.call{k, d, xs, g, vs, w, {==}}
+
+def Term.call_of(+bk: List<&2, Source.Def>, +q: Source.Quan, -f: Source.Term, +x: Source.Term, u: Source.Term,
+  ra: Term.Args<bk, f>, vx: Spec.Term.Value.when(Source.Quan.live(q), bk, x),
+  hf: {Source.Term.fires(bk, Source.Term.App{q, f, x}) == Some{u} : Maybe<&2, Source.Term>}) ->
+  Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>:
+  match ra:
+    case Term.Args.of{+k, +ys, et, vs}:
+      +e = Term.app_spine(q, f, x, k, ys, et)
+      %Equal.sym(Source.Term, Source.Term.App{q, f, x}, Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}), e) :
+        Spec.Term.Eval<bk, _, u>
+      Term.eval_of_fire(bk, k, List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), u,
+        Term.fires_call(bk, k, List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), u,
+          Equal.trans(Maybe<&2, Source.Term>, Source.Term.fires(bk, Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k})),
+            Source.Term.fires(bk, Source.Term.App{q, f, x}), Some{u},
+            Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Source.Term.fires(bk, z),
+              Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}), Source.Term.App{q, f, x},
+              Equal.sym(Source.Term, Source.Term.App{q, f, x}, Source.Term.spine(List.append(&2, Source.Arg, ys, Con{Source.Arg{q, x}, Nil{}}), Source.Term.Ref{k}), e)),
+            hf)),
+        Term.Values.join(bk, ys, Con{Source.Arg{q, x}, Nil{}}, vs, (vx, Unit{})))
+
+# call_sound
+def Term.call_sound(+bk: List<&2, Source.Def>, +q: Source.Quan, +f: Source.Term, +x: Source.Term, u: Source.Term,
+  h: {Source.Term.call(bk, q, f, x) == Some{u} : Maybe<&2, Source.Term>}) -> Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>:
+  Bool.lazy.by(Maybe<&2, Source.Term>, Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>,
+    Bool.and(Source.Term.is_value(f, True{}, bk), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk))),
+    w => Source.Term.fires(bk, Source.Term.App{q, f, x}), w => None{}, Some{u}, h,
+    +c => hf => Term.call_of(bk, q, f, x, u,
+      Term.is_value_sound.go(f, True{}, bk,
+        Bool.and_left(Source.Term.is_value(f, True{}, bk),
+          Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk)), c)),
+      Term.Value.when_of(bk, q, x,
+        Bool.and_right(Source.Term.is_value(f, True{}, bk),
+          Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk)), c)),
+      hf),
+    c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(u, hn)))
+
+# Redexes
+# =======
+
+def Term.redex_sound.hit(-bk: List<&2, Source.Def>, q: Source.Quan, -j: List<&2, Nat>, k: List<&2, Nat>,
+  hh: Source.Term, m: Source.Term, -u: Source.Term, c: {Source.Quan.live(q) == True{} : Bool},
+  ejk: {j == k : List<&2, Nat>}, eu: {hh == u : Source.Term}) ->
+  Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lab{j}}, u>:
+  Spec.Term.Eval.hit{q, k, hh, m, c,
+    Equal.cong(List<&2, Nat>, Source.Term, z => Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lab{z}},
+      j, k, ejk),
+    Equal.sym(Source.Term, hh, u, eu)}
+
+# redex_sound
+def Term.redex_sound(+bk: List<&2, Source.Def>, +q: Source.Quan, f: Source.Term, +x: Source.Term, -u: Source.Term,
+  h: {Source.Term.redex(bk, q, f, x) == Some{u} : Maybe<&2, Source.Term>}) -> Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>:
+  match f:
+    case Source.Term.Var{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Var{z0}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Ref{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Ref{z0}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Ann{+z0, +z1}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Ann{z0, z1}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Let{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Let{z0, z1, z2}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Typ{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Typ{z0}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Min{+z0, +z1}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Min{z0, z1}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.All{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.All{z0, z1, z2}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Lam{+p, +b}:
+      Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Lam{p, b}, x}, u>, Bool.and(Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk))), Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(x))),
+        w => Some{Source.Term.sub(b, 0n, Source.Sub.one{x})}, Some{u}, h,
+        +c => hs => Spec.Term.Eval.beta{q, p, b, x,
+          Bool.is_eq_true(Source.Quan.live(p), Source.Quan.live(q),
+            Bool.and_left(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk)), Bool.and_left(Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk))), Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(x)), c))),
+          Term.Value.when_of(bk, q, x, Bool.and_right(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk)), Bool.and_left(Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk))), Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(x)), c))),
+          Term.Data.when_of(p, x, Bool.and_right(Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk))), Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(x)), c)), {==},
+          Equal.sym(Source.Term, Source.Term.sub(b, 0n, Source.Sub.one{x}), u,
+            Maybe.some_inj(Source.Term.sub(b, 0n, Source.Sub.one{x}), u, hs))},
+        c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Lam{p, b}, x}, u>, Maybe.no_none(u, hn)))
+    case Source.Term.App{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.App{z0, z1, z2}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Sig{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Sig{z0, z1, z2}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Tup{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Tup{z0, z1, z2}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Prj{+hh}:
+      match x:
+        case Source.Term.Tup{+r, +a, +y2}:
+          Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Tup{r, a, y2}}, u>,
+            Bool.and(Source.Quan.live(q), Source.Term.is_value(Source.Term.Tup{r, a, y2}, False{}, bk)),
+            w => Some{Source.Term.App{q, Source.Term.App{Source.Quan.fld(r, q), hh, a}, y2}}, Some{u}, h,
+            +c => hs => Spec.Term.Eval.split{q, r, hh, a, y2,
+              Bool.and_left(Source.Quan.live(q), Source.Term.is_value(Source.Term.Tup{r, a, y2}, False{}, bk), c),
+              Spec.Term.is_value_sound(bk, Source.Term.Tup{r, a, y2},
+                Bool.and_right(Source.Quan.live(q), Source.Term.is_value(Source.Term.Tup{r, a, y2}, False{}, bk), c)),
+              {==},
+              Equal.sym(Source.Term, Source.Term.App{q, Source.Term.App{Source.Quan.fld(r, q), hh, a}, y2}, u,
+                Maybe.some_inj(Source.Term.App{q, Source.Term.App{Source.Quan.fld(r, q), hh, a}, y2}, u, hs))},
+            c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Tup{r, a, y2}}, u>, Maybe.no_none(u, hn)))
+        case Source.Term.Var{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Var{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Ref{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Ref{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Ann{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Ann{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Let{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Let{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Typ{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Typ{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Min{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Min{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.All{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.All{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Lam{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Lam{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.App{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.App{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Sig{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Sig{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Prj{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Prj{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Enu{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Enu{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Lab{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Lab{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Mat{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Mat{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Efq{}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Efq{}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Eql{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Eql{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Rfl{}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Rfl{}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Rwt{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Rwt{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+    case Source.Term.Enu{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Enu{z0}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Lab{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Lab{z0}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Mat{+k, +hh, +m}:
+      match x:
+        case Source.Term.Lab{+j}:
+          Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lab{j}}, u>, Source.Quan.live(q),
+            w => Source.Bool.if(Maybe<&2, Source.Term>, Source.Name.is_eq(j, k), Some{hh},
+              Some{Source.Term.App{q, m, Source.Term.Lab{j}}}), Some{u}, h,
+            +c => hs => Bool.if.by(Maybe<&2, Source.Term>, Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lab{j}}, u>, Source.Name.is_eq(j, k), Some{hh},
+              Some{Source.Term.App{q, m, Source.Term.Lab{j}}}, Some{u}, hs,
+              y => hh2 => Term.redex_sound.hit(bk, q, j, k, hh, m, u, c, Name.is_eq_true(j, k, y),
+                Maybe.some_inj(hh, u, hh2)),
+              y => hm => Spec.Term.Eval.miss{q, j, k, hh, m, c, Name.is_eq_false(j, k, y), {==},
+                Equal.sym(Source.Term, Source.Term.App{q, m, Source.Term.Lab{j}}, u,
+                  Maybe.some_inj(Source.Term.App{q, m, Source.Term.Lab{j}}, u, hm))}),
+            c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lab{j}}, u>, Maybe.no_none(u, hn)))
+        case Source.Term.Var{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Var{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Ref{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Ref{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Ann{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Ann{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Let{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Let{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Typ{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Typ{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Min{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Min{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.All{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.All{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Lam{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lam{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.App{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.App{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Sig{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Sig{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Tup{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Tup{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Prj{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Prj{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Enu{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Enu{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Mat{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Mat{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Efq{}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Efq{}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Eql{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Eql{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Rfl{}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Rfl{}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Rwt{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Rwt{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+    case Source.Term.Efq{}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Efq{}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Eql{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Eql{z0, z1, z2}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Rfl{}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Rfl{}, x}, u>, Maybe.no_none(u, h))
+    case Source.Term.Rwt{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Rwt{z0, z1, z2}, x}, u>, Maybe.no_none(u, h))
+
+def Term.meet_sound(-bk: List<&2, Source.Def>, a: Source.Term, b: Source.Term, -u: Source.Term,
+  h: {Source.Term.meet(a, b) == Some{u} : Maybe<&2, Source.Term>}) -> Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>:
+  match a:
+    case Source.Term.Var{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Var{z0}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Ref{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Ref{z0}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Ann{+z0, +z1}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Ann{z0, z1}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Let{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Let{z0, z1, z2}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Typ{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Typ{z0}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Min{+z0, +z1}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Min{z0, z1}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.All{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.All{z0, z1, z2}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Lam{+z0, +z1}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lam{z0, z1}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.App{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.App{z0, z1, z2}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Sig{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Sig{z0, z1, z2}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Tup{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Tup{z0, z1, z2}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Prj{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Prj{z0}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Enu{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Enu{z0}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Lab{+z0}:
+      match b:
+        case Source.Term.Var{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Var{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Ref{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Ref{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Ann{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Ann{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Let{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Let{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Typ{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Typ{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Min{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Min{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.All{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.All{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Lam{+y0, +y1}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Lam{y0, y1}}, u>, Maybe.no_none(u, h))
+        case Source.Term.App{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.App{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Sig{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Sig{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Tup{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Tup{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Prj{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Prj{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Enu{+y0}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Enu{y0}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Lab{+y0}:
+          Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Lab{y0}}, u>, Bool.and(Source.Name.is_quan(z0), Source.Name.is_quan(y0)),
+            w => Some{Source.Term.qmin(z0, y0)}, Some{u}, h,
+            +c => hs => Spec.Term.Eval.meet{z0, y0,
+              Bool.and_left(Source.Name.is_quan(z0), Source.Name.is_quan(y0), c),
+              Bool.and_right(Source.Name.is_quan(z0), Source.Name.is_quan(y0), c), {==},
+              Equal.sym(Source.Term, Source.Term.qmin(z0, y0), u, Maybe.some_inj(Source.Term.qmin(z0, y0), u, hs))},
+            c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Lab{y0}}, u>, Maybe.no_none(u, hn)))
+        case Source.Term.Mat{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Mat{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Efq{}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Efq{}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Eql{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Eql{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Rfl{}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Rfl{}}, u>, Maybe.no_none(u, h))
+        case Source.Term.Rwt{+y0, +y1, +y2}:
+          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Rwt{y0, y1, y2}}, u>, Maybe.no_none(u, h))
+    case Source.Term.Mat{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Mat{z0, z1, z2}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Efq{}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Efq{}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Eql{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Eql{z0, z1, z2}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Rfl{}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Rfl{}, b}, u>, Maybe.no_none(u, h))
+    case Source.Term.Rwt{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Rwt{z0, z1, z2}, b}, u>, Maybe.no_none(u, h))
+
+def Term.is_rfl_true(e: Source.Term, h: {Source.Term.is_rfl(e) == True{} : Bool}) ->
+  {e == Source.Term.Rfl{} : Source.Term}:
+  match e:
+    case Source.Term.Var{+z0}:
+      Bool.absurd({Source.Term.Var{z0} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Ref{+z0}:
+      Bool.absurd({Source.Term.Ref{z0} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Ann{+z0, +z1}:
+      Bool.absurd({Source.Term.Ann{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Let{+z0, +z1, +z2}:
+      Bool.absurd({Source.Term.Let{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Typ{+z0}:
+      Bool.absurd({Source.Term.Typ{z0} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Min{+z0, +z1}:
+      Bool.absurd({Source.Term.Min{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.All{+z0, +z1, +z2}:
+      Bool.absurd({Source.Term.All{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Lam{+z0, +z1}:
+      Bool.absurd({Source.Term.Lam{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.App{+z0, +z1, +z2}:
+      Bool.absurd({Source.Term.App{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Sig{+z0, +z1, +z2}:
+      Bool.absurd({Source.Term.Sig{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Tup{+z0, +z1, +z2}:
+      Bool.absurd({Source.Term.Tup{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Prj{+z0}:
+      Bool.absurd({Source.Term.Prj{z0} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Enu{+z0}:
+      Bool.absurd({Source.Term.Enu{z0} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Lab{+z0}:
+      Bool.absurd({Source.Term.Lab{z0} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Mat{+z0, +z1, +z2}:
+      Bool.absurd({Source.Term.Mat{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Efq{}:
+      Bool.absurd({Source.Term.Efq{} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Eql{+z0, +z1, +z2}:
+      Bool.absurd({Source.Term.Eql{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+    case Source.Term.Rfl{}:
+      {==}
+    case Source.Term.Rwt{+z0, +z1, +z2}:
+      Bool.absurd({Source.Term.Rwt{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+
+
+# step_sound at App q f x, when no call fires; rf and rx give the laws for the
+# steps of f and x
+def Term.step_sound.app(+bk: List<&2, Source.Def>, +q: Source.Quan, +f: Source.Term, +x: Source.Term,
+  u: Source.Term,
+  h: {Source.Term.step.app(q, f, x, bk, z => Source.Term.step(f, bk), z => Source.Term.step(x, bk)) == Some{u} : Maybe<&2, Source.Term>},
+  rf: @g: Source.Term -> {Source.Term.step(f, bk) == Some{g} : Maybe<&2, Source.Term>} -> Spec.Term.Eval<bk, f, g>, rx: @y: Source.Term -> {Source.Term.step(x, bk) == Some{y} : Maybe<&2, Source.Term>} -> Spec.Term.Eval<bk, x, y>) -> Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>:
+  Maybe.else.by(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Maybe.map_term(Source.Term.step(f, bk), g => Source.Term.App{q, g, x}), Source.Maybe.map_term(Source.Term.step(f, bk), g => Source.Term.App{q, g, x}), {==},
+    w => Source.Maybe.when(Source.Term, Source.Term.is_value(f, False{}, bk), v =>
+      Source.Maybe.else(Source.Term, Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), y => Source.Term.App{q, f, y}), z => Source.Term.redex(bk, q, f, x))),
+    Some{u}, h,
+    a => ea => ha => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Term.step(f, bk), Source.Term.step(f, bk), {==},
+      g => Source.Term.App{q, g, x}, Some{a}, ea,
+      +g => eg => hg => Spec.Term.Eval.app_f{q, f, g, x, rf(g, eg), {==}, Equal.sym(Source.Term, Source.Term.App{q, g, x}, u, Equal.trans(Source.Term, Source.Term.App{q, g, x}, a, u, Maybe.some_inj(Source.Term.App{q, g, x}, a, hg), Maybe.some_inj(a, u, ha)))},
+      eg => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(a, hn))),
+    ea => h3 => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Term.is_value(f, False{}, bk),
+      v => Source.Maybe.else(Source.Term, Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), y => Source.Term.App{q, f, y}), z => Source.Term.redex(bk, q, f, x)), Some{u}, h3,
+      ev => h4 => Maybe.else.by(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), y => Source.Term.App{q, f, y}), Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), y => Source.Term.App{q, f, y}), {==}, z => Source.Term.redex(bk, q, f, x), Some{u}, h4,
+        a => ea2 => ha2 => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), {==}, y => Source.Term.App{q, f, y}, Some{a}, ea2,
+          +y => ey => hy => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Quan.live(q), z => Source.Term.step(x, bk),
+            Some{y}, ey,
+            el => es => Spec.Term.Eval.app_x{q, f, x, y, Spec.Term.is_value_sound(bk, f, ev), el, rx(y, es), {==},
+              Equal.sym(Source.Term, Source.Term.App{q, f, y}, u, Equal.trans(Source.Term, Source.Term.App{q, f, y}, a, u, Maybe.some_inj(Source.Term.App{q, f, y}, a, hy), Maybe.some_inj(a, u, ha2)))},
+            el => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(y, hn))),
+          ey => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(a, hn))),
+        ea2 => h5 => Term.redex_sound(bk, q, f, x, u, h5)),
+      ev => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(u, hn))))
+
+# step_sound at Let q v f; rv gives the law for the step of v
+def Term.step_sound.let(+bk: List<&2, Source.Def>, +q: Source.Quan, +v: Source.Term, +f: Source.Term,
+  -u: Source.Term, h: {Source.Term.step.let(q, v, f, bk, z => Source.Term.step(v, bk)) == Some{u} : Maybe<&2, Source.Term>},
+  rv: @w: Source.Term -> {Source.Term.step(v, bk) == Some{w} : Maybe<&2, Source.Term>} -> Spec.Term.Eval<bk, v, w>) -> Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>:
+  Maybe.else.by(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(v, bk)), w => Source.Term.Let{q, w, f}), Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(v, bk)), w => Source.Term.Let{q, w, f}), {==},
+    w => Source.Maybe.when(Source.Term, Bool.and(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(v, False{}, bk)), Bool.or(Bool.not(Source.Quan.is_q2(q)), Source.Term.is_data(v))), z => Some{Source.Term.sub(f, 0n, Source.Sub.one{v})}), Some{u}, h,
+    a => ea => ha => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(v, bk)), Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(v, bk)), {==}, w => Source.Term.Let{q, w, f}, Some{a}, ea,
+      +w => ew => hw => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Source.Quan.live(q), z => Source.Term.step(v, bk),
+        Some{w}, ew,
+        el => es => Spec.Term.Eval.lett{q, v, w, f, el, rv(w, es), {==}, Equal.sym(Source.Term, Source.Term.Let{q, w, f}, u, Equal.trans(Source.Term, Source.Term.Let{q, w, f}, a, u, Maybe.some_inj(Source.Term.Let{q, w, f}, a, hw), Maybe.some_inj(a, u, ha)))},
+        el => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Maybe.no_none(w, hn))),
+      ew => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Maybe.no_none(a, hn))),
+    ea => h2 => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Bool.and(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(v, False{}, bk)), Bool.or(Bool.not(Source.Quan.is_q2(q)), Source.Term.is_data(v))), z => Some{Source.Term.sub(f, 0n, Source.Sub.one{v})}, Some{u}, h2,
+      +ec => hs => Spec.Term.Eval.unlet{q, v, f,
+        Term.Value.when_of(bk, q, v, Bool.and_left(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(v, False{}, bk)), Bool.or(Bool.not(Source.Quan.is_q2(q)), Source.Term.is_data(v)), ec)),
+        Term.Data.when_of(q, v, Bool.and_right(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(v, False{}, bk)), Bool.or(Bool.not(Source.Quan.is_q2(q)), Source.Term.is_data(v)), ec)), {==},
+        Equal.sym(Source.Term, Source.Term.sub(f, 0n, Source.Sub.one{v}), u, Maybe.some_inj(Source.Term.sub(f, 0n, Source.Sub.one{v}), u, hs))},
+      ec => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Maybe.no_none(u, hn))))
+
+# step_sound at Tup q a b; ra and rb give the laws for the steps of a and b
+def Term.step_sound.tup(+bk: List<&2, Source.Def>, +q: Source.Quan, +a: Source.Term, +b: Source.Term,
+  -u: Source.Term,
+  h: {Source.Term.step.tup(q, a, b, bk, z => Source.Term.step(a, bk), z => Source.Term.step(b, bk)) == Some{u} : Maybe<&2, Source.Term>},
+  ra: @c: Source.Term -> {Source.Term.step(a, bk) == Some{c} : Maybe<&2, Source.Term>} -> Spec.Term.Eval<bk, a, c>, rb: @c: Source.Term -> {Source.Term.step(b, bk) == Some{c} : Maybe<&2, Source.Term>} -> Spec.Term.Eval<bk, b, c>) -> Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>:
+  Maybe.else.by(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(a, bk)), w => Source.Term.Tup{q, w, b}), Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(a, bk)), w => Source.Term.Tup{q, w, b}), {==}, w => Source.Maybe.when(Source.Term, Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(a, False{}, bk)), z => Source.Maybe.map_term(Source.Term.step(b, bk), y => Source.Term.Tup{q, a, y})), Some{u}, h,
+    a2 => ea => ha => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(a, bk)), Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(a, bk)), {==}, w => Source.Term.Tup{q, w, b}, Some{a2}, ea,
+      +c => ec => hc => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Source.Quan.live(q), z => Source.Term.step(a, bk),
+        Some{c}, ec,
+        el => es => Spec.Term.Eval.tup_a{q, a, c, b, el, ra(c, es), {==}, Equal.sym(Source.Term, Source.Term.Tup{q, c, b}, u, Equal.trans(Source.Term, Source.Term.Tup{q, c, b}, a2, u, Maybe.some_inj(Source.Term.Tup{q, c, b}, a2, hc), Maybe.some_inj(a2, u, ha)))},
+        el => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Maybe.no_none(c, hn))),
+      ec => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Maybe.no_none(a2, hn))),
+    ea => h2 => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(a, False{}, bk)), z => Source.Maybe.map_term(Source.Term.step(b, bk), y => Source.Term.Tup{q, a, y}), Some{u}, h2,
+      ec => hm => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Source.Term.step(b, bk), Source.Term.step(b, bk), {==},
+        y => Source.Term.Tup{q, a, y}, Some{u}, hm,
+        +c => eb => hc => Spec.Term.Eval.tup_b{q, a, b, c, Term.Value.when_of(bk, q, a, ec), rb(c, eb), {==},
+          Equal.sym(Source.Term, Source.Term.Tup{q, a, c}, u, Maybe.some_inj(Source.Term.Tup{q, a, c}, u, hc))},
+        eb => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Maybe.no_none(u, hn))),
+      ec => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Maybe.no_none(u, hn))))
+
+# step_sound at Rwt e P f; re gives the law for the step of e
+def Term.step_sound.rwt(+bk: List<&2, Source.Def>, +e: Source.Term, +p: Source.Term, +f: Source.Term,
+  -u: Source.Term, h: {Source.Term.step.rwt(e, p, f, z => Source.Term.step(e, bk)) == Some{u} : Maybe<&2, Source.Term>},
+  re: @d: Source.Term -> {Source.Term.step(e, bk) == Some{d} : Maybe<&2, Source.Term>} -> Spec.Term.Eval<bk, e, d>) -> Spec.Term.Eval<bk, Source.Term.Rwt{e, p, f}, u>:
+  Bool.lazy.by(Maybe<&2, Source.Term>, Spec.Term.Eval<bk, Source.Term.Rwt{e, p, f}, u>, Source.Term.is_rfl(e), w => Some{f}, w => Source.Maybe.map_term(Source.Term.step(e, bk), y => Source.Term.Rwt{y, p, f}), Some{u}, h,
+    c => hs => Spec.Term.Eval.cast{p, f,
+      Equal.cong(Source.Term, Source.Term, z => Source.Term.Rwt{z, p, f}, e, Source.Term.Rfl{}, Term.is_rfl_true(e, c)),
+      Equal.sym(Source.Term, f, u, Maybe.some_inj(f, u, hs))},
+    c => hm => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.Rwt{e, p, f}, u>, Source.Term.step(e, bk), Source.Term.step(e, bk), {==},
+      y => Source.Term.Rwt{y, p, f}, Some{u}, hm,
+      +d => ed => hd => Spec.Term.Eval.rwt{e, d, p, f, re(d, ed), {==},
+        Equal.sym(Source.Term, Source.Term.Rwt{d, p, f}, u, Maybe.some_inj(Source.Term.Rwt{d, p, f}, u, hd))},
+      ed => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Rwt{e, p, f}, u>, Maybe.no_none(u, hn))))
+
+# step_sound at Min a b; ra and rb give the laws for the steps of a and b
+def Term.step_sound.min(+bk: List<&2, Source.Def>, +a: Source.Term, +b: Source.Term, u: Source.Term,
+  h: {Source.Term.step.min(a, b, bk, z => Source.Term.step(a, bk), z => Source.Term.step(b, bk)) == Some{u} : Maybe<&2, Source.Term>},
+  ra: @d: Source.Term -> {Source.Term.step(a, bk) == Some{d} : Maybe<&2, Source.Term>} -> Spec.Term.Eval<bk, a, d>, rb: @d: Source.Term -> {Source.Term.step(b, bk) == Some{d} : Maybe<&2, Source.Term>} -> Spec.Term.Eval<bk, b, d>) -> Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>:
+  Maybe.else.by(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Source.Maybe.map_term(Source.Term.step(a, bk), w => Source.Term.Min{w, b}), Source.Maybe.map_term(Source.Term.step(a, bk), w => Source.Term.Min{w, b}), {==},
+    w => Source.Maybe.when(Source.Term, Source.Term.is_value(a, False{}, bk), y =>
+      Source.Maybe.else(Source.Term, Source.Maybe.map_term(Source.Term.step(b, bk), z => Source.Term.Min{a, z}), z => Source.Term.meet(a, b))), Some{u}, h,
+    c => ec => hc => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Source.Term.step(a, bk), Source.Term.step(a, bk), {==},
+      w => Source.Term.Min{w, b}, Some{c}, ec,
+      +d => ed => hd => Spec.Term.Eval.min_a{a, d, b, ra(d, ed), {==}, Equal.sym(Source.Term, Source.Term.Min{d, b}, u, Equal.trans(Source.Term, Source.Term.Min{d, b}, c, u, Maybe.some_inj(Source.Term.Min{d, b}, c, hd), Maybe.some_inj(c, u, hc)))},
+      ed => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Maybe.no_none(c, hn))),
+    ec => h2 => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Source.Term.is_value(a, False{}, bk),
+      y => Source.Maybe.else(Source.Term, Source.Maybe.map_term(Source.Term.step(b, bk), z => Source.Term.Min{a, z}), z => Source.Term.meet(a, b)), Some{u}, h2,
+      ev => h3 => Maybe.else.by(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Source.Maybe.map_term(Source.Term.step(b, bk), z => Source.Term.Min{a, z}), Source.Maybe.map_term(Source.Term.step(b, bk), z => Source.Term.Min{a, z}), {==}, z => Source.Term.meet(a, b), Some{u}, h3,
+        c => ec2 => hc2 => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Source.Term.step(b, bk), Source.Term.step(b, bk), {==},
+          z => Source.Term.Min{a, z}, Some{c}, ec2,
+          +d => ed => hd => Spec.Term.Eval.min_b{a, b, d, Spec.Term.is_value_sound(bk, a, ev), rb(d, ed), {==},
+            Equal.sym(Source.Term, Source.Term.Min{a, d}, u, Equal.trans(Source.Term, Source.Term.Min{a, d}, c, u, Maybe.some_inj(Source.Term.Min{a, d}, c, hd), Maybe.some_inj(c, u, hc2)))},
+          ed => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Maybe.no_none(c, hn))),
+        ec2 => h4 => Term.meet_sound(bk, a, b, u, h4)),
+      ev => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Maybe.no_none(u, hn))))
+
+# step_sound, as Step.lean: by induction on t
+def Term.step_sound.go(t: Source.Term, +bk: List<&2, Source.Def>, +u: Source.Term,
+  h: {Source.Term.step(t, bk) == Some{u} : Maybe<&2, Source.Term>}) -> Spec.Term.Eval<bk, t, u>:
+  match t:
+    case Source.Term.Var{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Var{z0}, u>, Maybe.no_none(u, h))
+    case Source.Term.Ref{+z0}:
+      Term.eval_of_fire(bk, z0, [], u, Term.fires_call(bk, z0, [], u, h), Unit{})
+    case Source.Term.Ann{+z0, +z1}:
+      Spec.Term.Eval.ann{z0, z1, {==}, Equal.sym(Source.Term, z0, u, Maybe.some_inj(z0, u, h))}
+    case Source.Term.Let{+z0, +z1, +z2}:
+      Term.step_sound.let(bk, z0, z1, z2, u, h, w => e => Term.step_sound.go(z1, bk, w, e))
+    case Source.Term.Typ{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Typ{z0}, u>, Maybe.no_none(u, h))
+    case Source.Term.Min{+z0, +z1}:
+      Term.step_sound.min(bk, z0, z1, u, h, c => e => Term.step_sound.go(z0, bk, c, e),
+        c => e => Term.step_sound.go(z1, bk, c, e))
+    case Source.Term.All{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.All{z0, z1, z2}, u>, Maybe.no_none(u, h))
+    case Source.Term.Lam{+z0, +z1}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Lam{z0, z1}, u>, Maybe.no_none(u, h))
+    case Source.Term.App{+z0, +z1, +z2}:
+      Maybe.else.by(Spec.Term.Eval<bk, Source.Term.App{z0, z1, z2}, u>, Source.Term.call(bk, z0, z1, z2), Source.Term.call(bk, z0, z1, z2), {==},
+        w => Source.Term.step.app(z0, z1, z2, bk, z => Source.Term.step(z1, bk), z => Source.Term.step(z2, bk)),
+        Some{u}, h,
+        c => ec => hc => Term.call_sound(bk, z0, z1, z2, u, Equal.trans(Maybe<&2, Source.Term>, Source.Term.call(bk, z0, z1, z2), Some{c}, Some{u}, ec, hc)),
+        ec => h2 => Term.step_sound.app(bk, z0, z1, z2, u, h2,
+          g => e => Term.step_sound.go(z1, bk, g, e), y => e => Term.step_sound.go(z2, bk, y, e)))
+    case Source.Term.Sig{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Sig{z0, z1, z2}, u>, Maybe.no_none(u, h))
+    case Source.Term.Tup{+z0, +z1, +z2}:
+      Term.step_sound.tup(bk, z0, z1, z2, u, h, c => e => Term.step_sound.go(z1, bk, c, e),
+        c => e => Term.step_sound.go(z2, bk, c, e))
+    case Source.Term.Prj{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Prj{z0}, u>, Maybe.no_none(u, h))
+    case Source.Term.Enu{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Enu{z0}, u>, Maybe.no_none(u, h))
+    case Source.Term.Lab{+z0}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Lab{z0}, u>, Maybe.no_none(u, h))
+    case Source.Term.Mat{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Mat{z0, z1, z2}, u>, Maybe.no_none(u, h))
+    case Source.Term.Efq{}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Efq{}, u>, Maybe.no_none(u, h))
+    case Source.Term.Eql{+z0, +z1, +z2}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Eql{z0, z1, z2}, u>, Maybe.no_none(u, h))
+    case Source.Term.Rfl{}:
+      Empty.elim(Spec.Term.Eval<bk, Source.Term.Rfl{}, u>, Maybe.no_none(u, h))
+    case Source.Term.Rwt{+z0, +z1, +z2}:
+      Term.step_sound.rwt(bk, z0, z1, z2, u, h, c => e => Term.step_sound.go(z0, bk, c, e))
+
+def Spec.Term.step_sound(bk, t, u, h):
+  Term.step_sound.go(t, bk, u, h)
+
