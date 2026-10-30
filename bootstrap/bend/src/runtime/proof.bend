@@ -7049,3 +7049,258 @@ def Img.start(+prog: List<&2, Fun.C>, +entry: Nat, +c: Fun.C, +head: Fun.V, +tai
                     Rd.ldr(Spec.In.val(input), RT.Imgs.ws(RT.Img.prog(prog, head, tail)), RT.Imgs.off(RT.Img.prog(prog, head, tail)), mem, x0, size, U32.to_nat(x0), x10, Shared.Nat.is_le_refl(U32.to_nat(x0)), hsO, hin))),
                 Vs2.t(head, RT.Enc.list(tail), List.length(&2, Fun.C, prog), Ld.mem(RT.Imgs.rs(RT.Img.prog(prog, head, tail)), x0, RT.Imgs.off(RT.Img.prog(prog, head, tail)), Ldr.mem(RT.Imgs.ws(RT.Img.prog(prog, head, tail)), x0, RT.Imgs.off(RT.Img.prog(prog, head, tail)), mem)), Nat.add(RT.Imgs.size(RT.Img.prog(prog, head, tail)), U32.to_nat(x0)), U32.add(x0, U32.from_nat(RT.Imgs.off(RT.Img.prog(prog, head, tail)))), Vs.atlen(prog, head, RT.Enc.list(tail), Ld.mem(RT.Imgs.rs(RT.Img.prog(prog, head, tail)), x0, RT.Imgs.off(RT.Img.prog(prog, head, tail)), Ldr.mem(RT.Imgs.ws(RT.Img.prog(prog, head, tail)), x0, RT.Imgs.off(RT.Img.prog(prog, head, tail)), mem)), Nat.add(RT.Imgs.size(RT.Img.prog(prog, head, tail)), U32.to_nat(x0)), U32.add(x0, U32.from_nat(RT.Imgs.off(RT.Img.prog(prog, head, tail)))), Vs.drop(prog, 0n, List.length(&2, Fun.C, prog), [head, RT.Enc.list(tail)], Ld.mem(RT.Imgs.rs(RT.Img.prog(prog, head, tail)), x0, RT.Imgs.off(RT.Img.prog(prog, head, tail)), Ldr.mem(RT.Imgs.ws(RT.Img.prog(prog, head, tail)), x0, RT.Imgs.off(RT.Img.prog(prog, head, tail)), mem)), Nat.add(RT.Imgs.size(RT.Img.prog(prog, head, tail)), U32.to_nat(x0)), U32.add(x0, U32.from_nat(RT.Imgs.off(RT.Img.prog(prog, head, tail)))), hvs))))),
             {==}))({==}))({==})
+
+def Size.five_d(pages: Nat, +hnz: {Bool.not(Nat.is_eq(pages, 0n)) == True{} : Bool}) -> {Nat.is_le(5n, DblO(16n, pages)) == True{} : Bool}:
+  match pages:
+    case 0n:
+      Shared.Bool.absurd({Nat.is_le(5n, DblO(16n, 0n)) == True{} : Bool}, hnz)
+    case 1n+q:
+      {==}
+
+# The start
+# =========
+
+def Size.nat(+pages: Nat, +hp: {Nat.is_le(pages, U32.to_nat(65535)) == True{} : Bool}) -> {U32.to_nat(Wasm.Wasm.size(pages)) == DblO(16n, pages) : Nat}:
+  Equal.trans(Nat, U32.to_nat(Wasm.Wasm.size(pages)), U32.to_nat(U32.from_nat(DblO(16n, pages))), DblO(16n, pages),
+    Equal.cong(U32, Nat, u => U32.to_nat(u), Wasm.Wasm.size(pages), U32.from_nat(DblO(16n, pages)), Shln.of(16n, pages)), Fits.pages(pages, hp))
+
+# lim is the size of the memory
+def Lim.eq(+pages: Nat, +hp: {Nat.is_le(pages, U32.to_nat(65535)) == True{} : Bool}) -> {U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n) == Wasm.Wasm.size(pages) : U32}:
+  Equal.cong(U32, U32, u => U32.shln(u, 16n), U32.shrn(Wasm.Wasm.size(pages), 16n), U32.from_nat(pages),
+    U.eq_nat(U32.shrn(Wasm.Wasm.size(pages), 16n), U32.from_nat(pages),
+      Equal.trans(Nat, U32.to_nat(U32.shrn(Wasm.Wasm.size(pages), 16n)), HalfK(16n, U32.to_nat(Wasm.Wasm.size(pages))), U32.to_nat(U32.from_nat(pages)), Shrn.nat(16n, Wasm.Wasm.size(pages)),
+        Equal.trans(Nat, HalfK(16n, U32.to_nat(Wasm.Wasm.size(pages))), HalfK(16n, DblO(16n, pages)), U32.to_nat(U32.from_nat(pages)),
+          Equal.cong(Nat, Nat, y => HalfK(16n, y), U32.to_nat(Wasm.Wasm.size(pages)), DblO(16n, pages), Size.nat(pages, hp)),
+          Equal.trans(Nat, HalfK(16n, DblO(16n, pages)), pages, U32.to_nat(U32.from_nat(pages)), HalfK.dbl(16n, pages),
+            Equal.sym(Nat, U32.to_nat(U32.from_nat(pages)), pages, Fits.le(pages, 65535, hp)))))))
+
+def Size.five(+pages: Nat, +hp: {Nat.is_le(pages, U32.to_nat(65535)) == True{} : Bool}, +hnz: {Bool.not(Nat.is_eq(pages, 0n)) == True{} : Bool}) ->
+  {Nat.is_le(5n, U32.to_nat(Wasm.Wasm.size(pages))) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(Wasm.Wasm.size(pages)), DblO(16n, pages), Size.nat(pages, hp)) : {Nat.is_le(5n, _) == True{} : Bool}
+  Size.five_d(pages, hnz)
+
+def Le.sub4(+L: Nat, +S: Nat, +h4: {Nat.is_le(4n, S) == True{} : Bool}, +h: {Nat.is_le(L, Nat.sub(S, 4n)) == True{} : Bool}) -> {Nat.is_le(4n+L, S) == True{} : Bool}:
+  Le.rwl(Nat.add(L, 4n), 4n+L, S, MP.Nat.add_comm(L, 4n),
+    Le.rw(Nat.add(L, 4n), Nat.add(Nat.sub(S, 4n), 4n), S, Nat.sub_add(S, 4n, h4), Nat.le_add_r(L, Nat.sub(S, 4n), 4n, h)))
+
+# the fuel of the input loop
+def In.need(input: Maybe<&2, List<&2, Nat>>) -> Nat:
+  match input:
+    case None{}:
+      0n
+    case Some{xs}:
+      1n+List.length(&2, Nat, xs)
+
+# the input fits below lim
+def In.fit(input: Maybe<&2, List<&2, Nat>>, +lim: U32) -> Bool:
+  match input:
+    case None{}:
+      Nat.is_le(4n, U32.to_nat(lim))
+    case Some{+xs}:
+      Bool.and(Nat.is_le(4n+List.length(&2, Nat, xs), U32.to_nat(lim)), Wasm.Bytes.is(xs))
+
+def Inp.run(input: Maybe<&2, List<&2, Nat>>, +n: Nat, +lim: U32, +size: U32, +hls: {Nat.is_le(U32.to_nat(lim), U32.to_nat(size)) == True{} : Bool},
+  +hf: {In.fit(input, lim) == True{} : Bool}, +hs5: {Nat.is_le(5n, U32.to_nat(size)) == True{} : Bool}, +hn: {Nat.is_le(In.need(input), n) == True{} : Bool}) ->
+  {St.ok(Imp.Stm.run(RT.S.input(), n, size, L(0, lim, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), ls => mm => In.post(ls, mm, input, size), size) == True{} : Bool}:
+  match input:
+    case None{}:
+      Inp.none(n, lim, size, hls, hf, hs5)
+    case Some{+xs}:
+      Inp.some(xs, n, lim, size, hls, And.l(Nat.is_le(4n+List.length(&2, Nat, xs), U32.to_nat(lim)), Wasm.Bytes.is(xs), hf),
+        And.r(Nat.is_le(4n+List.length(&2, Nat, xs), U32.to_nat(lim)), Wasm.Bytes.is(xs), hf), hs5, hn)
+
+# the facts of Wasm.fits
+def Wf.pages(+pages: Nat, +input: Maybe<&2, List<&2, Nat>>, +h: {Wasm.Wasm.fits(pages, input) == True{} : Bool}) ->
+  {Nat.is_le(pages, U32.to_nat(65535)) == True{} : Bool}:
+  AtMost.le(pages, 65535, And.r(Bool.not(Nat.is_eq(pages, 0n)), Wasm.Nat.at_most(pages, 65535),
+    And.l(Bool.and(Bool.not(Nat.is_eq(pages, 0n)), Wasm.Nat.at_most(pages, 65535)), Wasm.Input.fits(input, U32.sub(Wasm.Wasm.size(pages), 4)), h)))
+
+def Wf.nz(+pages: Nat, +input: Maybe<&2, List<&2, Nat>>, +h: {Wasm.Wasm.fits(pages, input) == True{} : Bool}) -> {Bool.not(Nat.is_eq(pages, 0n)) == True{} : Bool}:
+  And.l(Bool.not(Nat.is_eq(pages, 0n)), Wasm.Nat.at_most(pages, 65535),
+    And.l(Bool.and(Bool.not(Nat.is_eq(pages, 0n)), Wasm.Nat.at_most(pages, 65535)), Wasm.Input.fits(input, U32.sub(Wasm.Wasm.size(pages), 4)), h))
+
+def Wf.in(+pages: Nat, +input: Maybe<&2, List<&2, Nat>>, +h: {Wasm.Wasm.fits(pages, input) == True{} : Bool}) -> {Wasm.Input.fits(input, U32.sub(Wasm.Wasm.size(pages), 4)) == True{} : Bool}:
+  And.r(Bool.and(Bool.not(Nat.is_eq(pages, 0n)), Wasm.Nat.at_most(pages, 65535)), Wasm.Input.fits(input, U32.sub(Wasm.Wasm.size(pages), 4)), h)
+
+def In.fit.of(input: Maybe<&2, List<&2, Nat>>, +pages: Nat, +h5: {Nat.is_le(5n, U32.to_nat(Wasm.Wasm.size(pages))) == True{} : Bool},
+  +h: {Wasm.Input.fits(input, U32.sub(Wasm.Wasm.size(pages), 4)) == True{} : Bool}) -> {In.fit(input, Wasm.Wasm.size(pages)) == True{} : Bool}:
+  match input:
+    case None{}:
+      Le.t(4n, 5n, U32.to_nat(Wasm.Wasm.size(pages)), {==}, h5)
+    case Some{+xs}:
+      +h4 = Le.t(4n, 5n, U32.to_nat(Wasm.Wasm.size(pages)), {==}, h5)
+      And.mk(Nat.is_le(4n+List.length(&2, Nat, xs), U32.to_nat(Wasm.Wasm.size(pages))), Wasm.Bytes.is(xs),
+        Le.sub4(List.length(&2, Nat, xs), U32.to_nat(Wasm.Wasm.size(pages)), h4,
+          Le.rw(List.length(&2, Nat, xs), U32.to_nat(U32.sub(Wasm.Wasm.size(pages), 4)), Nat.sub(U32.to_nat(Wasm.Wasm.size(pages)), 4n), U.sub_nat(Wasm.Wasm.size(pages), 4, h4),
+            AtMost.le(List.length(&2, Nat, xs), U32.sub(Wasm.Wasm.size(pages), 4), And.r(Wasm.Bytes.is(xs), Wasm.Nat.at_most(List.length(&2, Nat, xs), U32.sub(Wasm.Wasm.size(pages), 4)), h)))),
+        And.l(Wasm.Bytes.is(xs), Wasm.Nat.at_most(List.length(&2, Nat, xs), U32.sub(Wasm.Wasm.size(pages), 4)), h))
+
+def Keep.oom2(+m: Maybe<&2, List<&2, Nat>>, +bs: List<&2, Nat>, +h: {Out.is_oom(m) == True{} : Bool}) -> {Spec.Out.is(m, bs) == True{} : Bool}:
+  Keep.oom(m, bs, Bor.l(Out.is_oom(m), False{}, h))
+
+# a part of the start, then go: keeps
+def Then.k(r: Maybe<&2, Imp.Res>, go: List<&2, U32> -> Wasm.Mem -> Maybe<&2, Imp.Res>, -P: List<&2, U32> -> Wasm.Mem -> Bool, +bs: List<&2, Nat>, +size: U32,
+  h: {St.ok(r, P, size) == True{} : Bool},
+  hg: @ls:List<&2, U32> -> @mem:Wasm.Mem -> {P(ls, mem) == True{} : Bool} -> {Loop.keeps(go(ls, mem), bs, size) == True{} : Bool}) ->
+  {Loop.keeps(Imp.Res.then(r, go), bs, size) == True{} : Bool}:
+  match r:
+    case Some{Imp.Res.next{ls, mem}}:
+      hg(ls, mem, h)
+    case Some{Imp.Res.brk{0n, +ls, +mem}}:
+      Keep.oom2(Fin(ls, mem, size), bs, h)
+    case Some{Imp.Res.brk{1n+l, +ls, +mem}}:
+      Shared.Bool.absurd({Loop.keeps(Some{Imp.Res.brk{1n+l, ls, mem}}, bs, size) == True{} : Bool}, h)
+    case Some{Imp.Res.trap{}}:
+      Shared.Bool.absurd({Loop.keeps(Some{Imp.Res.trap{}}, bs, size) == True{} : Bool}, h)
+    case None{}:
+      Shared.Bool.absurd({Loop.keeps(None{}, bs, size) == True{} : Bool}, h)
+
+# a part of the start, then go: adds no results
+def Then.a(r: Maybe<&2, Imp.Res>, go: List<&2, U32> -> Wasm.Mem -> Maybe<&2, Imp.Res>, -P: List<&2, U32> -> Wasm.Mem -> Bool, +z: Fun.Step, +size: U32,
+  h: {St.ok(r, P, size) == True{} : Bool},
+  hg: @ls:List<&2, U32> -> @mem:Wasm.Mem -> {P(ls, mem) == True{} : Bool} -> {Loop.ok(z, go(ls, mem), size) == True{} : Bool}) ->
+  {Loop.ok(z, Imp.Res.then(r, go), size) == True{} : Bool}:
+  match r:
+    case Some{Imp.Res.next{ls, mem}}:
+      hg(ls, mem, h)
+    case Some{Imp.Res.brk{0n, +ls, +mem}}:
+      Bor.l(Out.is_oom(Fin(ls, mem, size)), Halt.ok(z, Fin(ls, mem, size)), h)
+    case Some{Imp.Res.brk{1n+l, +ls, +mem}}:
+      Shared.Bool.absurd({Loop.ok(z, Some{Imp.Res.brk{1n+l, ls, mem}}, size) == True{} : Bool}, h)
+    case Some{Imp.Res.trap{}}:
+      Shared.Bool.absurd({Loop.ok(z, Some{Imp.Res.trap{}}, size) == True{} : Bool}, h)
+    case None{}:
+      Shared.Bool.absurd({Loop.ok(z, None{}, size) == True{} : Bool}, h)
+
+def Then.anone(r: Maybe<&2, Imp.Res>, go: List<&2, U32> -> Wasm.Mem -> Maybe<&2, Imp.Res>, +z: Fun.Step, +size: U32,
+  h: {Maybe.is_some(&2, Imp.Res, r) == False{} : Bool}) -> {Loop.ok(z, Imp.Res.then(r, go), size) == True{} : Bool}:
+  match r:
+    case Some{x}:
+      Shared.Bool.absurd({Loop.ok(z, Imp.Res.then(Some{x}, go), size) == True{} : Bool}, Equal.sym(Bool, True{}, False{}, h))
+    case None{}:
+      {==}
+
+def Main.k(r: Maybe<&2, Imp.Res>, +bs: List<&2, Nat>, +size: U32, h: {Loop.keeps(r, bs, size) == True{} : Bool}) ->
+  {Loop.keeps(Imp.Res.then(r, x => y => Imp.Stm.run(Imp.Stm.skip{}, 0n, size, x, y)), bs, size) == True{} : Bool}:
+  match r:
+    case Some{Imp.Res.next{+ls, +mem}}:
+      Shared.Bool.absurd({Loop.keeps(Some{Imp.Res.next{ls, mem}}, bs, size) == True{} : Bool}, h)
+    case Some{Imp.Res.brk{l, ls, mem}}:
+      h
+    case Some{Imp.Res.trap{}}:
+      h
+    case None{}:
+      h
+
+def Main.a(r: Maybe<&2, Imp.Res>, +z: Fun.Step, +size: U32, h: {Loop.ok(z, r, size) == True{} : Bool}) ->
+  {Loop.ok(z, Imp.Res.then(r, x => y => Imp.Stm.run(Imp.Stm.skip{}, 0n, size, x, y)), size) == True{} : Bool}:
+  match r:
+    case Some{Imp.Res.next{+ls, +mem}}:
+      Shared.Bool.absurd({Loop.ok(z, Some{Imp.Res.next{ls, mem}}, size) == True{} : Bool}, h)
+    case Some{Imp.Res.brk{l, ls, mem}}:
+      h
+    case Some{Imp.Res.trap{}}:
+      h
+    case None{}:
+      h
+
+# after the input: the image and the main loop keep
+def StK.img(+prog: List<&2, Fun.C>, +entry: Nat, +c: Fun.C, +head: Fun.V, +tail: List<&2, Fun.V>, +input: Maybe<&2, List<&2, Nat>>, ls: List<&2, U32>, +mm: Wasm.Mem, +n: Nat, +p: Nat, +size: U32, +w: Fun.V, +bs: List<&2, Nat>,
+  +he: {List.get(&2, Fun.C, prog, entry) == Some{c} : Maybe<&2, Fun.C>}, +hi: {RT.fits(prog, head, tail) == True{} : Bool},
+  +hs5: {Nat.is_le(5n, U32.to_nat(size)) == True{} : Bool},
+  +h: {Fun.F.iter(n, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}) == Fun.Step.halt{w} : Fun.Step},
+  +hd: {Spec.Out.dec(w) == Some{bs} : Maybe<&2, List<&2, Nat>>},
+  +hm: {Nat.is_le(Fuel.go(n, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), p) == True{} : Bool},
+  +hp: {In.post(ls, mm, input, size) == True{} : Bool}) -> {Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, ls, mm), bs, size) == True{} : Bool}:
+  match ls:
+    case Nil{}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Nil{}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Nil{}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Nil{}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Nil{}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Nil{}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Nil{}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Nil{}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Nil{}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Nil{}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Nil{}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Nil{}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Nil{}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Nil{}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Nil{}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Nil{}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Nil{}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Nil{}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Nil{}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Nil{}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Nil{}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Nil{}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Nil{}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Nil{}}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Nil{}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Nil{}}}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Nil{}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Nil{}}}}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Nil{}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Nil{}}}}}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Nil{}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Nil{}}}}}}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Nil{}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Nil{}}}}}}}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Nil{}}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Con{x16, Nil{}}}}}}}}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Con{+x17, Nil{}}}}}}}}}}}}}}}}}}}:
+      Then.k(Imp.Stm.run(RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), p, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mm), x => y => Imp.Stm.run(RT.S.all([Imp.Stm.loop{RT.I.step()}]), p, size, x, y), ls => mm => Inv(Fun.Step.go{Spec.Start(c, head, input, tail)}, ls, mm, prog, size), bs, size,
+        Img.start(prog, entry, c, head, tail, input, p, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mm, he, hi, And.l(Nat.is_le(1n, U32.to_nat(x0)), Bool.and(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10))), hp), And.l(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10)), And.r(Nat.is_le(1n, U32.to_nat(x0)), Bool.and(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10))), hp)), And.l(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10), And.r(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10)), And.r(Nat.is_le(1n, U32.to_nat(x0)), Bool.and(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10))), hp))), hs5, And.r(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10), And.r(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10)), And.r(Nat.is_le(1n, U32.to_nat(x0)), Bool.and(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10))), hp)))),
+        +ls2 => +mm2 => hp2 => Main.k(Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, ls2, mm2), bs, size,
+          Keeps.loop(n, p, Spec.Start(c, head, input, tail), ls2, prog, size, mm2, w, bs, hp2, h, hd, hm)))
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Con{+x17, Con{+y, +rest}}}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.keeps(Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Con{x16, Con{x17, Con{y, rest}}}}}}}}}}}}}}}}}}}, mm), bs, size) == True{} : Bool}, hp)
+
+def StA.img(+prog: List<&2, Fun.C>, +entry: Nat, +c: Fun.C, +head: Fun.V, +tail: List<&2, Fun.V>, +input: Maybe<&2, List<&2, Nat>>, ls: List<&2, U32>, +mm: Wasm.Mem, +p: Nat, +size: U32,
+  +he: {List.get(&2, Fun.C, prog, entry) == Some{c} : Maybe<&2, Fun.C>}, +hi: {RT.fits(prog, head, tail) == True{} : Bool},
+  +hs5: {Nat.is_le(5n, U32.to_nat(size)) == True{} : Bool}, +hp: {In.post(ls, mm, input, size) == True{} : Bool}) -> {Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, ls, mm), size) == True{} : Bool}:
+  match ls:
+    case Nil{}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Nil{}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Nil{}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Nil{}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Nil{}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Nil{}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Nil{}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Nil{}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Nil{}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Nil{}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Nil{}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Nil{}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Nil{}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Nil{}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Nil{}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Nil{}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Nil{}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Nil{}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Nil{}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Nil{}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Nil{}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Nil{}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Nil{}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Nil{}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Nil{}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Nil{}}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Nil{}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Nil{}}}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Nil{}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Nil{}}}}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Nil{}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Nil{}}}}}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Nil{}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Nil{}}}}}}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Nil{}}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Con{x16, Nil{}}}}}}}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Con{+x17, Nil{}}}}}}}}}}}}}}}}}}}:
+      Then.a(Imp.Stm.run(RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), p, size, L(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17), mm), x => y => Imp.Stm.run(RT.S.all([Imp.Stm.loop{RT.I.step()}]), p, size, x, y), ls => mm => Inv(Fun.Step.go{Spec.Start(c, head, input, tail)}, ls, mm, prog, size), Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), size,
+        Img.start(prog, entry, c, head, tail, input, p, size, x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, mm, he, hi, And.l(Nat.is_le(1n, U32.to_nat(x0)), Bool.and(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10))), hp), And.l(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10)), And.r(Nat.is_le(1n, U32.to_nat(x0)), Bool.and(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10))), hp)), And.l(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10), And.r(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10)), And.r(Nat.is_le(1n, U32.to_nat(x0)), Bool.and(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10))), hp))), hs5, And.r(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10), And.r(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10)), And.r(Nat.is_le(1n, U32.to_nat(x0)), Bool.and(Nat.is_le(U32.to_nat(x0), U32.to_nat(x1)), Bool.and(Nat.is_le(U32.to_nat(x1), U32.to_nat(size)), Rd(Spec.In.val(input), mm, U32.to_nat(x0), x10))), hp)))),
+        +ls2 => +mm2 => hp2 => Main.a(Imp.Stm.run(Imp.Stm.loop{RT.I.step()}, p, size, ls2, mm2), Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), size,
+          Adds.loop(p, Spec.Start(c, head, input, tail), ls2, prog, size, mm2, hp2)))
+    case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Con{+x17, Con{+y, +rest}}}}}}}}}}}}}}}}}}}:
+      Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Con{x16, Con{x17, Con{y, rest}}}}}}}}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
