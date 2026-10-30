@@ -162,9 +162,6 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../../bend2/base.bend", .block "def Word.to_nat(", 723743634680710343),
   ("../../bend2/base.bend", .block "def U32.to_nat(", 15123021057519108580)]
 
-def Pin.hash (text : String) : UInt64 :=
-  Hashable.hash (LF text)
-
 -- the index of the first line, from i on, that p holds for
 def Pin.find (ls : Array String) (i : Nat) (p : String → Bool) : Option Nat :=
   (List.range ls.size).find? fun k => i ≤ k && p ls[k]!
@@ -197,7 +194,7 @@ def Pins.check (dir : FilePath) : IO (Array String) := do
     match Pin.Part.text (← IO.FS.readFile (dir / path)) part with
     | .error e => bad := bad.push s!"{path}: {e}"
     | .ok text =>
-      let h := Pin.hash text
+      let h := Hashable.hash text
       unless h == pin do
         bad := bad.push
           s!"{path}{part.label} changed. Review it, then set its pin in lakefile.lean to {h}"
