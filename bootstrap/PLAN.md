@@ -152,9 +152,10 @@ Decisions:
    text that it gives.
 2. The target is `.bendtt` now. The first compiler passes the source
    through, as the interpreter did, to test the chain: the source meaning,
-   claim 7 and the harness. WASM is planned. Its meaning must take the
-   memory size as a parameter: with a fixed size, the law is false for
-   large programs; if out of memory counts as no result, the law is empty.
+   claim 7 and the harness. The next target is WASM (see The WASM target).
+   Its meaning takes the memory size as a parameter: with a fixed size, the
+   law is false for large programs; if out of memory counts as no result,
+   the law is empty.
 3. The interpreter's limits (`Pure`) bind only what it runs: the compiler,
    which is bytes to bytes, and the output of the `.bendtt` target. The
    source meaning can grow past `Eval`, for example to effects.
@@ -208,6 +209,44 @@ error in it:
 
 The books of the compiler and of the runner hold all the proofs, so each run
 of the CLI has the kernel check them.
+
+## The WASM target
+
+The goal is speed: the compiler in Bend writes WASM, which an engine runs
+near native speed. It compiles all of pure Bend, with no subset, so that no
+workaround hides in a scope.
+
+Decisions:
+1. The meaning comes first, as for the other parts: `src/wasm/impl.bend`,
+   a small part of WebAssembly 2.0, copied from its spec. A person reviews
+   it against the spec. Its header lists the part.
+2. A module is one function, of type `[] -> [i32]`. The compiled code keeps
+   its own stack in linear memory, not on the engine's call stack, so only
+   the memory size bounds a run, and the meaning has that size as a
+   parameter. Its blocks and loops have the empty type.
+3. The module imports its memory (`env.memory`), so the host chooses its
+   size. The input's length goes at 0 and its bytes at 4; `main` returns
+   an address whose length and bytes are the output.
+4. The laws speak of the module's syntax (`Module`, `Code`).
+   `Wasm.encode` writes its bytes. It stays review-only: an engine checks
+   the bytes, and refuses an invalid module.
+5. The meaning has no validation. An engine refuses an invalid module, so
+   such a module gives no result where the meaning may give one: never a
+   wrong one.
+6. Two engines run each module: bun's (JavaScriptCore) and node's (V8),
+   with the same glue, `harness/wasm.ts`. It names the kind of each failure:
+   a trap, an invalid module, a link error, or an input or output that does
+   not fit.
+7. The meaning and the glue add to what you trust (assumption 1 trusts the
+   engines): they are pinned, as are the Base defs that the meaning reaches.
+
+Status: the meaning, the encoder and the glue are done, and tested (see
+Tests). Next, in order, each reviewed before the next starts:
+1. The contract, in `src/compile/spec.bend`: for each source, the module
+   gives the results that the source gives, with enough fuel and memory.
+2. The compiler, as proven steps, each a module with its laws: no `Let` and
+   no `Ann`, flat case trees, closures as data, data in memory, WASM.
+3. The compiler compiled by itself, so that compiling is fast too.
 
 ## Speed
 
@@ -322,8 +361,9 @@ How the interpreter stays correct as it grows.
 ## Tests
 
 Status: the harness is done, with 4 cases for the interpreter
-(`interp.json`), 1 for the compiler in Bend (`compile.json`) and 5 for the
-runner in Bend (`runner.json`).
+(`interp.json`), 1 for the compiler in Bend (`compile.json`), 5 for the
+runner in Bend (`runner.json`), and 23 for the WASM meaning (`wasm.json`)
+and the engines (`wasm_engines.json`).
 
 The tests cover what the proofs do not:
 - reading files, the kernel's parser, and `render`;
@@ -369,3 +409,14 @@ know which implementation it tests. A command-line parameter names it:
   as it runs U32 code bit by bit. So its tests against the interpreter
   (kind b) use small programs only. Each case packs a fixed program text in
   its input; `bend -o` does not remake it.
+- The WASM meaning has two case lists. `harness/gen_wasm.ts` makes both
+  from `i32.wast` of the official testsuite (the script names its commit)
+  and from tests written by hand. `wasm.json` runs the modules of
+  `cases/wasm.bend` by the meaning (kind b, against the testsuite), in 32 s.
+  `wasm_engines.json` runs the same modules, as `Wasm.encode` writes them,
+  on bun and node (kind b, against the engines). Give it one `--run` for
+  each engine, with `<bootstrap>` the path of the interpreter:
+
+      --run 'sh -c "<bootstrap> {program} {input} > {input}.wasm &&
+        tail -c +3 {input} > {input}.data &&
+        bun bootstrap/harness/wasm.ts {input}.wasm {input}.data 1"'
