@@ -2,7 +2,7 @@ This is a human-written version of PLAN.md. It must NOT be touched by ANY agent 
 
 WHAT WE TRUST:
 1 - Lean itself.
-2 - The LEAN-VALIDATED, PROVEN-SOUND Bend kernel in (`bend2/bendtt.lean`) is the definition of Bend. What it says a program computes IS what the program actually computes.
+2 - The LEAN-VALIDATED, PROVEN-SOUND Bend kernel (`bend2/bendtt.lean`) is the definition of Bend. What it says a program computes IS what the program actually computes.
 3 - From #2 follows that every proof in a Bend program that --verdict accepts is true(--verdict runs the kernel)
 4 - The .bendtt text produced from a .bend file via `bend -o` means what said .bend file says.
 
