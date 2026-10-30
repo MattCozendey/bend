@@ -112,36 +112,36 @@ def Res.loop(r: Maybe<&2, Res>, go: List<&2, U32> -> Wasm.Mem -> Maybe<&2, Res>)
     case _:
       r
 
-def Stm.set.of(m: Maybe<&2, List<&2, U32>>, mem: Wasm.Mem) -> Maybe<&2, Res>:
+def Stm.set.of(m: Maybe<&2, List<&2, U32>>, mem: Wasm.Mem) -> Res:
   match m:
     case Some{ls}:
-      Some{Res.next{ls, mem}}
+      Res.next{ls, mem}
     case None{}:
-      Some{Res.trap{}}
+      Res.trap{}
 
-def Stm.set(mv: Maybe<&2, U32>, i: Nat, ls: List<&2, U32>, mem: Wasm.Mem) -> Maybe<&2, Res>:
+def Stm.set(mv: Maybe<&2, U32>, i: Nat, ls: List<&2, U32>, mem: Wasm.Mem) -> Res:
   match mv:
     case Some{v}:
       Stm.set.of(Wasm.List.put(ls, i, v), mem)
     case None{}:
-      Some{Res.trap{}}
+      Res.trap{}
 
 def Stm.store.at(m: Maybe<&2, U32>, v: U32, put: U32 -> Wasm.Mem -> U32 -> Wasm.Mem, ls: List<&2, U32>,
-  mem: Wasm.Mem) -> Maybe<&2, Res>:
+  mem: Wasm.Mem) -> Res:
   match m:
     case Some{ea}:
-      Some{Res.next{ls, put(ea, mem, v)}}
+      Res.next{ls, put(ea, mem, v)}
     case None{}:
-      Some{Res.trap{}}
+      Res.trap{}
 
 # a store of n bytes, by put, of v at a plus off
 def Stm.store(ma: Maybe<&2, U32>, mv: Maybe<&2, U32>, off: U32, n: U32, +size: U32,
-  put: U32 -> Wasm.Mem -> U32 -> Wasm.Mem, ls: List<&2, U32>, mem: Wasm.Mem) -> Maybe<&2, Res>:
+  put: U32 -> Wasm.Mem -> U32 -> Wasm.Mem, ls: List<&2, U32>, mem: Wasm.Mem) -> Res:
   match ma mv:
     case Some{a} Some{v}:
       Stm.store.at(Wasm.Mem.addr(a, off, n, size), v, put, ls, mem)
     case _ _:
-      Some{Res.trap{}}
+      Res.trap{}
 
 def Stm.if.of(c: Bool, a: Unit -> Maybe<&2, Res>, b: Unit -> Maybe<&2, Res>) -> Maybe<&2, Res>:
   match c:
@@ -164,13 +164,13 @@ def Stm.run(s: Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem) -> 
     case Stm.skip{}:
       Some{Res.next{ls, mem}}
     case Stm.set{i, e}:
-      Stm.set(Exp.eval(e, size, ls, mem), i, ls, mem)
+      Some{Stm.set(Exp.eval(e, size, ls, mem), i, ls, mem)}
     case Stm.store{off, a, v}:
-      Stm.store(Exp.eval(a, size, ls, mem), Exp.eval(v, size, ls, mem), off, 4, size,
-        x => m => y => Wasm.Mem.store(x, m, y), ls, mem)
+      Some{Stm.store(Exp.eval(a, size, ls, mem), Exp.eval(v, size, ls, mem), off, 4, size,
+        x => m => y => Wasm.Mem.store(x, m, y), ls, mem)}
     case Stm.store8{off, a, v}:
-      Stm.store(Exp.eval(a, size, ls, mem), Exp.eval(v, size, ls, mem), off, 1, size,
-        x => m => y => Wasm.Mem.set_at(x, m, Wasm.U32.low(y)), ls, mem)
+      Some{Stm.store(Exp.eval(a, size, ls, mem), Exp.eval(v, size, ls, mem), off, 1, size,
+        x => m => y => Wasm.Mem.set_at(x, m, Wasm.U32.low(y)), ls, mem)}
     case Stm.seq{a, b}:
       Res.then(Stm.run(a, n, size, ls, mem), ls2 => mem2 => Stm.run(b, n, size, ls2, mem2))
     case Stm.if{c, a, b}:
@@ -218,7 +218,7 @@ def Imp.run.of(ok: Bool, n: Nat, +size: U32, p: Prog, input: Maybe<&2, List<&2, 
 
 # the output of p for the input, as Wasm.Wasm.run gives it for a module: in a
 # memory of the given number of pages, with fuel n
-def Imp.run(+pages: Nat, n: Nat, p: Prog, +input: Maybe<&2, List<&2, Nat>>) -> Maybe<&2, List<&2, Nat>> :
+def Imp.run(+pages: Nat, n: Nat, p: Prog, +input: Maybe<&2, List<&2, Nat>>) -> Maybe<&2, List<&2, Nat>>:
   Imp.run.of(Wasm.Wasm.fits(pages, input), n, Wasm.Wasm.size(pages), p, input)
 
 # Translation

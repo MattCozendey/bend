@@ -243,7 +243,8 @@ The compiler is a chain of proven steps, each a module with its laws, each
 reviewed before the next starts:
 1. Imp: a small structured language (i32 locals, memory, `if`, loops,
    `break`), with a meaning and a proven translation to the WASM meaning.
-   All later run-time code is Imp, so no later proof reads WASM.
+   All later run-time code is Imp, so no later proof reads WASM. Status:
+   done (`src/imp/`).
 2. The numbered book: the parse (with enough fuel), the entry, and a number
    for each def and each label. Its run gives `Source.run`.
 3. The machine: an environment machine on the numbered book, with no

@@ -1,6 +1,7 @@
 import Base
 import ./impl.bend as Source
 import ./spec.bend as Spec
+import ../shared/impl.bend as Shared
 
 # Source proofs
 # =============
@@ -12,31 +13,13 @@ import ./spec.bend as Spec
 # Bools
 # =====
 
-def Bool.disc(b: Bool) -> Type:
-  match b:
-    case True{}:
-      Unit
-    case False{}:
-      Empty
-
-def Bool.no(h: {False{} == True{} : Bool}) -> Empty:
-  %Equal.sym(Bool, False{}, True{}, h) : Bool.disc(_)
-  Unit{}
-
-def Empty.elim(-A: Type, e: Empty) -> A:
-  match e:
-
-# anything, from False == True
-def Bool.absurd(-A: Type, h: {False{} == True{} : Bool}) -> A:
-  Empty.elim(A, Bool.no(h))
-
 # the left side of a true and
 def Bool.and_left(a: Bool, -b: Bool, h: {Bool.and(a, b) == True{} : Bool}) -> {a == True{} : Bool}:
   match a:
     case True{}:
       {==}
     case False{}:
-      Bool.absurd({False{} == True{} : Bool}, h)
+      Shared.Bool.absurd({False{} == True{} : Bool}, h)
 
 # the right side of a true and
 def Bool.and_right(a: Bool, -b: Bool, h: {Bool.and(a, b) == True{} : Bool}) -> {b == True{} : Bool}:
@@ -44,7 +27,7 @@ def Bool.and_right(a: Bool, -b: Bool, h: {Bool.and(a, b) == True{} : Bool}) -> {
     case True{}:
       h
     case False{}:
-      Bool.absurd({b == True{} : Bool}, h)
+      Shared.Bool.absurd({b == True{} : Bool}, h)
 
 def Bool.and_intro(-a: Bool, -b: Bool, ha: {a == True{} : Bool}, hb: {b == True{} : Bool}) ->
   {Bool.and(a, b) == True{} : Bool}:
@@ -77,37 +60,37 @@ def Spec.Term.is_data_sound(t, h):
             Spec.Term.is_data_sound(b, Bool.and_right(Source.Term.is_data(a), Source.Term.is_data(b), g)),
             {==}}
     case Source.Term.Var{i}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Var{i}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Var{i}>, h)
     case Source.Term.Ref{k}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Ref{k}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Ref{k}>, h)
     case Source.Term.Ann{x, a}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Ann{x, a}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Ann{x, a}>, h)
     case Source.Term.Let{q, v, f}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Let{q, v, f}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Let{q, v, f}>, h)
     case Source.Term.Typ{q}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Typ{q}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Typ{q}>, h)
     case Source.Term.Min{a, b}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Min{a, b}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Min{a, b}>, h)
     case Source.Term.All{q, a, b}:
-      Bool.absurd(Spec.Term.Data<Source.Term.All{q, a, b}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.All{q, a, b}>, h)
     case Source.Term.Lam{q, f}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Lam{q, f}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Lam{q, f}>, h)
     case Source.Term.App{q, f, x}:
-      Bool.absurd(Spec.Term.Data<Source.Term.App{q, f, x}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.App{q, f, x}>, h)
     case Source.Term.Sig{q, a, b}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Sig{q, a, b}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Sig{q, a, b}>, h)
     case Source.Term.Prj{x}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Prj{x}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Prj{x}>, h)
     case Source.Term.Enu{ks}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Enu{ks}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Enu{ks}>, h)
     case Source.Term.Mat{k, x, m}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Mat{k, x, m}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Mat{k, x, m}>, h)
     case Source.Term.Efq{}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Efq{}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Efq{}>, h)
     case Source.Term.Eql{a, b, c}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Eql{a, b, c}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Eql{a, b, c}>, h)
     case Source.Term.Rwt{e, p, f}:
-      Bool.absurd(Spec.Term.Data<Source.Term.Rwt{e, p, f}>, h)
+      Shared.Bool.absurd(Spec.Term.Data<Source.Term.Rwt{e, p, f}>, h)
 
 def Term.is_data_complete.go(-t: Source.Term, d: Spec.Term.Data<t>) ->
   {Source.Term.is_data(t) == True{} : Bool}:
@@ -157,9 +140,9 @@ def Nat.is_eq_true(a: Nat, b: Nat, h: {Nat.is_eq(a, b) == True{} : Bool}) -> {a 
     case 0n 0n:
       {==}
     case 0n 1n+q:
-      Bool.absurd({0n == 1n+q : Nat}, h)
+      Shared.Bool.absurd({0n == 1n+q : Nat}, h)
     case 1n+p 0n:
-      Bool.absurd({1n+p == 0n : Nat}, h)
+      Shared.Bool.absurd({1n+p == 0n : Nat}, h)
     case 1n+p 1n+q:
       Equal.cong(Nat, Nat, n => 1n+n, p, q, Nat.is_eq_true(p, q, h))
 
@@ -189,13 +172,13 @@ def Name.is_eq_true(a: List<&2, Nat>, b: List<&2, Nat>, h: {Source.Name.is_eq(a,
         Nat.is_eq_true(x, y, Bool.and_left(Nat.is_eq(x, y), Source.Name.is_eq(xs, ys), g)),
         Name.is_eq_true(xs, ys, Bool.and_right(Nat.is_eq(x, y), Source.Name.is_eq(xs, ys), g)))
     case Nil{} Con{y, ys}:
-      Bool.absurd({Nil{} == Con{y, ys} : List<&2, Nat>}, h)
+      Shared.Bool.absurd({Nil{} == Con{y, ys} : List<&2, Nat>}, h)
     case Con{x, xs} Nil{}:
-      Bool.absurd({Con{x, xs} == Nil{} : List<&2, Nat>}, h)
+      Shared.Bool.absurd({Con{x, xs} == Nil{} : List<&2, Nat>}, h)
 
 def Name.is_eq_false.of(-j: List<&2, Nat>, +k: List<&2, Nat>,
   y: {Source.Name.is_eq(j, k) == False{} : Bool}, e: {j == k : List<&2, Nat>}) -> Empty:
-  Bool.no(Equal.trans(Bool, False{}, Source.Name.is_eq(k, k), True{},
+  Shared.Bool.no(Equal.trans(Bool, False{}, Source.Name.is_eq(k, k), True{},
     Equal.trans(Bool, False{}, Source.Name.is_eq(j, k), Source.Name.is_eq(k, k),
       Equal.sym(Bool, Source.Name.is_eq(j, k), False{}, y),
       Equal.cong(List<&2, Nat>, Bool, n => Source.Name.is_eq(n, k), j, k, e)),
@@ -215,9 +198,9 @@ def Bool.is_eq_true(a: Bool, b: Bool, h: {Source.Bool.is_eq(a, b) == True{} : Bo
     case False{} False{}:
       {==}
     case True{} False{}:
-      Bool.absurd({True{} == False{} : Bool}, h)
+      Shared.Bool.absurd({True{} == False{} : Bool}, h)
     case False{} True{}:
-      Bool.absurd({False{} == True{} : Bool}, h)
+      Shared.Bool.absurd({False{} == True{} : Bool}, h)
 
 # a case split on a lazy choice that gave r: R from either side
 def Bool.lazy.by(-A: Type, -R: Type, c: Bool, -a: Unit -> A, -b: Unit -> A, -r: A,
@@ -262,10 +245,10 @@ def Walk.no_fail(o: Maybe<&2, Source.Term>, h: {Source.Walk.fail{} == Spec.Walk.
   Empty:
   match o:
     case None{}:
-      Bool.no(Equal.sym(Bool, True{}, False{},
+      Shared.Bool.no(Equal.sym(Bool, True{}, False{},
         Equal.cong(Source.Walk, Bool, Walk.is_fail, Source.Walk.fail{}, Source.Walk.need{}, h)))
     case Some{u}:
-      Bool.no(Equal.sym(Bool, True{}, False{},
+      Shared.Bool.no(Equal.sym(Bool, True{}, False{},
         Equal.cong(Source.Walk, Bool, Walk.is_fail, Source.Walk.fail{}, Source.Walk.done{u}, h)))
 
 def Walk.of_need(o: Maybe<&2, Source.Term>, h: {Source.Walk.need{} == Spec.Walk.of(o) : Source.Walk}) ->
@@ -274,14 +257,14 @@ def Walk.of_need(o: Maybe<&2, Source.Term>, h: {Source.Walk.need{} == Spec.Walk.
     case None{}:
       {==}
     case Some{u}:
-      Bool.absurd({Some{u} == None{} : Maybe<&2, Source.Term>}, Equal.sym(Bool, True{}, False{},
+      Shared.Bool.absurd({Some{u} == None{} : Maybe<&2, Source.Term>}, Equal.sym(Bool, True{}, False{},
         Equal.cong(Source.Walk, Bool, Source.Walk.is_need, Source.Walk.need{}, Source.Walk.done{u}, h)))
 
 def Walk.of_done(o: Maybe<&2, Source.Term>, -u: Source.Term,
   h: {Source.Walk.done{u} == Spec.Walk.of(o) : Source.Walk}) -> {o == Some{u} : Maybe<&2, Source.Term>}:
   match o:
     case None{}:
-      Bool.absurd({None{} == Some{u} : Maybe<&2, Source.Term>},
+      Shared.Bool.absurd({None{} == Some{u} : Maybe<&2, Source.Term>},
         Equal.cong(Source.Walk, Bool, Source.Walk.is_need, Source.Walk.done{u}, Source.Walk.need{}, h))
     case Some{v}:
       Equal.sym(Maybe<&2, Source.Term>, Some{u}, Some{v},
@@ -319,7 +302,7 @@ def Term.walk_sound.go(t: Source.Term, +e: List<&2, Source.Term>, +xs: List<&2, 
                 Bool.and_right(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)),
                   Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(x)), c)),
               Term.walk_sound.go(f, Con{x, e}, rest, o, w), {==}, {==}},
-            c => w => Empty.elim(Spec.Term.Walk<Source.Term.Lam{p, f}, e, Con{Source.Arg{q, x}, rest}, o>, Walk.no_fail(o, w)))
+            c => w => Empty.absurd(Spec.Term.Walk<Source.Term.Lam{p, f}, e, Con{Source.Arg{q, x}, rest}, o>, Walk.no_fail(o, w)))
     case Source.Term.Prj{+hh}:
       match xs:
         case Nil{}:
@@ -334,43 +317,43 @@ def Term.walk_sound.go(t: Source.Term, +e: List<&2, Source.Term>, +xs: List<&2, 
                 c => w => Spec.Term.Walk.prj{q, r, hh, a, b, rest, c,
                   Term.walk_sound.go(hh, e, Con{Source.Arg{Source.Quan.fld(r, q), a},
                     Con{Source.Arg{q, b}, rest}}, o, w), {==}, {==}},
-                c => w => Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Tup{r, a, b}}, rest}, o>, Walk.no_fail(o, w)))
+                c => w => Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Tup{r, a, b}}, rest}, o>, Walk.no_fail(o, w)))
             case Source.Term.Var{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Var{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Var{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Ref{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Ref{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Ref{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Ann{+z0, +z1}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Ann{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Ann{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Let{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Let{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Let{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Typ{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Typ{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Typ{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Min{+z0, +z1}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Min{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Min{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.All{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.All{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.All{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Lam{+z0, +z1}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Lam{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Lam{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.App{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.App{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.App{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Sig{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Sig{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Sig{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Prj{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Prj{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Prj{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Enu{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Enu{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Enu{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Lab{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Lab{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Lab{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Mat{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Mat{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Mat{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Efq{}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Efq{}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Efq{}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Eql{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Eql{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Eql{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Rfl{}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Rfl{}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Rfl{}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Rwt{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Rwt{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Prj{hh}, e, Con{Source.Arg{q, Source.Term.Rwt{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
     case Source.Term.Mat{+k, +hh, +m}:
       match xs:
         case Nil{}:
@@ -392,49 +375,49 @@ def Term.walk_sound.go(t: Source.Term, +e: List<&2, Source.Term>, +xs: List<&2, 
                   y => z => Spec.Term.Walk.miss{q, j, k, hh, m, rest, c, Name.is_eq_false(j, k, y),
                     Term.walk_sound.go(m, e, Con{Source.Arg{q, Source.Term.Lab{j}}, rest}, o, z),
                     {==}, {==}}),
-                c => w => Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Lab{j}}, rest}, o>, Walk.no_fail(o, w)))
+                c => w => Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Lab{j}}, rest}, o>, Walk.no_fail(o, w)))
             case Source.Term.Var{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Var{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Var{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Ref{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Ref{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Ref{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Ann{+z0, +z1}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Ann{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Ann{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Let{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Let{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Let{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Typ{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Typ{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Typ{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Min{+z0, +z1}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Min{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Min{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.All{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.All{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.All{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Lam{+z0, +z1}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Lam{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Lam{z0, z1}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.App{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.App{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.App{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Sig{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Sig{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Sig{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Tup{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Tup{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Tup{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Prj{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Prj{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Prj{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Enu{+z0}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Enu{z0}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Enu{z0}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Mat{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Mat{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Mat{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Efq{}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Efq{}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Efq{}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Eql{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Eql{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Eql{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Rfl{}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Rfl{}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Rfl{}}, rest}, o>, Walk.no_fail(o, h))
             case Source.Term.Rwt{+z0, +z1, +z2}:
-              Empty.elim(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Rwt{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
+              Empty.absurd(Spec.Term.Walk<Source.Term.Mat{k, hh, m}, e, Con{Source.Arg{q, Source.Term.Rwt{z0, z1, z2}}, rest}, o>, Walk.no_fail(o, h))
     case Source.Term.Efq{}:
       match xs:
         case Nil{}:
           Spec.Term.Walk.need{{==}, {==}, Walk.of_need(o, h)}
         case Con{a, rest}:
-          Empty.elim(Spec.Term.Walk<Source.Term.Efq{}, e, Con{a, rest}, o>, Walk.no_fail(o, h))
+          Empty.absurd(Spec.Term.Walk<Source.Term.Efq{}, e, Con{a, rest}, o>, Walk.no_fail(o, h))
     case Source.Term.App{+q, +f, x}:
       match x:
         case Source.Term.Var{+v}:
@@ -575,7 +558,7 @@ def Name.is_eq_of_ne.go(c: Bool, j: List<&2, Nat>, k: List<&2, Nat>,
   {Source.Name.is_eq(j, k) == False{} : Bool}:
   match c:
     case True{}:
-      Empty.elim({Source.Name.is_eq(j, k) == False{} : Bool}, n(Name.is_eq_true(j, k, hc)))
+      Empty.absurd({Source.Name.is_eq(j, k) == False{} : Bool}, n(Name.is_eq_true(j, k, hc)))
     case False{}:
       hc
 
@@ -659,31 +642,31 @@ def Term.walk_complete.go(-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<
     case Spec.Term.Walk.need{n, ex, eo}:
       match s:
         case Source.Term.Var{+z0}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Var{z0}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Var{z0}, t, es), n))
         case Source.Term.Ref{+z0}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Ref{z0}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Ref{z0}, t, es), n))
         case Source.Term.Ann{+z0, +z1}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Ann{z0, z1}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Ann{z0, z1}, t, es), n))
         case Source.Term.Let{+z0, +z1, +z2}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Let{z0, z1, z2}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Let{z0, z1, z2}, t, es), n))
         case Source.Term.Typ{+z0}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Typ{z0}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Typ{z0}, t, es), n))
         case Source.Term.Min{+z0, +z1}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Min{z0, z1}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Min{z0, z1}, t, es), n))
         case Source.Term.All{+z0, +z1, +z2}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.All{z0, z1, z2}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.All{z0, z1, z2}, t, es), n))
         case Source.Term.Lam{+z0, +z1}:
@@ -694,15 +677,15 @@ def Term.walk_complete.go(-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<
             {Source.Term.walk(Source.Term.Lam{z0, z1}, e, Nil{}) == Spec.Walk.of(_) : Source.Walk}
           {==}
         case Source.Term.App{+z0, +z1, +z2}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.App{z0, z1, z2}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.App{z0, z1, z2}, t, es), n))
         case Source.Term.Sig{+z0, +z1, +z2}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Sig{z0, z1, z2}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Sig{z0, z1, z2}, t, es), n))
         case Source.Term.Tup{+z0, +z1, +z2}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Tup{z0, z1, z2}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Tup{z0, z1, z2}, t, es), n))
         case Source.Term.Prj{+z0}:
@@ -713,11 +696,11 @@ def Term.walk_complete.go(-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<
             {Source.Term.walk(Source.Term.Prj{z0}, e, Nil{}) == Spec.Walk.of(_) : Source.Walk}
           {==}
         case Source.Term.Enu{+z0}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Enu{z0}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Enu{z0}, t, es), n))
         case Source.Term.Lab{+z0}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Lab{z0}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Lab{z0}, t, es), n))
         case Source.Term.Mat{+z0, +z1, +z2}:
@@ -735,15 +718,15 @@ def Term.walk_complete.go(-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<
             {Source.Term.walk(Source.Term.Efq{}, e, Nil{}) == Spec.Walk.of(_) : Source.Walk}
           {==}
         case Source.Term.Eql{+z0, +z1, +z2}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Eql{z0, z1, z2}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Eql{z0, z1, z2}, t, es), n))
         case Source.Term.Rfl{}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Rfl{}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Rfl{}, t, es), n))
         case Source.Term.Rwt{+z0, +z1, +z2}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.trans(Bool, Source.Term.takes(Source.Term.Rwt{z0, z1, z2}), Source.Term.takes(t), True{},
               Equal.cong(Source.Term, Bool, Source.Term.takes, Source.Term.Rwt{z0, z1, z2}, t, es), n))
     case Spec.Term.Walk.done{n, eo}:
@@ -798,7 +781,7 @@ def Term.walk_complete.go(-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<
             Source.Sub.env{e}))} : Source.Walk}
           {==}
         case Source.Term.Lam{+z0, +z1}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.sym(Bool, True{}, False{},
               Equal.trans(Bool, Source.Term.node(Source.Term.Lam{z0, z1}), Source.Term.node(t), False{},
                 Equal.cong(Source.Term, Bool, Source.Term.node, Source.Term.Lam{z0, z1}, t, es), n)))
@@ -960,7 +943,7 @@ def Term.walk_complete.go(-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<
             Source.Sub.env{e}))} : Source.Walk}
           {==}
         case Source.Term.Prj{+z0}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.sym(Bool, True{}, False{},
               Equal.trans(Bool, Source.Term.node(Source.Term.Prj{z0}), Source.Term.node(t), False{},
                 Equal.cong(Source.Term, Bool, Source.Term.node, Source.Term.Prj{z0}, t, es), n)))
@@ -979,12 +962,12 @@ def Term.walk_complete.go(-t: Source.Term, -e: List<&2, Source.Term>, -xs: List<
             Source.Sub.env{e}))} : Source.Walk}
           {==}
         case Source.Term.Mat{+z0, +z1, +z2}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.sym(Bool, True{}, False{},
               Equal.trans(Bool, Source.Term.node(Source.Term.Mat{z0, z1, z2}), Source.Term.node(t), False{},
                 Equal.cong(Source.Term, Bool, Source.Term.node, Source.Term.Mat{z0, z1, z2}, t, es), n)))
         case Source.Term.Efq{}:
-          Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
+          Shared.Bool.absurd({Source.Term.walk(t, e, xs) == Spec.Walk.of(o) : Source.Walk},
             Equal.sym(Bool, True{}, False{},
               Equal.trans(Bool, Source.Term.node(Source.Term.Efq{}), Source.Term.node(t), False{},
                 Equal.cong(Source.Term, Bool, Source.Term.node, Source.Term.Efq{}, t, es), n)))
@@ -1081,16 +1064,16 @@ def Walk.is_need_true(w: Source.Walk, h: {Source.Walk.is_need(w) == True{} : Boo
     case Source.Walk.need{}:
       {==}
     case Source.Walk.done{t}:
-      Bool.absurd({Source.Walk.done{t} == Source.Walk.need{} : Source.Walk}, h)
+      Shared.Bool.absurd({Source.Walk.done{t} == Source.Walk.need{} : Source.Walk}, h)
     case Source.Walk.fail{}:
-      Bool.absurd({Source.Walk.fail{} == Source.Walk.need{} : Source.Walk}, h)
+      Shared.Bool.absurd({Source.Walk.fail{} == Source.Walk.need{} : Source.Walk}, h)
 
 def Term.got_need(-bk: List<&2, Source.Def>, -k: List<&2, Nat>, m: Maybe<&2, Source.Def>,
   +xs: List<&2, Source.Arg>, hm: {Source.Book.get(bk, k) == m : Maybe<&2, Source.Def>},
   h: {Source.Walk.is_need(Source.Term.walk_call.got(m, xs)) == True{} : Bool}) -> Term.Stop<bk, k, xs>:
   match m:
     case None{}:
-      Bool.absurd(Term.Stop<bk, k, xs>, h)
+      Shared.Bool.absurd(Term.Stop<bk, k, xs>, h)
     case Some{Source.Def{dk, dt, +dv, dop}}:
       Term.Stop.of{Source.Def{dk, dt, dv, dop}, hm,
         Spec.Term.walk_sound(dv, [], xs, None{}, Walk.is_need_true(Source.Term.walk(dv, [], xs), h))}
@@ -1172,7 +1155,7 @@ def Term.is_value_sound.go(t: Source.Term, args: Bool, +bk: List<&2, Source.Def>
   h: {Source.Term.is_value(t, args, bk) == True{} : Bool}) -> Term.is_value.res(args, bk, t):
   match t:
     case Source.Term.Var{+z0}:
-      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Var{z0}), h)
+      Shared.Bool.absurd(Term.is_value.res(args, bk, Source.Term.Var{z0}), h)
     case Source.Term.Ref{+z0}:
       match args:
         case True{}:
@@ -1180,27 +1163,27 @@ def Term.is_value_sound.go(t: Source.Term, args: Bool, +bk: List<&2, Source.Def>
         case False{}:
           Term.value_of_stop(bk, z0, [], Term.stops_call(bk, z0, [], h), Unit{})
     case Source.Term.Ann{+z0, +z1}:
-      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Ann{z0, z1}), h)
+      Shared.Bool.absurd(Term.is_value.res(args, bk, Source.Term.Ann{z0, z1}), h)
     case Source.Term.Let{+z0, +z1, +z2}:
-      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Let{z0, z1, z2}), h)
+      Shared.Bool.absurd(Term.is_value.res(args, bk, Source.Term.Let{z0, z1, z2}), h)
     case Source.Term.Typ{+z0}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Typ{z0}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Typ{z0}>, h)
         case False{}:
           Spec.Term.Value.typ{z0, {==}}
     case Source.Term.Min{+z0, +z1}:
-      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Min{z0, z1}), h)
+      Shared.Bool.absurd(Term.is_value.res(args, bk, Source.Term.Min{z0, z1}), h)
     case Source.Term.All{+z0, +z1, +z2}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.All{z0, z1, z2}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.All{z0, z1, z2}>, h)
         case False{}:
           Spec.Term.Value.all{z0, z1, z2, {==}}
     case Source.Term.Lam{+z0, +z1}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Lam{z0, z1}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Lam{z0, z1}>, h)
         case False{}:
           Spec.Term.Value.lam{z0, z1, {==}}
     case Source.Term.App{+z0, +z1, +z2}:
@@ -1268,7 +1251,7 @@ def Term.is_value_sound.go(t: Source.Term, args: Bool, +bk: List<&2, Source.Def>
     case Source.Term.Sig{+z0, +z1, +z2}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Sig{z0, z1, z2}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Sig{z0, z1, z2}>, h)
         case False{}:
           Spec.Term.Value.sig{z0, z1, z2, {==}}
     case Source.Term.Tup{+z0, +z1, +z2}:
@@ -1276,13 +1259,13 @@ def Term.is_value_sound.go(t: Source.Term, args: Bool, +bk: List<&2, Source.Def>
         case Source.Q0{}:
           match args:
             case True{}:
-              Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q0{}, z1, z2}>, h)
+              Shared.Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q0{}, z1, z2}>, h)
             case False{}:
               Spec.Term.Value.tup{Source.Q0{}, z1, z2, Unit{}, Term.is_value_sound.go(z2, False{}, bk, h), {==}}
         case Source.Q1{}:
           match args:
             case True{}:
-              Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q1{}, z1, z2}>, h)
+              Shared.Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q1{}, z1, z2}>, h)
             case False{}:
               +g = h
               Spec.Term.Value.tup{Source.Q1{}, z1, z2,
@@ -1294,7 +1277,7 @@ def Term.is_value_sound.go(t: Source.Term, args: Bool, +bk: List<&2, Source.Def>
         case Source.Q2{}:
           match args:
             case True{}:
-              Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q2{}, z1, z2}>, h)
+              Shared.Bool.absurd(Term.Args<bk, Source.Term.Tup{Source.Q2{}, z1, z2}>, h)
             case False{}:
               +g = h
               Spec.Term.Value.tup{Source.Q2{}, z1, z2,
@@ -1306,47 +1289,47 @@ def Term.is_value_sound.go(t: Source.Term, args: Bool, +bk: List<&2, Source.Def>
     case Source.Term.Prj{+z0}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Prj{z0}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Prj{z0}>, h)
         case False{}:
           Spec.Term.Value.prj{z0, {==}}
     case Source.Term.Enu{+z0}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Enu{z0}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Enu{z0}>, h)
         case False{}:
           Spec.Term.Value.enu{z0, {==}}
     case Source.Term.Lab{+z0}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Lab{z0}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Lab{z0}>, h)
         case False{}:
           Spec.Term.Value.lab{z0, {==}}
     case Source.Term.Mat{+z0, +z1, +z2}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Mat{z0, z1, z2}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Mat{z0, z1, z2}>, h)
         case False{}:
           Spec.Term.Value.mat{z0, z1, z2, {==}}
     case Source.Term.Efq{}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Efq{}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Efq{}>, h)
         case False{}:
           Spec.Term.Value.efq{{==}}
     case Source.Term.Eql{+z0, +z1, +z2}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Eql{z0, z1, z2}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Eql{z0, z1, z2}>, h)
         case False{}:
           Spec.Term.Value.eql{z0, z1, z2, {==}}
     case Source.Term.Rfl{}:
       match args:
         case True{}:
-          Bool.absurd(Term.Args<bk, Source.Term.Rfl{}>, h)
+          Shared.Bool.absurd(Term.Args<bk, Source.Term.Rfl{}>, h)
         case False{}:
           Spec.Term.Value.rfl{{==}}
     case Source.Term.Rwt{+z0, +z1, +z2}:
-      Bool.absurd(Term.is_value.res(args, bk, Source.Term.Rwt{z0, z1, z2}), h)
+      Shared.Bool.absurd(Term.is_value.res(args, bk, Source.Term.Rwt{z0, z1, z2}), h)
 
 def Spec.Term.is_value_sound(bk, t, h):
   Term.is_value_sound.go(t, False{}, bk, h)
@@ -1694,37 +1677,37 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Var{z0}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Var{z0}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Var{z0}, ys, k, et))))
         case False{}:
           match r:
             case Spec.Term.Value.lam{r0, r1, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Lam{r0, r1}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Lam{r0, r1}, et)))
             case Spec.Term.Value.prj{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Prj{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Prj{r0}, et)))
             case Spec.Term.Value.mat{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Mat{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Mat{r0, r1, r2}, et)))
             case Spec.Term.Value.efq{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Efq{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Efq{}, et)))
             case Spec.Term.Value.lab{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Lab{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Lab{r0}, et)))
             case Spec.Term.Value.rfl{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Rfl{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Rfl{}, et)))
             case Spec.Term.Value.typ{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Typ{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Typ{r0}, et)))
             case Spec.Term.Value.all{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.All{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.All{r0, r1, r2}, et)))
             case Spec.Term.Value.sig{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Sig{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Sig{r0, r1, r2}, et)))
             case Spec.Term.Value.enu{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Enu{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Enu{r0}, et)))
             case Spec.Term.Value.eql{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Eql{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Eql{r0, r1, r2}, et)))
             case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Tup{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Var{z0}, Source.Term.Tup{r0, r1, r2}, et)))
             case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Var{z0}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Var{z0}, r2, r0, et))))
+              Empty.absurd({Source.Term.is_value(Source.Term.Var{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Var{z0}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Var{z0}, r2, r0, et))))
     case Source.Term.Ref{+z0}:
       match args:
         case True{}:
@@ -1732,29 +1715,29 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case False{}:
           match r:
             case Spec.Term.Value.lam{r0, r1, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Lam{r0, r1}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Lam{r0, r1}, et)))
             case Spec.Term.Value.prj{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Prj{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Prj{r0}, et)))
             case Spec.Term.Value.mat{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Mat{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Mat{r0, r1, r2}, et)))
             case Spec.Term.Value.efq{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Efq{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Efq{}, et)))
             case Spec.Term.Value.lab{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Lab{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Lab{r0}, et)))
             case Spec.Term.Value.rfl{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Rfl{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Rfl{}, et)))
             case Spec.Term.Value.typ{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Typ{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Typ{r0}, et)))
             case Spec.Term.Value.all{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.All{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.All{r0, r1, r2}, et)))
             case Spec.Term.Value.sig{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Sig{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Sig{r0, r1, r2}, et)))
             case Spec.Term.Value.enu{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Enu{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Enu{r0}, et)))
             case Spec.Term.Value.eql{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Eql{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Eql{r0, r1, r2}, et)))
             case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Tup{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ref{z0}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ref{z0}, Source.Term.Tup{r0, r1, r2}, et)))
             case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
               Equal.trans(Bool, Source.Term.stops(bk, Source.Term.Ref{z0}),
                 Source.Term.stops(bk, Source.Term.spine(r2, Source.Term.Ref{r0})), True{},
@@ -1766,80 +1749,80 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Ann{z0, z1}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Ann{z0, z1}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Ann{z0, z1}, ys, k, et))))
         case False{}:
           match r:
             case Spec.Term.Value.lam{r0, r1, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Lam{r0, r1}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Lam{r0, r1}, et)))
             case Spec.Term.Value.prj{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Prj{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Prj{r0}, et)))
             case Spec.Term.Value.mat{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Mat{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Mat{r0, r1, r2}, et)))
             case Spec.Term.Value.efq{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Efq{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Efq{}, et)))
             case Spec.Term.Value.lab{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Lab{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Lab{r0}, et)))
             case Spec.Term.Value.rfl{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Rfl{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Rfl{}, et)))
             case Spec.Term.Value.typ{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Typ{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Typ{r0}, et)))
             case Spec.Term.Value.all{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.All{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.All{r0, r1, r2}, et)))
             case Spec.Term.Value.sig{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Sig{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Sig{r0, r1, r2}, et)))
             case Spec.Term.Value.enu{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Enu{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Enu{r0}, et)))
             case Spec.Term.Value.eql{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Eql{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Eql{r0, r1, r2}, et)))
             case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Tup{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Ann{z0, z1}, Source.Term.Tup{r0, r1, r2}, et)))
             case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Ann{z0, z1}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Ann{z0, z1}, r2, r0, et))))
+              Empty.absurd({Source.Term.is_value(Source.Term.Ann{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Ann{z0, z1}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Ann{z0, z1}, r2, r0, et))))
     case Source.Term.Let{+z0, +z1, +z2}:
       match args:
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Let{z0, z1, z2}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Let{z0, z1, z2}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Let{z0, z1, z2}, ys, k, et))))
         case False{}:
           match r:
             case Spec.Term.Value.lam{r0, r1, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Lam{r0, r1}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Lam{r0, r1}, et)))
             case Spec.Term.Value.prj{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Prj{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Prj{r0}, et)))
             case Spec.Term.Value.mat{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
             case Spec.Term.Value.efq{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Efq{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Efq{}, et)))
             case Spec.Term.Value.lab{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Lab{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Lab{r0}, et)))
             case Spec.Term.Value.rfl{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Rfl{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Rfl{}, et)))
             case Spec.Term.Value.typ{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Typ{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Typ{r0}, et)))
             case Spec.Term.Value.all{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
             case Spec.Term.Value.sig{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
             case Spec.Term.Value.enu{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Enu{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Enu{r0}, et)))
             case Spec.Term.Value.eql{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
             case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Let{z0, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
             case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Let{z0, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Let{z0, z1, z2}, r2, r0, et))))
+              Empty.absurd({Source.Term.is_value(Source.Term.Let{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Let{z0, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Let{z0, z1, z2}, r2, r0, et))))
     case Source.Term.Typ{+z0}:
       match args:
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Typ{z0}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Typ{z0}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Typ{z0}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Typ{z0}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Typ{z0}, ys, k, et))))
         case False{}:
           {==}
@@ -1848,44 +1831,44 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Min{z0, z1}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Min{z0, z1}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Min{z0, z1}, ys, k, et))))
         case False{}:
           match r:
             case Spec.Term.Value.lam{r0, r1, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Lam{r0, r1}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Lam{r0, r1}, et)))
             case Spec.Term.Value.prj{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Prj{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Prj{r0}, et)))
             case Spec.Term.Value.mat{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Mat{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Mat{r0, r1, r2}, et)))
             case Spec.Term.Value.efq{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Efq{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Efq{}, et)))
             case Spec.Term.Value.lab{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Lab{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Lab{r0}, et)))
             case Spec.Term.Value.rfl{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Rfl{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Rfl{}, et)))
             case Spec.Term.Value.typ{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Typ{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Typ{r0}, et)))
             case Spec.Term.Value.all{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.All{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.All{r0, r1, r2}, et)))
             case Spec.Term.Value.sig{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Sig{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Sig{r0, r1, r2}, et)))
             case Spec.Term.Value.enu{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Enu{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Enu{r0}, et)))
             case Spec.Term.Value.eql{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Eql{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Eql{r0, r1, r2}, et)))
             case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Tup{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Min{z0, z1}, Source.Term.Tup{r0, r1, r2}, et)))
             case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Min{z0, z1}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Min{z0, z1}, r2, r0, et))))
+              Empty.absurd({Source.Term.is_value(Source.Term.Min{z0, z1}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Min{z0, z1}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Min{z0, z1}, r2, r0, et))))
     case Source.Term.All{+z0, +z1, +z2}:
       match args:
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.All{z0, z1, z2}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.All{z0, z1, z2}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.All{z0, z1, z2}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.All{z0, z1, z2}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.All{z0, z1, z2}, ys, k, et))))
         case False{}:
           {==}
@@ -1894,8 +1877,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Lam{z0, z1}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Lam{z0, z1}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Lam{z0, z1}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Lam{z0, z1}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Lam{z0, z1}, ys, k, et))))
         case False{}:
           {==}
@@ -1916,29 +1899,29 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
             case False{}:
               match r:
                 case Spec.Term.Value.lam{r0, r1, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
                 case Spec.Term.Value.prj{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Prj{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Prj{r0}, et)))
                 case Spec.Term.Value.mat{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
                 case Spec.Term.Value.efq{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Efq{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Efq{}, et)))
                 case Spec.Term.Value.lab{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Lab{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Lab{r0}, et)))
                 case Spec.Term.Value.rfl{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Rfl{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Rfl{}, et)))
                 case Spec.Term.Value.typ{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Typ{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Typ{r0}, et)))
                 case Spec.Term.Value.all{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
                 case Spec.Term.Value.sig{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
                 case Spec.Term.Value.enu{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Enu{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Enu{r0}, et)))
                 case Spec.Term.Value.eql{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
                 case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q0{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
                 case Spec.Term.Value.call{+r0, r1, +r2, g, vs, w, +et}:
                   Bool.and_intro(Bool.and(Source.Term.is_value(z1, True{}, bk), True{}),
                     Source.Term.stops(bk, Source.Term.App{Source.Q0{}, z1, z2}),
@@ -1969,29 +1952,29 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
             case False{}:
               match r:
                 case Spec.Term.Value.lam{r0, r1, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
                 case Spec.Term.Value.prj{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Prj{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Prj{r0}, et)))
                 case Spec.Term.Value.mat{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
                 case Spec.Term.Value.efq{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Efq{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Efq{}, et)))
                 case Spec.Term.Value.lab{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Lab{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Lab{r0}, et)))
                 case Spec.Term.Value.rfl{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Rfl{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Rfl{}, et)))
                 case Spec.Term.Value.typ{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Typ{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Typ{r0}, et)))
                 case Spec.Term.Value.all{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
                 case Spec.Term.Value.sig{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
                 case Spec.Term.Value.enu{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Enu{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Enu{r0}, et)))
                 case Spec.Term.Value.eql{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
                 case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q1{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
                 case Spec.Term.Value.call{+r0, r1, +r2, g, vs, w, +et}:
                   Bool.and_intro(Bool.and(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk)),
                     Source.Term.stops(bk, Source.Term.App{Source.Q1{}, z1, z2}),
@@ -2022,29 +2005,29 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
             case False{}:
               match r:
                 case Spec.Term.Value.lam{r0, r1, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
                 case Spec.Term.Value.prj{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Prj{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Prj{r0}, et)))
                 case Spec.Term.Value.mat{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
                 case Spec.Term.Value.efq{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Efq{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Efq{}, et)))
                 case Spec.Term.Value.lab{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Lab{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Lab{r0}, et)))
                 case Spec.Term.Value.rfl{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Rfl{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Rfl{}, et)))
                 case Spec.Term.Value.typ{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Typ{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Typ{r0}, et)))
                 case Spec.Term.Value.all{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
                 case Spec.Term.Value.sig{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
                 case Spec.Term.Value.enu{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Enu{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Enu{r0}, et)))
                 case Spec.Term.Value.eql{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
                 case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.App{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.App{Source.Q2{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
                 case Spec.Term.Value.call{+r0, r1, +r2, g, vs, w, +et}:
                   Bool.and_intro(Bool.and(Source.Term.is_value(z1, True{}, bk), Source.Term.is_value(z2, False{}, bk)),
                     Source.Term.stops(bk, Source.Term.App{Source.Q2{}, z1, z2}),
@@ -2065,8 +2048,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Sig{z0, z1, z2}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Sig{z0, z1, z2}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Sig{z0, z1, z2}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Sig{z0, z1, z2}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Sig{z0, z1, z2}, ys, k, et))))
         case False{}:
           {==}
@@ -2077,35 +2060,35 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
             case True{}:
               match r:
                 case Term.Args.of{k, ys, et, vs}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, True{}, bk) == True{} : Bool},
-                    Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q0{}, z1, z2}, [])), Source.Term.Ref{k},
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, True{}, bk) == True{} : Bool},
+                    Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q0{}, z1, z2}, [])), Source.Term.Ref{k},
                       Term.head_ref(Source.Term.Tup{Source.Q0{}, z1, z2}, ys, k, et))))
             case False{}:
               match r:
                 case Spec.Term.Value.lam{r0, r1, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
                 case Spec.Term.Value.prj{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Prj{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Prj{r0}, et)))
                 case Spec.Term.Value.mat{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
                 case Spec.Term.Value.efq{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Efq{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Efq{}, et)))
                 case Spec.Term.Value.lab{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Lab{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Lab{r0}, et)))
                 case Spec.Term.Value.rfl{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Rfl{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Rfl{}, et)))
                 case Spec.Term.Value.typ{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Typ{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Typ{r0}, et)))
                 case Spec.Term.Value.all{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
                 case Spec.Term.Value.sig{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
                 case Spec.Term.Value.enu{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Enu{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Enu{r0}, et)))
                 case Spec.Term.Value.eql{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
                 case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q0{}, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Tup{Source.Q0{}, z1, z2}, r2, r0, et))))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q0{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q0{}, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Tup{Source.Q0{}, z1, z2}, r2, r0, et))))
                 case Spec.Term.Value.tup{r0, r1, r2, va, vb, +et}:
                   Term.is_value_complete.go(z2, False{}, bk, Term.Value.cast(bk, r2, z2, Equal.cong(Source.Term, Source.Term, Term.tup_b, Source.Term.Tup{r0, r1, r2}, Source.Term.Tup{Source.Q0{}, z1, z2}, Equal.sym(Source.Term, Source.Term.Tup{Source.Q0{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)), vb))
         case Source.Q1{}:
@@ -2113,35 +2096,35 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
             case True{}:
               match r:
                 case Term.Args.of{k, ys, et, vs}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, True{}, bk) == True{} : Bool},
-                    Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q1{}, z1, z2}, [])), Source.Term.Ref{k},
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, True{}, bk) == True{} : Bool},
+                    Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q1{}, z1, z2}, [])), Source.Term.Ref{k},
                       Term.head_ref(Source.Term.Tup{Source.Q1{}, z1, z2}, ys, k, et))))
             case False{}:
               match r:
                 case Spec.Term.Value.lam{r0, r1, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
                 case Spec.Term.Value.prj{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Prj{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Prj{r0}, et)))
                 case Spec.Term.Value.mat{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
                 case Spec.Term.Value.efq{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Efq{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Efq{}, et)))
                 case Spec.Term.Value.lab{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Lab{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Lab{r0}, et)))
                 case Spec.Term.Value.rfl{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Rfl{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Rfl{}, et)))
                 case Spec.Term.Value.typ{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Typ{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Typ{r0}, et)))
                 case Spec.Term.Value.all{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
                 case Spec.Term.Value.sig{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
                 case Spec.Term.Value.enu{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Enu{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Enu{r0}, et)))
                 case Spec.Term.Value.eql{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
                 case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q1{}, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Tup{Source.Q1{}, z1, z2}, r2, r0, et))))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q1{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q1{}, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Tup{Source.Q1{}, z1, z2}, r2, r0, et))))
                 case Spec.Term.Value.tup{r0, r1, r2, va, vb, +et}:
                   Bool.and_intro(Source.Term.is_value(z1, False{}, bk), Source.Term.is_value(z2, False{}, bk),
                     Term.is_value_complete.go(z1, False{}, bk, Term.Value.when.cast(bk, Source.Quan.live(r0), Source.Quan.live(Source.Q1{}), r1, z1, Equal.cong(Source.Quan, Bool, Source.Quan.live, r0, Source.Q1{}, Equal.cong(Source.Term, Source.Quan, Term.tup_q, Source.Term.Tup{r0, r1, r2}, Source.Term.Tup{Source.Q1{}, z1, z2}, Equal.sym(Source.Term, Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et))), Equal.cong(Source.Term, Source.Term, Term.tup_a, Source.Term.Tup{r0, r1, r2}, Source.Term.Tup{Source.Q1{}, z1, z2}, Equal.sym(Source.Term, Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)), va)), Term.is_value_complete.go(z2, False{}, bk, Term.Value.cast(bk, r2, z2, Equal.cong(Source.Term, Source.Term, Term.tup_b, Source.Term.Tup{r0, r1, r2}, Source.Term.Tup{Source.Q1{}, z1, z2}, Equal.sym(Source.Term, Source.Term.Tup{Source.Q1{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)), vb)))
@@ -2150,35 +2133,35 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
             case True{}:
               match r:
                 case Term.Args.of{k, ys, et, vs}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, True{}, bk) == True{} : Bool},
-                    Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q2{}, z1, z2}, [])), Source.Term.Ref{k},
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, True{}, bk) == True{} : Bool},
+                    Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q2{}, z1, z2}, [])), Source.Term.Ref{k},
                       Term.head_ref(Source.Term.Tup{Source.Q2{}, z1, z2}, ys, k, et))))
             case False{}:
               match r:
                 case Spec.Term.Value.lam{r0, r1, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Lam{r0, r1}, et)))
                 case Spec.Term.Value.prj{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Prj{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Prj{r0}, et)))
                 case Spec.Term.Value.mat{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
                 case Spec.Term.Value.efq{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Efq{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Efq{}, et)))
                 case Spec.Term.Value.lab{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Lab{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Lab{r0}, et)))
                 case Spec.Term.Value.rfl{et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Rfl{}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Rfl{}, et)))
                 case Spec.Term.Value.typ{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Typ{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Typ{r0}, et)))
                 case Spec.Term.Value.all{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
                 case Spec.Term.Value.sig{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
                 case Spec.Term.Value.enu{r0, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Enu{r0}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Enu{r0}, et)))
                 case Spec.Term.Value.eql{r0, r1, r2, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
                 case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
-                  Empty.elim({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q2{}, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Tup{Source.Q2{}, z1, z2}, r2, r0, et))))
+                  Empty.absurd({Source.Term.is_value(Source.Term.Tup{Source.Q2{}, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Tup{Source.Q2{}, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Tup{Source.Q2{}, z1, z2}, r2, r0, et))))
                 case Spec.Term.Value.tup{r0, r1, r2, va, vb, +et}:
                   Bool.and_intro(Source.Term.is_value(z1, False{}, bk), Source.Term.is_value(z2, False{}, bk),
                     Term.is_value_complete.go(z1, False{}, bk, Term.Value.when.cast(bk, Source.Quan.live(r0), Source.Quan.live(Source.Q2{}), r1, z1, Equal.cong(Source.Quan, Bool, Source.Quan.live, r0, Source.Q2{}, Equal.cong(Source.Term, Source.Quan, Term.tup_q, Source.Term.Tup{r0, r1, r2}, Source.Term.Tup{Source.Q2{}, z1, z2}, Equal.sym(Source.Term, Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et))), Equal.cong(Source.Term, Source.Term, Term.tup_a, Source.Term.Tup{r0, r1, r2}, Source.Term.Tup{Source.Q2{}, z1, z2}, Equal.sym(Source.Term, Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)), va)), Term.is_value_complete.go(z2, False{}, bk, Term.Value.cast(bk, r2, z2, Equal.cong(Source.Term, Source.Term, Term.tup_b, Source.Term.Tup{r0, r1, r2}, Source.Term.Tup{Source.Q2{}, z1, z2}, Equal.sym(Source.Term, Source.Term.Tup{Source.Q2{}, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)), vb)))
@@ -2187,8 +2170,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Prj{z0}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Prj{z0}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Prj{z0}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Prj{z0}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Prj{z0}, ys, k, et))))
         case False{}:
           {==}
@@ -2197,8 +2180,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Enu{z0}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Enu{z0}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Enu{z0}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Enu{z0}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Enu{z0}, ys, k, et))))
         case False{}:
           {==}
@@ -2207,8 +2190,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Lab{z0}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Lab{z0}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Lab{z0}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Lab{z0}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Lab{z0}, ys, k, et))))
         case False{}:
           {==}
@@ -2217,8 +2200,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Mat{z0, z1, z2}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Mat{z0, z1, z2}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Mat{z0, z1, z2}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Mat{z0, z1, z2}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Mat{z0, z1, z2}, ys, k, et))))
         case False{}:
           {==}
@@ -2227,8 +2210,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Efq{}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Efq{}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Efq{}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Efq{}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Efq{}, ys, k, et))))
         case False{}:
           {==}
@@ -2237,8 +2220,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Eql{z0, z1, z2}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Eql{z0, z1, z2}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Eql{z0, z1, z2}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Eql{z0, z1, z2}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Eql{z0, z1, z2}, ys, k, et))))
         case False{}:
           {==}
@@ -2247,8 +2230,8 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rfl{}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Rfl{}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Rfl{}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Rfl{}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Rfl{}, ys, k, et))))
         case False{}:
           {==}
@@ -2257,37 +2240,37 @@ def Term.is_value_complete.go(t: Source.Term, args: Bool, +bk: List<&2, Source.D
         case True{}:
           match r:
             case Term.Args.of{k, ys, et, vs}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, True{}, bk) == True{} : Bool},
-                Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Rwt{z0, z1, z2}, [])), Source.Term.Ref{k},
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, True{}, bk) == True{} : Bool},
+                Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Rwt{z0, z1, z2}, [])), Source.Term.Ref{k},
                   Term.head_ref(Source.Term.Rwt{z0, z1, z2}, ys, k, et))))
         case False{}:
           match r:
             case Spec.Term.Value.lam{r0, r1, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Lam{r0, r1}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Lam{r0, r1}, et)))
             case Spec.Term.Value.prj{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Prj{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Prj{r0}, et)))
             case Spec.Term.Value.mat{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Mat{r0, r1, r2}, et)))
             case Spec.Term.Value.efq{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Efq{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Efq{}, et)))
             case Spec.Term.Value.lab{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Lab{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Lab{r0}, et)))
             case Spec.Term.Value.rfl{et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Rfl{}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Rfl{}, et)))
             case Spec.Term.Value.typ{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Typ{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Typ{r0}, et)))
             case Spec.Term.Value.all{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.All{r0, r1, r2}, et)))
             case Spec.Term.Value.sig{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Sig{r0, r1, r2}, et)))
             case Spec.Term.Value.enu{r0, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Enu{r0}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Enu{r0}, et)))
             case Spec.Term.Value.eql{r0, r1, r2, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Eql{r0, r1, r2}, et)))
             case Spec.Term.Value.tup{r0, r1, r2, va, vb, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Source.Term.Rwt{z0, z1, z2}, Source.Term.Tup{r0, r1, r2}, et)))
             case Spec.Term.Value.call{r0, r1, r2, g, vs, w, et}:
-              Empty.elim({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Rwt{z0, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Rwt{z0, z1, z2}, r2, r0, et))))
+              Empty.absurd({Source.Term.is_value(Source.Term.Rwt{z0, z1, z2}, False{}, bk) == True{} : Bool}, Shared.Bool.no(Term.clash(Spine.head(Source.Term.unspine(Source.Term.Rwt{z0, z1, z2}, [])), Source.Term.Ref{r0}, Term.head_ref(Source.Term.Rwt{z0, z1, z2}, r2, r0, et))))
 
 def Spec.Term.is_value_complete(bk, t, v):
   Term.is_value_complete.go(t, False{}, bk, v)
@@ -2306,9 +2289,6 @@ def Maybe.value(-A: Data, d: A, m: Maybe<&2, A>) -> A:
 
 def Maybe.some_inj(-A: Data, -a: A, -b: A, e: {Some{a} == Some{b} : Maybe<&2, A>}) -> {a == b : A}:
   Equal.cong(Maybe<&2, A>, A, m => Maybe.value(A, a, m), Some{a}, Some{b}, e)
-
-def Maybe.no_none(-A: Data, -a: A, e: {None{} == Some{a} : Maybe<&2, A>}) -> Empty:
-  Bool.no(Equal.cong(Maybe<&2, A>, Bool, m => Maybe.is_some(&2, A, m), None{}, Some{a}, e))
 
 # a case split on Maybe.else's first side m, which is m0, for a result r
 def Maybe.else.by(-R: Type, -m0: Maybe<&2, Source.Term>, m: Maybe<&2, Source.Term>, em: {m == m0 : Maybe<&2, Source.Term>}, -k: Unit -> Maybe<&2, Source.Term>, -r: Maybe<&2, Source.Term>,
@@ -2389,16 +2369,16 @@ def Walk.done_term_some(w: Source.Walk, -u: Source.Term, h: {Source.Walk.done_te
     case Source.Walk.done{t}:
       Equal.cong(Source.Term, Source.Walk, z => Source.Walk.done{z}, t, u, Maybe.some_inj(Source.Term, t, u, h))
     case Source.Walk.need{}:
-      Empty.elim({Source.Walk.need{} == Source.Walk.done{u} : Source.Walk}, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd({Source.Walk.need{} == Source.Walk.done{u} : Source.Walk}, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Walk.fail{}:
-      Empty.elim({Source.Walk.fail{} == Source.Walk.done{u} : Source.Walk}, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd({Source.Walk.fail{} == Source.Walk.done{u} : Source.Walk}, Shared.Maybe.no_none(Source.Term, u, h))
 
 def Term.got_done(-bk: List<&2, Source.Def>, -k: List<&2, Nat>, m: Maybe<&2, Source.Def>,
   +xs: List<&2, Source.Arg>, u: Source.Term, hm: {Source.Book.get(bk, k) == m : Maybe<&2, Source.Def>},
   h: {Source.Walk.done_term(Source.Term.walk_call.got(m, xs)) == Some{u} : Maybe<&2, Source.Term>}) -> Term.Fire<bk, k, xs, u>:
   match m:
     case None{}:
-      Empty.elim(Term.Fire<bk, k, xs, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Term.Fire<bk, k, xs, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Some{Source.Def{dk, dt, +dv, dop}}:
       Term.Fire.of{Source.Def{dk, dt, dv, dop}, hm,
         Spec.Term.walk_sound(dv, [], xs, Some{u}, Walk.done_term_some(Source.Term.walk(dv, [], xs), u, h))}
@@ -2453,7 +2433,7 @@ def Term.call_sound(+bk: List<&2, Source.Def>, +q: Source.Quan, +f: Source.Term,
         Bool.and_right(Source.Term.is_value(f, True{}, bk),
           Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk)), c)),
       hf),
-    c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(Source.Term, u, hn)))
+    c => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Shared.Maybe.no_none(Source.Term, u, hn)))
 
 # Redexes
 # =======
@@ -2472,19 +2452,19 @@ def Term.redex_sound(+bk: List<&2, Source.Def>, +q: Source.Quan, f: Source.Term,
   h: {Source.Term.redex(bk, q, f, x) == Some{u} : Maybe<&2, Source.Term>}) -> Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>:
   match f:
     case Source.Term.Var{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Var{z0}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Var{z0}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Ref{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Ref{z0}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Ref{z0}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Ann{+z0, +z1}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Ann{z0, z1}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Ann{z0, z1}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Let{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Let{z0, z1, z2}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Let{z0, z1, z2}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Typ{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Typ{z0}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Typ{z0}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Min{+z0, +z1}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Min{z0, z1}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Min{z0, z1}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.All{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.All{z0, z1, z2}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.All{z0, z1, z2}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Lam{+p, +b}:
       Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Lam{p, b}, x}, u>, Bool.and(Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk))), Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(x))),
         w => Some{Source.Term.sub(b, 0n, Source.Sub.one{x})}, Some{u}, h,
@@ -2495,13 +2475,13 @@ def Term.redex_sound(+bk: List<&2, Source.Def>, +q: Source.Quan, f: Source.Term,
           Term.Data.when_of(p, x, Bool.and_right(Bool.and(Source.Bool.is_eq(Source.Quan.live(p), Source.Quan.live(q)), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(x, False{}, bk))), Bool.or(Bool.not(Source.Quan.is_q2(p)), Source.Term.is_data(x)), c)), {==},
           Equal.sym(Source.Term, Source.Term.sub(b, 0n, Source.Sub.one{x}), u,
             Maybe.some_inj(Source.Term, Source.Term.sub(b, 0n, Source.Sub.one{x}), u, hs))},
-        c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Lam{p, b}, x}, u>, Maybe.no_none(Source.Term, u, hn)))
+        c => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Lam{p, b}, x}, u>, Shared.Maybe.no_none(Source.Term, u, hn)))
     case Source.Term.App{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.App{z0, z1, z2}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.App{z0, z1, z2}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Sig{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Sig{z0, z1, z2}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Sig{z0, z1, z2}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Tup{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Tup{z0, z1, z2}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Tup{z0, z1, z2}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Prj{+hh}:
       match x:
         case Source.Term.Tup{+r, +a, +y2}:
@@ -2515,47 +2495,47 @@ def Term.redex_sound(+bk: List<&2, Source.Def>, +q: Source.Quan, f: Source.Term,
               {==},
               Equal.sym(Source.Term, Source.Term.App{q, Source.Term.App{Source.Quan.fld(r, q), hh, a}, y2}, u,
                 Maybe.some_inj(Source.Term, Source.Term.App{q, Source.Term.App{Source.Quan.fld(r, q), hh, a}, y2}, u, hs))},
-            c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Tup{r, a, y2}}, u>, Maybe.no_none(Source.Term, u, hn)))
+            c => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Tup{r, a, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, hn)))
         case Source.Term.Var{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Var{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Var{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Ref{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Ref{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Ref{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Ann{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Ann{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Ann{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Let{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Let{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Let{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Typ{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Typ{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Typ{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Min{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Min{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Min{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.All{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.All{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.All{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Lam{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Lam{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Lam{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.App{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.App{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.App{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Sig{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Sig{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Sig{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Prj{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Prj{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Prj{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Enu{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Enu{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Enu{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Lab{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Lab{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Lab{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Mat{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Mat{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Mat{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Efq{}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Efq{}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Efq{}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Eql{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Eql{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Eql{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Rfl{}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Rfl{}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Rfl{}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Rwt{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Rwt{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Prj{hh}, Source.Term.Rwt{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Enu{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Enu{z0}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Enu{z0}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Lab{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Lab{z0}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Lab{z0}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Mat{+k, +hh, +m}:
       match x:
         case Source.Term.Lab{+j}:
@@ -2569,109 +2549,109 @@ def Term.redex_sound(+bk: List<&2, Source.Def>, +q: Source.Quan, f: Source.Term,
               y => hm => Spec.Term.Eval.miss{q, j, k, hh, m, c, Name.is_eq_false(j, k, y), {==},
                 Equal.sym(Source.Term, Source.Term.App{q, m, Source.Term.Lab{j}}, u,
                   Maybe.some_inj(Source.Term, Source.Term.App{q, m, Source.Term.Lab{j}}, u, hm))}),
-            c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lab{j}}, u>, Maybe.no_none(Source.Term, u, hn)))
+            c => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lab{j}}, u>, Shared.Maybe.no_none(Source.Term, u, hn)))
         case Source.Term.Var{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Var{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Var{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Ref{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Ref{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Ref{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Ann{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Ann{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Ann{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Let{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Let{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Let{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Typ{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Typ{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Typ{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Min{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Min{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Min{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.All{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.All{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.All{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Lam{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lam{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Lam{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.App{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.App{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.App{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Sig{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Sig{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Sig{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Tup{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Tup{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Tup{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Prj{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Prj{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Prj{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Enu{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Enu{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Enu{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Mat{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Mat{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Mat{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Efq{}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Efq{}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Efq{}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Eql{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Eql{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Eql{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Rfl{}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Rfl{}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Rfl{}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Rwt{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Rwt{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Mat{k, hh, m}, Source.Term.Rwt{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Efq{}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Efq{}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Efq{}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Eql{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Eql{z0, z1, z2}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Eql{z0, z1, z2}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Rfl{}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Rfl{}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Rfl{}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Rwt{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Rwt{z0, z1, z2}, x}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, Source.Term.Rwt{z0, z1, z2}, x}, u>, Shared.Maybe.no_none(Source.Term, u, h))
 
 def Term.meet_sound(-bk: List<&2, Source.Def>, a: Source.Term, b: Source.Term, -u: Source.Term,
   h: {Source.Term.meet(a, b) == Some{u} : Maybe<&2, Source.Term>}) -> Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>:
   match a:
     case Source.Term.Var{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Var{z0}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Var{z0}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Ref{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Ref{z0}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Ref{z0}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Ann{+z0, +z1}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Ann{z0, z1}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Ann{z0, z1}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Let{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Let{z0, z1, z2}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Let{z0, z1, z2}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Typ{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Typ{z0}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Typ{z0}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Min{+z0, +z1}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Min{z0, z1}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Min{z0, z1}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.All{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.All{z0, z1, z2}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.All{z0, z1, z2}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Lam{+z0, +z1}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lam{z0, z1}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lam{z0, z1}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.App{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.App{z0, z1, z2}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.App{z0, z1, z2}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Sig{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Sig{z0, z1, z2}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Sig{z0, z1, z2}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Tup{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Tup{z0, z1, z2}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Tup{z0, z1, z2}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Prj{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Prj{z0}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Prj{z0}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Enu{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Enu{z0}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Enu{z0}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Lab{+z0}:
       match b:
         case Source.Term.Var{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Var{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Var{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Ref{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Ref{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Ref{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Ann{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Ann{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Ann{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Let{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Let{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Let{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Typ{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Typ{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Typ{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Min{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Min{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Min{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.All{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.All{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.All{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Lam{+y0, +y1}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Lam{y0, y1}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Lam{y0, y1}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.App{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.App{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.App{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Sig{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Sig{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Sig{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Tup{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Tup{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Tup{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Prj{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Prj{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Prj{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Enu{+y0}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Enu{y0}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Enu{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Lab{+y0}:
           Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Lab{y0}}, u>, Bool.and(Source.Name.is_quan(z0), Source.Name.is_quan(y0)),
             w => Some{Source.Term.qmin(z0, y0)}, Some{u}, h,
@@ -2679,69 +2659,69 @@ def Term.meet_sound(-bk: List<&2, Source.Def>, a: Source.Term, b: Source.Term, -
               Bool.and_left(Source.Name.is_quan(z0), Source.Name.is_quan(y0), c),
               Bool.and_right(Source.Name.is_quan(z0), Source.Name.is_quan(y0), c), {==},
               Equal.sym(Source.Term, Source.Term.qmin(z0, y0), u, Maybe.some_inj(Source.Term, Source.Term.qmin(z0, y0), u, hs))},
-            c => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Lab{y0}}, u>, Maybe.no_none(Source.Term, u, hn)))
+            c => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Lab{y0}}, u>, Shared.Maybe.no_none(Source.Term, u, hn)))
         case Source.Term.Mat{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Mat{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Mat{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Efq{}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Efq{}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Efq{}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Eql{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Eql{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Eql{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Rfl{}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Rfl{}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Rfl{}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
         case Source.Term.Rwt{+y0, +y1, +y2}:
-          Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Rwt{y0, y1, y2}}, u>, Maybe.no_none(Source.Term, u, h))
+          Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Lab{z0}, Source.Term.Rwt{y0, y1, y2}}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Mat{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Mat{z0, z1, z2}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Mat{z0, z1, z2}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Efq{}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Efq{}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Efq{}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Eql{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Eql{z0, z1, z2}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Eql{z0, z1, z2}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Rfl{}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Rfl{}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Rfl{}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Rwt{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Rwt{z0, z1, z2}, b}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{Source.Term.Rwt{z0, z1, z2}, b}, u>, Shared.Maybe.no_none(Source.Term, u, h))
 
 def Term.is_rfl_true(e: Source.Term, h: {Source.Term.is_rfl(e) == True{} : Bool}) ->
   {e == Source.Term.Rfl{} : Source.Term}:
   match e:
     case Source.Term.Var{+z0}:
-      Bool.absurd({Source.Term.Var{z0} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Var{z0} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Ref{+z0}:
-      Bool.absurd({Source.Term.Ref{z0} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Ref{z0} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Ann{+z0, +z1}:
-      Bool.absurd({Source.Term.Ann{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Ann{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Let{+z0, +z1, +z2}:
-      Bool.absurd({Source.Term.Let{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Let{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Typ{+z0}:
-      Bool.absurd({Source.Term.Typ{z0} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Typ{z0} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Min{+z0, +z1}:
-      Bool.absurd({Source.Term.Min{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Min{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.All{+z0, +z1, +z2}:
-      Bool.absurd({Source.Term.All{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.All{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Lam{+z0, +z1}:
-      Bool.absurd({Source.Term.Lam{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Lam{z0, z1} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.App{+z0, +z1, +z2}:
-      Bool.absurd({Source.Term.App{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.App{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Sig{+z0, +z1, +z2}:
-      Bool.absurd({Source.Term.Sig{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Sig{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Tup{+z0, +z1, +z2}:
-      Bool.absurd({Source.Term.Tup{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Tup{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Prj{+z0}:
-      Bool.absurd({Source.Term.Prj{z0} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Prj{z0} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Enu{+z0}:
-      Bool.absurd({Source.Term.Enu{z0} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Enu{z0} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Lab{+z0}:
-      Bool.absurd({Source.Term.Lab{z0} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Lab{z0} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Mat{+z0, +z1, +z2}:
-      Bool.absurd({Source.Term.Mat{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Mat{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Efq{}:
-      Bool.absurd({Source.Term.Efq{} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Efq{} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Eql{+z0, +z1, +z2}:
-      Bool.absurd({Source.Term.Eql{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Eql{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
     case Source.Term.Rfl{}:
       {==}
     case Source.Term.Rwt{+z0, +z1, +z2}:
-      Bool.absurd({Source.Term.Rwt{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
+      Shared.Bool.absurd({Source.Term.Rwt{z0, z1, z2} == Source.Term.Rfl{} : Source.Term}, h)
 
 
 # step_sound at App q f x, when no call fires; rf and rx give the laws for the
@@ -2757,7 +2737,7 @@ def Term.step_sound.app(+bk: List<&2, Source.Def>, +q: Source.Quan, +f: Source.T
     a => ea => ha => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Term.step(f, bk), Source.Term.step(f, bk), {==},
       g => Source.Term.App{q, g, x}, Some{a}, ea,
       +g => eg => hg => Spec.Term.Eval.app_f{q, f, g, x, rf(g, eg), {==}, Equal.sym(Source.Term, Source.Term.App{q, g, x}, u, Equal.trans(Source.Term, Source.Term.App{q, g, x}, a, u, Maybe.some_inj(Source.Term, Source.Term.App{q, g, x}, a, hg), Maybe.some_inj(Source.Term, a, u, ha)))},
-      eg => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(Source.Term, a, hn))),
+      eg => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Shared.Maybe.no_none(Source.Term, a, hn))),
     ea => h3 => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Term.is_value(f, False{}, bk),
       v => Source.Maybe.else(Source.Term, Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), y => Source.Term.App{q, f, y}), z => Source.Term.redex(bk, q, f, x)), Some{u}, h3,
       ev => h4 => Maybe.else.by(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), y => Source.Term.App{q, f, y}), Source.Maybe.map_term(Source.Maybe.when(Source.Term, Source.Quan.live(q), z => Source.Term.step(x, bk)), y => Source.Term.App{q, f, y}), {==}, z => Source.Term.redex(bk, q, f, x), Some{u}, h4,
@@ -2766,10 +2746,10 @@ def Term.step_sound.app(+bk: List<&2, Source.Def>, +q: Source.Quan, +f: Source.T
             Some{y}, ey,
             el => es => Spec.Term.Eval.app_x{q, f, x, y, Spec.Term.is_value_sound(bk, f, ev), el, rx(y, es), {==},
               Equal.sym(Source.Term, Source.Term.App{q, f, y}, u, Equal.trans(Source.Term, Source.Term.App{q, f, y}, a, u, Maybe.some_inj(Source.Term, Source.Term.App{q, f, y}, a, hy), Maybe.some_inj(Source.Term, a, u, ha2)))},
-            el => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(Source.Term, y, hn))),
-          ey => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(Source.Term, a, hn))),
+            el => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Shared.Maybe.no_none(Source.Term, y, hn))),
+          ey => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Shared.Maybe.no_none(Source.Term, a, hn))),
         ea2 => h5 => Term.redex_sound(bk, q, f, x, u, h5)),
-      ev => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Maybe.no_none(Source.Term, u, hn))))
+      ev => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.App{q, f, x}, u>, Shared.Maybe.no_none(Source.Term, u, hn))))
 
 # step_sound at Let q v f; rv gives the law for the step of v
 def Term.step_sound.let(+bk: List<&2, Source.Def>, +q: Source.Quan, +v: Source.Term, +f: Source.Term,
@@ -2781,14 +2761,14 @@ def Term.step_sound.let(+bk: List<&2, Source.Def>, +q: Source.Quan, +v: Source.T
       +w => ew => hw => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Source.Quan.live(q), z => Source.Term.step(v, bk),
         Some{w}, ew,
         el => es => Spec.Term.Eval.lett{q, v, w, f, el, rv(w, es), {==}, Equal.sym(Source.Term, Source.Term.Let{q, w, f}, u, Equal.trans(Source.Term, Source.Term.Let{q, w, f}, a, u, Maybe.some_inj(Source.Term, Source.Term.Let{q, w, f}, a, hw), Maybe.some_inj(Source.Term, a, u, ha)))},
-        el => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Maybe.no_none(Source.Term, w, hn))),
-      ew => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Maybe.no_none(Source.Term, a, hn))),
+        el => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Shared.Maybe.no_none(Source.Term, w, hn))),
+      ew => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Shared.Maybe.no_none(Source.Term, a, hn))),
     ea => h2 => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Bool.and(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(v, False{}, bk)), Bool.or(Bool.not(Source.Quan.is_q2(q)), Source.Term.is_data(v))), z => Some{Source.Term.sub(f, 0n, Source.Sub.one{v})}, Some{u}, h2,
       +ec => hs => Spec.Term.Eval.unlet{q, v, f,
         Term.Value.when_of(bk, q, v, Bool.and_left(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(v, False{}, bk)), Bool.or(Bool.not(Source.Quan.is_q2(q)), Source.Term.is_data(v)), ec)),
         Term.Data.when_of(q, v, Bool.and_right(Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(v, False{}, bk)), Bool.or(Bool.not(Source.Quan.is_q2(q)), Source.Term.is_data(v)), ec)), {==},
         Equal.sym(Source.Term, Source.Term.sub(f, 0n, Source.Sub.one{v}), u, Maybe.some_inj(Source.Term, Source.Term.sub(f, 0n, Source.Sub.one{v}), u, hs))},
-      ec => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Maybe.no_none(Source.Term, u, hn))))
+      ec => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Let{q, v, f}, u>, Shared.Maybe.no_none(Source.Term, u, hn))))
 
 # step_sound at Tup q a b; ra and rb give the laws for the steps of a and b
 def Term.step_sound.tup(+bk: List<&2, Source.Def>, +q: Source.Quan, +a: Source.Term, +b: Source.Term,
@@ -2800,15 +2780,15 @@ def Term.step_sound.tup(+bk: List<&2, Source.Def>, +q: Source.Quan, +a: Source.T
       +c => ec => hc => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Source.Quan.live(q), z => Source.Term.step(a, bk),
         Some{c}, ec,
         el => es => Spec.Term.Eval.tup_a{q, a, c, b, el, ra(c, es), {==}, Equal.sym(Source.Term, Source.Term.Tup{q, c, b}, u, Equal.trans(Source.Term, Source.Term.Tup{q, c, b}, a2, u, Maybe.some_inj(Source.Term, Source.Term.Tup{q, c, b}, a2, hc), Maybe.some_inj(Source.Term, a2, u, ha)))},
-        el => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Maybe.no_none(Source.Term, c, hn))),
-      ec => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Maybe.no_none(Source.Term, a2, hn))),
+        el => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Shared.Maybe.no_none(Source.Term, c, hn))),
+      ec => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Shared.Maybe.no_none(Source.Term, a2, hn))),
     ea => h2 => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(a, False{}, bk)), z => Source.Maybe.map_term(Source.Term.step(b, bk), y => Source.Term.Tup{q, a, y}), Some{u}, h2,
       ec => hm => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Source.Term.step(b, bk), Source.Term.step(b, bk), {==},
         y => Source.Term.Tup{q, a, y}, Some{u}, hm,
         +c => eb => hc => Spec.Term.Eval.tup_b{q, a, b, c, Term.Value.when_of(bk, q, a, ec), rb(c, eb), {==},
           Equal.sym(Source.Term, Source.Term.Tup{q, a, c}, u, Maybe.some_inj(Source.Term, Source.Term.Tup{q, a, c}, u, hc))},
-        eb => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Maybe.no_none(Source.Term, u, hn))),
-      ec => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Maybe.no_none(Source.Term, u, hn))))
+        eb => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Shared.Maybe.no_none(Source.Term, u, hn))),
+      ec => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Tup{q, a, b}, u>, Shared.Maybe.no_none(Source.Term, u, hn))))
 
 # step_sound at Rwt e P f; re gives the law for the step of e
 def Term.step_sound.rwt(+bk: List<&2, Source.Def>, +e: Source.Term, +p: Source.Term, +f: Source.Term,
@@ -2822,7 +2802,7 @@ def Term.step_sound.rwt(+bk: List<&2, Source.Def>, +e: Source.Term, +p: Source.T
       y => Source.Term.Rwt{y, p, f}, Some{u}, hm,
       +d => ed => hd => Spec.Term.Eval.rwt{e, d, p, f, re(d, ed), {==},
         Equal.sym(Source.Term, Source.Term.Rwt{d, p, f}, u, Maybe.some_inj(Source.Term, Source.Term.Rwt{d, p, f}, u, hd))},
-      ed => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Rwt{e, p, f}, u>, Maybe.no_none(Source.Term, u, hn))))
+      ed => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Rwt{e, p, f}, u>, Shared.Maybe.no_none(Source.Term, u, hn))))
 
 # step_sound at Min a b; ra and rb give the laws for the steps of a and b
 def Term.step_sound.min(+bk: List<&2, Source.Def>, +a: Source.Term, +b: Source.Term, u: Source.Term,
@@ -2834,7 +2814,7 @@ def Term.step_sound.min(+bk: List<&2, Source.Def>, +a: Source.Term, +b: Source.T
     c => ec => hc => Maybe.map_term.by(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Source.Term.step(a, bk), Source.Term.step(a, bk), {==},
       w => Source.Term.Min{w, b}, Some{c}, ec,
       +d => ed => hd => Spec.Term.Eval.min_a{a, d, b, ra(d, ed), {==}, Equal.sym(Source.Term, Source.Term.Min{d, b}, u, Equal.trans(Source.Term, Source.Term.Min{d, b}, c, u, Maybe.some_inj(Source.Term, Source.Term.Min{d, b}, c, hd), Maybe.some_inj(Source.Term, c, u, hc)))},
-      ed => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Maybe.no_none(Source.Term, c, hn))),
+      ed => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Shared.Maybe.no_none(Source.Term, c, hn))),
     ec => h2 => Maybe.when.by(Source.Term, Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Source.Term.is_value(a, False{}, bk),
       y => Source.Maybe.else(Source.Term, Source.Maybe.map_term(Source.Term.step(b, bk), z => Source.Term.Min{a, z}), z => Source.Term.meet(a, b)), Some{u}, h2,
       ev => h3 => Maybe.else.by(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Source.Maybe.map_term(Source.Term.step(b, bk), z => Source.Term.Min{a, z}), Source.Maybe.map_term(Source.Term.step(b, bk), z => Source.Term.Min{a, z}), {==}, z => Source.Term.meet(a, b), Some{u}, h3,
@@ -2842,16 +2822,16 @@ def Term.step_sound.min(+bk: List<&2, Source.Def>, +a: Source.Term, +b: Source.T
           z => Source.Term.Min{a, z}, Some{c}, ec2,
           +d => ed => hd => Spec.Term.Eval.min_b{a, b, d, Spec.Term.is_value_sound(bk, a, ev), rb(d, ed), {==},
             Equal.sym(Source.Term, Source.Term.Min{a, d}, u, Equal.trans(Source.Term, Source.Term.Min{a, d}, c, u, Maybe.some_inj(Source.Term, Source.Term.Min{a, d}, c, hd), Maybe.some_inj(Source.Term, c, u, hc2)))},
-          ed => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Maybe.no_none(Source.Term, c, hn))),
+          ed => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Shared.Maybe.no_none(Source.Term, c, hn))),
         ec2 => h4 => Term.meet_sound(bk, a, b, u, h4)),
-      ev => hn => Empty.elim(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Maybe.no_none(Source.Term, u, hn))))
+      ev => hn => Empty.absurd(Spec.Term.Eval<bk, Source.Term.Min{a, b}, u>, Shared.Maybe.no_none(Source.Term, u, hn))))
 
 # step_sound, as Step.lean: by induction on t
 def Term.step_sound.go(t: Source.Term, +bk: List<&2, Source.Def>, +u: Source.Term,
   h: {Source.Term.step(t, bk) == Some{u} : Maybe<&2, Source.Term>}) -> Spec.Term.Eval<bk, t, u>:
   match t:
     case Source.Term.Var{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Var{z0}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Var{z0}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Ref{+z0}:
       Term.eval_of_fire(bk, z0, [], u, Term.fires_call(bk, z0, [], u, h), Unit{})
     case Source.Term.Ann{+z0, +z1}:
@@ -2859,14 +2839,14 @@ def Term.step_sound.go(t: Source.Term, +bk: List<&2, Source.Def>, +u: Source.Ter
     case Source.Term.Let{+z0, +z1, +z2}:
       Term.step_sound.let(bk, z0, z1, z2, u, h, w => e => Term.step_sound.go(z1, bk, w, e))
     case Source.Term.Typ{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Typ{z0}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Typ{z0}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Min{+z0, +z1}:
       Term.step_sound.min(bk, z0, z1, u, h, c => e => Term.step_sound.go(z0, bk, c, e),
         c => e => Term.step_sound.go(z1, bk, c, e))
     case Source.Term.All{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.All{z0, z1, z2}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.All{z0, z1, z2}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Lam{+z0, +z1}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Lam{z0, z1}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Lam{z0, z1}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.App{+z0, +z1, +z2}:
       Maybe.else.by(Spec.Term.Eval<bk, Source.Term.App{z0, z1, z2}, u>, Source.Term.call(bk, z0, z1, z2), Source.Term.call(bk, z0, z1, z2), {==},
         w => Source.Term.step.app(z0, z1, z2, bk, z => Source.Term.step(z1, bk), z => Source.Term.step(z2, bk)),
@@ -2875,24 +2855,24 @@ def Term.step_sound.go(t: Source.Term, +bk: List<&2, Source.Def>, +u: Source.Ter
         ec => h2 => Term.step_sound.app(bk, z0, z1, z2, u, h2,
           g => e => Term.step_sound.go(z1, bk, g, e), y => e => Term.step_sound.go(z2, bk, y, e)))
     case Source.Term.Sig{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Sig{z0, z1, z2}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Sig{z0, z1, z2}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Tup{+z0, +z1, +z2}:
       Term.step_sound.tup(bk, z0, z1, z2, u, h, c => e => Term.step_sound.go(z1, bk, c, e),
         c => e => Term.step_sound.go(z2, bk, c, e))
     case Source.Term.Prj{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Prj{z0}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Prj{z0}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Enu{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Enu{z0}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Enu{z0}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Lab{+z0}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Lab{z0}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Lab{z0}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Mat{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Mat{z0, z1, z2}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Mat{z0, z1, z2}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Efq{}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Efq{}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Efq{}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Eql{+z0, +z1, +z2}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Eql{z0, z1, z2}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Eql{z0, z1, z2}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Rfl{}:
-      Empty.elim(Spec.Term.Eval<bk, Source.Term.Rfl{}, u>, Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Spec.Term.Eval<bk, Source.Term.Rfl{}, u>, Shared.Maybe.no_none(Source.Term, u, h))
     case Source.Term.Rwt{+z0, +z1, +z2}:
       Term.step_sound.rwt(bk, z0, z1, z2, u, h, c => e => Term.step_sound.go(z0, bk, c, e))
 
@@ -2940,7 +2920,7 @@ def Term.run_sound.go(n: Nat, +t: Source.Term, +bk: List<&2, Source.Def>, +u: So
   h: {Source.Term.run(n, t, bk) == Some{u} : Maybe<&2, Source.Term>}) -> Term.run_sound.res(bk, t, u):
   match n:
     case 0n:
-      Empty.elim(Term.run_sound.res(bk, t, u), Maybe.no_none(Source.Term, u, h))
+      Empty.absurd(Term.run_sound.res(bk, t, u), Shared.Maybe.no_none(Source.Term, u, h))
     case 1n+m:
       Term.run.of.by(Term.run_sound.res(bk, t, u), Source.Term.is_value(t, False{}, bk), t,
         z => Source.Term.step(t, bk), z => Source.Term.run(m, z, bk), Some{u}, h,
@@ -2962,13 +2942,13 @@ def Spec.Term.run_sound(n, bk, t, u, h):
 # ===============
 
 def Maybe.some_none(-a: Source.Term, e: {Some{a} == None{} : Maybe<&2, Source.Term>}) -> Empty:
-  Maybe.no_none(Source.Term, a, Equal.sym(Maybe<&2, Source.Term>, Some{a}, None{}, e))
+  Shared.Maybe.no_none(Source.Term, a, Equal.sym(Maybe<&2, Source.Term>, Some{a}, None{}, e))
 
 def Maybe.else_none_left(m: Maybe<&2, Source.Term>, -k: Unit -> Maybe<&2, Source.Term>, h: {Source.Maybe.else(Source.Term, m, k) == None{} : Maybe<&2, Source.Term>}) ->
   {m == None{} : Maybe<&2, Source.Term>}:
   match m:
     case Some{a}:
-      Empty.elim({Some{a} == None{} : Maybe<&2, Source.Term>}, Maybe.some_none(a, h))
+      Empty.absurd({Some{a} == None{} : Maybe<&2, Source.Term>}, Maybe.some_none(a, h))
     case None{}:
       {==}
 
@@ -2976,7 +2956,7 @@ def Maybe.else_none_right(m: Maybe<&2, Source.Term>, -k: Unit -> Maybe<&2, Sourc
   {k(Unit{}) == None{} : Maybe<&2, Source.Term>}:
   match m:
     case Some{a}:
-      Empty.elim({k(Unit{}) == None{} : Maybe<&2, Source.Term>}, Maybe.some_none(a, h))
+      Empty.absurd({k(Unit{}) == None{} : Maybe<&2, Source.Term>}, Maybe.some_none(a, h))
     case None{}:
       h
 
@@ -2984,7 +2964,7 @@ def Maybe.map_term_none(m: Maybe<&2, Source.Term>, -f: Source.Term -> Source.Ter
   h: {Source.Maybe.map_term(m, f) == None{} : Maybe<&2, Source.Term>}) -> {m == None{} : Maybe<&2, Source.Term>}:
   match m:
     case Some{a}:
-      Empty.elim({Some{a} == None{} : Maybe<&2, Source.Term>}, Maybe.some_none(f(a), h))
+      Empty.absurd({Some{a} == None{} : Maybe<&2, Source.Term>}, Maybe.some_none(f(a), h))
     case None{}:
       {==}
 
@@ -2994,7 +2974,7 @@ def Maybe.when_true_none(c: Bool, -k: Unit -> Maybe<&2, Source.Term>, ec: {c == 
     case True{}:
       h
     case False{}:
-      Bool.absurd({k(Unit{}) == None{} : Maybe<&2, Source.Term>}, ec)
+      Shared.Bool.absurd({k(Unit{}) == None{} : Maybe<&2, Source.Term>}, ec)
 
 def Bool.lazy_true(-A: Type, c: Bool, -a: Unit -> A, -b: Unit -> A, ec: {c == True{} : Bool}) ->
   {Source.Bool.lazy(A, c, a, b) == a(Unit{}) : A}:
@@ -3002,7 +2982,7 @@ def Bool.lazy_true(-A: Type, c: Bool, -a: Unit -> A, -b: Unit -> A, ec: {c == Tr
     case True{}:
       {==}
     case False{}:
-      Bool.absurd({Source.Bool.lazy(A, False{}, a, b) == a(Unit{}) : A}, ec)
+      Shared.Bool.absurd({Source.Bool.lazy(A, False{}, a, b) == a(Unit{}) : A}, ec)
 
 def Maybe.else_some(-m: Maybe<&2, Source.Term>, -a: Source.Term, -k: Unit -> Maybe<&2, Source.Term>, e: {m == Some{a} : Maybe<&2, Source.Term>}) ->
   {Source.Maybe.else(Source.Term, m, k) == Some{a} : Maybe<&2, Source.Term>}:
