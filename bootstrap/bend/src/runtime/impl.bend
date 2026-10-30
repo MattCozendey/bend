@@ -104,50 +104,66 @@ type W is Data:
 type Img is Data:
   Img{ws: List<&2, W>, r: W, off: Nat}
 
-def Img.elim(i: Img, f: List<&2, W> -> W -> Nat -> Img) -> Img:
+def Img.ws(i: Img) -> List<&2, W>:
   match i:
     case Img{ws, r, off}:
-      f(ws)(r)(off)
+      ws
 
-# the node {t, ra, the word of i} after the words of i
-def Img.node(t: Nat, ra: W, i: Img) -> Img:
+def Img.r(i: Img) -> W:
   match i:
-    case Img{ws, rb, +off}:
-      Img{Con{rb, Con{ra, Con{W.k{t}, ws}}}, W.p{off}, 12n+off}
+    case Img{ws, r, off}:
+      r
 
-# the nodes of v after ws, from off on
+def Img.off(i: Img) -> Nat:
+  match i:
+    case Img{ws, r, off}:
+      off
+
+# the nodes of v after ws, from off on: the nodes of a, then of b, then the
+# node {t, a, b}
 def Img.val(v: Fun.V, ws: List<&2, W>, off: Nat) -> Img:
   match v:
     case Fun.V.z{}:
       Img{ws, W.k{0n}, off}
     case Fun.V.n{t, a, b}:
-      Img.elim(Img.val(a, ws, off), ws1 => ra => off1 => Img.node(t, ra, Img.val(b, ws1, off1)))
+      +ia = Img.val(a, ws, off)
+      +ib = Img.val(b, Img.ws(ia), Img.off(ia))
+      Img{Con{Img.r(ib), Con{Img.r(ia), Con{W.k{t}, Img.ws(ib)}}}, W.p{Img.off(ib)}, 12n+Img.off(ib)}
 
-# words (the last first), the words of the values (the last first), and the
+# the words of nodes (the last first), the words of the values, and the
 # offset after them
 type Imgs is Data:
   Imgs{ws: List<&2, W>, rs: List<&2, W>, off: Nat}
 
-def Imgs.of(i: Img, rs: List<&2, W>) -> Imgs:
-  match i:
-    case Img{ws, r, off}:
-      Imgs{ws, Con{r, rs}, off}
-
-def Imgs.vals(vs: List<&2, Fun.V>, acc: Imgs) -> Imgs:
-  match vs acc:
-    case Nil{} _:
-      acc
-    case Con{v, rest} Imgs{ws, rs, off}:
-      Imgs.vals(rest, Imgs.of(Img.val(v, ws, off), rs))
-
-def Imgs.words(i: Imgs) -> List<&2, W>:
+def Imgs.ws(i: Imgs) -> List<&2, W>:
   match i:
     case Imgs{ws, rs, off}:
-      List.append(&2, W, List.reverse(&2, W, rs), List.reverse(&2, W, ws))
+      ws
 
-# the words of the image of the values vs
-def Img.of(+vs: List<&2, Fun.V>) -> List<&2, W>:
-  Imgs.words(Imgs.vals(vs, Imgs{[], [], Nat.double(Nat.double(List.length(&2, Fun.V, vs)))}))
+def Imgs.rs(i: Imgs) -> List<&2, W>:
+  match i:
+    case Imgs{ws, rs, off}:
+      rs
+
+def Imgs.off(i: Imgs) -> Nat:
+  match i:
+    case Imgs{ws, rs, off}:
+      off
+
+# the nodes of the values vs after ws, from off on, the last value first
+def Imgs.vals(vs: List<&2, Fun.V>, ws: List<&2, W>, off: Nat) -> Imgs:
+  match vs:
+    case Nil{}:
+      Imgs{ws, [], off}
+    case Con{v, rest}:
+      +f = Imgs.vals(rest, ws, off)
+      +i = Img.val(v, Imgs.ws(f), Imgs.off(f))
+      Imgs{Img.ws(i), Con{Img.r(i), Imgs.rs(f)}, Img.off(i)}
+
+# the image of the values vs: the word of each value from 0 on, then the
+# nodes
+def Img.of(+vs: List<&2, Fun.V>) -> Imgs:
+  Imgs.vals(vs, [], Nat.double(Nat.double(List.length(&2, Fun.V, vs))))
 
 # Imp code
 # ========
@@ -389,21 +405,36 @@ def S.input() -> Imp.Stm:
           Imp.Stm.set{14n, E.l(17n)}])},
         S.room(E.k(12), 0n), S.alloc(E.k(1), E.l(14n), E.k(0)), Imp.Stm.set{10n, E.l(17n)}]))])
 
+# the expression of the word w
+def W.exp(w: W) -> Imp.Exp:
+  match w:
+    case W.k{n}:
+      E.n(n)
+    case W.p{p}:
+      E.add(E.l(2n), E.n(p))
+
 # the stores of the words ws at base + off on
 def S.load(ws: List<&2, W>, +off: Nat) -> Imp.Stm:
   match ws:
     case Nil{}:
       Imp.Stm.skip{}
-    case Con{W.k{n}, rest}:
-      Imp.Stm.seq{Imp.Stm.store{U32.from_nat(off), E.l(2n), E.n(n)}, S.load(rest, 4n+off)}
-    case Con{W.p{p}, rest}:
-      Imp.Stm.seq{Imp.Stm.store{U32.from_nat(off), E.l(2n), E.add(E.l(2n), E.n(p))}, S.load(rest, 4n+off)}
+    case Con{w, rest}:
+      Imp.Stm.seq{Imp.Stm.store{U32.from_nat(off), E.l(2n), W.exp(w)}, S.load(rest, 4n+off)}
 
-# the image of ws at hp, then env := [head, input, tail...] and c := the code
+# the stores of the words ws (the last first) below base + end
+def S.loadr(ws: List<&2, W>, +end: Nat) -> Imp.Stm:
+  match ws:
+    case Nil{}:
+      Imp.Stm.skip{}
+    case Con{w, rest}:
+      +e = Nat.sub(end, 4n)
+      Imp.Stm.seq{Imp.Stm.store{U32.from_nat(e), E.l(2n), W.exp(w)}, S.loadr(rest, e)}
+
+# the image im at hp, then env := [head, input, tail...] and c := the code
 # of entry. len: the number of functions.
-def S.image(+ws: List<&2, W>, +len: Nat, entry: Nat) -> Imp.Stm:
-  +size = U32.from_nat(Nat.double(Nat.double(List.length(&2, W, ws))))
-  S.all([S.room(E.k(size), 0n), Imp.Stm.set{2n, E.l(0n)}, S.load(ws, 0n),
+def S.image(+im: Imgs, +len: Nat, entry: Nat) -> Imp.Stm:
+  +size = U32.from_nat(Imgs.off(im))
+  S.all([S.room(E.k(size), 0n), Imp.Stm.set{2n, E.l(0n)}, S.load(Imgs.rs(im), 0n), S.loadr(Imgs.ws(im), Imgs.off(im)),
     Imp.Stm.set{0n, E.add(E.l(0n), E.k(size))},
     S.room(E.k(24), 0n),
     Imp.Stm.set{12n, E.ld(U32.from_nat(Nat.double(Nat.double(1n+len))), E.l(2n))},
@@ -416,7 +447,7 @@ def S.image(+ws: List<&2, W>, +len: Nat, entry: Nat) -> Imp.Stm:
 # ===========
 
 # the image of the code of prog, head and tail
-def Img.prog(+prog: List<&2, Fun.C>, head: Fun.V, tail: List<&2, Fun.V>) -> List<&2, W>:
+def Img.prog(+prog: List<&2, Fun.C>, head: Fun.V, tail: List<&2, Fun.V>) -> Imgs:
   Img.of(List.append(&2, Fun.V, Enc.codes(prog, List.length(&2, Fun.C, prog)), [head, Enc.list(tail)]))
 
 def W.fits(w: W) -> Bool:
@@ -435,8 +466,8 @@ def Ws.fits(ws: List<&2, W>) -> Bool:
 
 # whether each word of the image fits in an i32, and the image in the memory
 def fits(+prog: List<&2, Fun.C>, head: Fun.V, tail: List<&2, Fun.V>) -> Bool:
-  +ws = Img.prog(prog, head, tail)
-  Ws.fits(ws) && Nat.is_le(Nat.double(Nat.double(List.length(&2, W, ws))), 4294967295n)
+  +im = Img.prog(prog, head, tail)
+  Ws.fits(Imgs.rs(im)) && Ws.fits(Imgs.ws(im)) && Nat.is_le(Imgs.off(im), 4294967295n)
 
 # the run time of the program prog from its function entry, with the
 # environment head, the input, then the values of tail
