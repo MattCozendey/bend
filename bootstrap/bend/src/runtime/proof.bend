@@ -6249,3 +6249,156 @@ def Imgs.fit(vs: List<&2, Fun.V>, +ws: List<&2, RT.W>, +off: Nat, +h: {Ws.fit(ws
       h
     case Con{+v, +rest}:
       Img.fit(v, RT.Imgs.ws(RT.Imgs.vals(rest, ws, off)), RT.Imgs.off(RT.Imgs.vals(rest, ws, off)), Imgs.fit(rest, ws, off, h))
+
+# The bytes of the input
+# ======================
+
+# xs reversed onto acc
+def RevN(xs: List<&2, Nat>, acc: List<&2, Nat>) -> List<&2, Nat>:
+  match xs:
+    case Nil{}:
+      acc
+    case Con{x, rest}:
+      RevN(rest, Con{x, acc})
+
+def RevN.inv(xs: List<&2, Nat>, +acc: List<&2, Nat>) -> {RevN(RevN(xs, acc), []) == RevN(acc, xs) : List<&2, Nat>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+x, +rest}:
+      RevN.inv(rest, Con{x, acc})
+
+def Len.revn(xs: List<&2, Nat>, +acc: List<&2, Nat>) -> {List.length(&2, Nat, RevN(xs, acc)) == Nat.add(List.length(&2, Nat, xs), List.length(&2, Nat, acc)) : Nat}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+x, +rest}:
+      Equal.trans(Nat, List.length(&2, Nat, RevN(rest, Con{x, acc})), Nat.add(List.length(&2, Nat, rest), 1n+List.length(&2, Nat, acc)), 1n+Nat.add(List.length(&2, Nat, rest), List.length(&2, Nat, acc)),
+        Len.revn(rest, Con{x, acc}), MP.Nat.add_succ(List.length(&2, Nat, rest), List.length(&2, Nat, acc)))
+
+# the bytes after the reversed prefix rp
+def Bytes.revn(rp: List<&2, Nat>, +ys: List<&2, Nat>, +m: Wasm.Mem, +A: Nat, +h: {Bytes.at(RevN(rp, ys), m, A) == True{} : Bool}) ->
+  {Bytes.at(ys, m, Nat.add(List.length(&2, Nat, rp), A)) == True{} : Bool}:
+  match rp:
+    case Nil{}:
+      h
+    case Con{+c, +r}:
+      And.r(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(Nat.add(List.length(&2, Nat, r), A)), m), c), Bytes.at(ys, m, 1n+Nat.add(List.length(&2, Nat, r), A)), Bytes.revn(r, Con{c, ys}, m, A, h))
+
+def Isb.revn(rp: List<&2, Nat>, +ys: List<&2, Nat>, +h: {Wasm.Bytes.is(RevN(rp, ys)) == True{} : Bool}) -> {Wasm.Bytes.is(ys) == True{} : Bool}:
+  match rp:
+    case Nil{}:
+      h
+    case Con{+c, +r}:
+      And.r(Wasm.Nat.at_most(c, 255), Wasm.Bytes.is(ys), Isb.revn(r, Con{c, ys}, h))
+
+def Bytes.next(+a: U32, +A: Nat, +ha: {a == U32.from_nat(A) : U32}) -> {U32.add(a, 1) == U32.from_nat(1n+A) : U32}:
+  %Equal.sym(U32, a, U32.from_nat(A), ha) : {U32.add(_, 1) == U32.from_nat(1n+A) : U32}
+  Equal.sym(U32, U32.from_nat(Nat.add(1n, A)), U32.add(U32.from_nat(A), U32.from_nat(1n)), WP.U.from_nat_add(1n, A))
+
+# a byte below the bytes from A2 on keeps
+def G.keep(rest: List<&2, Nat>, +a2: U32, +A2: Nat, +m: Wasm.Mem, +A: Nat, +size: U32, +ha: {a2 == U32.from_nat(A2) : U32},
+  +hA: {Nat.is_le(1n+A, A2) == True{} : Bool}, +hs: {Nat.is_le(Nat.add(List.length(&2, Nat, rest), A2), U32.to_nat(size)) == True{} : Bool}) ->
+  {Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.bytes(rest, a2, m)) == Wasm.Mem.get_at(U32.from_nat(A), m) : Nat}:
+  match rest:
+    case Nil{}:
+      {==}
+    case Con{+c, +r}:
+      +hs1 = Le.t(1n+A2, 1n+Nat.add(List.length(&2, Nat, r), A2), U32.to_nat(size), Shared.Nat.is_le_add_left(A2, List.length(&2, Nat, r)), hs)
+      Equal.trans(Nat, Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.bytes(r, U32.add(a2, 1), Wasm.Mem.set_at(a2, m, c))), Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.set_at(a2, m, c)), Wasm.Mem.get_at(U32.from_nat(A), m),
+        G.keep(r, U32.add(a2, 1), 1n+A2, Wasm.Mem.set_at(a2, m, c), A, size, Bytes.next(a2, A2, ha),
+          Le.t(1n+A, A2, 1n+A2, hA, Shared.Nat.is_le_add_left(A2, 1n)),
+          Le.rwl(1n+Nat.add(List.length(&2, Nat, r), A2), Nat.add(List.length(&2, Nat, r), 1n+A2), U32.to_nat(size),
+            Equal.sym(Nat, Nat.add(List.length(&2, Nat, r), 1n+A2), 1n+Nat.add(List.length(&2, Nat, r), A2), MP.Nat.add_succ(List.length(&2, Nat, r), A2)), hs)),
+        %Equal.sym(U32, a2, U32.from_nat(A2), ha) : {Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.set_at(_, m, c)) == Wasm.Mem.get_at(U32.from_nat(A), m) : Nat}
+        G.skip(A, A2, m, c, size, hA, hs1))
+
+# the input bytes, as Mem.bytes puts them
+def Bytes.mem(xs: List<&2, Nat>, +a: U32, +A: Nat, +m: Wasm.Mem, +size: U32, +ha: {a == U32.from_nat(A) : U32},
+  +hs: {Nat.is_le(Nat.add(List.length(&2, Nat, xs), A), U32.to_nat(size)) == True{} : Bool}) -> {Bytes.at(xs, Wasm.Mem.bytes(xs, a, m), A) == True{} : Bool}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+b, +rest}:
+      +M1 = Wasm.Mem.set_at(a, m, b)
+      +hs1 = Le.rwl(1n+Nat.add(List.length(&2, Nat, rest), A), Nat.add(List.length(&2, Nat, rest), 1n+A), U32.to_nat(size),
+        Equal.sym(Nat, Nat.add(List.length(&2, Nat, rest), 1n+A), 1n+Nat.add(List.length(&2, Nat, rest), A), MP.Nat.add_succ(List.length(&2, Nat, rest), A)), hs)
+      +hA = {Fits.le(A, size, Le.t(A, 1n+Nat.add(List.length(&2, Nat, rest), A), U32.to_nat(size), Le.t(A, Nat.add(List.length(&2, Nat, rest), A), 1n+Nat.add(List.length(&2, Nat, rest), A),
+        Shared.Nat.is_le_add_left(A, List.length(&2, Nat, rest)), Shared.Nat.is_le_add_left(Nat.add(List.length(&2, Nat, rest), A), 1n)), hs)) : {U32.to_nat(U32.from_nat(A)) == A : Nat}}
+      And.mk(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.bytes(rest, U32.add(a, 1), M1)), b), Bytes.at(rest, Wasm.Mem.bytes(rest, U32.add(a, 1), M1), 1n+A),
+        %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.bytes(rest, U32.add(a, 1), M1)), Wasm.Mem.get_at(U32.from_nat(A), M1),
+          G.keep(rest, U32.add(a, 1), 1n+A, M1, A, size, Bytes.next(a, A, ha), Shared.Nat.is_le_refl(1n+A), hs1)) :
+          {Nat.is_eq(_, b) == True{} : Bool}
+        %Equal.sym(U32, a, U32.from_nat(A), ha) : {Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.set_at(_, m, b)), b) == True{} : Bool}
+        %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(A), Wasm.Mem.set_at(U32.from_nat(A), m, b)), b, WP.M.get_hit(A, m, b, hA)) : {Nat.is_eq(_, b) == True{} : Bool}
+        WP.Nat.is_eq_refl(b),
+        Bytes.mem(rest, U32.add(a, 1), 1n+A, M1, size, Bytes.next(a, A, ha), hs1))
+
+# a store above the bytes keeps them
+def Bytes.up(bs: List<&2, Nat>, +m: Wasm.Mem, +A: Nat, +B: Nat, +w: U32, +size: U32,
+  +h: {Nat.is_le(Nat.add(List.length(&2, Nat, bs), A), B) == True{} : Bool}, +hq: {Nat.is_le(4n+B, U32.to_nat(size)) == True{} : Bool},
+  +hb: {Bytes.at(bs, m, A) == True{} : Bool}) -> {Bytes.at(bs, Wasm.Mem.store(U32.from_nat(B), m, w), A) == True{} : Bool}:
+  match bs:
+    case Nil{}:
+      {==}
+    case Con{+c, +rest}:
+      +m2 = Wasm.Mem.store(U32.from_nat(B), m, w)
+      +hA = Le.t(1n+A, 1n+Nat.add(List.length(&2, Nat, rest), A), B, Shared.Nat.is_le_add_left(A, List.length(&2, Nat, rest)), h)
+      +hBs = Le.t(B, 4n+B, U32.to_nat(size), Shared.Nat.is_le_add_left(B, 4n), hq)
+      And.mk(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m2), c), Bytes.at(rest, m2, 1n+A),
+        %Equal.sym(Nat, Wasm.Mem.get_at(U32.from_nat(A), m2), Wasm.Mem.get_at(U32.from_nat(A), m),
+          WP.M.get_store_far(A, B, m, w, Fits.le(A, size, Le.t(A, B, U32.to_nat(size), Shared.Nat.is_le_pred(A, B, hA), hBs)),
+            Fits.le(3n+B, size, Shared.Nat.is_le_pred(3n+B, U32.to_nat(size), hq)), WP.Nat.ne_lt(A, 0n+B, Le.t(1n+A, B, 0n+B, hA, Shared.Nat.is_le_add_left(B, 0n))), WP.Nat.ne_lt(A, 1n+B, Le.t(1n+A, B, 1n+B, hA, Shared.Nat.is_le_add_left(B, 1n))), WP.Nat.ne_lt(A, 2n+B, Le.t(1n+A, B, 2n+B, hA, Shared.Nat.is_le_add_left(B, 2n))), WP.Nat.ne_lt(A, 3n+B, Le.t(1n+A, B, 3n+B, hA, Shared.Nat.is_le_add_left(B, 3n))))) :
+          {Nat.is_eq(_, c) == True{} : Bool}
+        And.l(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), c), Bytes.at(rest, m, 1n+A), hb),
+        Bytes.up(rest, m, 1n+A, B, w, size,
+          Le.rwl(1n+Nat.add(List.length(&2, Nat, rest), A), Nat.add(List.length(&2, Nat, rest), 1n+A), B, Equal.sym(Nat, Nat.add(List.length(&2, Nat, rest), 1n+A), 1n+Nat.add(List.length(&2, Nat, rest), A), MP.Nat.add_succ(List.length(&2, Nat, rest), A)), h),
+          hq, And.r(Nat.is_eq(Wasm.Mem.get_at(U32.from_nat(A), m), c), Bytes.at(rest, m, 1n+A), hb)))
+
+def Bytes.upq(+bs: List<&2, Nat>, +m: Wasm.Mem, +A: Nat, +q: U32, +w: U32, +size: U32,
+  +h: {Nat.is_le(Nat.add(List.length(&2, Nat, bs), A), U32.to_nat(q)) == True{} : Bool}, +hq: {Nat.is_le(4n+U32.to_nat(q), U32.to_nat(size)) == True{} : Bool},
+  +hb: {Bytes.at(bs, m, A) == True{} : Bool}) -> {Bytes.at(bs, Wasm.Mem.store(q, m, w), A) == True{} : Bool}:
+  %WP.U.from_to_nat(q) : {Bytes.at(bs, Wasm.Mem.store(_, m, w), A) == True{} : Bool}
+  Bytes.up(bs, m, A, U32.to_nat(q), w, size, h, hq, hb)
+
+# an allocation above the bytes keeps them
+def Bytes.m3(+bs: List<&2, Nat>, +m: Wasm.Mem, +A: Nat, +hp: U32, +vt: U32, +va: U32, +vb: U32, +size: U32,
+  +h: {Nat.is_le(Nat.add(List.length(&2, Nat, bs), A), U32.to_nat(hp)) == True{} : Bool}, +hr: {Nat.is_le(12n+U32.to_nat(hp), U32.to_nat(size)) == True{} : Bool},
+  +hb: {Bytes.at(bs, m, A) == True{} : Bool}) -> {Bytes.at(bs, M3(hp, m, vt, va, vb), A) == True{} : Bool}:
+  +X = Nat.add(List.length(&2, Nat, bs), A)
+  +t4 = T4(hp, size, hr)
+  +t8 = T8(hp, size, hr)
+  Bytes.upq(bs, Wasm.Mem.store(U32.add(hp, 4), Wasm.Mem.store(hp, m, vt), va), A, U32.add(hp, 8), vb, size,
+    Le.rw(X, 8n+U32.to_nat(hp), U32.to_nat(U32.add(hp, 8)), Equal.sym(Nat, U32.to_nat(U32.add(hp, 8)), 8n+U32.to_nat(hp), t8),
+      Le.t(X, U32.to_nat(hp), 8n+U32.to_nat(hp), h, Shared.Nat.is_le_add_left(U32.to_nat(hp), 8n))),
+    Le.rwl(12n+U32.to_nat(hp), 4n+U32.to_nat(U32.add(hp, 8)), U32.to_nat(size),
+      Equal.cong(Nat, Nat, y => 4n+y, 8n+U32.to_nat(hp), U32.to_nat(U32.add(hp, 8)), Equal.sym(Nat, U32.to_nat(U32.add(hp, 8)), 8n+U32.to_nat(hp), t8)), hr),
+    Bytes.upq(bs, Wasm.Mem.store(hp, m, vt), A, U32.add(hp, 4), va, size,
+      Le.rw(X, 4n+U32.to_nat(hp), U32.to_nat(U32.add(hp, 4)), Equal.sym(Nat, U32.to_nat(U32.add(hp, 4)), 4n+U32.to_nat(hp), t4),
+        Le.t(X, U32.to_nat(hp), 4n+U32.to_nat(hp), h, Shared.Nat.is_le_add_left(U32.to_nat(hp), 4n))),
+      Le.rwl(8n+U32.to_nat(hp), 4n+U32.to_nat(U32.add(hp, 4)), U32.to_nat(size),
+        Equal.cong(Nat, Nat, y => 4n+y, 4n+U32.to_nat(hp), U32.to_nat(U32.add(hp, 4)), Equal.sym(Nat, U32.to_nat(U32.add(hp, 4)), 4n+U32.to_nat(hp), t4)),
+        Le.k8(hp, size, hr)),
+      Bytes.upq(bs, m, A, hp, vt, size, h, Le.k4(hp, size, hr), hb)))
+
+def Ta.of(+a: U32, +A: Nat, +size: U32, +ha: {a == U32.from_nat(A) : U32}, +hs: {Nat.is_le(A, U32.to_nat(size)) == True{} : Bool}) ->
+  {U32.to_nat(a) == A : Nat}:
+  %Equal.sym(U32, a, U32.from_nat(A), ha) : {U32.to_nat(_) == A : Nat}
+  Fits.le(A, size, hs)
+
+# the length word below the bytes keeps
+def Ld.bytes(xs: List<&2, Nat>, +a: U32, +A: Nat, +m: Wasm.Mem, +size: U32, +ha: {a == U32.from_nat(A) : U32},
+  +h4: {Nat.is_le(4n, A) == True{} : Bool}, +hs: {Nat.is_le(Nat.add(List.length(&2, Nat, xs), A), U32.to_nat(size)) == True{} : Bool}) ->
+  {Wasm.Mem.load(0, Wasm.Mem.bytes(xs, a, m)) == Wasm.Mem.load(0, m) : U32}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+b, +rest}:
+      +hA1 = Le.t(1n+A, 1n+Nat.add(List.length(&2, Nat, rest), A), U32.to_nat(size), Shared.Nat.is_le_add_left(A, List.length(&2, Nat, rest)), hs)
+      +ta = Ta.of(a, A, size, ha, Shared.Nat.is_le_pred(A, U32.to_nat(size), hA1))
+      Equal.trans(U32, Wasm.Mem.load(0, Wasm.Mem.bytes(rest, U32.add(a, 1), Wasm.Mem.set_at(a, m, b))), Wasm.Mem.load(0, Wasm.Mem.set_at(a, m, b)),
+        Wasm.Mem.load(0, m),
+        Ld.bytes(rest, U32.add(a, 1), 1n+A, Wasm.Mem.set_at(a, m, b), size, Bytes.next(a, A, ha), Le.t(4n, A, 1n+A, h4, Shared.Nat.is_le_add_left(A, 1n)),
+          Le.rwl(1n+Nat.add(List.length(&2, Nat, rest), A), Nat.add(List.length(&2, Nat, rest), 1n+A), U32.to_nat(size), Equal.sym(Nat, Nat.add(List.length(&2, Nat, rest), 1n+A), 1n+Nat.add(List.length(&2, Nat, rest), A), MP.Nat.add_succ(List.length(&2, Nat, rest), A)), hs)),
+        Ld.far8(0, a, m, b, size, Le.rw(4n, A, U32.to_nat(a), Equal.sym(Nat, U32.to_nat(a), A, ta), h4),
+          Le.rwl(1n+A, 1n+U32.to_nat(a), U32.to_nat(size), Equal.cong(Nat, Nat, y => 1n+y, A, U32.to_nat(a), Equal.sym(Nat, U32.to_nat(a), A, ta)), hA1)))
