@@ -3,7 +3,7 @@
 // implementation that --run names, and checks the output.
 //
 //   bun harness.ts --run '<command>' [--run '<command>'] [--make '<command>']
-//     [--work <dir>] <cases.json>
+//     [--check '<command>'] [--work <dir>] <cases.json>
 //
 // - A command is words. Quotes join a word. It runs in the work directory,
 //   so name its program by a full path.
@@ -12,8 +12,12 @@
 //   input. The implementation writes the output bytes to stdout, and exits
 //   non-zero to refuse.
 // - --make turns a .bend program into .bendtt: {source} (its path from the
-//   work directory) and {out}. Its default needs the existing bend command,
-//   which runs in WSL on Windows.
+//   work directory) and {out}. Its default runs this repo's Bend
+//   (bend2/main.ts), whose base.bend and bendtt.lean the pins cover; another
+//   --make must run a Bend with those same files. On Windows, Bend runs in WSL.
+// - --check runs first, in the Lean folder, by default `lake run pinned`. It
+//   fails unless each reviewed text is the one its pin names (lakefile.lean).
+//   Then the harness runs no case.
 // - A case has a name, a program (a path in the folder of the case list),
 //   an input (hex, optional) and an expect (optional):
 //   hex (the output bytes), text (the output), or refused (a text that the
@@ -33,7 +37,7 @@ type Expect = { hex: string } | { text: string } | { refused: string };
 
 type Case = { name: string; program: string; input?: string; expect?: Expect };
 
-type Options = { runs: string[]; make: string; work: string; cases: string };
+type Options = { runs: string[]; make: string; check: string; work: string; cases: string };
 
 type Outcome = { code: number; out: Buffer; err: string };
 
@@ -44,12 +48,18 @@ type Result = { ok: boolean; text: string };
 // Constants
 // =========
 
-const DEFAULT_MAKE = "bend {source} -o {out}";
+const BEND = path.join(import.meta.dirname, "..", "..", "bend2", "main.ts");
 
-const DEFAULT_WORK = path.join(import.meta.dirname, "..", "lean", ".lake", "harness");
+const DEFAULT_MAKE = `"${process.execPath}" "${BEND}" {source} -o {out}`;
+
+const DEFAULT_CHECK = "lake run pinned";
+
+const LEAN = path.join(import.meta.dirname, "..", "lean");
+
+const DEFAULT_WORK = path.join(LEAN, ".lake", "harness");
 
 const USAGE = "usage: harness.ts --run '<command>' [--run ...] [--make '<command>'] "
-  + "[--work <dir>] <cases.json>";
+  + "[--check '<command>'] [--work <dir>] <cases.json>";
 
 // Functions
 // =========
@@ -63,6 +73,7 @@ const getOptions = (args: string[]): Options => {
   return {
     runs: taken("--run"),
     make: taken("--make")[0] ?? DEFAULT_MAKE,
+    check: taken("--check")[0] ?? DEFAULT_CHECK,
     work: taken("--work")[0] ?? DEFAULT_WORK,
     cases: free[0] ?? "",
   };
@@ -178,6 +189,11 @@ if (options.runs.length === 0 || options.cases === "") {
   process.exit(2);
 }
 try {
+  const checked = getOutcome(getArgv(options.check, {}), LEAN);
+  if (checked.code !== 0) {
+    console.error(`check failed:\n${(checked.out.toString() + checked.err).trim()}`);
+    process.exit(2);
+  }
   const results = getResults(options);
   results.forEach((r) => console.log(r.text));
   const passed = results.filter((r) => r.ok).length;
