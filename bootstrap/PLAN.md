@@ -183,10 +183,13 @@ Parts, in `bootstrap/bend/`:
    by proof. The copy differs only in form: equalities in place of
    indices, `X.when(c)` for a premise `(c = true → X)`, `Values` as a def,
    and `Walk` without the book, which no rule of it reads.
-6. `runner.bend` and `src/runner/impl.bend`: the runner in Bend. Its `main`
-   reads a job (fuel, program text, input), runs the program by the source
-   meaning (`run`), and writes the result as the CLI does. It refuses a
-   program with an opaque def. The header of `impl.bend` gives the format.
+6. `runner.bend` and `src/runner/`: the runner in Bend. Its `main` reads a
+   job (fuel, program text, input), runs the program by the source meaning
+   (`run`), and writes the result as the CLI does. It refuses a program with
+   an opaque def. The header of `impl.bend` gives the format. It checks what
+   it reads and writes, so `spec.bend` proves: the job that it reads writes
+   exactly the bytes it read (`Job.write_after_read`), and the bytes after an
+   output byte 1 show the result (`Obs.bytes_show_result`).
 
 The build pins parts 1, 2, 4, 5 and 6, and what they copy and reach (see
 Guards, item 1). The proofs tie `step`, `walk`, `is_value`, `is_data` and
@@ -198,13 +201,13 @@ error in it:
   `Term.takes`, `Term.node`, `Book.get`, `Quan`, `Term.qmin`, `Name`).
   `step` calls the same helpers, so an error in one is on both sides.
 - part 5: the copy of the rules.
-- part 6: all of it. It is glue around `run`, so a law about it would only
-  restate its body.
+- part 6: `Job.write` (the format), `Fuel.number`, the check for opaque
+  defs, the call of `run`, and the text after an output byte 2.
 - the Base defs that parts 4, 5 and 6 reach. The laws fix some of them, for
   example `Nat.is_eq` through the hit and miss rules, but not all.
 
-The compiler's book holds all the proofs, so each run of the CLI has the
-kernel check them.
+The books of the compiler and of the runner hold all the proofs, so each run
+of the CLI has the kernel check them.
 
 ## Speed
 
