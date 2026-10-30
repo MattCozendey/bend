@@ -218,7 +218,8 @@ def Pins : List (String × Pin.Part × UInt64) := [
   ("../../bend2/base.bend", .block "def U32.is_lt(", 3052774866507127777),
   ("../../bend2/base.bend", .block "def U32.is_le(", 17483679009855355400),
   ("../../bend2/base.bend", .block "def U32.is_ge(", 2182709843309590902),
-  ("../../bend2/base.bend", .block "def U32.from_nat(", 14431940280590938519)]
+  ("../../bend2/base.bend", .block "def U32.from_nat(", 14431940280590938519),
+  ("../../bend2/base.bend", .block "def List.length(", 18432464484018013776)]
 
 -- the index of the first line, from i on, that p holds for
 def Pin.find (ls : Array String) (i : Nat) (p : String → Bool) : Option Nat :=
