@@ -6,10 +6,11 @@ import ../../bend/src/wasm/impl.bend as Wasm
 # also the module's input:
 # - mode 0 runs the module by the meaning, in 1 page: 1 and the output, or 0
 #   for no result;
-# - mode 1 gives the binary module.
+# - mode 1 gives the binary module;
+# - mode 2 is mode 0 with no input.
 # Tests 0 to 11 store an i32 operation of each vector of the data at 4, 8, ...:
 # the operations of Ops, then eqz. A vector is a and b, 4 bytes each, the low
-# byte first. Tests 12 to 18 are below.
+# byte first. Tests 12 to 19 are below.
 
 def Ops() -> List<&2, Wasm.Bin>:
   [Wasm.Bin.add{}, Wasm.Bin.sub{}, Wasm.Bin.and{}, Wasm.Bin.or{}, Wasm.Bin.xor{}, Wasm.Bin.shl{},
@@ -122,6 +123,9 @@ def Test.module(t: Nat, xs: List<&2, Nat>) -> Wasm.Module:
     case 18n:
       # test 18: unreachable traps
       Wasm.Module{0n, Wasm.Code.unreachable{Wasm.Code.end{}}}
+    case 19n:
+      # test 19: the i32 at 0, which holds the input's length or 0xffffffff
+      Wasm.Module{1n, Wasm.Code.const{0, Wasm.Code.load{0, Wasm.Code.set{0n, Test.out.i32(0n)}}}}
     case _:
       Wasm.Module{0n, Op.vectors(Ops.at(Ops(), t), xs, 4)}
 
@@ -135,8 +139,10 @@ def Test.result(m: Maybe<&2, List<&2, Nat>>) -> List<&2, Nat>:
 def main(xs: List<&2, Nat>) -> List<&2, Nat>:
   match xs:
     case Con{0n, Con{+t, +rest}}:
-      Test.result(Wasm.Wasm.run(1n, 100000n, Test.module(t, rest), rest))
+      Test.result(Wasm.Wasm.run(1n, 100000n, Test.module(t, rest), Some{rest}))
     case Con{1n, Con{t, rest}}:
       Wasm.Wasm.encode(Test.module(t, rest))
+    case Con{2n, Con{+t, +rest}}:
+      Test.result(Wasm.Wasm.run(1n, 100000n, Test.module(t, rest), None{}))
     case _:
       []

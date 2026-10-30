@@ -182,5 +182,29 @@
     "expect": {
       "hex": "00"
     }
+  },
+  {
+    "name": "the length of no bytes is at 0",
+    "program": "wasm.bend",
+    "input": "0013",
+    "expect": {
+      "hex": "0100000000"
+    }
+  },
+  {
+    "name": "the input's length is at 0",
+    "program": "wasm.bend",
+    "input": "0013070809",
+    "expect": {
+      "hex": "0103000000"
+    }
+  },
+  {
+    "name": "0xffffffff is at 0 for no input",
+    "program": "wasm.bend",
+    "input": "0213",
+    "expect": {
+      "hex": "01ffffffff"
+    }
   }
 ]

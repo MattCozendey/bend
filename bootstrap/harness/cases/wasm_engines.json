@@ -182,5 +182,21 @@
     "expect": {
       "refused": "trap"
     }
+  },
+  {
+    "name": "the length of no bytes is at 0",
+    "program": "wasm.bend",
+    "input": "0113",
+    "expect": {
+      "hex": "00000000"
+    }
+  },
+  {
+    "name": "the input's length is at 0",
+    "program": "wasm.bend",
+    "input": "0113070809",
+    "expect": {
+      "hex": "03000000"
+    }
   }
 ]

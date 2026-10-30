@@ -6,7 +6,8 @@
 //   node wasm.ts <file.wasm> [input-file] [pages]
 //
 // - The module gets a memory of `pages` pages (1 to 65535, by default 256).
-// - The input's length (4 bytes, the low byte first) goes at 0, its bytes at 4.
+// - The input's length (4 bytes, the low byte first) goes at 0, its bytes at 4;
+//   with no input file, 0xffffffff goes at 0.
 // - main returns an address p. The output is the length at p and the bytes
 //   after it; they go to stdout.
 // - A failure exits 1 with a message that names its kind: "trap" (the run
@@ -36,15 +37,19 @@ const getKind = (e: unknown): string =>
     : "error";
 
 // getOutput wasm input pages: the output bytes of the module wasm for input
-const getOutput = (wasm: Uint8Array, input: Uint8Array, pages: number): Uint8Array => {
+// (undefined: no input)
+const getOutput = (wasm: Uint8Array, input: Uint8Array | undefined, pages: number): Uint8Array => {
   const memory = new WebAssembly.Memory({ initial: pages });
   const size = memory.buffer.byteLength;
-  if (4 + input.length > size) {
-    throw new Error("the input does not fit");
-  }
   const view = new DataView(memory.buffer);
-  view.setUint32(0, input.length, true);
-  new Uint8Array(memory.buffer).set(input, 4);
+  if (input === undefined) {
+    view.setUint32(0, 0xffffffff, true);
+  } else if (4 + input.length > size) {
+    throw new Error("the input does not fit");
+  } else {
+    view.setUint32(0, input.length, true);
+    new Uint8Array(memory.buffer).set(input, 4);
+  }
   const instance = new WebAssembly.Instance(new WebAssembly.Module(wasm), { env: { memory } });
   const p = (instance.exports["main"] as () => number)() >>> 0;
   if (p + 4 > size) {
@@ -67,7 +72,7 @@ if (file === undefined || !Number.isInteger(pages) || pages < 1 || pages > 65535
   process.exit(2);
 }
 try {
-  const input = inputFile === undefined ? new Uint8Array(0) : new Uint8Array(fs.readFileSync(inputFile));
+  const input = inputFile === undefined ? undefined : new Uint8Array(fs.readFileSync(inputFile));
   process.stdout.write(getOutput(new Uint8Array(fs.readFileSync(file)), input, pages));
 } catch (e) {
   console.error(`${getKind(e)}: ${e instanceof Error ? e.message : String(e)}`);

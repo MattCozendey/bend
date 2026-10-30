@@ -7,8 +7,8 @@
 // - The vectors of the i32 operations, and their results, come from i32.wast
 //   of the official WebAssembly testsuite (github.com/WebAssembly/testsuite),
 //   at commit 63908677d00585fdab4c4eccbf01f781d3a454d5.
-// - wasm.json runs each module by the meaning (mode 0): it expects 1 and the
-//   output, or 0 at a trap.
+// - wasm.json runs each module by the meaning (mode 0, and mode 2 for no
+//   input): it expects 1 and the output, or 0 at a trap.
 // - wasm_engines.json gives each module as binary (mode 1), for an engine
 //   with 1 page (harness/wasm.ts): it expects the output, or a trap. Run it
 //   with one --run for each engine (see PLAN.md, Tests).
@@ -40,7 +40,7 @@ const ASSERT = /\(assert_return \(invoke "(\w+)"((?: \(i32\.const [^)]+\))+)\) \
 
 const CASES = path.join(import.meta.dirname, "cases");
 
-// tests 12 to 18 of cases/wasm.bend
+// tests 12 to 19 of cases/wasm.bend
 const OTHERS: Test[] = [
   { name: "a loop sums the input's bytes", test: 12, data: [65, 66, 67], out: [198, 0, 0, 0] },
   { name: "a loop sums no bytes", test: 12, data: [], out: [0, 0, 0, 0] },
@@ -54,7 +54,13 @@ const OTHERS: Test[] = [
   { name: "a load whose address passes 2^32 traps", test: 16, data: [], out: undefined },
   { name: "a load that ends at the end of the memory does not trap", test: 17, data: [], out: [] },
   { name: "unreachable traps", test: 18, data: [], out: undefined },
+  { name: "the length of no bytes is at 0", test: 19, data: [], out: [0, 0, 0, 0] },
+  { name: "the input's length is at 0", test: 19, data: [7, 8, 9], out: [3, 0, 0, 0] },
 ];
+
+// test 19 with no input (mode 2), by the meaning only: each engine case has an
+// input
+const NO_INPUT: Test = { name: "0xffffffff is at 0 for no input", test: 19, data: [], out: [255, 255, 255, 255] };
 
 // Functions
 // =========
@@ -83,14 +89,15 @@ const getOpTests = (wast: string): Test[] => {
 // getHex bytes: bytes in hex
 const getHex = (bytes: number[]): string => Buffer.from(bytes).toString("hex");
 
-// getCase t mode: the case of the test t, run by the meaning (0) or an engine (1)
+// getCase t mode: the case of the test t, run by an engine (mode 1) or the
+// meaning (another mode)
 const getCase = (t: Test, mode: number): Case => ({
   name: t.name,
   program: "wasm.bend",
   input: getHex([mode, t.test, ...t.data]),
-  expect: mode === 0
-    ? { hex: t.out === undefined ? "00" : getHex([1, ...t.out]) }
-    : t.out === undefined ? { refused: "trap" } : { hex: getHex(t.out) },
+  expect: mode === 1
+    ? t.out === undefined ? { refused: "trap" } : { hex: getHex(t.out) }
+    : { hex: t.out === undefined ? "00" : getHex([1, ...t.out]) },
 });
 
 // Side effects
@@ -102,6 +109,7 @@ if (wast === undefined) {
   process.exit(2);
 }
 const tests = [...getOpTests(fs.readFileSync(wast, "utf8")), ...OTHERS];
-fs.writeFileSync(path.join(CASES, "wasm.json"), JSON.stringify(tests.map((t) => getCase(t, 0)), null, 2) + "\n");
+fs.writeFileSync(path.join(CASES, "wasm.json"),
+  JSON.stringify([...tests.map((t) => getCase(t, 0)), getCase(NO_INPUT, 2)], null, 2) + "\n");
 fs.writeFileSync(path.join(CASES, "wasm_engines.json"),
   JSON.stringify(tests.map((t) => getCase(t, 1)), null, 2) + "\n");

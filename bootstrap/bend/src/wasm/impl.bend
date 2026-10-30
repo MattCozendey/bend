@@ -12,8 +12,8 @@ import Base
 # - its instructions are those of Code. Each block and loop has the empty type.
 # Wasm.run runs a module by the protocol of the host (harness/wasm.ts): the
 # memory has some pages, and holds the length of the input (4 bytes, the low
-# byte first) at 0 and its bytes at 4. main returns an address p; the output is
-# the length at p and the bytes after it.
+# byte first) at 0 and its bytes at 4, or 0xffffffff at 0 for no input. main
+# returns an address p; the output is the length at p and the bytes after it.
 #
 # The meaning has no validation: an engine refuses an invalid module, so it
 # gives no result where this meaning may give one.
@@ -470,31 +470,66 @@ def Halted.output(d: Maybe<&2, Halted>, +size: U32) -> Maybe<&2, List<&2, Nat>>:
     case None{}:
       None{}
 
-# the start of a run of m: the input's length and bytes in memory
-def Frame.start(m: Module, +input: List<&2, Nat>) -> Frame:
+# the memory at the start of a run: the input's length and bytes, or
+# 0xffffffff for no input
+def Input.mem(input: Maybe<&2, List<&2, Nat>>) -> Mem:
+  match input:
+    case Some{+xs}:
+      Mem.bytes(xs, 4, Mem.store(0, Mem.zero{}, U32.from_nat(List.length(&2, Nat, xs))))
+    case None{}:
+      Mem.store(0, Mem.zero{}, 4294967295)
+
+def Frame.start(m: Module, input: Maybe<&2, List<&2, Nat>>) -> Frame:
   match m:
     case Module{n, body}:
-      Frame{body, [], Locals.zero(n), Mem.bytes(input, 4,
-        Mem.store(0, Mem.zero{}, U32.from_nat(List.length(&2, Nat, input)))), []}
+      Frame{body, [], Locals.zero(n), Input.mem(input), []}
 
-# the run of m, with fuel n, in a memory of size bytes, when the input fits
-def Wasm.run.of(n: Nat, +size: U32, m: Module, +input: List<&2, Nat>, ok: Maybe<&2, U32>) ->
+# whether n is at most limit; it takes at most limit + 1 steps
+def Nat.at_most(n: Nat, +limit: U32) -> Bool:
+  match n:
+    case 0n:
+      True{}
+    case 1n+p:
+      U32.is_ne(limit, 0) && Nat.at_most(p, U32.sub(limit, 1))
+
+# whether each item of xs is a byte
+def Bytes.is(xs: List<&2, Nat>) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case Con{x, rest}:
+      Nat.at_most(x, 255) && Bytes.is(rest)
+
+# the bytes in a memory of the given number of pages
+def Wasm.size(pages: Nat) -> U32:
+  U32.shln(U32.from_nat(pages), 16n)
+
+def Input.fits(input: Maybe<&2, List<&2, Nat>>, limit: U32) -> Bool:
+  match input:
+    case Some{+xs}:
+      Bytes.is(xs) && Nat.at_most(List.length(&2, Nat, xs), limit)
+    case None{}:
+      True{}
+
+# whether the host can run a module: the pages are 1 to 65535, and the input
+# is bytes that fit after its length
+def Wasm.fits(+pages: Nat, input: Maybe<&2, List<&2, Nat>>) -> Bool:
+  Bool.not(Nat.is_eq(pages, 0n)) && Nat.at_most(pages, 65535) &&
+    Input.fits(input, U32.sub(Wasm.size(pages), 4))
+
+def Wasm.run.of(ok: Bool, n: Nat, +size: U32, m: Module, input: Maybe<&2, List<&2, Nat>>) ->
   Maybe<&2, List<&2, Nat>>:
   match ok:
-    case Some{x}:
+    case True{}:
       Halted.output(Frame.run(n, size, Frame.start(m, input)), size)
-    case None{}:
+    case False{}:
       None{}
 
-# the output of the module m for the input, with at most n steps, in a memory
-# of the given number of pages (1 to 65535), or none: at a trap, when n runs
-# out, or when the input or the output does not fit
-def Wasm.run(+pages: Nat, n: Nat, m: Module, +input: List<&2, Nat>) -> Maybe<&2, List<&2, Nat>>:
-  +size = U32.shln(U32.from_nat(pages), 16n)
-  Bool.pick(Maybe<&2, List<&2, Nat>>,
-    Bool.not(Nat.is_eq(pages, 0n)) && U32.is_lt(U32.from_nat(pages), 65536),
-    Wasm.run.of(n, size, m, input, Mem.addr(4, 0, U32.from_nat(List.length(&2, Nat, input)), size)),
-    None{})
+# the output of the module m for the input (none: no input), with at most n
+# steps, in a memory of the given number of pages, or none: at a trap, when n
+# runs out, when the output does not fit, or when not Wasm.fits
+def Wasm.run(+pages: Nat, n: Nat, m: Module, +input: Maybe<&2, List<&2, Nat>>) -> Maybe<&2, List<&2, Nat>>:
+  Wasm.run.of(Wasm.fits(pages, input), n, Wasm.size(pages), m, input)
 
 # Binary format
 # =============
