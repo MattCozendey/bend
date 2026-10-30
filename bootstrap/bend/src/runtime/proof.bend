@@ -5271,3 +5271,344 @@ def Keeps.loop(k: Nat, m: Nat, +s: Fun.S, +ls: List<&2, U32>, +prog: List<&2, Fu
         Le.t(Fuel.go(j, prog, Fun.F.step(prog, s)), Nat.add(Need.s(s), Fuel.go(j, prog, Fun.F.step(prog, s))), p,
           Shared.Nat.is_le_add_left(Fuel.go(j, prog, Fun.F.step(prog, s)), Need.s(s)), hm),
         s2 => ls2 => mem2 => hi2 => h2 => hm2 => Keeps.loop(j, p, s2, ls2, prog, size, mem2, w, bs, hi2, h2, hd, hm2))
+
+# The memory size
+# ===============
+#
+# lim, the memory size from memory.size, is the size of the memory: its
+# pages fit in 16 bits.
+
+# x after the bit b
+def Bd(b: Bool, x: Nat) -> Nat:
+  match b:
+    case True{}:
+      1n+Nat.double(x)
+    case False{}:
+      Nat.double(x)
+
+def Half(n: Nat) -> Nat:
+  match n:
+    case 0n:
+      0n
+    case 1n:
+      0n
+    case 2n+m:
+      1n+Half(m)
+
+def Half.dbl(x: Nat) -> {Half(Nat.double(x)) == x : Nat}:
+  match x:
+    case 0n:
+      {==}
+    case 1n++m:
+      Equal.cong(Nat, Nat, y => 1n+y, Half(Nat.double(m)), m, Half.dbl(m))
+
+def Half.odd(x: Nat) -> {Half(1n+Nat.double(x)) == x : Nat}:
+  match x:
+    case 0n:
+      {==}
+    case 1n++m:
+      Equal.cong(Nat, Nat, y => 1n+y, Half(1n+Nat.double(m)), m, Half.odd(m))
+
+# the number of the word after the bit b
+def To.bd(+p: Nat, b: Bool, +t: Word(p)) -> {Word.to_nat(1n+p, WCon{b, t}) == Bd(b, Word.to_nat(p, t)) : Nat}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def Pad.nat(p: Nat, t: Word(p)) -> {Word.to_nat(1n+p, Word.shr.pad(p, t)) == Word.to_nat(p, t) : Nat}:
+  match p:
+    case 0n:
+      match t:
+        case WNil{}:
+          {==}
+    case 1n++q:
+      match t:
+        case WCon{False{}, +t2}:
+          Equal.cong(Nat, Nat, y => Nat.double(y), Word.to_nat(1n+q, Word.shr.pad(q, t2)), Word.to_nat(q, t2), Pad.nat(q, t2))
+        case WCon{True{}, +t2}:
+          Equal.cong(Nat, Nat, y => 1n+Nat.double(y), Word.to_nat(1n+q, Word.shr.pad(q, t2)), Word.to_nat(q, t2), Pad.nat(q, t2))
+
+# shr halves
+def Shr.nat(u: U32) -> {U32.to_nat(U32.shr(u)) == Half(U32.to_nat(u)) : Nat}:
+  match u:
+    case U32{w}:
+      match w:
+        case WCon{False{}, +t}:
+          Equal.trans(Nat, Word.to_nat(32n, Word.shr.pad(31n, t)), Word.to_nat(31n, t), Half(Nat.double(Word.to_nat(31n, t))),
+            Pad.nat(31n, t), Equal.sym(Nat, Half(Nat.double(Word.to_nat(31n, t))), Word.to_nat(31n, t), Half.dbl(Word.to_nat(31n, t))))
+        case WCon{True{}, +t}:
+          Equal.trans(Nat, Word.to_nat(32n, Word.shr.pad(31n, t)), Word.to_nat(31n, t), Half(1n+Nat.double(Word.to_nat(31n, t))),
+            Pad.nat(31n, t), Equal.sym(Nat, Half(1n+Nat.double(Word.to_nat(31n, t))), Word.to_nat(31n, t), Half.odd(Word.to_nat(31n, t))))
+
+def HalfK(k: Nat, x: Nat) -> Nat:
+  match k:
+    case 0n:
+      x
+    case 1n+j:
+      Half(HalfK(j, x))
+
+def Shrn.nat(k: Nat, +u: U32) -> {U32.to_nat(U32.shrn(u, k)) == HalfK(k, U32.to_nat(u)) : Nat}:
+  match k:
+    case 0n:
+      {==}
+    case 1n++j:
+      Equal.trans(Nat, U32.to_nat(U32.shr(U32.shrn(u, j))), Half(U32.to_nat(U32.shrn(u, j))), Half(HalfK(j, U32.to_nat(u))),
+        Shr.nat(U32.shrn(u, j)), Equal.cong(Nat, Nat, x => Half(x), U32.to_nat(U32.shrn(u, j)), HalfK(j, U32.to_nat(u)), Shrn.nat(j, u)))
+
+def DblO(k: Nat, x: Nat) -> Nat:
+  match k:
+    case 0n:
+      x
+    case 1n+j:
+      Nat.double(DblO(j, x))
+
+def DblO.comm(k: Nat, +x: Nat) -> {Nat.double(DblO(k, x)) == DblO(k, Nat.double(x)) : Nat}:
+  match k:
+    case 0n:
+      {==}
+    case 1n++j:
+      Equal.cong(Nat, Nat, y => Nat.double(y), Nat.double(DblO(j, x)), DblO(j, Nat.double(x)), DblO.comm(j, x))
+
+def HalfK.dbl(k: Nat, +x: Nat) -> {HalfK(k, DblO(k, x)) == x : Nat}:
+  match k:
+    case 0n:
+      {==}
+    case 1n++j:
+      %Equal.sym(Nat, Nat.double(DblO(j, x)), DblO(j, Nat.double(x)), DblO.comm(j, x)) : {Half(HalfK(j, _)) == x : Nat}
+      %Equal.sym(Nat, HalfK(j, DblO(j, Nat.double(x))), Nat.double(x), HalfK.dbl(j, Nat.double(x))) : {Half(_) == x : Nat}
+      Half.dbl(x)
+
+# shl doubles
+def Of.bd(+p: Nat, b: Bool, +x: Nat) -> {WD.Word.of_nat(1n+p, Bd(b, x)) == WCon{b, WD.Word.of_nat(p, x)} : Word(1n+p)}:
+  match b:
+    case False{}:
+      WP.W.of_nat_double(p, x)
+    case True{}:
+      %Equal.sym(Word(1n+p), WD.Word.of_nat(1n+p, Nat.double(x)), WCon{False{}, WD.Word.of_nat(p, x)}, WP.W.of_nat_double(p, x)) :
+        {Word.inc(1n+p, _) == WCon{True{}, WD.Word.of_nat(p, x)} : Word(1n+p)}
+      {==}
+
+def Of.zero(x: Nat) -> {WD.Word.of_nat(0n, x) == WNil{} : Word(0n)}:
+  match x:
+    case 0n:
+      {==}
+    case 1n+m:
+      {==}
+
+def Put(p: Nat, +c: Bool, t: Word(p)) -> {Word.shl.put(p, c, t) == WD.Word.of_nat(p, Bd(c, Word.to_nat(p, t))) : Word(p)}:
+  match p:
+    case 0n:
+      match t:
+        case WNil{}:
+          Equal.sym(Word(0n), WD.Word.of_nat(0n, Bd(c, 0n)), WNil{}, Of.zero(Bd(c, 0n)))
+    case 1n++q:
+      match t:
+        case WCon{+b, +t2}:
+          %Equal.sym(Nat, Word.to_nat(1n+q, WCon{b, t2}), Bd(b, Word.to_nat(q, t2)), To.bd(q, b, t2)) :
+            {WCon{c, Word.shl.put(q, b, t2)} == WD.Word.of_nat(1n+q, Bd(c, _)) : Word(1n+q)}
+          %Equal.sym(Word(1n+q), WD.Word.of_nat(1n+q, Bd(c, Bd(b, Word.to_nat(q, t2)))), WCon{c, WD.Word.of_nat(q, Bd(b, Word.to_nat(q, t2)))},
+            Of.bd(q, c, Bd(b, Word.to_nat(q, t2)))) :
+            {WCon{c, Word.shl.put(q, b, t2)} == _ : Word(1n+q)}
+          Equal.cong(Word(q), Word(1n+q), z => WCon{c, z}, Word.shl.put(q, b, t2), WD.Word.of_nat(q, Bd(b, Word.to_nat(q, t2))), Put(q, b, t2))
+
+def Shl.word(u: U32) -> {U32.shl(u) == U32.from_nat(Nat.double(U32.to_nat(u))) : U32}:
+  match u:
+    case U32{w}:
+      match w:
+        case WCon{+b, +t}:
+          %Equal.sym(U32, U32.from_nat(Nat.double(Word.to_nat(32n, WCon{b, t}))), U32{WD.Word.of_nat(32n, Nat.double(Word.to_nat(32n, WCon{b, t})))},
+            WP.U.from_nat_word(Nat.double(Word.to_nat(32n, WCon{b, t})))) : {U32{WCon{False{}, Word.shl.put(31n, b, t)}} == _ : U32}
+          %Equal.sym(Word(32n), WD.Word.of_nat(32n, Nat.double(Word.to_nat(32n, WCon{b, t}))), WCon{False{}, WD.Word.of_nat(31n, Word.to_nat(32n, WCon{b, t}))},
+            WP.W.of_nat_double(31n, Word.to_nat(32n, WCon{b, t}))) :
+            {U32{WCon{False{}, Word.shl.put(31n, b, t)}} == U32{_} : U32}
+          %Equal.sym(Nat, Word.to_nat(32n, WCon{b, t}), Bd(b, Word.to_nat(31n, t)), To.bd(31n, b, t)) :
+            {U32{WCon{False{}, Word.shl.put(31n, b, t)}} == U32{WCon{False{}, WD.Word.of_nat(31n, _)}} : U32}
+          Equal.cong(Word(31n), U32, z => U32{WCon{False{}, z}}, Word.shl.put(31n, b, t), WD.Word.of_nat(31n, Bd(b, Word.to_nat(31n, t))), Put(31n, b, t))
+
+def Dbl.add(y: Nat) -> {Nat.double(y) == Nat.add(y, y) : Nat}:
+  match y:
+    case 0n:
+      {==}
+    case 1n++m:
+      %Equal.sym(Nat, Nat.add(m, 1n+m), 1n+Nat.add(m, m), MP.Nat.add_succ(m, m)) : {2n+Nat.double(m) == 1n+_ : Nat}
+      Equal.cong(Nat, Nat, z => 2n+z, Nat.double(m), Nat.add(m, m), Dbl.add(m))
+
+def From.dbl(+y: Nat) -> {U32.from_nat(Nat.double(y)) == U32.add(U32.from_nat(y), U32.from_nat(y)) : U32}:
+  %Equal.sym(Nat, Nat.double(y), Nat.add(y, y), Dbl.add(y)) : {U32.from_nat(_) == U32.add(U32.from_nat(y), U32.from_nat(y)) : U32}
+  WP.U.from_nat_add(y, y)
+
+def Shl.of(+x: Nat) -> {U32.shl(U32.from_nat(x)) == U32.from_nat(Nat.double(x)) : U32}:
+  +y = U32.to_nat(U32.from_nat(x))
+  Equal.trans(U32, U32.shl(U32.from_nat(x)), U32.from_nat(Nat.double(y)), U32.from_nat(Nat.double(x)), Shl.word(U32.from_nat(x)),
+    Equal.trans(U32, U32.from_nat(Nat.double(y)), U32.add(U32.from_nat(y), U32.from_nat(y)), U32.from_nat(Nat.double(x)), From.dbl(y),
+      Equal.trans(U32, U32.add(U32.from_nat(y), U32.from_nat(y)), U32.add(U32.from_nat(x), U32.from_nat(x)), U32.from_nat(Nat.double(x)),
+        Equal.cong(U32, U32, u => U32.add(u, u), U32.from_nat(y), U32.from_nat(x), WP.U.from_to_nat(U32.from_nat(x))),
+        Equal.sym(U32, U32.from_nat(Nat.double(x)), U32.add(U32.from_nat(x), U32.from_nat(x)), From.dbl(x)))))
+
+def Shln.of(k: Nat, +x: Nat) -> {U32.shln(U32.from_nat(x), k) == U32.from_nat(DblO(k, x)) : U32}:
+  match k:
+    case 0n:
+      {==}
+    case 1n++j:
+      Equal.trans(U32, U32.shl(U32.shln(U32.from_nat(x), j)), U32.shl(U32.from_nat(DblO(j, x))), U32.from_nat(Nat.double(DblO(j, x))),
+        Equal.cong(U32, U32, u => U32.shl(u), U32.shln(U32.from_nat(x), j), U32.from_nat(DblO(j, x)), Shln.of(j, x)),
+        Shl.of(DblO(j, x)))
+
+# 16 bits
+def Ones(n: Nat) -> Word(n):
+  match n:
+    case 0n:
+      WNil{}
+    case 1n+p:
+      WCon{True{}, Ones(p)}
+
+def Zero.nat(n: Nat) -> {Word.to_nat(n, Word.zero(n)) == 0n : Nat}:
+  match n:
+    case 0n:
+      {==}
+    case 1n++p:
+      Equal.cong(Nat, Nat, y => Nat.double(y), Word.to_nat(p, Word.zero(p)), 0n, Zero.nat(p))
+
+def Le.odd(x: Nat, m: Nat, h: {Nat.is_le(1n+Nat.double(x), Nat.double(m)) == True{} : Bool}) -> {Nat.is_le(1n+x, m) == True{} : Bool}:
+  match x m:
+    case 0n 0n:
+      Shared.Bool.absurd({Nat.is_le(1n, 0n) == True{} : Bool}, h)
+    case 0n 1n+q:
+      Shared.Nat.is_le_zero(q)
+    case 1n+p 0n:
+      Shared.Bool.absurd({Nat.is_le(2n+p, 0n) == True{} : Bool}, h)
+    case 1n+p 1n+q:
+      Le.odd(p, q, h)
+
+def Inc.nw(n: Nat, w: Word(n), h: {Nat.is_le(1n+Word.to_nat(n, w), Word.to_nat(n, Ones(n))) == True{} : Bool}) ->
+  {Word.to_nat(n, Word.inc(n, w)) == 1n+Word.to_nat(n, w) : Nat}:
+  match n:
+    case 0n:
+      match w:
+        case WNil{}:
+          Shared.Bool.absurd({0n == 1n : Nat}, h)
+    case 1n++p:
+      match w:
+        case WCon{False{}, +t}:
+          {==}
+        case WCon{True{}, +t}:
+          Equal.cong(Nat, Nat, y => Nat.double(y), Word.to_nat(p, Word.inc(p, t)), 1n+Word.to_nat(p, t),
+            Inc.nw(p, t, Le.odd(Word.to_nat(p, t), Word.to_nat(p, Ones(p)), h)))
+
+def Of.fit.h(+n: Nat, +m: Nat, +ih: {Word.to_nat(n, WD.Word.of_nat(n, m)) == m : Nat},
+  +h: {Nat.is_le(1n+m, Word.to_nat(n, Ones(n))) == True{} : Bool}) ->
+  {Nat.is_le(1n+Word.to_nat(n, WD.Word.of_nat(n, m)), Word.to_nat(n, Ones(n))) == True{} : Bool}:
+  %Equal.sym(Nat, Word.to_nat(n, WD.Word.of_nat(n, m)), m, ih) : {Nat.is_le(1n+_, Word.to_nat(n, Ones(n))) == True{} : Bool}
+  h
+
+# a number to the largest word of n bits is the number of its word
+def Of.fit(+n: Nat, x: Nat, +h: {Nat.is_le(x, Word.to_nat(n, Ones(n))) == True{} : Bool}) ->
+  {Word.to_nat(n, WD.Word.of_nat(n, x)) == x : Nat}:
+  match x:
+    case 0n:
+      Zero.nat(n)
+    case 1n++m:
+      Equal.trans(Nat, Word.to_nat(n, Word.inc(n, WD.Word.of_nat(n, m))), 1n+Word.to_nat(n, WD.Word.of_nat(n, m)), 1n+m,
+        Inc.nw(n, WD.Word.of_nat(n, m), Of.fit.h(n, m, Of.fit(n, m, Shared.Nat.is_le_pred(m, Word.to_nat(n, Ones(n)), h)), h)),
+        Equal.cong(Nat, Nat, y => 1n+y, Word.to_nat(n, WD.Word.of_nat(n, m)), m,
+          Of.fit(n, m, Shared.Nat.is_le_pred(m, Word.to_nat(n, Ones(n)), h))))
+
+def Zs(k: Nat, +n: Nat, w: Word(n)) -> Word(Nat.add(k, n)):
+  match k:
+    case 0n:
+      w
+    case 1n+j:
+      WCon{False{}, Zs(j, n, w)}
+
+def Of.zs(k: Nat, +n: Nat, +x: Nat) -> {WD.Word.of_nat(Nat.add(k, n), DblO(k, x)) == Zs(k, n, WD.Word.of_nat(n, x)) : Word(Nat.add(k, n))}:
+  match k:
+    case 0n:
+      {==}
+    case 1n++j:
+      Equal.trans(Word(1n+Nat.add(j, n)), WD.Word.of_nat(1n+Nat.add(j, n), Nat.double(DblO(j, x))),
+        WCon{False{}, WD.Word.of_nat(Nat.add(j, n), DblO(j, x))}, WCon{False{}, Zs(j, n, WD.Word.of_nat(n, x))},
+        WP.W.of_nat_double(Nat.add(j, n), DblO(j, x)),
+        Equal.cong(Word(Nat.add(j, n)), Word(1n+Nat.add(j, n)), z => WCon{False{}, z}, WD.Word.of_nat(Nat.add(j, n), DblO(j, x)),
+          Zs(j, n, WD.Word.of_nat(n, x)), Of.zs(j, n, x)))
+
+def To.zs(k: Nat, +n: Nat, +w: Word(n)) -> {Word.to_nat(Nat.add(k, n), Zs(k, n, w)) == DblO(k, Word.to_nat(n, w)) : Nat}:
+  match k:
+    case 0n:
+      {==}
+    case 1n++j:
+      Equal.cong(Nat, Nat, y => Nat.double(y), Word.to_nat(Nat.add(j, n), Zs(j, n, w)), DblO(j, Word.to_nat(n, w)), To.zs(j, n, w))
+
+# the number of a word with zeros above it
+def PadZ(n: Nat, +k: Nat, w: Word(n)) -> Word(Nat.add(n, k)):
+  match n:
+    case 0n:
+      Word.zero(k)
+    case 1n+p:
+      match w:
+        case WCon{b, t}:
+          WCon{b, PadZ(p, k, t)}
+
+def To.padz(n: Nat, +k: Nat, w: Word(n)) -> {Word.to_nat(Nat.add(n, k), PadZ(n, k, w)) == Word.to_nat(n, w) : Nat}:
+  match n:
+    case 0n:
+      match w:
+        case WNil{}:
+          Zero.nat(k)
+    case 1n++p:
+      match w:
+        case WCon{False{}, +t}:
+          Equal.cong(Nat, Nat, y => Nat.double(y), Word.to_nat(Nat.add(p, k), PadZ(p, k, t)), Word.to_nat(p, t), To.padz(p, k, t))
+        case WCon{True{}, +t}:
+          Equal.cong(Nat, Nat, y => 1n+Nat.double(y), Word.to_nat(Nat.add(p, k), PadZ(p, k, t)), Word.to_nat(p, t), To.padz(p, k, t))
+
+def To.max16() -> {Nat.is_le(U32.to_nat(65535), Word.to_nat(16n, Ones(16n))) == True{} : Bool}:
+  {==}
+
+def Le.rw(+p: Nat, +a: Nat, +b: Nat, +e: {a == b : Nat}, +h: {Nat.is_le(p, a) == True{} : Bool}) -> {Nat.is_le(p, b) == True{} : Bool}:
+  %e : {Nat.is_le(p, _) == True{} : Bool}
+  h
+
+# pages to 65535: the size fits
+def Fit16(+P: Nat, +h: {Nat.is_le(P, U32.to_nat(65535)) == True{} : Bool}) -> {Word.to_nat(16n, WD.Word.of_nat(16n, P)) == P : Nat}:
+  Of.fit(16n, P, Le.t(P, U32.to_nat(65535), Word.to_nat(16n, Ones(16n)), h, To.max16()))
+
+# pages to 65535: the size fits
+def Fits.pages(+P: Nat, +h: {Nat.is_le(P, U32.to_nat(65535)) == True{} : Bool}) -> WD.Fits(DblO(16n, P)):
+  Equal.trans(Nat, U32.to_nat(U32.from_nat(DblO(16n, P))), Word.to_nat(32n, WD.Word.of_nat(32n, DblO(16n, P))), DblO(16n, P),
+    Equal.cong(U32, Nat, u => U32.to_nat(u), U32.from_nat(DblO(16n, P)), U32{WD.Word.of_nat(32n, DblO(16n, P))}, WP.U.from_nat_word(DblO(16n, P))),
+    Equal.trans(Nat, Word.to_nat(32n, WD.Word.of_nat(32n, DblO(16n, P))), Word.to_nat(32n, Zs(16n, 16n, WD.Word.of_nat(16n, P))), DblO(16n, P),
+      Equal.cong(Word(32n), Nat, w => Word.to_nat(32n, w), WD.Word.of_nat(32n, DblO(16n, P)), Zs(16n, 16n, WD.Word.of_nat(16n, P)), Of.zs(16n, 16n, P)),
+      Equal.trans(Nat, Word.to_nat(32n, Zs(16n, 16n, WD.Word.of_nat(16n, P))), DblO(16n, Word.to_nat(16n, WD.Word.of_nat(16n, P))), DblO(16n, P),
+        To.zs(16n, 16n, WD.Word.of_nat(16n, P)),
+        Equal.cong(Nat, Nat, y => DblO(16n, y), Word.to_nat(16n, WD.Word.of_nat(16n, P)), P, Fit16(P, h)))))
+
+def Ne.pos(X: Nat, h: {Bool.not(Cmp.is_eq(Nat.cmp(X, 0n))) == True{} : Bool}) -> {Nat.is_le(1n, X) == True{} : Bool}:
+  match X:
+    case 0n:
+      Shared.Bool.absurd({Nat.is_le(1n, 0n) == True{} : Bool}, h)
+    case 1n+x:
+      Shared.Nat.is_le_zero(x)
+
+def Le.sub1(+p: Nat, X: Nat, hx: {Nat.is_le(1n, X) == True{} : Bool}, h: {Nat.is_le(p, Nat.sub(X, 1n)) == True{} : Bool}) ->
+  {Nat.is_le(1n+p, X) == True{} : Bool}:
+  match X:
+    case 0n:
+      Shared.Bool.absurd({Nat.is_le(1n+p, 0n) == True{} : Bool}, hx)
+    case 1n++x:
+      Le.rw(p, Nat.sub(x, 0n), x, MP.Nat.sub_zero(x), h)
+
+# Nat.at_most is Nat.is_le
+def AtMost.le(n: Nat, +L: U32, +h: {Wasm.Nat.at_most(n, L) == True{} : Bool}) -> {Nat.is_le(n, U32.to_nat(L)) == True{} : Bool}:
+  match n:
+    case 0n:
+      Shared.Nat.is_le_zero(U32.to_nat(L))
+    case 1n++p:
+      +hz = Ne.pos(U32.to_nat(L), Equal.trans(Bool, Bool.not(Cmp.is_eq(Nat.cmp(U32.to_nat(L), 0n))), U32.is_ne(L, 0), True{},
+        Equal.cong(Cmp, Bool, x => Bool.not(Cmp.is_eq(x)), Nat.cmp(U32.to_nat(L), 0n), U32.cmp(L, 0),
+          Equal.sym(Cmp, U32.cmp(L, 0), Nat.cmp(U32.to_nat(L), 0n), WP.U.cmp(L, 0))),
+        And.l(U32.is_ne(L, 0), Wasm.Nat.at_most(p, U32.sub(L, 1)), h)))
+      Le.sub1(p, U32.to_nat(L), hz,
+        Le.rw(p, U32.to_nat(U32.sub(L, 1)), Nat.sub(U32.to_nat(L), 1n), U.sub_nat(L, 1, hz),
+          AtMost.le(p, U32.sub(L, 1), And.r(U32.is_ne(L, 0), Wasm.Nat.at_most(p, U32.sub(L, 1)), h))))
