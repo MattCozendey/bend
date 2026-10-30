@@ -9,3 +9,5 @@ WHAT WE TRUST:
 WHAT WE DON'T TRUST:
 1 - The current Bend compiler written in TypeScript.
 2 - A checker result without --verdict.
+
+Our goal is a Bend compiler written in Bend(this doesn't necessarily include creating bend's CHECKER in bend btw) THAT I CAN TRUST(NEVER DISAGREES WITH THE KERNEL ABOUT WHAT THE KERNEL PROVES OR DISPROVES). WE ACCEPT SLOWNESS OR A BEND INTERPRETER-OR-COMPILER WRITTEN IN LEAN ALONG THE WAY. GETTING THIS RIGHT FROM THE START IS AN ABSOLUTE MUST.
