@@ -66,6 +66,7 @@ allow(/^bench\/runtime\/[a-z-]+\/main\.(bend|c|lean|ts)$/);
 allow(/^bench\/runtime\/_pin_\/[a-z0-9_]+\.txt$/);
 allow(/^bootstrap\/(\.gitattributes|PLAN\.md|lean\/(\.gitignore|lake-manifest\.json|lakefile\.lean|lean-toolchain|scripts\/(GenRef\.lean|ref\.bend)|src\/([A-Z][A-Za-z]*\/)?[A-Z][A-Za-z]*\.lean))$/);
 allow(/^bootstrap\/harness\/(harness\.ts|tsconfig\.json|cases\/[a-z_]+\.(json|bend|txt))$/);
+allow(/^bootstrap\/bend\/([a-z_]+|src\/[a-z_]+\/[a-z_]+)\.bend$/);
 allow(/^demos\/[a-z0-9_]+\/[A-Za-z0-9_]+\.bend$/);
 allow(/^demos\/[a-z0-9_]+\/[A-Za-z_]+\.(c|sh|md)$/);
 allow(/^demos\/[a-z0-9_]+\/web\/(index\.html|main\.js|bunfig\.toml)$/);
