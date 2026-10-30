@@ -1289,15 +1289,15 @@ def Entry.run(m: Maybe<&2, List<&2, Def>>) -> Maybe<&2, Entry>:
 
 # entry bk input: def main of bk with no input; def bootstrap.run of
 # Input.apply bk bs with the input bs
-def Source.entry(input: Maybe<&2, List<&2, Nat>>, bk: List<&2, Def>) -> Maybe<&2, Entry>:
+def entry(input: Maybe<&2, List<&2, Nat>>, bk: List<&2, Def>) -> Maybe<&2, Entry>:
   match input:
     case None{}:
       Some{Entry{bk, Name.of("main")}}
     case Some{bs}:
       Entry.run(Input.apply(bk, bs))
 
-# Source
-# ======
+# Meaning
+# =======
 
 def Maybe.observe(m: Maybe<&2, Term>) -> Maybe<&2, Obs>:
   match m:
@@ -1306,24 +1306,50 @@ def Maybe.observe(m: Maybe<&2, Term>) -> Maybe<&2, Obs>:
     case None{}:
       None{}
 
-def Source.run.at(n: Nat, e: Maybe<&2, Entry>) -> Maybe<&2, Obs>:
+def run.at(n: Nat, e: Maybe<&2, Entry>) -> Maybe<&2, Obs>:
   match e:
     case Some{Entry{bk, k}}:
       Maybe.observe(Term.run(n, Term.Ref{k}, bk))
     case None{}:
       None{}
 
-def Source.run.of(n: Nat, input: Maybe<&2, List<&2, Nat>>, m: Maybe<&2, List<&2, Def>>) ->
+def run.of(n: Nat, input: Maybe<&2, List<&2, Nat>>, m: Maybe<&2, List<&2, Def>>) ->
   Maybe<&2, Obs>:
   match m:
     case Some{bk}:
-      Source.run.at(n, Source.entry(input, bk))
+      run.at(n, entry(input, bk))
     case None{}:
       None{}
 
-# Source.run n src input: what the source src shows after at most n steps, for
+# run n src input: what the source src shows after at most n steps, for
 # the input (None: main takes no input), or none. It is the interpreter's
 # runSteps: steps until a value or until no step fits, then observe. It does
 # not check types: Eval needs none.
-def Source.run(n: Nat, src: List<&2, Nat>, input: Maybe<&2, List<&2, Nat>>) -> Maybe<&2, Obs>:
-  Source.run.of(n, input, Book.parse(src))
+def run(n: Nat, src: List<&2, Nat>, input: Maybe<&2, List<&2, Nat>>) -> Maybe<&2, Obs>:
+  run.of(n, input, Book.parse(src))
+
+# Results
+# =======
+
+def Obs.is_eq(a: Obs, b: Obs) -> Bool:
+  match a b:
+    case Obs.lab{x} Obs.lab{y}:
+      Name.is_eq(x, y)
+    case Obs.rfl{} Obs.rfl{}:
+      True{}
+    case Obs.tup{a1, a2} Obs.tup{b1, b2}:
+      Obs.is_eq(a1, b1) && Obs.is_eq(a2, b2)
+    case Obs.tup0{a2} Obs.tup0{b2}:
+      Obs.is_eq(a2, b2)
+    case _ _:
+      False{}
+
+# b gives the result that a gives, when a gives one
+def Obs.is_kept(a: Maybe<&2, Obs>, b: Maybe<&2, Obs>) -> Bool:
+  match a b:
+    case None{} _:
+      True{}
+    case Some{x} Some{y}:
+      Obs.is_eq(x, y)
+    case Some{x} None{}:
+      False{}
