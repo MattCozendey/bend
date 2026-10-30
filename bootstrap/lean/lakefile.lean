@@ -93,7 +93,7 @@ def Pins : List (String × UInt64) := [
   ("src/Guard.lean", 15051376749205065931),
   ("src/Main.lean", 10677801529969707441),
   ("../bend/src/compile/spec.bend", 16295624150471894959),
-  ("../bend/src/source/impl.bend", 12202617596025078286),
+  ("../bend/src/source/impl.bend", 16563396131937143125),
   ("../bend/src/source/spec.bend", 5629837982964475826)]
 
 def Pin.hash (text : String) : UInt64 :=

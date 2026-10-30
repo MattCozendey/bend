@@ -1163,8 +1163,7 @@ type Mode is Data:
 
 # Term.parse, Term.parse_tup and Term.parse_args in one def, as Bend has no
 # mutual recursion; vs are the bound names, the innermost first. Each nested
-# call takes one unit of fuel. Of two nested calls in a row, the second comes
-# after at least one more byte, so 2 * (bytes + 1) fuel is always enough.
+# call takes one unit of fuel n, and fails at 0.
 def Term.parse(+n: Nat, mode: Mode, +vs: List<&2, List<&2, Nat>>) -> Parse(Term):
   match n:
     case 0n:
@@ -1229,8 +1228,8 @@ def Book.parse_def(+f: Nat, more: Parse(List<&2, Def>)) -> Parse(List<&2, Def>):
     Parse.bind(Nat, List<&2, Def>, Parse.peek, c =>
       Book.parse_def.of(Name.is_eq(k, Name.of("opaque")) && Bool.not(Nat.is_eq(c, 58n)), k, f, more)))
 
-# Book.parse_defs: the defs up to the end of the text. Each def reads at least
-# one byte, so n = bytes + 1 is enough; f is the fuel of each term.
+# Book.parse_defs: the defs up to the end of the text, at most n of them; f is
+# the fuel of each term.
 def Book.parse_defs(n: Nat, +f: Nat) -> Parse(List<&2, Def>):
   match n:
     case 0n:
@@ -1248,12 +1247,14 @@ def Book.parse.of(r: Parsed<List<&2, Def>>) -> Maybe<&2, List<&2, Def>>:
     case Parsed.fail{}:
       None{}
 
-# Book.parse: the defs of a text, in order. Book.of keeps them all, and
-# Book.get finds a name's first def. The CLI also refuses a text that is not
-# UTF-8, as Lean's readFile does; this meaning does not.
-def Book.parse(+src: List<&2, Nat>) -> Maybe<&2, List<&2, Def>>:
-  +f = Nat.mul(2n, 1n+List.length(&2, Nat, src))
-  Book.parse.of(Book.parse_defs(f, f, src))
+# Book.parse n src: the defs of src, in order, or none. n is the fuel: it bounds
+# the defs and the depth of the parsers. No parser recovers from a failure, so
+# more fuel does not change a text that parses, and enough fuel parses each
+# text that the kernel parses. Book.of keeps them all, and Book.get finds a
+# name's first def. The CLI also refuses a text that is not UTF-8, as Lean's
+# readFile does; this meaning does not.
+def Book.parse(+n: Nat, src: List<&2, Nat>) -> Maybe<&2, List<&2, Def>>:
+  Book.parse.of(Book.parse_defs(n, n, src))
 
 # Entry
 # =====
@@ -1336,11 +1337,11 @@ def run.of(n: Nat, input: Maybe<&2, List<&2, Nat>>, m: Maybe<&2, List<&2, Def>>)
       None{}
 
 # run n src input: what the source src shows after at most n steps, for
-# the input (None: main takes no input), or none. It is the interpreter's
-# runSteps: steps until a value or until no step fits, then observe. It does
-# not check types: Eval needs none.
-def run(n: Nat, src: List<&2, Nat>, input: Maybe<&2, List<&2, Nat>>) -> Maybe<&2, Obs>:
-  run.of(n, input, Book.parse(src))
+# the input (None: main takes no input), or none. n also bounds the parser. It
+# is the interpreter's runSteps: steps until a value or until no step fits,
+# then observe. It does not check types: Eval needs none.
+def run(+n: Nat, src: List<&2, Nat>, input: Maybe<&2, List<&2, Nat>>) -> Maybe<&2, Obs>:
+  run.of(n, input, Book.parse(n, src))
 
 # Results
 # =======
