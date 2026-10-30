@@ -245,7 +245,7 @@ def Ds.up(ds: List<&2, Nat>, +d: Nat) -> List<&2, Nat>:
     case Nil{}:
       []
     case Con{x, rest}:
-      Con{Nat.add(x, d), Ds.up(rest, d)}
+      Con{Nat.add(d, x), Ds.up(rest, d)}
 
 # a branch to the block at depth m, or a trap when there is no such loop
 def Stm.break.code(m: Maybe<&2, Nat>, k: Wasm.Code) -> Wasm.Code:
