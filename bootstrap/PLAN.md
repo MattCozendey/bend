@@ -269,6 +269,7 @@ reviewed before the next starts:
    stores, as the WASM part has no data segments), the input and the
    output. Each allocation checks the memory size; a full memory gives
    `Out.oom`. It computes what step 4 computes, for each F program.
+   Status: done (`src/runtime/`).
 6. The assembly: `compile(src)` is the WASM of the loader and the run time.
    The laws of steps 1 to 5 give the contract's laws. `main.bend` becomes
    `λsrc. Wasm.encode(compile(src))`, and `src/compile/` goes.
