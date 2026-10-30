@@ -83,11 +83,18 @@ script regen (_args) do
 --   guards.
 -- - Guard.lean: the guards' code.
 -- - Main.lean: the glue that no proof covers.
+-- - ../bend/src/compile/spec.bend: the contract of the compiler in Bend.
+-- - ../bend/src/source/impl.bend: the meaning of its source.
+-- - ../bend/src/source/spec.bend: the kernel's relations, copied, that its
+--   laws tie that meaning to.
 def Pins : List (String × UInt64) := [
   ("src/Contract/Spec.lean", 1941511504593986303),
   ("src/Contract/Proof.lean", 13366616450239201674),
   ("src/Guard.lean", 15051376749205065931),
-  ("src/Main.lean", 10677801529969707441)]
+  ("src/Main.lean", 10677801529969707441),
+  ("../bend/src/compile/spec.bend", 16295624150471894959),
+  ("../bend/src/source/impl.bend", 12202617596025078286),
+  ("../bend/src/source/spec.bend", 5629837982964475826)]
 
 def Pin.hash (text : String) : UInt64 :=
   Hashable.hash (LF text)
