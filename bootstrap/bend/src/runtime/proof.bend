@@ -7304,3 +7304,178 @@ def StA.img(+prog: List<&2, Fun.C>, +entry: Nat, +c: Fun.C, +head: Fun.V, +tail:
           Adds.loop(p, Spec.Start(c, head, input, tail), ls2, prog, size, mm2, hp2)))
     case Con{+x0, Con{+x1, Con{+x2, Con{+x3, Con{+x4, Con{+x5, Con{+x6, Con{+x7, Con{+x8, Con{+x9, Con{+x10, Con{+x11, Con{+x12, Con{+x13, Con{+x14, Con{+x15, Con{+x16, Con{+x17, Con{+y, +rest}}}}}}}}}}}}}}}}}}}:
       Shared.Bool.absurd({Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, size, Con{x0, Con{x1, Con{x2, Con{x3, Con{x4, Con{x5, Con{x6, Con{x7, Con{x8, Con{x9, Con{x10, Con{x11, Con{x12, Con{x13, Con{x14, Con{x15, Con{x16, Con{x17, Con{y, rest}}}}}}}}}}}}}}}}}}}, mm), size) == True{} : Bool}, hp)
+
+def Fit.lim(+input: Maybe<&2, List<&2, Nat>>, +l1: U32, +l2: U32, +e: {l1 == l2 : U32}, +h: {In.fit(input, l2) == True{} : Bool}) -> {In.fit(input, l1) == True{} : Bool}:
+  %Equal.sym(U32, l1, l2, e) : {In.fit(input, _) == True{} : Bool}
+  h
+
+# the body of the run time keeps the output
+def Start.k(+prog: List<&2, Fun.C>, +entry: Nat, +c: Fun.C, +head: Fun.V, +tail: List<&2, Fun.V>, +input: Maybe<&2, List<&2, Nat>>, +pages: Nat, +n: Nat, +p: Nat, +w: Fun.V, +bs: List<&2, Nat>, +he: {List.get(&2, Fun.C, prog, entry) == Some{c} : Maybe<&2, Fun.C>}, +hi: {RT.fits(prog, head, tail) == True{} : Bool},
+  +hf: {Wasm.Wasm.fits(pages, input) == True{} : Bool},
+  +h: {Fun.F.iter(n, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}) == Fun.Step.halt{w} : Fun.Step},
+  +hd: {Spec.Out.dec(w) == Some{bs} : Maybe<&2, List<&2, Nat>>},
+  +hm: {Nat.is_le(Fuel.go(n, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), p) == True{} : Bool},
+  +hn: {Nat.is_le(In.need(input), p) == True{} : Bool}) -> {Loop.keeps(Imp.Stm.run(RT.S.all([Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}}, RT.S.input(), RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), L(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), bs, Wasm.Wasm.size(pages)) == True{} : Bool}:
+  +hp5 = Wf.pages(pages, input, hf)
+  +hs5 = Size.five(pages, hp5, Wf.nz(pages, input, hf))
+  +hle = Lim.eq(pages, hp5)
+  +hls = Le.rwl(U32.to_nat(Wasm.Wasm.size(pages)), U32.to_nat(U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n)), U32.to_nat(Wasm.Wasm.size(pages)), Equal.cong(U32, Nat, u => U32.to_nat(u), Wasm.Wasm.size(pages), U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), Equal.sym(U32, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), Wasm.Wasm.size(pages), hle)),
+    Shared.Nat.is_le_refl(U32.to_nat(Wasm.Wasm.size(pages))))
+  +hfit = Fit.lim(input, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), Wasm.Wasm.size(pages), hle, In.fit.of(input, pages, hs5, Wf.in(pages, input, hf)))
+  %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}}, p, Wasm.Wasm.size(pages), L(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), Some{Imp.Res.next{L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)}}, R.set(1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}, p, Wasm.Wasm.size(pages), L(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input), U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), {==}, {==})) :
+    {Loop.keeps(Imp.Res.then(_, x => y => Imp.Stm.run(RT.S.all([RT.S.input(), RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), x, y)), bs, Wasm.Wasm.size(pages)) == True{} : Bool}
+  Then.k(Imp.Stm.run(RT.S.input(), p, Wasm.Wasm.size(pages), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), x => y => Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), x, y), ls => mm => In.post(ls, mm, input, Wasm.Wasm.size(pages)), bs, Wasm.Wasm.size(pages), Inp.run(input, p, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), Wasm.Wasm.size(pages), hls, hfit, hs5, hn),
+    +ls => +mm => hp => StK.img(prog, entry, c, head, tail, input, ls, mm, n, p, Wasm.Wasm.size(pages), w, bs, he, hi, hs5, h, hd, hm, hp))
+
+# the body of the run time adds no output
+def Start.a(+prog: List<&2, Fun.C>, +entry: Nat, +c: Fun.C, +head: Fun.V, +tail: List<&2, Fun.V>, +input: Maybe<&2, List<&2, Nat>>, +pages: Nat, +p: Nat, +he: {List.get(&2, Fun.C, prog, entry) == Some{c} : Maybe<&2, Fun.C>}, +hi: {RT.fits(prog, head, tail) == True{} : Bool},
+  +hf: {Wasm.Wasm.fits(pages, input) == True{} : Bool}) -> {Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Stm.run(RT.S.all([Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}}, RT.S.input(), RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), L(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), Wasm.Wasm.size(pages)) == True{} : Bool}:
+  +hp5 = Wf.pages(pages, input, hf)
+  +hs5 = Size.five(pages, hp5, Wf.nz(pages, input, hf))
+  +hle = Lim.eq(pages, hp5)
+  +hls = Le.rwl(U32.to_nat(Wasm.Wasm.size(pages)), U32.to_nat(U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n)), U32.to_nat(Wasm.Wasm.size(pages)), Equal.cong(U32, Nat, u => U32.to_nat(u), Wasm.Wasm.size(pages), U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), Equal.sym(U32, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), Wasm.Wasm.size(pages), hle)),
+    Shared.Nat.is_le_refl(U32.to_nat(Wasm.Wasm.size(pages))))
+  +hfit = Fit.lim(input, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), Wasm.Wasm.size(pages), hle, In.fit.of(input, pages, hs5, Wf.in(pages, input, hf)))
+  %Equal.sym(Maybe<&2, Imp.Res>, Imp.Stm.run(Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}}, p, Wasm.Wasm.size(pages), L(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), Some{Imp.Res.next{L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)}}, R.set(1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}, p, Wasm.Wasm.size(pages), L(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input), U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), {==}, {==})) :
+    {Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Res.then(_, x => y => Imp.Stm.run(RT.S.all([RT.S.input(), RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), x, y)), Wasm.Wasm.size(pages)) == True{} : Bool}
+  Shared.Bool.elim(Maybe.is_some(&2, Imp.Res, Imp.Stm.run(RT.S.input(), p, Wasm.Wasm.size(pages), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input))), bq => {Maybe.is_some(&2, Imp.Res, Imp.Stm.run(RT.S.input(), p, Wasm.Wasm.size(pages), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input))) == bq : Bool} ->
+    {Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Res.then(Imp.Stm.run(RT.S.input(), p, Wasm.Wasm.size(pages), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), x => y => Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), x, y)), Wasm.Wasm.size(pages)) == True{} : Bool},
+    +hs =>
+      %Stm.mono(RT.S.input(), p, In.need(input), Wasm.Wasm.size(pages), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input), hs) : {Loop.ok(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Imp.Res.then(_, x => y => Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), x, y)), Wasm.Wasm.size(pages)) == True{} : Bool}
+      Then.a(Imp.Stm.run(RT.S.input(), Nat.add(p, In.need(input)), Wasm.Wasm.size(pages), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), x => y => Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), x, y), ls => mm => In.post(ls, mm, input, Wasm.Wasm.size(pages)), Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Wasm.Wasm.size(pages),
+        Inp.run(input, Nat.add(p, In.need(input)), U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), Wasm.Wasm.size(pages), hls, hfit, hs5, Shared.Nat.is_le_add_left(In.need(input), p)),
+        +ls => +mm => hp => StA.img(prog, entry, c, head, tail, input, ls, mm, p, Wasm.Wasm.size(pages), he, hi, hs5, hp)),
+    +hs => Then.anone(Imp.Stm.run(RT.S.input(), p, Wasm.Wasm.size(pages), L(0, U32.shln(U32.shrn(Wasm.Wasm.size(pages), 16n), 16n), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), x => y => Imp.Stm.run(RT.S.all([RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), x, y), Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Wasm.Wasm.size(pages), hs))({==})
+
+# the output of the outer loop
+def Out.k(r: Maybe<&2, Imp.Res>, go: List<&2, U32> -> Wasm.Mem -> Maybe<&2, Imp.Res>, +bs: List<&2, Nat>, +size: U32, h: {Loop.keeps(r, bs, size) == True{} : Bool}) ->
+  {Spec.Out.is(Wasm.Halted.output(Imp.Prog.ret(Imp.Res.loop(r, go), RT.E.l(8n), size), size), bs) == True{} : Bool}:
+  match r:
+    case Some{Imp.Res.brk{0n, +ls, +mem}}:
+      h
+    case Some{Imp.Res.next{+ls, +mem}}:
+      Shared.Bool.absurd({Spec.Out.is(Wasm.Halted.output(Imp.Prog.ret(Imp.Res.loop(Some{Imp.Res.next{ls, mem}}, go), RT.E.l(8n), size), size), bs) == True{} : Bool}, h)
+    case Some{Imp.Res.brk{1n+l, +ls, +mem}}:
+      Shared.Bool.absurd({Spec.Out.is(Wasm.Halted.output(Imp.Prog.ret(Imp.Res.loop(Some{Imp.Res.brk{1n+l, ls, mem}}, go), RT.E.l(8n), size), size), bs) == True{} : Bool}, h)
+    case Some{Imp.Res.trap{}}:
+      Shared.Bool.absurd({Spec.Out.is(Wasm.Halted.output(Imp.Prog.ret(Imp.Res.loop(Some{Imp.Res.trap{}}, go), RT.E.l(8n), size), size), bs) == True{} : Bool}, h)
+    case None{}:
+      Shared.Bool.absurd({Spec.Out.is(Wasm.Halted.output(Imp.Prog.ret(Imp.Res.loop(None{}, go), RT.E.l(8n), size), size), bs) == True{} : Bool}, h)
+
+def Iter.succ(n: Nat, +prog: List<&2, Fun.C>, x: Fun.Step) -> {Fun.F.iter(1n+n, prog, x) == Fun.Step.next(prog, Fun.F.iter(n, prog, x)) : Fun.Step}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+m:
+      Iter.succ(m, prog, Fun.Step.next(prog, x))
+
+def Bytes.eq(xs: List<&2, Nat>, ys: List<&2, Nat>, +h: {Spec.Bytes.is_eq(xs, ys) == True{} : Bool}) -> {xs == ys : List<&2, Nat>}:
+  match xs ys:
+    case Nil{} Nil{}:
+      {==}
+    case Con{+x, +xr} Con{+y, +yr}:
+      %Nat.eq_of(x, y, And.l(Nat.is_eq(x, y), Spec.Bytes.is_eq(xr, yr), h)) : {Con{x, xr} == Con{_, yr} : List<&2, Nat>}
+      Equal.cong(List<&2, Nat>, List<&2, Nat>, t => Con{x, t}, xr, yr, Bytes.eq(xr, yr, And.r(Nat.is_eq(x, y), Spec.Bytes.is_eq(xr, yr), h)))
+    case Nil{} Con{+y, +yr}:
+      Shared.Bool.absurd({Nil{} == Con{y, yr} : List<&2, Nat>}, h)
+    case Con{+x, +xr} Nil{}:
+      Shared.Bool.absurd({Con{x, xr} == Nil{} : List<&2, Nat>}, h)
+
+def A4(m: Maybe<&2, List<&2, Nat>>, +x: List<&2, Nat>, +h: {Out.same(m, Some{x}) == True{} : Bool}) -> {m == Some{x} : Maybe<&2, List<&2, Nat>>}:
+  match m:
+    case Some{+y}:
+      Equal.cong(List<&2, Nat>, Maybe<&2, List<&2, Nat>>, t => Some{t}, y, x, Equal.sym(List<&2, Nat>, x, y, Bytes.eq(x, y, h)))
+    case None{}:
+      Shared.Bool.absurd({None{} == Some{x} : Maybe<&2, List<&2, Nat>>}, h)
+
+def A3(z: Fun.Step, +prog: List<&2, Fun.C>, +x: List<&2, Nat>, +h: {Halt.ok(z, Some{x}) == True{} : Bool}) ->
+  {Spec.Out.dec.of(Fun.Step.out(Fun.Step.next(prog, z))) == Some{x} : Maybe<&2, List<&2, Nat>>}:
+  match z:
+    case Fun.Step.halt{+w}:
+      A4(Spec.Out.dec(w), x, h)
+    case Fun.Step.go{+s}:
+      Shared.Bool.absurd({Spec.Out.dec.of(Fun.Step.out(Fun.Step.next(prog, Fun.Step.go{s}))) == Some{x} : Maybe<&2, List<&2, Nat>>}, h)
+    case Fun.Step.stuck{}:
+      Shared.Bool.absurd({Spec.Out.dec.of(Fun.Step.out(Fun.Step.next(prog, Fun.Step.stuck{}))) == Some{x} : Maybe<&2, List<&2, Nat>>}, h)
+
+def Out.no(+x: List<&2, Nat>, -A: Type, +h: {None{} == Some{x} : Maybe<&2, List<&2, Nat>>}) -> A:
+  Empty.absurd(A, Shared.Maybe.no_none(List<&2, Nat>, x, h))
+
+def A1(r: Maybe<&2, Imp.Res>, go: List<&2, U32> -> Wasm.Mem -> Maybe<&2, Imp.Res>, +z: Fun.Step, +size: U32, +x: List<&2, Nat>,
+  +hA: {Loop.ok(z, r, size) == True{} : Bool}, +h: {Wasm.Halted.output(Imp.Prog.ret(Imp.Res.loop(r, go), RT.E.l(8n), size), size) == Some{x} : Maybe<&2, List<&2, Nat>>},
+  +hx: {Spec.Bytes.is_eq(x, [255n]) == False{} : Bool}) -> {Halt.ok(z, Some{x}) == True{} : Bool}:
+  match r:
+    case Some{Imp.Res.brk{0n, +ls, +mem}}:
+      Equal.trans(Bool, Halt.ok(z, Some{x}), Bool.or(Spec.Bytes.is_eq(x, [255n]), Halt.ok(z, Some{x})), True{},
+        Equal.cong(Bool, Bool, b => Bool.or(b, Halt.ok(z, Some{x})), False{}, Spec.Bytes.is_eq(x, [255n]), Equal.sym(Bool, Spec.Bytes.is_eq(x, [255n]), False{}, hx)),
+        Equal.trans(Bool, Bool.or(Out.is_oom(Some{x}), Halt.ok(z, Some{x})), Bool.or(Out.is_oom(Fin(ls, mem, size)), Halt.ok(z, Fin(ls, mem, size))), True{},
+          Equal.cong(Maybe<&2, List<&2, Nat>>, Bool, m => Bool.or(Out.is_oom(m), Halt.ok(z, m)), Some{x}, Fin(ls, mem, size), Equal.sym(Maybe<&2, List<&2, Nat>>, Fin(ls, mem, size), Some{x}, h)),
+          hA))
+    case Some{Imp.Res.next{+ls, +mem}}:
+      Shared.Bool.absurd({Halt.ok(z, Some{x}) == True{} : Bool}, hA)
+    case Some{Imp.Res.brk{1n+l, +ls, +mem}}:
+      Shared.Bool.absurd({Halt.ok(z, Some{x}) == True{} : Bool}, hA)
+    case Some{Imp.Res.trap{}}:
+      Out.no(x, {Halt.ok(z, Some{x}) == True{} : Bool}, h)
+    case None{}:
+      Out.no(x, {Halt.ok(z, Some{x}) == True{} : Bool}, h)
+
+# The laws
+# ========
+
+def Spec.fuel(prog, c, head, tail, input, n, bs):
+  +input = input
+  1n+Nat.add(In.need(input), Fuel.go(n, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}))
+
+def Spec.keeps(prog, entry, c, head, tail, pages, input, n, w, bs, he, hi, hf, h, hd):
+  +prog = prog
+  +entry = entry
+  +c = c
+  +head = head
+  +tail = tail
+  +pages = pages
+  +input = input
+  +n = n
+  +w = w
+  +bs = bs
+  +he = he
+  +hi = hi
+  +hf = hf
+  +h = h
+  +hd = hd
+  +FG = Fuel.go(n, prog, Fun.Step.go{Spec.Start(c, head, input, tail)})
+  +p = Nat.add(In.need(input), FG)
+  %Equal.sym(Bool, Wasm.Wasm.fits(pages, input), True{}, hf) :
+    {Spec.Out.is(Imp.Imp.run.of(_, 1n+p, Wasm.Wasm.size(pages), RT.RT(prog, entry, head, tail), input), bs) == True{} : Bool}
+  Out.k(Imp.Stm.run(RT.S.all([Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}}, RT.S.input(), RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), L(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.all([Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}}, RT.S.input(), RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}])}, p, Wasm.Wasm.size(pages), x, y), bs, Wasm.Wasm.size(pages),
+    Start.k(prog, entry, c, head, tail, input, pages, n, p, w, bs, he, hi, hf, h, hd,
+      Shared.Nat.is_le_add_left(FG, In.need(input)), Shared.Nat.is_le_add(In.need(input), FG)))
+
+def Adds.fits(fb: Bool, +prog: List<&2, Fun.C>, +entry: Nat, +c: Fun.C, +head: Fun.V, +tail: List<&2, Fun.V>, +input: Maybe<&2, List<&2, Nat>>, +pages: Nat, n: Nat, +x: List<&2, Nat>,
+  +he: {List.get(&2, Fun.C, prog, entry) == Some{c} : Maybe<&2, Fun.C>}, +hi: {RT.fits(prog, head, tail) == True{} : Bool},
+  +hfb: {Wasm.Wasm.fits(pages, input) == fb : Bool},
+  +h: {Imp.Imp.run.of(fb, n, Wasm.Wasm.size(pages), RT.RT(prog, entry, head, tail), input) == Some{x} : Maybe<&2, List<&2, Nat>>},
+  +hx: {Spec.Bytes.is_eq(x, [255n]) == False{} : Bool}) ->
+  {Spec.Out.dec.of(Fun.F.run(n, prog, Spec.Start(c, head, input, tail))) == Some{x} : Maybe<&2, List<&2, Nat>>}:
+  match fb n:
+    case False{} _:
+      Out.no(x, {Spec.Out.dec.of(Fun.F.run(n, prog, Spec.Start(c, head, input, tail))) == Some{x} : Maybe<&2, List<&2, Nat>>}, h)
+    case True{} 0n:
+      Out.no(x, {Spec.Out.dec.of(Fun.F.run(0n, prog, Spec.Start(c, head, input, tail))) == Some{x} : Maybe<&2, List<&2, Nat>>}, h)
+    case True{} 1n++p:
+      %Equal.sym(Fun.Step, Fun.F.iter(1n+p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}),
+        Fun.Step.next(prog, Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)})), Iter.succ(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)})) :
+        {Spec.Out.dec.of(Fun.Step.out(_)) == Some{x} : Maybe<&2, List<&2, Nat>>}
+      A3(Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), prog, x,
+        A1(Imp.Stm.run(RT.S.all([Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}}, RT.S.input(), RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}]), p, Wasm.Wasm.size(pages), L(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), Wasm.Input.mem(input)), x => y => Imp.Stm.run(Imp.Stm.loop{RT.S.all([Imp.Stm.set{1n, Imp.Exp.bin{Wasm.Bin.shl{}, Imp.Exp.size{}, RT.E.k(16)}}, RT.S.input(), RT.S.image(RT.Img.prog(prog, head, tail), List.length(&2, Fun.C, prog), entry), Imp.Stm.loop{RT.I.step()}])}, p, Wasm.Wasm.size(pages), x, y), Fun.F.iter(p, prog, Fun.Step.go{Spec.Start(c, head, input, tail)}), Wasm.Wasm.size(pages), x,
+          Start.a(prog, entry, c, head, tail, input, pages, p, he, hi, hfb), h, hx))
+
+def Spec.adds_none(prog, entry, c, head, tail, pages, input, n, x, he, hi, h, hx):
+  +prog = prog
+  +c = c
+  +head = head
+  +tail = tail
+  +pages = pages
+  +input = input
+  +x = x
+  Adds.fits(Wasm.Wasm.fits(pages, input), prog, entry, c, head, tail, input, pages, n, x, he, hi, {==}, h, hx)
