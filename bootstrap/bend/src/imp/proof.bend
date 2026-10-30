@@ -10,24 +10,6 @@ import ../shared/impl.bend as Shared
 # The proofs of the laws of spec.bend. The fuel of a piece of code is in
 # continuation style: Exp.fuel e F is the fuel to run e and then have F left.
 
-# Cases
-# =====
-
-def Maybe.elim(-A: Data, m: Maybe<&2, A>, -P: Maybe<&2, A> -> Type, s: @x:A -> P(Some{x}),
-  n: P(None{})) -> P(m):
-  match m:
-    case Some{x}:
-      s(x)
-    case None{}:
-      n
-
-def Bool.elim(c: Bool, -P: Bool -> Type, t: P(True{}), f: P(False{})) -> P(c):
-  match c:
-    case True{}:
-      t
-    case False{}:
-      f
-
 # Expressions
 # ===========
 
@@ -64,7 +46,7 @@ def Exp.runs(e: Imp.Exp, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem, +k: Was
     case Imp.Exp.const{v}:
       {==}
     case Imp.Exp.get{i}:
-      Maybe.elim(U32, Wasm.List.at(ls, i),
+      Shared.Maybe.elim(U32, Wasm.List.at(ls, i),
         m => {Wasm.Step.then(Wasm.Frame.with(Wasm.Step.get(m, st), k, ls, mem, L),
           g => Wasm.Frame.run(F, size, g)) == Exp.after(m, size, k, st, ls, mem, L, F) :
           Maybe<&2, Wasm.Halted>},
@@ -78,7 +60,7 @@ def Exp.runs(e: Imp.Exp, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem, +k: Was
         Exp.after(Imp.Exp.eval.bin(o, Imp.Exp.eval(a, size, ls, mem), Imp.Exp.eval(b, size, ls, mem)), size,
           k, st, ls, mem, L, F),
         Exp.runs(a, size, ls, mem, Imp.Exp.code(b, Wasm.Code.bin{o, k}), st, L, Exp.fuel(b, 1n+F)),
-        Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
           ma => {Exp.after(ma, size, Imp.Exp.code(b, Wasm.Code.bin{o, k}), st, ls, mem, L, Exp.fuel(b, 1n+F)) ==
             Exp.after(Imp.Exp.eval.bin(o, ma, Imp.Exp.eval(b, size, ls, mem)), size, k, st, ls, mem, L, F) :
             Maybe<&2, Wasm.Halted>},
@@ -88,7 +70,7 @@ def Exp.runs(e: Imp.Exp, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem, +k: Was
             Exp.after(Imp.Exp.eval(b, size, ls, mem), size, Wasm.Code.bin{o, k}, Con{va, st}, ls, mem, L, 1n+F),
             Exp.after(Imp.Exp.eval.bin(o, Some{va}, Imp.Exp.eval(b, size, ls, mem)), size, k, st, ls, mem, L, F),
             Exp.runs(b, size, ls, mem, Wasm.Code.bin{o, k}, Con{va, st}, L, 1n+F),
-            Maybe.elim(U32, Imp.Exp.eval(b, size, ls, mem),
+            Shared.Maybe.elim(U32, Imp.Exp.eval(b, size, ls, mem),
               mb => {Exp.after(mb, size, Wasm.Code.bin{o, k}, Con{va, st}, ls, mem, L, 1n+F) ==
                 Exp.after(Imp.Exp.eval.bin(o, Some{va}, mb), size, k, st, ls, mem, L, F) :
                 Maybe<&2, Wasm.Halted>},
@@ -101,7 +83,7 @@ def Exp.runs(e: Imp.Exp, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem, +k: Was
         Exp.after(Maybe.map(&2, U32, U32, x => Bool.to_u32(U32.is_eq(x, 0)), Imp.Exp.eval(a, size, ls, mem)),
           size, k, st, ls, mem, L, F),
         Exp.runs(a, size, ls, mem, Wasm.Code.eqz{k}, st, L, 1n+F),
-        Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
           ma => {Exp.after(ma, size, Wasm.Code.eqz{k}, st, ls, mem, L, 1n+F) ==
             Exp.after(Maybe.map(&2, U32, U32, x => Bool.to_u32(U32.is_eq(x, 0)), ma), size, k, st, ls, mem, L, F) :
             Maybe<&2, Wasm.Halted>},
@@ -114,11 +96,11 @@ def Exp.runs(e: Imp.Exp, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem, +k: Was
         Exp.after(Imp.Exp.eval.load(Imp.Exp.eval(a, size, ls, mem), off, 4, size, mem,
           x => m => Wasm.Mem.load(x, m)), size, k, st, ls, mem, L, F),
         Exp.runs(a, size, ls, mem, Wasm.Code.load{off, k}, st, L, 1n+F),
-        Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
           ma => {Exp.after(ma, size, Wasm.Code.load{off, k}, st, ls, mem, L, 1n+F) ==
             Exp.after(Imp.Exp.eval.load(ma, off, 4, size, mem, x => m => Wasm.Mem.load(x, m)), size, k, st, ls,
               mem, L, F) : Maybe<&2, Wasm.Halted>},
-          va => Maybe.elim(U32, Wasm.Mem.addr(va, off, 4, size),
+          va => Shared.Maybe.elim(U32, Wasm.Mem.addr(va, off, 4, size),
             mm => {Wasm.Step.then(Wasm.Frame.with(Wasm.Step.load.at(mm, mem, x => m => Wasm.Mem.load(x, m), st),
               k, ls, mem, L), g => Wasm.Frame.run(F, size, g)) ==
               Exp.after(Imp.Exp.eval.at(mm, mem, x => m => Wasm.Mem.load(x, m)), size, k, st, ls, mem, L, F) :
@@ -133,11 +115,11 @@ def Exp.runs(e: Imp.Exp, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem, +k: Was
         Exp.after(Imp.Exp.eval.load(Imp.Exp.eval(a, size, ls, mem), off, 1, size, mem,
           x => m => U32.from_nat(Wasm.Mem.get_at(x, m))), size, k, st, ls, mem, L, F),
         Exp.runs(a, size, ls, mem, Wasm.Code.load8_u{off, k}, st, L, 1n+F),
-        Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
           ma => {Exp.after(ma, size, Wasm.Code.load8_u{off, k}, st, ls, mem, L, 1n+F) ==
             Exp.after(Imp.Exp.eval.load(ma, off, 1, size, mem, x => m => U32.from_nat(Wasm.Mem.get_at(x, m))), size,
               k, st, ls, mem, L, F) : Maybe<&2, Wasm.Halted>},
-          va => Maybe.elim(U32, Wasm.Mem.addr(va, off, 1, size),
+          va => Shared.Maybe.elim(U32, Wasm.Mem.addr(va, off, 1, size),
             mm => {Wasm.Step.then(Wasm.Frame.with(Wasm.Step.load.at(mm, mem,
               x => m => U32.from_nat(Wasm.Mem.get_at(x, m)), st), k, ls, mem, L), g => Wasm.Frame.run(F, size, g)) ==
               Exp.after(Imp.Exp.eval.at(mm, mem, x => m => U32.from_nat(Wasm.Mem.get_at(x, m))), size, k, st, ls,
@@ -164,13 +146,6 @@ def Res.elim(r: Maybe<&2, Imp.Res>, -P: Maybe<&2, Imp.Res> -> Type,
       trap
     case None{}:
       none
-
-def Nat.dec(n: Nat) -> Nat:
-  match n:
-    case 0n:
-      0n
-    case 1n+p:
-      p
 
 # go's fuel after a statement that went on; else F
 def Fuel.next(r: Maybe<&2, Imp.Res>, go: List<&2, U32> -> Wasm.Mem -> Nat, F: Nat) -> Nat:
@@ -225,7 +200,7 @@ def Stm.fuel(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
           0n
         case 1n+p:
           Nat.add(2n, Stm.fuel(body, p, size, ls, mem, Fuel.next(Imp.Stm.run(body, p, size, ls, mem),
-            ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)))
+            ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)))
     case Imp.Stm.break{l}:
       1n+F
     case Imp.Stm.trap{}:
@@ -275,7 +250,7 @@ def Brk.up1(+ds: List<&2, Nat>, +l: Nat, +B: Wasm.Label, +L: List<&2, Wasm.Label
     Equal.cong(Maybe<&2, Nat>, Maybe<&2, Wasm.Halted>, m => Brk.after(m, Con{B, L}, ls, mem, F, size),
       List.get(&2, Nat, Imp.Ds.up(ds, 1n), l),
       Maybe.map(&2, Nat, Nat, x => Nat.add(1n, x), List.get(&2, Nat, ds, l)), Ds.get_up(ds, 1n, l)),
-    Maybe.elim(Nat, List.get(&2, Nat, ds, l),
+    Shared.Maybe.elim(Nat, List.get(&2, Nat, ds, l),
       m => {Brk.after(Maybe.map(&2, Nat, Nat, x => Nat.add(1n, x), m), Con{B, L}, ls, mem, F, size) ==
         Brk.after(m, L, ls, mem, F, size) : Maybe<&2, Wasm.Halted>},
       x => {==}, {==}))
@@ -293,7 +268,7 @@ def Brk.up2(+ds: List<&2, Nat>, +l: Nat, +B: Wasm.Label, +C: Wasm.Label, +L: Lis
     Equal.cong(Maybe<&2, Nat>, Maybe<&2, Wasm.Halted>, m => Brk.after(m, Con{B, Con{C, L}}, ls, mem, F, size),
       List.get(&2, Nat, Imp.Ds.up(ds, 2n), l),
       Maybe.map(&2, Nat, Nat, x => Nat.add(2n, x), List.get(&2, Nat, ds, l)), Ds.get_up(ds, 2n, l)),
-    Maybe.elim(Nat, List.get(&2, Nat, ds, l),
+    Shared.Maybe.elim(Nat, List.get(&2, Nat, ds, l),
       m => {Brk.after(Maybe.map(&2, Nat, Nat, x => Nat.add(2n, x), m), Con{B, Con{C, L}}, ls, mem, F, size) ==
         Brk.after(m, L, ls, mem, F, size) : Maybe<&2, Wasm.Halted>},
       x => {==}, {==}))
@@ -301,7 +276,7 @@ def Brk.up2(+ds: List<&2, Nat>, +l: Nat, +B: Wasm.Label, +C: Wasm.Label, +L: Lis
 # a loop entered after its block has the fuel of the whole loop, less one
 def Loop.dec(X: Nat, +body: Wasm.Code, +k: Wasm.Code, +st: List<&2, U32>, ls: List<&2, U32>, mem: Wasm.Mem,
   L: List<&2, Wasm.Label>, +size: U32) ->
-  {Wasm.Frame.run(Nat.dec(X), size, Wasm.Frame{Wasm.Code.loop{body, Wasm.Code.end{}}, st, ls, mem,
+  {Wasm.Frame.run(Shared.Nat.dec(X), size, Wasm.Frame{Wasm.Code.loop{body, Wasm.Code.end{}}, st, ls, mem,
     Con{Wasm.Label{k, k, st}, L}}) ==
     Wasm.Frame.run(X, size, Wasm.Frame{Wasm.Code.block{Wasm.Code.loop{body, Wasm.Code.end{}}, k}, st, ls, mem, L}) :
     Maybe<&2, Wasm.Halted>}:
@@ -326,10 +301,10 @@ def Stm.runs(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
         Exp.after(Imp.Exp.eval(e, size, ls, mem), size, Wasm.Code.set{i, k}, st, ls, mem, L, 1n+F),
         Stm.after(Some{Imp.Stm.set(Imp.Exp.eval(e, size, ls, mem), i, ls, mem)}, ds, k, st, L, F, size),
         Exp.runs(e, size, ls, mem, Wasm.Code.set{i, k}, st, L, 1n+F),
-        Maybe.elim(U32, Imp.Exp.eval(e, size, ls, mem),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(e, size, ls, mem),
           me => {Exp.after(me, size, Wasm.Code.set{i, k}, st, ls, mem, L, 1n+F) ==
             Stm.after(Some{Imp.Stm.set(me, i, ls, mem)}, ds, k, st, L, F, size) : Maybe<&2, Wasm.Halted>},
-          v => Maybe.elim(List<&2, U32>, Wasm.List.put(ls, i, v),
+          v => Shared.Maybe.elim(List<&2, U32>, Wasm.List.put(ls, i, v),
             mp => {Wasm.Step.then(Wasm.Step.set.of(mp, k, st, mem, L), g => Wasm.Frame.run(F, size, g)) ==
               Stm.after(Some{Imp.Stm.set.of(mp, mem)}, ds, k, st, L, F, size) : Maybe<&2, Wasm.Halted>},
             ls2 => {==}, {==}),
@@ -343,7 +318,7 @@ def Stm.runs(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
         Stm.after(Some{Imp.Stm.store(Imp.Exp.eval(a, size, ls, mem), Imp.Exp.eval(v, size, ls, mem), off, 4, size,
           x => m => y => Wasm.Mem.store(x, m, y), ls, mem)}, ds, k, st, L, F, size),
         Exp.runs(a, size, ls, mem, Imp.Exp.code(v, Wasm.Code.store{off, k}), st, L, Exp.fuel(v, 1n+F)),
-        Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
           ma => {Exp.after(ma, size, Imp.Exp.code(v, Wasm.Code.store{off, k}), st, ls, mem, L, Exp.fuel(v, 1n+F)) ==
             Stm.after(Some{Imp.Stm.store(ma, Imp.Exp.eval(v, size, ls, mem), off, 4, size, x => m => y => Wasm.Mem.store(x, m, y), ls, mem)}, ds, k, st,
               L, F, size) : Maybe<&2, Wasm.Halted>},
@@ -354,11 +329,11 @@ def Stm.runs(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
             Stm.after(Some{Imp.Stm.store(Some{va}, Imp.Exp.eval(v, size, ls, mem), off, 4, size, x => m => y => Wasm.Mem.store(x, m, y), ls, mem)}, ds,
               k, st, L, F, size),
             Exp.runs(v, size, ls, mem, Wasm.Code.store{off, k}, Con{va, st}, L, 1n+F),
-            Maybe.elim(U32, Imp.Exp.eval(v, size, ls, mem),
+            Shared.Maybe.elim(U32, Imp.Exp.eval(v, size, ls, mem),
               mv => {Exp.after(mv, size, Wasm.Code.store{off, k}, Con{va, st}, ls, mem, L, 1n+F) ==
                 Stm.after(Some{Imp.Stm.store(Some{va}, mv, off, 4, size, x => m => y => Wasm.Mem.store(x, m, y), ls, mem)}, ds, k, st, L, F, size) :
                 Maybe<&2, Wasm.Halted>},
-              +vv => Maybe.elim(U32, Wasm.Mem.addr(va, off, 4, size),
+              +vv => Shared.Maybe.elim(U32, Wasm.Mem.addr(va, off, 4, size),
                 mm => {Wasm.Step.then(Wasm.Step.store.at(mm, vv, x => m => y => Wasm.Mem.store(x, m, y), k, st, ls, mem, L),
                   g => Wasm.Frame.run(F, size, g)) ==
                   Stm.after(Some{Imp.Stm.store.at(mm, vv, x => m => y => Wasm.Mem.store(x, m, y), ls, mem)}, ds, k, st, L, F, size) :
@@ -375,7 +350,7 @@ def Stm.runs(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
         Stm.after(Some{Imp.Stm.store(Imp.Exp.eval(a, size, ls, mem), Imp.Exp.eval(v, size, ls, mem), off, 1, size,
           x => m => y => Wasm.Mem.set_at(x, m, Wasm.U32.low(y)), ls, mem)}, ds, k, st, L, F, size),
         Exp.runs(a, size, ls, mem, Imp.Exp.code(v, Wasm.Code.store8{off, k}), st, L, Exp.fuel(v, 1n+F)),
-        Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(a, size, ls, mem),
           ma => {Exp.after(ma, size, Imp.Exp.code(v, Wasm.Code.store8{off, k}), st, ls, mem, L, Exp.fuel(v, 1n+F)) ==
             Stm.after(Some{Imp.Stm.store(ma, Imp.Exp.eval(v, size, ls, mem), off, 1, size, x => m => y => Wasm.Mem.set_at(x, m, Wasm.U32.low(y)), ls, mem)}, ds, k, st,
               L, F, size) : Maybe<&2, Wasm.Halted>},
@@ -386,11 +361,11 @@ def Stm.runs(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
             Stm.after(Some{Imp.Stm.store(Some{va}, Imp.Exp.eval(v, size, ls, mem), off, 1, size, x => m => y => Wasm.Mem.set_at(x, m, Wasm.U32.low(y)), ls, mem)}, ds,
               k, st, L, F, size),
             Exp.runs(v, size, ls, mem, Wasm.Code.store8{off, k}, Con{va, st}, L, 1n+F),
-            Maybe.elim(U32, Imp.Exp.eval(v, size, ls, mem),
+            Shared.Maybe.elim(U32, Imp.Exp.eval(v, size, ls, mem),
               mv => {Exp.after(mv, size, Wasm.Code.store8{off, k}, Con{va, st}, ls, mem, L, 1n+F) ==
                 Stm.after(Some{Imp.Stm.store(Some{va}, mv, off, 1, size, x => m => y => Wasm.Mem.set_at(x, m, Wasm.U32.low(y)), ls, mem)}, ds, k, st, L, F, size) :
                 Maybe<&2, Wasm.Halted>},
-              +vv => Maybe.elim(U32, Wasm.Mem.addr(va, off, 1, size),
+              +vv => Shared.Maybe.elim(U32, Wasm.Mem.addr(va, off, 1, size),
                 mm => {Wasm.Step.then(Wasm.Step.store.at(mm, vv, x => m => y => Wasm.Mem.set_at(x, m, Wasm.U32.low(y)), k, st, ls, mem, L),
                   g => Wasm.Frame.run(F, size, g)) ==
                   Stm.after(Some{Imp.Stm.store.at(mm, vv, x => m => y => Wasm.Mem.set_at(x, m, Wasm.U32.low(y)), ls, mem)}, ds, k, st, L, F, size) :
@@ -425,10 +400,10 @@ def Stm.runs(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
         Exp.after(Imp.Exp.eval(c, size, ls, mem), size, Wasm.Code.br_if{0n, Imp.Stm.code(b, Imp.Ds.up(ds, 2n), Wasm.Code.br{1n, Wasm.Code.end{}})}, st, ls, mem, Con{Wasm.Label{Imp.Stm.code(a, Imp.Ds.up(ds, 1n), Wasm.Code.end{}), Imp.Stm.code(a, Imp.Ds.up(ds, 1n), Wasm.Code.end{}), st}, Con{Wasm.Label{k, k, st}, L}}, 1n+Fuel.if(Imp.Exp.eval(c, size, ls, mem), Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), F)),
         Stm.after(Imp.Stm.if(Imp.Exp.eval(c, size, ls, mem), u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)), ds, k, st, L, F, size),
         Exp.runs(c, size, ls, mem, Wasm.Code.br_if{0n, Imp.Stm.code(b, Imp.Ds.up(ds, 2n), Wasm.Code.br{1n, Wasm.Code.end{}})}, st, Con{Wasm.Label{Imp.Stm.code(a, Imp.Ds.up(ds, 1n), Wasm.Code.end{}), Imp.Stm.code(a, Imp.Ds.up(ds, 1n), Wasm.Code.end{}), st}, Con{Wasm.Label{k, k, st}, L}}, 1n+Fuel.if(Imp.Exp.eval(c, size, ls, mem), Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), F)),
-        Maybe.elim(U32, Imp.Exp.eval(c, size, ls, mem),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(c, size, ls, mem),
           mc => {Exp.after(mc, size, Wasm.Code.br_if{0n, Imp.Stm.code(b, Imp.Ds.up(ds, 2n), Wasm.Code.br{1n, Wasm.Code.end{}})}, st, ls, mem, Con{Wasm.Label{Imp.Stm.code(a, Imp.Ds.up(ds, 1n), Wasm.Code.end{}), Imp.Stm.code(a, Imp.Ds.up(ds, 1n), Wasm.Code.end{}), st}, Con{Wasm.Label{k, k, st}, L}}, 1n+Fuel.if(mc, Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), F)) ==
             Stm.after(Imp.Stm.if(mc, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)), ds, k, st, L, F, size) : Maybe<&2, Wasm.Halted>},
-          vc => Bool.elim(U32.is_ne(vc, 0),
+          vc => Shared.Bool.elim(U32.is_ne(vc, 0),
             cb => {Wasm.Step.then(Wasm.Step.br_if.of(cb, 0n, Imp.Stm.code(b, Imp.Ds.up(ds, 2n), Wasm.Code.br{1n, Wasm.Code.end{}}), st, ls, mem, Con{Wasm.Label{Imp.Stm.code(a, Imp.Ds.up(ds, 1n), Wasm.Code.end{}), Imp.Stm.code(a, Imp.Ds.up(ds, 1n), Wasm.Code.end{}), st}, Con{Wasm.Label{k, k, st}, L}}),
               g => Wasm.Frame.run(Fuel.pick(cb, Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F))), size, g)) ==
               Stm.after(Imp.Stm.if.of(cb, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)), ds, k, st, L, F, size) : Maybe<&2, Wasm.Halted>},
@@ -464,15 +439,15 @@ def Stm.runs(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
           {==}
         case 1n+p:
           Equal.trans(Maybe<&2, Wasm.Halted>,
-            Wasm.Frame.run(Stm.fuel(body, p, size, ls, mem, Fuel.next(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)), size, Wasm.Frame{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), st, ls, mem, Con{Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Con{Wasm.Label{k, k, st}, L}}}),
-            Stm.after(Imp.Stm.run(body, p, size, ls, mem), Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}, st, Con{Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Con{Wasm.Label{k, k, st}, L}}, Fuel.next(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F), size),
+            Wasm.Frame.run(Stm.fuel(body, p, size, ls, mem, Fuel.next(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)), size, Wasm.Frame{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), st, ls, mem, Con{Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Con{Wasm.Label{k, k, st}, L}}}),
+            Stm.after(Imp.Stm.run(body, p, size, ls, mem), Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}, st, Con{Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Con{Wasm.Label{k, k, st}, L}}, Fuel.next(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F), size),
             Stm.after(Imp.Res.loop(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => Imp.Stm.run(Imp.Stm.loop{body}, p, size, ls2, mem2)), ds, k, st, L, F, size),
-            Stm.runs(body, p, size, ls, mem, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}, st, Con{Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Con{Wasm.Label{k, k, st}, L}}, Fuel.next(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)),
+            Stm.runs(body, p, size, ls, mem, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}, st, Con{Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Con{Wasm.Label{k, k, st}, L}}, Fuel.next(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)),
             Res.elim(Imp.Stm.run(body, p, size, ls, mem),
-              r => {Stm.after(r, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}, st, Con{Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Con{Wasm.Label{k, k, st}, L}}, Fuel.next(r, ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F), size) ==
+              r => {Stm.after(r, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}, st, Con{Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Con{Wasm.Label{k, k, st}, L}}, Fuel.next(r, ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F), size) ==
                 Stm.after(Imp.Res.loop(r, ls2 => mem2 => Imp.Stm.run(Imp.Stm.loop{body}, p, size, ls2, mem2)), ds, k, st, L, F, size) : Maybe<&2, Wasm.Halted>},
               +ls2 => +mem2 => Equal.trans(Maybe<&2, Wasm.Halted>,
-                Wasm.Frame.run(Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), size,
+                Wasm.Frame.run(Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), size,
                   Wasm.Frame{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, st, ls2, mem2, Con{Wasm.Label{k, k, st}, L}}),
                 Wasm.Frame.run(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F), size,
                   Wasm.Frame{Wasm.Code.block{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, k}, st, ls2, mem2, L}),
@@ -483,7 +458,7 @@ def Stm.runs(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem
               l => ls2 => mem2 => Brk.up2(ds, l, Wasm.Label{Wasm.Code.loop{Imp.Stm.code(body, Con{1n, Imp.Ds.up(ds, 2n)}, Wasm.Code.br{0n, Wasm.Code.end{}}), Wasm.Code.end{}}, Wasm.Code.end{}, st}, Wasm.Label{k, k, st}, L, ls2, mem2, F, size),
               {==}, {==}))
     case Imp.Stm.break{+l}:
-      Maybe.elim(Nat, List.get(&2, Nat, ds, l),
+      Shared.Maybe.elim(Nat, List.get(&2, Nat, ds, l),
         md => {Wasm.Frame.run(1n+F, size, Wasm.Frame{Imp.Stm.break.code(md, k), st, ls, mem, L}) ==
           Brk.after(md, L, ls, mem, F, size) : Maybe<&2, Wasm.Halted>},
         d => {==}, {==})
@@ -515,7 +490,7 @@ def Prog.runs(+body: Imp.Stm, +ret: Imp.Exp, +n: Nat, +size: U32, +ls: List<&2, 
         Exp.after(Imp.Exp.eval(ret, size, ls2, mem2), size, Wasm.Code.end{}, [], ls2, mem2, [], 1n+X),
         Imp.Prog.ret.of(Imp.Exp.eval(ret, size, ls2, mem2), mem2),
         Exp.runs(ret, size, ls2, mem2, Wasm.Code.end{}, [], [], 1n+X),
-        Maybe.elim(U32, Imp.Exp.eval(ret, size, ls2, mem2),
+        Shared.Maybe.elim(U32, Imp.Exp.eval(ret, size, ls2, mem2),
           m => {Exp.after(m, size, Wasm.Code.end{}, [], ls2, mem2, [], 1n+X) == Imp.Prog.ret.of(m, mem2) :
             Maybe<&2, Wasm.Halted>},
           v => {==}, {==})),
@@ -533,7 +508,7 @@ def Prog.keeps(+k: Nat, +body: Imp.Stm, +ret: Imp.Exp, +pages: Nat, +input: Mayb
   {Wasm.Wasm.run(pages, Spec.fuel_out(Imp.Prog{k, body, ret}, pages, input, n),
     Imp.Imp.compile(Imp.Prog{k, body, ret}), input) == Imp.Imp.run(pages, n, Imp.Prog{k, body, ret}, input) :
     Maybe<&2, List<&2, Nat>>}:
-  Bool.elim(Wasm.Wasm.fits(pages, input),
+  Shared.Bool.elim(Wasm.Wasm.fits(pages, input),
     ok => {Wasm.Wasm.run.of(ok, Spec.fuel_out(Imp.Prog{k, body, ret}, pages, input, n), Wasm.Wasm.size(pages),
       Imp.Imp.compile(Imp.Prog{k, body, ret}), input) ==
       Imp.Imp.run.of(ok, n, Wasm.Wasm.size(pages), Imp.Prog{k, body, ret}, input) : Maybe<&2, List<&2, Nat>>},
@@ -560,66 +535,22 @@ def Spec.compile_keeps(p, pages, input, n, w, h):
 # Lower bounds of the fuel
 # ========================
 
-def Nat.le(a: Nat, b: Nat) -> Bool:
-  match a b:
-    case 0n _:
-      True{}
-    case 1n+p 0n:
-      False{}
-    case 1n+p 1n+q:
-      Nat.le(p, q)
-
-def Nat.le_refl(a: Nat) -> {Nat.le(a, a) == True{} : Bool}:
-  match a:
-    case 0n:
-      {==}
-    case 1n+p:
-      Nat.le_refl(p)
-
-def Nat.le_succ(a: Nat, b: Nat, h: {Nat.le(a, b) == True{} : Bool}) -> {Nat.le(a, 1n+b) == True{} : Bool}:
-  match a b:
-    case 0n _:
-      {==}
-    case 1n+p 0n:
-      Shared.Bool.absurd({Nat.le(1n+p, 1n+0n) == True{} : Bool}, h)
-    case 1n+p 1n+q:
-      Nat.le_succ(p, q, h)
-
-def Nat.le_trans(a: Nat, b: Nat, c: Nat, h1: {Nat.le(a, b) == True{} : Bool}, h2: {Nat.le(b, c) == True{} : Bool}) ->
-  {Nat.le(a, c) == True{} : Bool}:
-  match a b c:
-    case 0n _ _:
-      {==}
-    case 1n+p 0n _:
-      Shared.Bool.absurd({Nat.le(1n+p, c) == True{} : Bool}, h1)
-    case 1n+p 1n+q 0n:
-      Shared.Bool.absurd({Nat.le(1n+p, 0n) == True{} : Bool}, h2)
-    case 1n+p 1n+q 1n+r:
-      Nat.le_trans(p, q, r, h1, h2)
-
-def Nat.le_dec(a: Nat) -> {Nat.le(a, 1n+Nat.dec(a)) == True{} : Bool}:
-  match a:
-    case 0n:
-      {==}
-    case 1n+p:
-      Nat.le_refl(p)
-
-def Exp.fuel_ge(e: Imp.Exp, +F: Nat) -> {Nat.le(F, Exp.fuel(e, F)) == True{} : Bool}:
+def Exp.fuel_ge(e: Imp.Exp, +F: Nat) -> {Nat.is_le(F, Exp.fuel(e, F)) == True{} : Bool}:
   match e:
     case Imp.Exp.const{v}:
-      Nat.le_succ(F, F, Nat.le_refl(F))
+      Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F))
     case Imp.Exp.get{i}:
-      Nat.le_succ(F, F, Nat.le_refl(F))
+      Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F))
     case Imp.Exp.bin{o, +a, +b}:
-      Nat.le_trans(F, Exp.fuel(b, 1n+F), Exp.fuel(a, Exp.fuel(b, 1n+F)),
-        Nat.le_trans(F, 1n+F, Exp.fuel(b, 1n+F), Nat.le_succ(F, F, Nat.le_refl(F)), Exp.fuel_ge(b, 1n+F)),
+      Shared.Nat.is_le_trans(F, Exp.fuel(b, 1n+F), Exp.fuel(a, Exp.fuel(b, 1n+F)),
+        Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(b, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(b, 1n+F)),
         Exp.fuel_ge(a, Exp.fuel(b, 1n+F)))
     case Imp.Exp.eqz{+a}:
-      Nat.le_trans(F, 1n+F, Exp.fuel(a, 1n+F), Nat.le_succ(F, F, Nat.le_refl(F)), Exp.fuel_ge(a, 1n+F))
+      Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(a, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(a, 1n+F))
     case Imp.Exp.load{off, +a}:
-      Nat.le_trans(F, 1n+F, Exp.fuel(a, 1n+F), Nat.le_succ(F, F, Nat.le_refl(F)), Exp.fuel_ge(a, 1n+F))
+      Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(a, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(a, 1n+F))
     case Imp.Exp.load8{off, +a}:
-      Nat.le_trans(F, 1n+F, Exp.fuel(a, 1n+F), Nat.le_succ(F, F, Nat.le_refl(F)), Exp.fuel_ge(a, 1n+F))
+      Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(a, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(a, 1n+F))
 
 # the fuel that a statement takes at least: n when it ran out, else F
 def Stm.lower(r: Maybe<&2, Imp.Res>, n: Nat, F: Nat) -> Nat:
@@ -629,41 +560,41 @@ def Stm.lower(r: Maybe<&2, Imp.Res>, n: Nat, F: Nat) -> Nat:
     case None{}:
       n
 
-def Nat.le_up2(+a: Nat, +b: Nat, h: {Nat.le(a, b) == True{} : Bool}) -> {Nat.le(a, 1n+1n+b) == True{} : Bool}:
-  Nat.le_succ(a, 1n+b, Nat.le_succ(a, b, h))
+def Nat.is_le_up2(+a: Nat, +b: Nat, h: {Nat.is_le(a, b) == True{} : Bool}) -> {Nat.is_le(a, 1n+1n+b) == True{} : Bool}:
+  Shared.Nat.is_le_succ(a, 1n+b, Shared.Nat.is_le_succ(a, b, h))
 
-def Stm.lower_end(r: Maybe<&2, Imp.Res>, +n: Nat, +F: Nat) -> {Nat.le(Stm.lower(r, n, F), Stm.lower(r, n, Fuel.end(r, F))) == True{} : Bool}:
+def Stm.lower_end(r: Maybe<&2, Imp.Res>, +n: Nat, +F: Nat) -> {Nat.is_le(Stm.lower(r, n, F), Stm.lower(r, n, Fuel.end(r, F))) == True{} : Bool}:
   match r:
     case Some{Imp.Res.next{ls, mem}}:
-      Nat.le_succ(F, F, Nat.le_refl(F))
+      Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F))
     case Some{Imp.Res.brk{l, ls, mem}}:
-      Nat.le_refl(F)
+      Shared.Nat.is_le_refl(F)
     case Some{Imp.Res.trap{}}:
-      Nat.le_refl(F)
+      Shared.Nat.is_le_refl(F)
     case None{}:
-      Nat.le_refl(n)
+      Shared.Nat.is_le_refl(n)
 
 # The code of s takes at least n fuel when the meaning ran out, else at least F.
 def Stm.fuel_ge(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem, +F: Nat) ->
-  {Nat.le(Stm.lower(Imp.Stm.run(s, n, size, ls, mem), n, F), Stm.fuel(s, n, size, ls, mem, F)) == True{} : Bool}:
+  {Nat.is_le(Stm.lower(Imp.Stm.run(s, n, size, ls, mem), n, F), Stm.fuel(s, n, size, ls, mem, F)) == True{} : Bool}:
   match s:
     case Imp.Stm.skip{}:
-      Nat.le_refl(F)
+      Shared.Nat.is_le_refl(F)
     case Imp.Stm.set{i, +e}:
-      Nat.le_trans(F, 1n+F, Exp.fuel(e, 1n+F), Nat.le_succ(F, F, Nat.le_refl(F)), Exp.fuel_ge(e, 1n+F))
+      Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(e, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(e, 1n+F))
     case Imp.Stm.store{off, +a, +v}:
-      Nat.le_trans(F, Exp.fuel(v, 1n+F), Exp.fuel(a, Exp.fuel(v, 1n+F)),
-        Nat.le_trans(F, 1n+F, Exp.fuel(v, 1n+F), Nat.le_succ(F, F, Nat.le_refl(F)), Exp.fuel_ge(v, 1n+F)),
+      Shared.Nat.is_le_trans(F, Exp.fuel(v, 1n+F), Exp.fuel(a, Exp.fuel(v, 1n+F)),
+        Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(v, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(v, 1n+F)),
         Exp.fuel_ge(a, Exp.fuel(v, 1n+F)))
     case Imp.Stm.store8{off, +a, +v}:
-      Nat.le_trans(F, Exp.fuel(v, 1n+F), Exp.fuel(a, Exp.fuel(v, 1n+F)),
-        Nat.le_trans(F, 1n+F, Exp.fuel(v, 1n+F), Nat.le_succ(F, F, Nat.le_refl(F)), Exp.fuel_ge(v, 1n+F)),
+      Shared.Nat.is_le_trans(F, Exp.fuel(v, 1n+F), Exp.fuel(a, Exp.fuel(v, 1n+F)),
+        Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(v, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)), Exp.fuel_ge(v, 1n+F)),
         Exp.fuel_ge(a, Exp.fuel(v, 1n+F)))
     case Imp.Stm.seq{+a, +b}:
       go = Res.elim(Imp.Stm.run(a, n, size, ls, mem),
-        r => {Nat.le(Stm.lower(r, n, Fuel.next(r, ls2 => mem2 => Stm.fuel(b, n, size, ls2, mem2, F), F)), Stm.fuel(a, n, size, ls, mem, Fuel.next(r, ls2 => mem2 => Stm.fuel(b, n, size, ls2, mem2, F), F))) == True{} : Bool} ->
-          {Nat.le(Stm.lower(Imp.Res.then(r, ls2 => mem2 => Imp.Stm.run(b, n, size, ls2, mem2)), n, F), Stm.fuel(a, n, size, ls, mem, Fuel.next(r, ls2 => mem2 => Stm.fuel(b, n, size, ls2, mem2, F), F))) == True{} : Bool},
-        +ls2 => +mem2 => h => Nat.le_trans(Stm.lower(Imp.Stm.run(b, n, size, ls2, mem2), n, F),
+        r => {Nat.is_le(Stm.lower(r, n, Fuel.next(r, ls2 => mem2 => Stm.fuel(b, n, size, ls2, mem2, F), F)), Stm.fuel(a, n, size, ls, mem, Fuel.next(r, ls2 => mem2 => Stm.fuel(b, n, size, ls2, mem2, F), F))) == True{} : Bool} ->
+          {Nat.is_le(Stm.lower(Imp.Res.then(r, ls2 => mem2 => Imp.Stm.run(b, n, size, ls2, mem2)), n, F), Stm.fuel(a, n, size, ls, mem, Fuel.next(r, ls2 => mem2 => Stm.fuel(b, n, size, ls2, mem2, F), F))) == True{} : Bool},
+        +ls2 => +mem2 => h => Shared.Nat.is_le_trans(Stm.lower(Imp.Stm.run(b, n, size, ls2, mem2), n, F),
           Stm.fuel(b, n, size, ls2, mem2, F),
           Stm.fuel(a, n, size, ls, mem, Stm.fuel(b, n, size, ls2, mem2, F)),
           Stm.fuel_ge(b, n, size, ls2, mem2, F), h),
@@ -672,21 +603,21 @@ def Stm.fuel_ge(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.
         h => h, h => h)
       go(Stm.fuel_ge(a, n, size, ls, mem, Fuel.next(Imp.Stm.run(a, n, size, ls, mem), ls2 => mem2 => Stm.fuel(b, n, size, ls2, mem2, F), F)))
     case Imp.Stm.if{+c, +a, +b}:
-      Maybe.elim(U32, Imp.Exp.eval(c, size, ls, mem),
-        mc => {Nat.le(Stm.lower(Imp.Stm.if(mc, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)), n, F), Nat.add(2n, Exp.fuel(c, 1n+Fuel.if(mc, Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), F)))) == True{} : Bool},
-        vc => Bool.elim(U32.is_ne(vc, 0),
-          cb => {Nat.le(Stm.lower(Imp.Stm.if.of(cb, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)), n, F), Nat.add(2n, Exp.fuel(c, 1n+Fuel.pick(cb, Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)))))) == True{} : Bool},
-          Nat.le_trans(Stm.lower(Imp.Stm.run(a, n, size, ls, mem), n, F), Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Nat.add(2n, Exp.fuel(c, 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)))),
-              Nat.le_trans(Stm.lower(Imp.Stm.run(a, n, size, ls, mem), n, F), Stm.lower(Imp.Stm.run(a, n, size, ls, mem), n, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)),
+      Shared.Maybe.elim(U32, Imp.Exp.eval(c, size, ls, mem),
+        mc => {Nat.is_le(Stm.lower(Imp.Stm.if(mc, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)), n, F), Nat.add(2n, Exp.fuel(c, 1n+Fuel.if(mc, Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), F)))) == True{} : Bool},
+        vc => Shared.Bool.elim(U32.is_ne(vc, 0),
+          cb => {Nat.is_le(Stm.lower(Imp.Stm.if.of(cb, u => Imp.Stm.run(a, n, size, ls, mem), u => Imp.Stm.run(b, n, size, ls, mem)), n, F), Nat.add(2n, Exp.fuel(c, 1n+Fuel.pick(cb, Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)))))) == True{} : Bool},
+          Shared.Nat.is_le_trans(Stm.lower(Imp.Stm.run(a, n, size, ls, mem), n, F), Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Nat.add(2n, Exp.fuel(c, 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)))),
+              Shared.Nat.is_le_trans(Stm.lower(Imp.Stm.run(a, n, size, ls, mem), n, F), Stm.lower(Imp.Stm.run(a, n, size, ls, mem), n, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)),
                 Stm.lower_end(Imp.Stm.run(a, n, size, ls, mem), n, F), Stm.fuel_ge(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F))),
-              Nat.le_up2(Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Exp.fuel(c, 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F))), Nat.le_trans(Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Exp.fuel(c, 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F))), Nat.le_succ(Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Nat.le_refl(Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)))),
+              Nat.is_le_up2(Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Exp.fuel(c, 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F))), Shared.Nat.is_le_trans(Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Exp.fuel(c, 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F))), Shared.Nat.is_le_succ(Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)), Shared.Nat.is_le_refl(Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)))),
                 Exp.fuel_ge(c, 1n+Stm.fuel(a, n, size, ls, mem, Fuel.end(Imp.Stm.run(a, n, size, ls, mem), F)))))),
-          Nat.le_trans(Stm.lower(Imp.Stm.run(b, n, size, ls, mem), n, F), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Nat.add(2n, Exp.fuel(c, 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)))),
-              Nat.le_trans(Stm.lower(Imp.Stm.run(b, n, size, ls, mem), n, F), Stm.lower(Imp.Stm.run(b, n, size, ls, mem), n, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)),
+          Shared.Nat.is_le_trans(Stm.lower(Imp.Stm.run(b, n, size, ls, mem), n, F), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Nat.add(2n, Exp.fuel(c, 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)))),
+              Shared.Nat.is_le_trans(Stm.lower(Imp.Stm.run(b, n, size, ls, mem), n, F), Stm.lower(Imp.Stm.run(b, n, size, ls, mem), n, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)),
                 Stm.lower_end(Imp.Stm.run(b, n, size, ls, mem), n, F), Stm.fuel_ge(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F))),
-              Nat.le_up2(Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Exp.fuel(c, 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F))), Nat.le_trans(Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Exp.fuel(c, 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F))), Nat.le_succ(Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Nat.le_refl(Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)))),
+              Nat.is_le_up2(Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Exp.fuel(c, 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F))), Shared.Nat.is_le_trans(Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Exp.fuel(c, 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F))), Shared.Nat.is_le_succ(Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)), Shared.Nat.is_le_refl(Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F)))),
                 Exp.fuel_ge(c, 1n+Stm.fuel(b, n, size, ls, mem, Fuel.end(Imp.Stm.run(b, n, size, ls, mem), F))))))),
-        Nat.le_up2(F, Exp.fuel(c, 1n+F), Nat.le_trans(F, 1n+F, Exp.fuel(c, 1n+F), Nat.le_succ(F, F, Nat.le_refl(F)),
+        Nat.is_le_up2(F, Exp.fuel(c, 1n+F), Shared.Nat.is_le_trans(F, 1n+F, Exp.fuel(c, 1n+F), Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F)),
           Exp.fuel_ge(c, 1n+F))))
     case Imp.Stm.loop{+body}:
       match n:
@@ -694,25 +625,25 @@ def Stm.fuel_ge(s: Imp.Stm, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.
           {==}
         case 1n+p:
           go = Res.elim(Imp.Stm.run(body, p, size, ls, mem),
-            r => {Nat.le(Stm.lower(r, p, Fuel.next(r, ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)), Stm.fuel(body, p, size, ls, mem, Fuel.next(r, ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F))) == True{} : Bool} ->
-              {Nat.le(Stm.lower(Imp.Res.loop(r, ls2 => mem2 => Imp.Stm.run(Imp.Stm.loop{body}, p, size, ls2, mem2)), 1n+p, F), Nat.add(2n, Stm.fuel(body, p, size, ls, mem, Fuel.next(r, ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)))) == True{} : Bool},
+            r => {Nat.is_le(Stm.lower(r, p, Fuel.next(r, ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)), Stm.fuel(body, p, size, ls, mem, Fuel.next(r, ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F))) == True{} : Bool} ->
+              {Nat.is_le(Stm.lower(Imp.Res.loop(r, ls2 => mem2 => Imp.Stm.run(Imp.Stm.loop{body}, p, size, ls2, mem2)), 1n+p, F), Nat.add(2n, Stm.fuel(body, p, size, ls, mem, Fuel.next(r, ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)))) == True{} : Bool},
             +ls2 => +mem2 => +h =>
-              go2 = Maybe.elim(Imp.Res, Imp.Stm.run(Imp.Stm.loop{body}, p, size, ls2, mem2),
-                m => {Nat.le(Stm.lower(m, p, F), Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)) == True{} : Bool} -> {Nat.le(Stm.lower(m, 1n+p, F), 1n+1n+Stm.fuel(body, p, size, ls, mem, 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)))) == True{} : Bool},
-                x => h2 => Nat.le_up2(F, Stm.fuel(body, p, size, ls, mem, 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))), Nat.le_trans(F, 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), Stm.fuel(body, p, size, ls, mem, 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))),
-                  Nat.le_trans(F, Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F), 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), h2, Nat.le_dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))), h)),
-                h2 => Nat.le_succ(p, Stm.fuel(body, p, size, ls, mem, 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))), Nat.le_trans(p, 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), Stm.fuel(body, p, size, ls, mem, 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))),
-                  Nat.le_trans(p, Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F), 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), h2, Nat.le_dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))), h)))
+              go2 = Shared.Maybe.elim(Imp.Res, Imp.Stm.run(Imp.Stm.loop{body}, p, size, ls2, mem2),
+                m => {Nat.is_le(Stm.lower(m, p, F), Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)) == True{} : Bool} -> {Nat.is_le(Stm.lower(m, 1n+p, F), 1n+1n+Stm.fuel(body, p, size, ls, mem, 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)))) == True{} : Bool},
+                x => h2 => Nat.is_le_up2(F, Stm.fuel(body, p, size, ls, mem, 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))), Shared.Nat.is_le_trans(F, 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), Stm.fuel(body, p, size, ls, mem, 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))),
+                  Shared.Nat.is_le_trans(F, Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F), 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), h2, Shared.Nat.is_le_dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))), h)),
+                h2 => Shared.Nat.is_le_succ(p, Stm.fuel(body, p, size, ls, mem, 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))), Shared.Nat.is_le_trans(p, 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), Stm.fuel(body, p, size, ls, mem, 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))),
+                  Shared.Nat.is_le_trans(p, Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F), 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), h2, Shared.Nat.is_le_dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F))), h)))
               go2(Stm.fuel_ge(Imp.Stm.loop{body}, p, size, ls2, mem2, F)),
-            ls2 => mem2 => h => Nat.le_up2(F, Stm.fuel(body, p, size, ls, mem, F), h),
-            l => ls2 => mem2 => h => Nat.le_up2(F, Stm.fuel(body, p, size, ls, mem, F), h),
-            h => Nat.le_up2(F, Stm.fuel(body, p, size, ls, mem, F), h),
-            h => Nat.le_succ(p, Stm.fuel(body, p, size, ls, mem, F), h))
-          go(Stm.fuel_ge(body, p, size, ls, mem, Fuel.next(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => 1n+Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)))
+            ls2 => mem2 => h => Nat.is_le_up2(F, Stm.fuel(body, p, size, ls, mem, F), h),
+            l => ls2 => mem2 => h => Nat.is_le_up2(F, Stm.fuel(body, p, size, ls, mem, F), h),
+            h => Nat.is_le_up2(F, Stm.fuel(body, p, size, ls, mem, F), h),
+            h => Shared.Nat.is_le_succ(p, Stm.fuel(body, p, size, ls, mem, F), h))
+          go(Stm.fuel_ge(body, p, size, ls, mem, Fuel.next(Imp.Stm.run(body, p, size, ls, mem), ls2 => mem2 => 1n+Shared.Nat.dec(Stm.fuel(Imp.Stm.loop{body}, p, size, ls2, mem2, F)), F)))
     case Imp.Stm.break{l}:
-      Nat.le_succ(F, F, Nat.le_refl(F))
+      Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F))
     case Imp.Stm.trap{}:
-      Nat.le_succ(F, F, Nat.le_refl(F))
+      Shared.Nat.is_le_succ(F, F, Shared.Nat.is_le_refl(F))
 
 # More fuel
 # =========
@@ -728,7 +659,7 @@ def Step.elim(s: Wasm.Step, -P: Wasm.Step -> Type, next: @g:Wasm.Frame -> P(Wasm
       trap
 
 # A run that halts within G steps halts the same way within M >= G steps.
-def Run.up(G: Nat, M: Nat, +size: U32, f: Wasm.Frame, +x: Wasm.Halted, hle: {Nat.le(G, M) == True{} : Bool},
+def Run.up(G: Nat, M: Nat, +size: U32, f: Wasm.Frame, +x: Wasm.Halted, hle: {Nat.is_le(G, M) == True{} : Bool},
   h: {Wasm.Frame.run(G, size, f) == Some{x} : Maybe<&2, Wasm.Halted>}) -> {Wasm.Frame.run(M, size, f) == Some{x} : Maybe<&2, Wasm.Halted>}:
   match G M:
     case 0n _:
@@ -746,12 +677,12 @@ def Run.up(G: Nat, M: Nat, +size: U32, f: Wasm.Frame, +x: Wasm.Halted, hle: {Nat
 
 # n is at most the fuel that Prog.runs gives with n left after the end
 def Prog.fuel_ge(+body: Imp.Stm, +ret: Imp.Exp, +n: Nat, +size: U32, +ls: List<&2, U32>, +mem: Wasm.Mem) ->
-  {Nat.le(n, Stm.fuel(body, n, size, ls, mem, Exp.fuel(ret, 1n+n))) == True{} : Bool}:
-  Nat.le_trans(n, Stm.lower(Imp.Stm.run(body, n, size, ls, mem), n, Exp.fuel(ret, 1n+n)), Stm.fuel(body, n, size, ls, mem, Exp.fuel(ret, 1n+n)),
-    Maybe.elim(Imp.Res, Imp.Stm.run(body, n, size, ls, mem),
-      m => {Nat.le(n, Stm.lower(m, n, Exp.fuel(ret, 1n+n))) == True{} : Bool},
-      x => Nat.le_trans(n, 1n+n, Exp.fuel(ret, 1n+n), Nat.le_succ(n, n, Nat.le_refl(n)), Exp.fuel_ge(ret, 1n+n)),
-      Nat.le_refl(n)),
+  {Nat.is_le(n, Stm.fuel(body, n, size, ls, mem, Exp.fuel(ret, 1n+n))) == True{} : Bool}:
+  Shared.Nat.is_le_trans(n, Stm.lower(Imp.Stm.run(body, n, size, ls, mem), n, Exp.fuel(ret, 1n+n)), Stm.fuel(body, n, size, ls, mem, Exp.fuel(ret, 1n+n)),
+    Shared.Maybe.elim(Imp.Res, Imp.Stm.run(body, n, size, ls, mem),
+      m => {Nat.is_le(n, Stm.lower(m, n, Exp.fuel(ret, 1n+n))) == True{} : Bool},
+      x => Shared.Nat.is_le_trans(n, 1n+n, Exp.fuel(ret, 1n+n), Shared.Nat.is_le_succ(n, n, Shared.Nat.is_le_refl(n)), Exp.fuel_ge(ret, 1n+n)),
+      Shared.Nat.is_le_refl(n)),
     Stm.fuel_ge(body, n, size, ls, mem, Exp.fuel(ret, 1n+n)))
 
 # the program gives the output that its code gives in n steps; d is that run
@@ -773,7 +704,7 @@ def Prog.adds.of(d: Maybe<&2, Wasm.Halted>, +body: Imp.Stm, +ret: Imp.Exp, +n: N
 def Prog.adds(+k: Nat, +body: Imp.Stm, +ret: Imp.Exp, +pages: Nat, +input: Maybe<&2, List<&2, Nat>>, +n: Nat,
   +w: List<&2, Nat>, h: {Wasm.Wasm.run(pages, n, Imp.Imp.compile(Imp.Prog{k, body, ret}), input) == Some{w} : Maybe<&2, List<&2, Nat>>}) ->
   {Imp.Imp.run(pages, n, Imp.Prog{k, body, ret}, input) == Some{w} : Maybe<&2, List<&2, Nat>>}:
-  go = Bool.elim(Wasm.Wasm.fits(pages, input),
+  go = Shared.Bool.elim(Wasm.Wasm.fits(pages, input),
     ok => {Wasm.Wasm.run.of(ok, n, Wasm.Wasm.size(pages), Imp.Imp.compile(Imp.Prog{k, body, ret}), input) ==
       Some{w} : Maybe<&2, List<&2, Nat>>} ->
       {Imp.Imp.run.of(ok, n, Wasm.Wasm.size(pages), Imp.Prog{k, body, ret}, input) == Some{w} : Maybe<&2, List<&2, Nat>>},
