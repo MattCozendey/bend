@@ -4671,3 +4671,584 @@ def S.apply(f: Machine.Val, +q: Source.Quan, +x: Machine.Val, +fs: List<&2, Mach
             SP.Bool.and_intro(Source.Term.is_value(Val.rb(Machine.Val.call{v0, v1}), True{}, bk), Bool.or(Bool.not(Source.Quan.live(q)), Source.Term.is_value(Val.rb(x), False{}, bk)),
               Call.vt(Val.rb(Machine.Val.call{v0, v1}), bk, SP.Bool.and_right(Val.ok(v1, Mode.args{}, bk), Source.Term.is_value(Val.rb(Machine.Val.call{v0, v1}), False{}, bk), hf), Call.rb_is_call(v0, v1)), Snd.ok(q, x, bk, hx))),
           hfs, mu, hmu))
+# Steps
+# =====
+
+def S.var.clo(+t2: Source.Term, +e2: Machine.Val, +t0: Source.Term, +fs: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  hnv: {Val.no_var(Machine.Val.clo{t2, e2}) == True{} : Bool}, hok: {Val.ok(e2, Mode.env{}, bk) == True{} : Bool},
+  +heq: {Clo.rb(t2, e2) == t0 : Source.Term}, hfs: {Frs.ok(fs, bk) == True{} : Bool}) ->
+  Moved(Machine.Move.go{Machine.St.eval{t2, e2, fs}}, Frs.plug(fs, t0), Frs.mu(fs, 1n+Term.w(t0)), bk):
+  (SP.Bool.and_intro(Val.ok(e2, Mode.env{}, bk), Frs.ok(fs, bk), hok, hfs),
+    Inl{(Equal.cong(Source.Term, Source.Term, z => Frs.plug(fs, z), Clo.rb(t2, e2), t0, heq),
+      Frs.lt(fs, Nat.add(Term.var(t2), Term.w(Clo.rb(t2, e2))), 1n+Term.w(t0),
+        Eq.rw(Nat, 0n, Term.var(t2), Equal.sym(Nat, Term.var(t2), 0n, Var.zero(t2, e2, hnv)),
+          z => {Nat.is_le(1n+Nat.add(z, Term.w(Clo.rb(t2, e2))), 1n+Term.w(t0)) == True{} : Bool},
+          Eq.rw(Source.Term, t0, Clo.rb(t2, e2), Equal.sym(Source.Term, Clo.rb(t2, e2), t0, heq),
+            z => {Nat.is_le(1n+Nat.add(0n, Term.w(z)), 1n+Term.w(t0)) == True{} : Bool}, Shared.Nat.is_le_refl(Term.w(t0))))))})
+
+def S.var(l: Machine.Look, +t0: Source.Term, +fs: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  +hok: {Look.ok(l, bk) == True{} : Bool}, +heq: {Look.rb(l) == t0 : Source.Term}, +hfs: {Frs.ok(fs, bk) == True{} : Bool}) ->
+  Moved(Machine.Eval.var(l, fs), Frs.plug(fs, t0), Frs.mu(fs, 1n+Term.w(t0)), bk):
+  match l:
+    case Machine.Look.free{+j}:
+      Eq.rw(Source.Term, Source.Term.Var{j}, t0, heq, z => Moved(Machine.Move.stuck{}, Frs.plug(fs, z), Frs.mu(fs, 1n+Term.w(t0)), bk),
+        Ctx.stuck(fs, Source.Term.Var{j}, bk, hfs, {==}, {==}))
+    case Machine.Look.val{x}:
+      match x:
+        case Machine.Val.nil{}:
+          Shared.Bool.absurd(Moved(Machine.Eval.var(Machine.Look.val{Machine.Val.nil{}}, fs), Frs.plug(fs, t0), Frs.mu(fs, 1n+Term.w(t0)), bk), hok)
+        case Machine.Val.env{+v0, +v1}:
+          Shared.Bool.absurd(Moved(Machine.Eval.var(Machine.Look.val{Machine.Val.env{v0, v1}}, fs), Frs.plug(fs, t0), Frs.mu(fs, 1n+Term.w(t0)), bk), hok)
+        case Machine.Val.arg{+v0, +v1, +v2}:
+          Shared.Bool.absurd(Moved(Machine.Eval.var(Machine.Look.val{Machine.Val.arg{v0, v1, v2}}, fs), Frs.plug(fs, t0), Frs.mu(fs, 1n+Term.w(t0)), bk), hok)
+        case Machine.Val.clo{+v0, +v1}:
+          S.var.clo(v0, v1, t0, fs, bk, SP.Bool.and_left(Val.no_var(Machine.Val.clo{v0, v1}), Val.ok(Machine.Val.clo{v0, v1}, Mode.any{}, bk), hok),
+            SP.Bool.and_right(Val.no_var(Machine.Val.clo{v0, v1}), Val.ok(Machine.Val.clo{v0, v1}, Mode.any{}, bk), hok), heq, hfs)
+        case Machine.Val.lab{+v0}:
+          (SP.Bool.and_intro(Val.ok(Machine.Val.lab{v0}, Mode.good{}, bk), Frs.ok(fs, bk), hok, hfs),
+            Inl{(Equal.cong(Source.Term, Source.Term, z => Frs.plug(fs, z), Val.rb(Machine.Val.lab{v0}), t0, heq),
+              Frs.lt(fs, 0n, 1n+Term.w(t0), Shared.Nat.is_le_zero(Term.w(t0))))})
+        case Machine.Val.rfl{}:
+          (SP.Bool.and_intro(Val.ok(Machine.Val.rfl{}, Mode.good{}, bk), Frs.ok(fs, bk), hok, hfs),
+            Inl{(Equal.cong(Source.Term, Source.Term, z => Frs.plug(fs, z), Val.rb(Machine.Val.rfl{}), t0, heq),
+              Frs.lt(fs, 0n, 1n+Term.w(t0), Shared.Nat.is_le_zero(Term.w(t0))))})
+        case Machine.Val.tup{+v0, +v1, +v2}:
+          (SP.Bool.and_intro(Val.ok(Machine.Val.tup{v0, v1, v2}, Mode.good{}, bk), Frs.ok(fs, bk), hok, hfs),
+            Inl{(Equal.cong(Source.Term, Source.Term, z => Frs.plug(fs, z), Val.rb(Machine.Val.tup{v0, v1, v2}), t0, heq),
+              Frs.lt(fs, 0n, 1n+Term.w(t0), Shared.Nat.is_le_zero(Term.w(t0))))})
+        case Machine.Val.call{+v0, +v1}:
+          (SP.Bool.and_intro(Val.ok(Machine.Val.call{v0, v1}, Mode.good{}, bk), Frs.ok(fs, bk), hok, hfs),
+            Inl{(Equal.cong(Source.Term, Source.Term, z => Frs.plug(fs, z), Val.rb(Machine.Val.call{v0, v1}), t0, heq),
+              Frs.lt(fs, 0n, 1n+Term.w(t0), Shared.Nat.is_le_zero(Term.w(t0))))})
+
+def S.var.of(+i: Nat, +e: Machine.Val, +fs: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>, r: Find.res(e, i, bk),
+  hfs: {Frs.ok(fs, bk) == True{} : Bool}) ->
+  Moved(Machine.Eval.var(Machine.Env.find(e, i), fs), Frs.plug(fs, Clo.rb(Source.Term.Var{i}, e)),
+    Frs.mu(fs, 1n+Term.w(Clo.rb(Source.Term.Var{i}, e))), bk):
+  match r:
+    case (hok, heq):
+      S.var(Machine.Env.find(e, i), Clo.rb(Source.Term.Var{i}, e), fs, bk, hok,
+        Equal.trans(Source.Term, Look.rb(Machine.Env.find(e, i)), Source.Env.sub(Env.rb(e), i), Clo.rb(Source.Term.Var{i}, e), heq,
+          Equal.sym(Source.Term, Clo.rb(Source.Term.Var{i}, e), Source.Env.sub(Env.rb(e), i), Term.sub_var(i, Env.rb(e)))), hfs)
+
+# the step from St.eval t e fs
+def S.eval(t: Source.Term, +e: Machine.Val, +fs: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  +he: {Val.ok(e, Mode.env{}, bk) == True{} : Bool}, +hfs: {Frs.ok(fs, bk) == True{} : Bool}) ->
+  Moved(Machine.Eval.go(t, e, fs, bk), Frs.plug(fs, Clo.rb(t, e)), Frs.mu(fs, Nat.add(Term.var(t), Term.w(Clo.rb(t, e)))), bk):
+  match t:
+    case Source.Term.Var{+z0}:
+      S.var.of(z0, e, fs, bk, Find.ok(e, z0, bk, he), hfs)
+    case Source.Term.Ref{+z0}:
+      S.call(z0, Machine.Val.nil{}, fs, bk, {==}, {==}, hfs, Frs.mu(fs, 5n), Frs.lt(fs, 0n, 5n, {==}))
+    case Source.Term.Ann{+z0, +z1}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inr{Ctx.go(fs, Source.Term.Ann{Clo.rb(z0, e), Clo.rb(z1, e)}, Clo.rb(z0, e), bk, hfs, {==}, {==})})
+    case Source.Term.Let{+z0, +z1, +z2}:
+      match z0:
+        case Source.Q0{}:
+          (SP.Bool.and_intro(Val.ok(Machine.Val.env{Machine.Val.clo{z1, e}, e}, Mode.env{}, bk), Frs.ok(fs, bk), SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Val.ok(e, Mode.env{}, bk), he, he), hfs),
+            Inr{Ctx.go(fs, Source.Term.Let{Source.Q0{}, Clo.rb(z1, e), Source.Term.sub(z2, 1n, Source.Sub.env{Env.rb(e)})}, Clo.rb(z2, Machine.Val.env{Machine.Val.clo{z1, e}, e}), bk, hfs, {==},
+              Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Some{z}, Source.Term.sub(Source.Term.sub(z2, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Clo.rb(z1, e)}), Clo.rb(z2, Machine.Val.env{Machine.Val.clo{z1, e}, e}),
+                Term.sub_one(z2, Env.rb(e), Clo.rb(z1, e))))})
+        case Source.Q1{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.let{Source.Q1{}, z2, e}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.let{Source.Q1{}, z2, e}, bk), Frs.ok(fs, bk), he, hfs)), Inl{({==}, Frs.lt(fs, Nat.add(Term.var(z1), Term.w(Clo.rb(z1, e))), 5n+Term.w(Clo.rb(z1, e)), Le.push0(z1, Term.w(Clo.rb(z1, e)))))})
+        case Source.Q2{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.let{Source.Q2{}, z2, e}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.let{Source.Q2{}, z2, e}, bk), Frs.ok(fs, bk), he, hfs)), Inl{({==}, Frs.lt(fs, Nat.add(Term.var(z1), Term.w(Clo.rb(z1, e))), 5n+Term.w(Clo.rb(z1, e)), Le.push0(z1, Term.w(Clo.rb(z1, e)))))})
+    case Source.Term.Typ{+z0}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Min{+z0, +z1}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.min1{z1, e}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.min1{z1, e}, bk), Frs.ok(fs, bk), he, hfs)),
+        Inl{({==}, Frs.lt(fs, Nat.add(3n+Term.w(Clo.rb(z1, e)), Nat.add(Term.var(z0), Term.w(Clo.rb(z0, e)))),
+          5n+Nat.add(Term.w(Clo.rb(z1, e)), Term.w(Clo.rb(z0, e))), Le.push3(z0, Term.w(Clo.rb(z0, e)), Term.w(Clo.rb(z1, e)))))})
+    case Source.Term.All{+z0, +z1, +z2}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Lam{+z0, +z1}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.App{+z0, +z1, +z2}:
+      match z0:
+        case Source.Q0{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.arg{Source.Q0{}, Machine.Val.clo{z2, e}}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.arg{Source.Q0{}, Machine.Val.clo{z2, e}}, bk), Frs.ok(fs, bk), he, hfs)),
+            Inl{({==}, Frs.lt(fs, 1n+Nat.add(Term.var(z1), Term.w(Clo.rb(z1, e))), 5n+Term.w(Clo.rb(z1, e)), Le.push1(z1, Term.w(Clo.rb(z1, e)))))})
+        case Source.Q1{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.clo{z2, e}}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.arg{Source.Q1{}, Machine.Val.clo{z2, e}}, bk), Frs.ok(fs, bk), he, hfs)),
+            Inl{({==}, Frs.lt(fs, Nat.add(3n+Term.w(Clo.rb(z2, e)), Nat.add(Term.var(z1), Term.w(Clo.rb(z1, e)))),
+              5n+Nat.add(Term.w(Clo.rb(z2, e)), Term.w(Clo.rb(z1, e))), Le.push3(z1, Term.w(Clo.rb(z1, e)), Term.w(Clo.rb(z2, e)))))})
+        case Source.Q2{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.clo{z2, e}}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.arg{Source.Q2{}, Machine.Val.clo{z2, e}}, bk), Frs.ok(fs, bk), he, hfs)),
+            Inl{({==}, Frs.lt(fs, Nat.add(3n+Term.w(Clo.rb(z2, e)), Nat.add(Term.var(z1), Term.w(Clo.rb(z1, e)))),
+              5n+Nat.add(Term.w(Clo.rb(z2, e)), Term.w(Clo.rb(z1, e))), Le.push3(z1, Term.w(Clo.rb(z1, e)), Term.w(Clo.rb(z2, e)))))})
+    case Source.Term.Sig{+z0, +z1, +z2}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Tup{+z0, +z1, +z2}:
+      match z0:
+        case Source.Q0{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.snd{Source.Q0{}, Machine.Val.clo{z1, e}}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.snd{Source.Q0{}, Machine.Val.clo{z1, e}}, bk), Frs.ok(fs, bk), he, hfs)),
+            Inl{({==}, Frs.lt(fs, 1n+Nat.add(Term.var(z2), Term.w(Clo.rb(z2, e))), 5n+Nat.add(Term.w(Clo.rb(z2, e)), 0n), Le.push1z(z2, Term.w(Clo.rb(z2, e)))))})
+        case Source.Q1{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.fst{Source.Q1{}, z2, e}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.fst{Source.Q1{}, z2, e}, bk), Frs.ok(fs, bk), he, hfs)),
+            Inl{({==}, Frs.lt(fs, Nat.add(3n+Term.w(Clo.rb(z2, e)), Nat.add(Term.var(z1), Term.w(Clo.rb(z1, e)))),
+              5n+Nat.add(Term.w(Clo.rb(z2, e)), Term.w(Clo.rb(z1, e))), Le.push3(z1, Term.w(Clo.rb(z1, e)), Term.w(Clo.rb(z2, e)))))})
+        case Source.Q2{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.fst{Source.Q2{}, z2, e}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.fst{Source.Q2{}, z2, e}, bk), Frs.ok(fs, bk), he, hfs)),
+            Inl{({==}, Frs.lt(fs, Nat.add(3n+Term.w(Clo.rb(z2, e)), Nat.add(Term.var(z1), Term.w(Clo.rb(z1, e)))),
+              5n+Nat.add(Term.w(Clo.rb(z2, e)), Term.w(Clo.rb(z1, e))), Le.push3(z1, Term.w(Clo.rb(z1, e)), Term.w(Clo.rb(z2, e)))))})
+    case Source.Term.Prj{+z0}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Enu{+z0}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Lab{+z0}:
+      (hfs, Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Mat{+z0, +z1, +z2}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Efq{}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Eql{+z0, +z1, +z2}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), he, hfs), Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Rfl{}:
+      (hfs, Inl{({==}, Frs.lt(fs, 0n, 5n, {==}))})
+    case Source.Term.Rwt{+z0, +z1, +z2}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.rwt{z1, z2, e}, fs}, bk), he, SP.Bool.and_intro(Fr.ok(Machine.Fr.rwt{z1, z2, e}, bk), Frs.ok(fs, bk), he, hfs)), Inl{({==}, Frs.lt(fs, Nat.add(Term.var(z0), Term.w(Clo.rb(z0, e))), 5n+Term.w(Clo.rb(z0, e)), Le.push0(z0, Term.w(Clo.rb(z0, e)))))})
+def Let.step.Q1(+v: Machine.Val, +f: Source.Term, +bk: List<&2, Source.Def>, +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool}) ->
+  {Source.Term.step(Source.Term.Let{Source.Q1{}, Val.rb(v), f}, bk) ==
+    Source.Maybe.when(Source.Term, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q1{})), Source.Term.is_data(Val.rb(v))),
+      w => Some{Source.Term.sub(f, 0n, Source.Sub.one{Val.rb(v)})}) : Maybe<&2, Source.Term>}:
+  %Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(Val.rb(v), bk), None{}, Vals.step(Val.rb(v), False{}, bk, Val.value(v, bk, hv))) :
+    {Source.Term.step.let(Source.Q1{}, Val.rb(v), f, bk, w => _) ==
+      Source.Maybe.when(Source.Term, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q1{})), Source.Term.is_data(Val.rb(v))),
+        w => Some{Source.Term.sub(f, 0n, Source.Sub.one{Val.rb(v)})}) : Maybe<&2, Source.Term>}
+  %Equal.sym(Bool, Source.Term.is_value(Val.rb(v), False{}, bk), True{}, Val.value(v, bk, hv)) :
+    {Source.Maybe.when(Source.Term, Bool.and(_, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q1{})), Source.Term.is_data(Val.rb(v)))),
+      w => Some{Source.Term.sub(f, 0n, Source.Sub.one{Val.rb(v)})}) ==
+      Source.Maybe.when(Source.Term, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q1{})), Source.Term.is_data(Val.rb(v))),
+        w => Some{Source.Term.sub(f, 0n, Source.Sub.one{Val.rb(v)})}) : Maybe<&2, Source.Term>}
+  {==}
+
+def S.let.of.Q1(c: Bool, +v: Machine.Val, +f: Source.Term, +e: Machine.Val, +rest: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool}, he: {Val.ok(e, Mode.env{}, bk) == True{} : Bool},
+  +hrest: {Frs.ok(rest, bk) == True{} : Bool}, -mu: Nat,
+  hst: {Source.Term.step(Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk) == Source.Maybe.when(Source.Term, c, w => Some{Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)})}) : Maybe<&2, Source.Term>}) ->
+  Moved(Source.Bool.lazy(Machine.Move, c, u => Machine.Move.go{Machine.St.eval{f, Machine.Val.env{v, e}, rest}}, u => Machine.Move.stuck{}),
+    Frs.plug(rest, Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}), mu, bk):
+  match c:
+    case True{}:
+      (SP.Bool.and_intro(Bool.and(Val.ok(v, Mode.any{}, bk), Val.ok(e, Mode.env{}, bk)), Frs.ok(rest, bk), SP.Bool.and_intro(Val.ok(v, Mode.any{}, bk), Val.ok(e, Mode.env{}, bk), Good.any(v, bk, hv), he), hrest),
+        Inr{Ctx.go(rest, Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, Clo.rb(f, Machine.Val.env{v, e}), bk, hrest, {==},
+          Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk), Some{Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)})},
+            Some{Clo.rb(f, Machine.Val.env{v, e})}, hst,
+            Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Some{z}, Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)}),
+              Clo.rb(f, Machine.Val.env{v, e}), Term.sub_one(f, Env.rb(e), Val.rb(v)))))})
+    case False{}:
+      Ctx.stuck(rest, Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk, hrest, {==}, hst)
+
+def S.let.Q1(+v: Machine.Val, +f: Source.Term, +e: Machine.Val, +rest: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool}, he: {Val.ok(e, Mode.env{}, bk) == True{} : Bool},
+  hrest: {Frs.ok(rest, bk) == True{} : Bool}, -mu: Nat) ->
+  Moved(Source.Bool.lazy(Machine.Move, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q1{})), Machine.Val.is_data(v)),
+    u => Machine.Move.go{Machine.St.eval{f, Machine.Val.env{v, e}, rest}}, u => Machine.Move.stuck{}),
+    Frs.plug(rest, Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}), mu, bk):
+  %Equal.sym(Bool, Machine.Val.is_data(v), Source.Term.is_data(Val.rb(v)), Data.val(v, bk, Good.any(v, bk, hv))) :
+    Moved(Source.Bool.lazy(Machine.Move, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q1{})), _),
+      u => Machine.Move.go{Machine.St.eval{f, Machine.Val.env{v, e}, rest}}, u => Machine.Move.stuck{}),
+      Frs.plug(rest, Source.Term.Let{Source.Q1{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}), mu, bk)
+  S.let.of.Q1(Bool.or(Bool.not(Source.Quan.is_q2(Source.Q1{})), Source.Term.is_data(Val.rb(v))), v, f, e, rest, bk, hv, he, hrest, mu,
+    Let.step.Q1(v, Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), bk, hv))
+
+def Let.step.Q2(+v: Machine.Val, +f: Source.Term, +bk: List<&2, Source.Def>, +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool}) ->
+  {Source.Term.step(Source.Term.Let{Source.Q2{}, Val.rb(v), f}, bk) ==
+    Source.Maybe.when(Source.Term, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q2{})), Source.Term.is_data(Val.rb(v))),
+      w => Some{Source.Term.sub(f, 0n, Source.Sub.one{Val.rb(v)})}) : Maybe<&2, Source.Term>}:
+  %Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(Val.rb(v), bk), None{}, Vals.step(Val.rb(v), False{}, bk, Val.value(v, bk, hv))) :
+    {Source.Term.step.let(Source.Q2{}, Val.rb(v), f, bk, w => _) ==
+      Source.Maybe.when(Source.Term, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q2{})), Source.Term.is_data(Val.rb(v))),
+        w => Some{Source.Term.sub(f, 0n, Source.Sub.one{Val.rb(v)})}) : Maybe<&2, Source.Term>}
+  %Equal.sym(Bool, Source.Term.is_value(Val.rb(v), False{}, bk), True{}, Val.value(v, bk, hv)) :
+    {Source.Maybe.when(Source.Term, Bool.and(_, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q2{})), Source.Term.is_data(Val.rb(v)))),
+      w => Some{Source.Term.sub(f, 0n, Source.Sub.one{Val.rb(v)})}) ==
+      Source.Maybe.when(Source.Term, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q2{})), Source.Term.is_data(Val.rb(v))),
+        w => Some{Source.Term.sub(f, 0n, Source.Sub.one{Val.rb(v)})}) : Maybe<&2, Source.Term>}
+  {==}
+
+def S.let.of.Q2(c: Bool, +v: Machine.Val, +f: Source.Term, +e: Machine.Val, +rest: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool}, he: {Val.ok(e, Mode.env{}, bk) == True{} : Bool},
+  +hrest: {Frs.ok(rest, bk) == True{} : Bool}, -mu: Nat,
+  hst: {Source.Term.step(Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk) == Source.Maybe.when(Source.Term, c, w => Some{Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)})}) : Maybe<&2, Source.Term>}) ->
+  Moved(Source.Bool.lazy(Machine.Move, c, u => Machine.Move.go{Machine.St.eval{f, Machine.Val.env{v, e}, rest}}, u => Machine.Move.stuck{}),
+    Frs.plug(rest, Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}), mu, bk):
+  match c:
+    case True{}:
+      (SP.Bool.and_intro(Bool.and(Val.ok(v, Mode.any{}, bk), Val.ok(e, Mode.env{}, bk)), Frs.ok(rest, bk), SP.Bool.and_intro(Val.ok(v, Mode.any{}, bk), Val.ok(e, Mode.env{}, bk), Good.any(v, bk, hv), he), hrest),
+        Inr{Ctx.go(rest, Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, Clo.rb(f, Machine.Val.env{v, e}), bk, hrest, {==},
+          Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk), Some{Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)})},
+            Some{Clo.rb(f, Machine.Val.env{v, e})}, hst,
+            Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Some{z}, Source.Term.sub(Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), 0n, Source.Sub.one{Val.rb(v)}),
+              Clo.rb(f, Machine.Val.env{v, e}), Term.sub_one(f, Env.rb(e), Val.rb(v)))))})
+    case False{}:
+      Ctx.stuck(rest, Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}, bk, hrest, {==}, hst)
+
+def S.let.Q2(+v: Machine.Val, +f: Source.Term, +e: Machine.Val, +rest: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool}, he: {Val.ok(e, Mode.env{}, bk) == True{} : Bool},
+  hrest: {Frs.ok(rest, bk) == True{} : Bool}, -mu: Nat) ->
+  Moved(Source.Bool.lazy(Machine.Move, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q2{})), Machine.Val.is_data(v)),
+    u => Machine.Move.go{Machine.St.eval{f, Machine.Val.env{v, e}, rest}}, u => Machine.Move.stuck{}),
+    Frs.plug(rest, Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}), mu, bk):
+  %Equal.sym(Bool, Machine.Val.is_data(v), Source.Term.is_data(Val.rb(v)), Data.val(v, bk, Good.any(v, bk, hv))) :
+    Moved(Source.Bool.lazy(Machine.Move, Bool.or(Bool.not(Source.Quan.is_q2(Source.Q2{})), _),
+      u => Machine.Move.go{Machine.St.eval{f, Machine.Val.env{v, e}, rest}}, u => Machine.Move.stuck{}),
+      Frs.plug(rest, Source.Term.Let{Source.Q2{}, Val.rb(v), Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)})}), mu, bk)
+  S.let.of.Q2(Bool.or(Bool.not(Source.Quan.is_q2(Source.Q2{})), Source.Term.is_data(Val.rb(v))), v, f, e, rest, bk, hv, he, hrest, mu,
+    Let.step.Q2(v, Source.Term.sub(f, 1n, Source.Sub.env{Env.rb(e)}), bk, hv))
+
+def Rwt.stuck(+v: Machine.Val, +p: Source.Term, +f: Source.Term, +bk: List<&2, Source.Def>, hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool},
+  hr: {Source.Term.is_rfl(Val.rb(v)) == False{} : Bool}) ->
+  {Source.Term.step(Source.Term.Rwt{Val.rb(v), p, f}, bk) == None{} : Maybe<&2, Source.Term>}:
+  %Equal.sym(Bool, Source.Term.is_rfl(Val.rb(v)), False{}, hr) :
+    {Source.Bool.lazy(Maybe<&2, Source.Term>, _, w => Some{f}, w => Source.Maybe.map_term(Source.Term.step(Val.rb(v), bk), z => Source.Term.Rwt{z, p, f})) == None{} : Maybe<&2, Source.Term>}
+  %Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(Val.rb(v), bk), None{}, Vals.step(Val.rb(v), False{}, bk, Val.value(v, bk, hv))) :
+    {Source.Maybe.map_term(_, z => Source.Term.Rwt{z, p, f}) == None{} : Maybe<&2, Source.Term>}
+  {==}
+
+def Min.step(+a: Machine.Val, +v: Machine.Val, +bk: List<&2, Source.Def>, +ha: {Val.ok(a, Mode.good{}, bk) == True{} : Bool},
+  +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool}) ->
+  {Source.Term.step(Source.Term.Min{Val.rb(a), Val.rb(v)}, bk) == Source.Term.meet(Val.rb(a), Val.rb(v)) : Maybe<&2, Source.Term>}:
+  %Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(Val.rb(a), bk), None{}, Vals.step(Val.rb(a), False{}, bk, Val.value(a, bk, ha))) :
+    {Source.Term.step.min(Val.rb(a), Val.rb(v), bk, w => _, w => Source.Term.step(Val.rb(v), bk)) == Source.Term.meet(Val.rb(a), Val.rb(v)) : Maybe<&2, Source.Term>}
+  %Equal.sym(Bool, Source.Term.is_value(Val.rb(a), False{}, bk), True{}, Val.value(a, bk, ha)) :
+    {Source.Maybe.when(Source.Term, _, w => Source.Maybe.else(Source.Term, Source.Maybe.map_term(Source.Term.step(Val.rb(v), bk), z => Source.Term.Min{Val.rb(a), z}),
+      z => Source.Term.meet(Val.rb(a), Val.rb(v)))) == Source.Term.meet(Val.rb(a), Val.rb(v)) : Maybe<&2, Source.Term>}
+  %Equal.sym(Maybe<&2, Source.Term>, Source.Term.step(Val.rb(v), bk), None{}, Vals.step(Val.rb(v), False{}, bk, Val.value(v, bk, hv))) :
+    {Source.Maybe.else(Source.Term, Source.Maybe.map_term(_, z => Source.Term.Min{Val.rb(a), z}), z => Source.Term.meet(Val.rb(a), Val.rb(v))) ==
+      Source.Term.meet(Val.rb(a), Val.rb(v)) : Maybe<&2, Source.Term>}
+  {==}
+
+def S.meet.of(c: Bool, +i: List<&2, Nat>, +j: List<&2, Nat>, +rest: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  +hrest: {Frs.ok(rest, bk) == True{} : Bool}, -mu: Nat,
+  hst: {Source.Term.step(Source.Term.Min{Source.Term.Lab{i}, Source.Term.Lab{j}}, bk) ==
+    Source.Bool.lazy(Maybe<&2, Source.Term>, c, u => Some{Source.Term.qmin(i, j)}, u => None{}) : Maybe<&2, Source.Term>}) ->
+  Moved(Source.Bool.lazy(Machine.Move, c, u => Machine.Move.go{Machine.St.eval{Source.Term.qmin(i, j), Machine.Val.nil{}, rest}},
+    u => Machine.Move.stuck{}), Frs.plug(rest, Source.Term.Min{Source.Term.Lab{i}, Source.Term.Lab{j}}), mu, bk):
+  match c:
+    case True{}:
+      (SP.Bool.and_intro(True{}, Frs.ok(rest, bk), {==}, hrest),
+        Inr{Ctx.go(rest, Source.Term.Min{Source.Term.Lab{i}, Source.Term.Lab{j}}, Clo.rb(Source.Term.qmin(i, j), Machine.Val.nil{}), bk, hrest, {==},
+          Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Source.Term.Lab{i}, Source.Term.Lab{j}}, bk), Some{Source.Term.qmin(i, j)},
+            Some{Clo.rb(Source.Term.qmin(i, j), Machine.Val.nil{})}, hst,
+            Equal.cong(Source.Term, Maybe<&2, Source.Term>, z => Some{z}, Source.Term.qmin(i, j), Clo.rb(Source.Term.qmin(i, j), Machine.Val.nil{}),
+              Equal.sym(Source.Term, Clo.rb(Source.Term.qmin(i, j), Machine.Val.nil{}), Source.Term.qmin(i, j), Qmin.sub(i, j)))))})
+    case False{}:
+      Ctx.stuck(rest, Source.Term.Min{Source.Term.Lab{i}, Source.Term.Lab{j}}, bk, hrest, {==}, hst)
+
+def S.meet(a: Machine.Val, +v: Machine.Val, +rest: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>,
+  +ha: {Val.ok(a, Mode.good{}, bk) == True{} : Bool}, +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool},
+  +hrest: {Frs.ok(rest, bk) == True{} : Bool}, -mu: Nat) -> Moved(Machine.Ret.meet(a, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(a), Val.rb(v)}), mu, bk):
+  match a:
+    case Machine.Val.nil{}:
+      Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.nil{}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.nil{}), Val.rb(v)}), mu, bk), ha)
+    case Machine.Val.env{+u0, +u1}:
+      Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.env{u0, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.env{u0, u1}), Val.rb(v)}), mu, bk), ha)
+    case Machine.Val.arg{+u0, +u1, +u2}:
+      Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.arg{u0, u1, u2}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.arg{u0, u1, u2}), Val.rb(v)}), mu, bk), ha)
+    case Machine.Val.clo{+u0, +u1}:
+      match u0:
+        case Source.Term.Var{+ut0}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Var{ut0}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Var{ut0}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Var{ut0}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.Ref{+ut0}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Ref{ut0}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Ref{ut0}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Ref{ut0}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.Ann{+ut0, +ut1}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Ann{ut0, ut1}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Ann{ut0, ut1}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Ann{ut0, ut1}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.Let{+ut0, +ut1, +ut2}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Let{ut0, ut1, ut2}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Let{ut0, ut1, ut2}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Let{ut0, ut1, ut2}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.Typ{+ut0}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Typ{ut0}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Typ{ut0}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.Typ{ut0}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.Typ{ut0}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.Min{+ut0, +ut1}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Min{ut0, ut1}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Min{ut0, ut1}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Min{ut0, ut1}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.All{+ut0, +ut1, +ut2}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.All{ut0, ut1, ut2}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.All{ut0, ut1, ut2}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.All{ut0, ut1, ut2}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.All{ut0, ut1, ut2}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.Lam{+ut0, +ut1}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Lam{ut0, ut1}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Lam{ut0, ut1}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.Lam{ut0, ut1}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.Lam{ut0, ut1}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.App{+ut0, +ut1, +ut2}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.App{ut0, ut1, ut2}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.App{ut0, ut1, ut2}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.App{ut0, ut1, ut2}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.Sig{+ut0, +ut1, +ut2}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Sig{ut0, ut1, ut2}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Sig{ut0, ut1, ut2}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.Sig{ut0, ut1, ut2}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.Sig{ut0, ut1, ut2}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.Tup{+ut0, +ut1, +ut2}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Tup{ut0, ut1, ut2}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Tup{ut0, ut1, ut2}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Tup{ut0, ut1, ut2}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.Prj{+ut0}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Prj{ut0}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Prj{ut0}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.Prj{ut0}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.Prj{ut0}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.Enu{+ut0}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Enu{ut0}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Enu{ut0}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.Enu{ut0}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.Enu{ut0}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.Lab{+ut0}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Lab{ut0}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Lab{ut0}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Lab{ut0}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.Mat{+ut0, +ut1, +ut2}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Mat{ut0, ut1, ut2}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Mat{ut0, ut1, ut2}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.Mat{ut0, ut1, ut2}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.Mat{ut0, ut1, ut2}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.Efq{}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Efq{}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Efq{}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.Efq{}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.Efq{}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.Eql{+ut0, +ut1, +ut2}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Eql{ut0, ut1, ut2}, u1}), Val.rb(v)}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Eql{ut0, ut1, ut2}, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.clo{Source.Term.Eql{ut0, ut1, ut2}, u1}), Val.rb(v)), None{},
+              Min.step(Machine.Val.clo{Source.Term.Eql{ut0, ut1, ut2}, u1}, v, bk, ha, hv), {==}))
+        case Source.Term.Rfl{}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Rfl{}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Rfl{}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Rfl{}), Val.ok(u1, Mode.env{}, bk), ha))
+        case Source.Term.Rwt{+ut0, +ut1, +ut2}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.clo{Source.Term.Rwt{ut0, ut1, ut2}, u1}, v, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.clo{Source.Term.Rwt{ut0, ut1, ut2}, u1}), Val.rb(v)}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Rwt{ut0, ut1, ut2}), Val.ok(u1, Mode.env{}, bk), ha))
+    case Machine.Val.lab{+u0}:
+      match v:
+        case Machine.Val.nil{}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.nil{}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.nil{})}), mu, bk), hv)
+        case Machine.Val.env{+w0, +w1}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.env{w0, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.env{w0, w1})}), mu, bk), hv)
+        case Machine.Val.arg{+w0, +w1, +w2}:
+          Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.arg{w0, w1, w2}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.arg{w0, w1, w2})}), mu, bk), hv)
+        case Machine.Val.clo{+w0, +w1}:
+          match w0:
+            case Source.Term.Var{+wt0}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Var{wt0}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Var{wt0}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Var{wt0}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Ref{+wt0}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Ref{wt0}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Ref{wt0}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Ref{wt0}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Ann{+wt0, +wt1}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Ann{wt0, wt1}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Ann{wt0, wt1}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Ann{wt0, wt1}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Let{+wt0, +wt1, +wt2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Let{wt0, wt1, wt2}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Let{wt0, wt1, wt2}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Let{wt0, wt1, wt2}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Typ{+wt0}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Typ{wt0}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Typ{wt0}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Typ{wt0}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Typ{wt0}, w1}, bk, ha, hv), {==}))
+            case Source.Term.Min{+wt0, +wt1}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Min{wt0, wt1}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Min{wt0, wt1}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Min{wt0, wt1}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.All{+wt0, +wt1, +wt2}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.All{wt0, wt1, wt2}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.All{wt0, wt1, wt2}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.All{wt0, wt1, wt2}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.All{wt0, wt1, wt2}, w1}, bk, ha, hv), {==}))
+            case Source.Term.Lam{+wt0, +wt1}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Lam{wt0, wt1}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Lam{wt0, wt1}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Lam{wt0, wt1}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Lam{wt0, wt1}, w1}, bk, ha, hv), {==}))
+            case Source.Term.App{+wt0, +wt1, +wt2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.App{wt0, wt1, wt2}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.App{wt0, wt1, wt2}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.App{wt0, wt1, wt2}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Sig{+wt0, +wt1, +wt2}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Sig{wt0, wt1, wt2}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Sig{wt0, wt1, wt2}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Sig{wt0, wt1, wt2}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Sig{wt0, wt1, wt2}, w1}, bk, ha, hv), {==}))
+            case Source.Term.Tup{+wt0, +wt1, +wt2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Tup{wt0, wt1, wt2}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Tup{wt0, wt1, wt2}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Tup{wt0, wt1, wt2}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Prj{+wt0}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Prj{wt0}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Prj{wt0}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Prj{wt0}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Prj{wt0}, w1}, bk, ha, hv), {==}))
+            case Source.Term.Enu{+wt0}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Enu{wt0}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Enu{wt0}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Enu{wt0}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Enu{wt0}, w1}, bk, ha, hv), {==}))
+            case Source.Term.Lab{+wt0}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Lab{wt0}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Lab{wt0}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Lab{wt0}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Mat{+wt0, +wt1, +wt2}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Mat{wt0, wt1, wt2}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Mat{wt0, wt1, wt2}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Mat{wt0, wt1, wt2}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Mat{wt0, wt1, wt2}, w1}, bk, ha, hv), {==}))
+            case Source.Term.Efq{}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Efq{}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Efq{}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Efq{}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Efq{}, w1}, bk, ha, hv), {==}))
+            case Source.Term.Eql{+wt0, +wt1, +wt2}:
+              Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Eql{wt0, wt1, wt2}, w1})}, bk, hrest, {==},
+                Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Eql{wt0, wt1, wt2}, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Eql{wt0, wt1, wt2}, w1})), None{},
+                  Min.step(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Eql{wt0, wt1, wt2}, w1}, bk, ha, hv), {==}))
+            case Source.Term.Rfl{}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Rfl{}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Rfl{}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Rfl{}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Rwt{+wt0, +wt1, +wt2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.meet(Machine.Val.lab{u0}, Machine.Val.clo{Source.Term.Rwt{wt0, wt1, wt2}, w1}, rest), Frs.plug(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.clo{Source.Term.Rwt{wt0, wt1, wt2}, w1})}), mu, bk), SP.Bool.and_left(Term.is_fun(Source.Term.Rwt{wt0, wt1, wt2}), Val.ok(w1, Mode.env{}, bk), hv))
+        case Machine.Val.lab{+w0}:
+          S.meet.of(Bool.and(Source.Name.is_quan(u0), Source.Name.is_quan(w0)), u0, w0, rest, bk, hrest, mu, {==})
+        case Machine.Val.rfl{}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.rfl{})}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.rfl{})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.rfl{})), None{},
+              Min.step(Machine.Val.lab{u0}, Machine.Val.rfl{}, bk, ha, hv), {==}))
+        case Machine.Val.tup{+w0, +w1, +w2}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.tup{w0, w1, w2})}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.tup{w0, w1, w2})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.tup{w0, w1, w2})), None{},
+              Min.step(Machine.Val.lab{u0}, Machine.Val.tup{w0, w1, w2}, bk, ha, hv), {==}))
+        case Machine.Val.call{+w0, +w1}:
+          Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.call{w0, w1})}, bk, hrest, {==},
+            Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.call{w0, w1})}, bk), Source.Term.meet(Val.rb(Machine.Val.lab{u0}), Val.rb(Machine.Val.call{w0, w1})), None{},
+              Min.step(Machine.Val.lab{u0}, Machine.Val.call{w0, w1}, bk, ha, hv), Call.elim(Val.rb(Machine.Val.call{w0, w1}), Call.rb_is_call(w0, w1), z => {Source.Term.meet(Source.Term.Lab{u0}, z) == None{} : Maybe<&2, Source.Term>}, q2 => f2 => x2 => {==}, n => {==})))
+    case Machine.Val.rfl{}:
+      Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.rfl{}), Val.rb(v)}, bk, hrest, {==},
+        Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.rfl{}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.rfl{}), Val.rb(v)), None{},
+          Min.step(Machine.Val.rfl{}, v, bk, ha, hv), {==}))
+    case Machine.Val.tup{+u0, +u1, +u2}:
+      Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.tup{u0, u1, u2}), Val.rb(v)}, bk, hrest, {==},
+        Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.tup{u0, u1, u2}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.tup{u0, u1, u2}), Val.rb(v)), None{},
+          Min.step(Machine.Val.tup{u0, u1, u2}, v, bk, ha, hv), {==}))
+    case Machine.Val.call{+u0, +u1}:
+      Ctx.stuck(rest, Source.Term.Min{Val.rb(Machine.Val.call{u0, u1}), Val.rb(v)}, bk, hrest, {==},
+        Equal.trans(Maybe<&2, Source.Term>, Source.Term.step(Source.Term.Min{Val.rb(Machine.Val.call{u0, u1}), Val.rb(v)}, bk), Source.Term.meet(Val.rb(Machine.Val.call{u0, u1}), Val.rb(v)), None{},
+          Min.step(Machine.Val.call{u0, u1}, v, bk, ha, hv), Call.elim(Val.rb(Machine.Val.call{u0, u1}), Call.rb_is_call(u0, u1), z => {Source.Term.meet(z, Val.rb(v)) == None{} : Maybe<&2, Source.Term>}, q2 => f2 => x2 => {==}, n => {==})))
+
+def S.frame(fr: Machine.Fr, +v: Machine.Val, +rest: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>, +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool},
+  +hfr: {Fr.ok(fr, bk) == True{} : Bool}, +hrest: {Frs.ok(rest, bk) == True{} : Bool}) -> Moved(Machine.Ret.go(v, Con{fr, rest}, bk), Frs.plug(Con{fr, rest}, Val.rb(v)), Frs.mu(Con{fr, rest}, 0n), bk):
+  match fr:
+    case Machine.Fr.arg{q, +x}:
+      match q:
+        case Source.Q0{}:
+          S.apply(v, Source.Q0{}, x, rest, bk, hv, hfr, hrest, Frs.mu(rest, 1n), Frs.lt(rest, 0n, 1n, {==}))
+        case Source.Q1{}:
+          match x:
+            case Machine.Val.nil{}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(v, Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.nil{}}, rest}, bk), Frs.plug(Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.nil{}}, rest}, Val.rb(v)), Frs.mu(Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.nil{}}, rest}, 0n), bk), hfr)
+            case Machine.Val.env{+y0, +y1}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(v, Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.env{y0, y1}}, rest}, bk), Frs.plug(Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.env{y0, y1}}, rest}, Val.rb(v)), Frs.mu(Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.env{y0, y1}}, rest}, 0n), bk), hfr)
+            case Machine.Val.arg{+y0, +y1, +y2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(v, Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.arg{y0, y1, y2}}, rest}, bk), Frs.plug(Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.arg{y0, y1, y2}}, rest}, Val.rb(v)), Frs.mu(Con{Machine.Fr.arg{Source.Q1{}, Machine.Val.arg{y0, y1, y2}}, rest}, 0n), bk), hfr)
+            case Machine.Val.clo{+y0, +y1}:
+              (SP.Bool.and_intro(Val.ok(y1, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q1{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q1{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n+Nat.add(Term.var(y0), Term.w(Clo.rb(y0, y1))), Nat.add(3n+Term.w(Clo.rb(y0, y1)), 0n),
+                  Le.pop3(y0, Term.w(Clo.rb(y0, y1)))))})
+            case Machine.Val.lab{+y0}:
+              (SP.Bool.and_intro(Val.ok(Machine.Val.lab{y0}, Mode.good{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q1{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q1{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n, Nat.add(3n+Term.w(Val.rb(Machine.Val.lab{y0})), 0n), {==}))})
+            case Machine.Val.rfl{}:
+              (SP.Bool.and_intro(Val.ok(Machine.Val.rfl{}, Mode.good{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q1{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q1{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n, Nat.add(3n+Term.w(Val.rb(Machine.Val.rfl{})), 0n), {==}))})
+            case Machine.Val.tup{+y0, +y1, +y2}:
+              (SP.Bool.and_intro(Val.ok(Machine.Val.tup{y0, y1, y2}, Mode.good{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q1{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q1{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n, Nat.add(3n+Term.w(Val.rb(Machine.Val.tup{y0, y1, y2})), 0n), {==}))})
+            case Machine.Val.call{+y0, +y1}:
+              (SP.Bool.and_intro(Val.ok(Machine.Val.call{y0, y1}, Mode.good{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q1{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q1{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n, Nat.add(3n+Term.w(Val.rb(Machine.Val.call{y0, y1})), 0n), {==}))})
+        case Source.Q2{}:
+          match x:
+            case Machine.Val.nil{}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(v, Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.nil{}}, rest}, bk), Frs.plug(Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.nil{}}, rest}, Val.rb(v)), Frs.mu(Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.nil{}}, rest}, 0n), bk), hfr)
+            case Machine.Val.env{+y0, +y1}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(v, Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.env{y0, y1}}, rest}, bk), Frs.plug(Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.env{y0, y1}}, rest}, Val.rb(v)), Frs.mu(Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.env{y0, y1}}, rest}, 0n), bk), hfr)
+            case Machine.Val.arg{+y0, +y1, +y2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(v, Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.arg{y0, y1, y2}}, rest}, bk), Frs.plug(Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.arg{y0, y1, y2}}, rest}, Val.rb(v)), Frs.mu(Con{Machine.Fr.arg{Source.Q2{}, Machine.Val.arg{y0, y1, y2}}, rest}, 0n), bk), hfr)
+            case Machine.Val.clo{+y0, +y1}:
+              (SP.Bool.and_intro(Val.ok(y1, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q2{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q2{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n+Nat.add(Term.var(y0), Term.w(Clo.rb(y0, y1))), Nat.add(3n+Term.w(Clo.rb(y0, y1)), 0n),
+                  Le.pop3(y0, Term.w(Clo.rb(y0, y1)))))})
+            case Machine.Val.lab{+y0}:
+              (SP.Bool.and_intro(Val.ok(Machine.Val.lab{y0}, Mode.good{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q2{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q2{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n, Nat.add(3n+Term.w(Val.rb(Machine.Val.lab{y0})), 0n), {==}))})
+            case Machine.Val.rfl{}:
+              (SP.Bool.and_intro(Val.ok(Machine.Val.rfl{}, Mode.good{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q2{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q2{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n, Nat.add(3n+Term.w(Val.rb(Machine.Val.rfl{})), 0n), {==}))})
+            case Machine.Val.tup{+y0, +y1, +y2}:
+              (SP.Bool.and_intro(Val.ok(Machine.Val.tup{y0, y1, y2}, Mode.good{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q2{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q2{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n, Nat.add(3n+Term.w(Val.rb(Machine.Val.tup{y0, y1, y2})), 0n), {==}))})
+            case Machine.Val.call{+y0, +y1}:
+              (SP.Bool.and_intro(Val.ok(Machine.Val.call{y0, y1}, Mode.good{}, bk), Frs.ok(Con{Machine.Fr.fun{Source.Q2{}, v}, rest}, bk), hfr, SP.Bool.and_intro(Fr.ok(Machine.Fr.fun{Source.Q2{}, v}, bk), Frs.ok(rest, bk), hv, hrest)),
+                Inl{({==}, Frs.lt(rest, 1n, Nat.add(3n+Term.w(Val.rb(Machine.Val.call{y0, y1})), 0n), {==}))})
+    case Machine.Fr.fun{+q, +f}:
+      S.apply(f, q, v, rest, bk, SP.Bool.and_right(Source.Quan.live(q), Val.ok(f, Mode.good{}, bk), hfr), Good.field(q, v, bk, hv), hrest,
+        Frs.mu(rest, 1n), Frs.lt(rest, 0n, 1n, {==}))
+    case Machine.Fr.let{q, +f, +e}:
+      match q:
+        case Source.Q0{}:
+          Shared.Bool.absurd(Moved(Machine.Ret.go(v, Con{Machine.Fr.let{Source.Q0{}, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.let{Source.Q0{}, f, e}, rest}, Val.rb(v)), Frs.mu(Con{Machine.Fr.let{Source.Q0{}, f, e}, rest}, 0n), bk), hfr)
+        case Source.Q1{}:
+          S.let.Q1(v, f, e, rest, bk, hv, hfr, hrest, Frs.mu(rest, 0n))
+        case Source.Q2{}:
+          S.let.Q2(v, f, e, rest, bk, hv, hfr, hrest, Frs.mu(rest, 0n))
+    case Machine.Fr.fst{+q, +b, +e}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.snd{q, v}, rest}, bk), SP.Bool.and_right(Source.Quan.live(q), Val.ok(e, Mode.env{}, bk), hfr), SP.Bool.and_intro(Val.ok(v, Mode.field(q), bk), Frs.ok(rest, bk), Good.field(q, v, bk, hv), hrest)),
+        Inl{({==}, Frs.lt(rest, 1n+Nat.add(Term.var(b), Term.w(Clo.rb(b, e))), Nat.add(3n+Term.w(Clo.rb(b, e)), 0n), Le.pop3(b, Term.w(Clo.rb(b, e)))))})
+    case Machine.Fr.snd{+q, +a}:
+      (SP.Bool.and_intro(Val.ok(Machine.Val.tup{q, a, v}, Mode.good{}, bk), Frs.ok(rest, bk), SP.Bool.and_intro(Val.ok(a, Mode.field(q), bk), Val.ok(v, Mode.good{}, bk), hfr, hv), hrest),
+        Inl{({==}, Frs.lt(rest, 0n, 1n, {==}))})
+    case Machine.Fr.rwt{+p, +f, +e}:
+      match v:
+        case Machine.Val.nil{}:
+          Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.nil{}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.nil{})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), hv)
+        case Machine.Val.env{+w0, +w1}:
+          Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.env{w0, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.env{w0, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), hv)
+        case Machine.Val.arg{+w0, +w1, +w2}:
+          Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.arg{w0, w1, w2}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.arg{w0, w1, w2})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), hv)
+        case Machine.Val.clo{+w0, +w1}:
+          match w0:
+            case Source.Term.Var{+wt0}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Var{wt0}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Var{wt0}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Var{wt0}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Ref{+wt0}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Ref{wt0}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Ref{wt0}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Ref{wt0}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Ann{+wt0, +wt1}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Ann{wt0, wt1}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Ann{wt0, wt1}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Ann{wt0, wt1}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Let{+wt0, +wt1, +wt2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Let{wt0, wt1, wt2}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Let{wt0, wt1, wt2}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Let{wt0, wt1, wt2}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Typ{+wt0}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.Typ{wt0}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.Typ{wt0}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.Min{+wt0, +wt1}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Min{wt0, wt1}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Min{wt0, wt1}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Min{wt0, wt1}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.All{+wt0, +wt1, +wt2}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.All{wt0, wt1, wt2}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.All{wt0, wt1, wt2}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.Lam{+wt0, +wt1}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.Lam{wt0, wt1}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.Lam{wt0, wt1}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.App{+wt0, +wt1, +wt2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.App{wt0, wt1, wt2}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.App{wt0, wt1, wt2}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.App{wt0, wt1, wt2}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Sig{+wt0, +wt1, +wt2}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.Sig{wt0, wt1, wt2}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.Sig{wt0, wt1, wt2}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.Tup{+wt0, +wt1, +wt2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Tup{wt0, wt1, wt2}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Tup{wt0, wt1, wt2}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Tup{wt0, wt1, wt2}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Prj{+wt0}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.Prj{wt0}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.Prj{wt0}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.Enu{+wt0}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.Enu{wt0}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.Enu{wt0}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.Lab{+wt0}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Lab{wt0}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Lab{wt0}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Lab{wt0}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Mat{+wt0, +wt1, +wt2}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.Mat{wt0, wt1, wt2}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.Mat{wt0, wt1, wt2}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.Efq{}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.Efq{}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.Efq{}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.Eql{+wt0, +wt1, +wt2}:
+              Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.clo{Source.Term.Eql{wt0, wt1, wt2}, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.clo{Source.Term.Eql{wt0, wt1, wt2}, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+            case Source.Term.Rfl{}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Rfl{}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Rfl{}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Rfl{}), Val.ok(w1, Mode.env{}, bk), hv))
+            case Source.Term.Rwt{+wt0, +wt1, +wt2}:
+              Shared.Bool.absurd(Moved(Machine.Ret.go(Machine.Val.clo{Source.Term.Rwt{wt0, wt1, wt2}, w1}, Con{Machine.Fr.rwt{p, f, e}, rest}, bk), Frs.plug(Con{Machine.Fr.rwt{p, f, e}, rest}, Val.rb(Machine.Val.clo{Source.Term.Rwt{wt0, wt1, wt2}, w1})), Frs.mu(Con{Machine.Fr.rwt{p, f, e}, rest}, 0n), bk), SP.Bool.and_left(Term.is_fun(Source.Term.Rwt{wt0, wt1, wt2}), Val.ok(w1, Mode.env{}, bk), hv))
+        case Machine.Val.lab{+w0}:
+          Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.lab{w0}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.lab{w0}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+        case Machine.Val.rfl{}:
+          (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(rest, bk), hfr, hrest),
+            Inr{Ctx.go(rest, Source.Term.Rwt{Val.rb(Machine.Val.rfl{}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, Clo.rb(f, e), bk, hrest, {==}, {==})})
+        case Machine.Val.tup{+w0, +w1, +w2}:
+          Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.tup{w0, w1, w2}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.tup{w0, w1, w2}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, {==}))
+        case Machine.Val.call{+w0, +w1}:
+          Ctx.stuck(rest, Source.Term.Rwt{Val.rb(Machine.Val.call{w0, w1}), Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e)}, bk, hrest, {==}, Rwt.stuck(Machine.Val.call{w0, w1}, Source.Term.sub(p, 2n, Source.Sub.env{Env.rb(e)}), Clo.rb(f, e), bk, hv, Call.elim(Val.rb(Machine.Val.call{w0, w1}), Call.rb_is_call(w0, w1), z => {Source.Term.is_rfl(z) == False{} : Bool}, q2 => f2 => x2 => {==}, n => {==})))
+    case Machine.Fr.min1{+b, +e}:
+      (SP.Bool.and_intro(Val.ok(e, Mode.env{}, bk), Frs.ok(Con{Machine.Fr.min2{v}, rest}, bk), hfr, SP.Bool.and_intro(Val.ok(v, Mode.good{}, bk), Frs.ok(rest, bk), hv, hrest)),
+        Inl{({==}, Frs.lt(rest, 1n+Nat.add(Term.var(b), Term.w(Clo.rb(b, e))), Nat.add(3n+Term.w(Clo.rb(b, e)), 0n), Le.pop3(b, Term.w(Clo.rb(b, e)))))})
+    case Machine.Fr.min2{+a}:
+      S.meet(a, v, rest, bk, hfr, hv, hrest, Frs.mu(rest, 1n))
+
+# the step from St.ret v fs
+def S.ret(+v: Machine.Val, fs: List<&2, Machine.Fr>, +bk: List<&2, Source.Def>, +hv: {Val.ok(v, Mode.good{}, bk) == True{} : Bool},
+  +hfs: {Frs.ok(fs, bk) == True{} : Bool}) ->
+  Moved(Machine.Ret.go(v, fs, bk), Frs.plug(fs, Val.rb(v)), Frs.mu(fs, 0n), bk):
+  match fs:
+    case Nil{}:
+      (hv, {==})
+    case Con{+fr, +rest}:
+      S.frame(fr, v, rest, bk, hv, SP.Bool.and_left(Fr.ok(fr, bk), Frs.ok(rest, bk), hfs), SP.Bool.and_right(Fr.ok(fr, bk), Frs.ok(rest, bk), hfs))
+
+# one step of the machine, from a state that keeps the invariant
+def Step.ok(s: Machine.St, +bk: List<&2, Source.Def>, +h: {St.ok(s, bk) == True{} : Bool}) ->
+  Moved(Machine.Machine.step(s, bk), St.rb(s), St.mu(s), bk):
+  match s:
+    case Machine.St.eval{t, +e, +fs}:
+      S.eval(t, e, fs, bk, SP.Bool.and_left(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), h),
+        SP.Bool.and_right(Val.ok(e, Mode.env{}, bk), Frs.ok(fs, bk), h))
+    case Machine.St.ret{+v, +fs}:
+      S.ret(v, fs, bk, SP.Bool.and_left(Val.ok(v, Mode.good{}, bk), Frs.ok(fs, bk), h),
+        SP.Bool.and_right(Val.ok(v, Mode.good{}, bk), Frs.ok(fs, bk), h))
