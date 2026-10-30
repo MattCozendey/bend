@@ -254,7 +254,10 @@ reviewed before the next starts:
    substitution, after the Lean machine (`Machine/`). It is exact for
    untyped books too, where the Lean machine hands the run to `stepUntil`:
    a dead term is a closure, and the machine reads its form when a case
-   tree asks for it. Its result is the source's run on the parsed book.
+   tree asks for it. Its result is the source's run on the parsed book:
+   its fuel for a run of the source sums the weights of the run's terms,
+   and the source needs one step more than the machine. Status: done
+   (`src/machine/`).
 4. The layout: the machine's values, environments and frames as bytes in
    the memory, with a number for each def and each label. A full memory
    gives `Out.oom`. It does what step 3 does.
