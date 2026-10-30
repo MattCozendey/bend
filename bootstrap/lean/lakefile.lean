@@ -115,11 +115,10 @@ inductive Pin.Part where
 --   spec.bend copy: Types up to Ctx (the terms, substitution and the book),
 --   the Parser, and Evaluation (the run-time relations). When one changes,
 --   check the copy again.
--- - ../../bend2/base.bend: each Base def that the meanings reach: in the
---   .bendtt of ../bend/main.bend and ../harness/cases/wasm.bend, from the defs
---   of source/impl.bend, source/spec.bend, wasm/impl.bend and
---   compile_wasm/spec.bend, and from the types of the laws. A pinned def that starts to call another
---   Base def changes, so its review adds that def here.
+-- - ../../bend2/base.bend: each Base def that the pinned Bend files reach,
+--   from their defs and from the types of their laws (the .bendtt of a
+--   program that imports them shows the reach). A pinned def that starts to
+--   call another Base def changes, so its review adds that def here.
 def Pins : List (String × Pin.Part × UInt64) := [
   ("src/Contract/Spec.lean", .all, 1941511504593986303),
   ("src/Contract/Proof.lean", .all, 13366616450239201674),
