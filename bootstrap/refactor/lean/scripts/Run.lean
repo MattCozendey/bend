@@ -12,25 +12,29 @@ import Bootstrap
 --   lake build
 --   BOOK=prog.bendtt INPUT=in OUTPUT=out [FUEL=n] lake env lean scripts/Run.lean
 --
--- FUEL is 100000000 when it is not set. On a result, it writes OUTPUT, prints the number of steps and exits with
--- 0. Else it prints the error, and why there is no result, and exits with 1.
+-- FUEL is defaultFuel when it is not set. On a result, it writes OUTPUT, prints
+-- the number of steps and exits with 0. Else it prints the error, and why there
+-- is no result, and exits with 1.
 
 open Quan Term
 
--- why the end e of a run with this fuel gives no result
-def noResult (bk : Book) (fuel : Nat) (e : Term × Nat) : String :=
-  if (step bk e.1).isSome then s!"no result within {fuel} steps"
-  else if value bk e.1 then s!"no result: after {e.2} steps, the value is not a list of bytes"
-  else s!"no result: stuck after {e.2} steps"
+def defaultFuel : Nat := 100000000
+
+-- why the end (v, n) of a run with this fuel gives no result
+def noResult (bk : Book) (fuel : Nat) : Term × Nat → String
+  | (v, n) =>
+    if (step bk v).isSome then s!"no result within {fuel} steps"
+    else if value bk v then s!"no result: after {n} steps, the value is not a list of bytes"
+    else s!"no result: stuck after {n} steps"
 
 def env (k : String) : IO String := do
   let some v ← IO.getEnv k | throw (IO.userError s!"{k} is not set")
   pure v
 
 def runBook : IO Unit := do
-  let fuel := ((← IO.getEnv "FUEL").bind String.toNat?).getD 100000000
+  let fuel := ((← IO.getEnv "FUEL").bind String.toNat?).getD defaultFuel
   match Book.parse (← IO.FS.readFile (← env "BOOK")) with
-  | .error e => throw (IO.userError e)
+  | .error msg => throw (IO.userError msg)
   | .ok bk =>
     let i := (← IO.FS.readBinFile (← env "INPUT")).toList
     let e := steps bk fuel (start i) 0
