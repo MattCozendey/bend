@@ -15,12 +15,6 @@ theorem Steps.succ (h : Steps B n x x') :
   | refl => exact .refl
   | step e _ ih => exact .step (.tup_b (fun _ => .lab) (.tup_a rfl e)) ih
 
--- a nat is Data
-theorem data_nat : Data (Form.nat n) := by
-  induction n with
-  | zero => exact .tup (fun _ => .lab) .lab
-  | succ n ih => exact .tup (fun _ => .lab) (.tup (fun _ => ih) .lab)
-
 -- Nat.double doubles a nat
 theorem double_nat (h : Contains B reader) :
     Runs B (App Q1 (Ref "Nat.double") (Form.nat m)) (Form.nat (2 * m)) := by

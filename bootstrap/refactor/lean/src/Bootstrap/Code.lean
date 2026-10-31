@@ -103,3 +103,66 @@ theorem value_defs : Value B (Form.defs ds) := by
   simp only [List.mem_map]
   rintro _ ⟨d, -, rfl⟩
   exact value_ctor (by simpa [Form.name] using ⟨value_bytes, value_term, value_term, value_bool⟩)
+
+theorem value_maybe (h : ∀ x, Value B (f x)) : Value B (Form.maybe f o) := by
+  cases o <;> simp only [Form.maybe, Form.some] <;> exact value_ctor (by simp [h])
+
+theorem value_env : Value B (Form.env e) := value_list (by simpa [Form.env] using fun _ _ => value_term)
+
+theorem value_args_form : Value B (Form.args xs) := by
+  apply value_list
+  simp only [List.mem_map]
+  rintro _ ⟨⟨q, x⟩, -, rfl⟩
+  exact value_ctor (by simpa using ⟨value_quan, value_term⟩)
+
+-- a constructor of Data is Data
+theorem data_ctor (h : ∀ f ∈ fs, Data f) : Data (ctor k fs) := by
+  refine .tup (fun _ => .lab) ?_
+  induction fs with
+  | nil => exact .lab
+  | cons f fs ih => exact .tup (fun _ => h f (by simp)) (ih fun g hg => h g (by simp [hg]))
+
+theorem data_list (h : ∀ x ∈ xs, Data x) : Data (list xs) := by
+  induction xs with
+  | nil => exact data_ctor nofun
+  | cons x xs ih =>
+    exact data_ctor (by simpa using ⟨h x (by simp), ih fun y hy => h y (by simp [hy])⟩)
+
+theorem data_bits : Data (bits n v) := by
+  induction n generalizing v with
+  | zero => exact data_ctor nofun
+  | succ n ih => exact data_ctor (by simpa using ⟨data_ctor nofun, ih⟩)
+
+theorem data_cell : Data (cell b) := data_ctor (by simpa using data_bits)
+
+theorem data_bytes : Data (bytes bs) := data_list (by simpa using fun _ _ => data_cell)
+
+theorem data_nat : Data (Form.nat n) := by
+  induction n with
+  | zero => exact data_ctor nofun
+  | succ n ih => exact data_ctor (by simpa using ih)
+
+theorem data_quan : Data (Form.quan q) := by cases q <;> exact data_ctor nofun
+
+theorem data_bool : Data (Form.bool b) := data_ctor nofun
+
+theorem data_term : Data (Form.term t) := by
+  induction t <;> simp only [Form.term] <;> apply data_ctor <;>
+    simp [*, Form.name, data_nat, data_quan, data_bytes, data_list]
+
+theorem data_defs : Data (Form.defs ds) := by
+  apply data_list
+  simp only [List.mem_map]
+  rintro _ ⟨d, -, rfl⟩
+  exact data_ctor (by simpa [Form.name] using ⟨data_bytes, data_term, data_term, data_bool⟩)
+
+theorem data_maybe (h : ∀ x, Data (f x)) : Data (Form.maybe f o) := by
+  cases o <;> simp only [Form.maybe, Form.some] <;> exact data_ctor (by simp [h])
+
+theorem data_env : Data (Form.env e) := data_list (by simpa [Form.env] using fun _ _ => data_term)
+
+theorem data_args_form : Data (Form.args xs) := by
+  apply data_list
+  simp only [List.mem_map]
+  rintro _ ⟨⟨q, x⟩, -, rfl⟩
+  exact data_ctor (by simpa using ⟨data_quan, data_term⟩)
