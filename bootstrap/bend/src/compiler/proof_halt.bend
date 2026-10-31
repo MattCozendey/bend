@@ -4,6 +4,7 @@
 import Base
 import ./impl.bend as C
 import ./proof_leb.bend as L
+import ./proof_need.bend as PN
 
 # The module
 # ----------
@@ -459,3 +460,709 @@ def H.nr.ran(+s: U32, ns: {U32.is_eq(s, 0) == False{} : Bool}, c: C.Wasm.Call, g
       Unit{}
     case C.Wasm.Call.not_done{}:
       Unit{}
+
+def H.nr.written(b: Bool, +f: Nat, +s: U32, ns: {U32.is_eq(s, 0) == False{} : Bool}, +a: U32, +k: U32,
+  +p: U32, +lim: U32, +bytes: C.Wasm.Bytes, +i: List<&2, U32>) ->
+  H.NR(C.Wasm.run.written(b, f, C.Wasm.Instance{H.mod(s, False{}), C.Wasm.Memory{p, lim, C.Wasm.write.bytes(i, a, bytes)}}, a, k)):
+  match b:
+    case True{}:
+      +mem = {C.Wasm.Memory{p, lim, C.Wasm.write.bytes(i, a, bytes)} : C.Wasm.Memory}
+      H.nr.ran(s, ns, C.Wasm.call(f, C.Wasm.Func{2n, 1n, 6n, H.body(s, False{})}, [a, k], mem), H.run_good(f, s, a, k, mem))
+    case False{}:
+      Unit{}
+
+def H.nr.full(b: Bool, +f: Nat, +s: U32, ns: {U32.is_eq(s, 0) == False{} : Bool}, +a: U32, +k: U32,
+  mem: C.Wasm.Memory, +i: List<&2, U32>) ->
+  H.NR(C.Wasm.run.alloced.if(b, f, C.Wasm.Instance{H.mod(s, False{}), mem}, a, k, i)):
+  match b:
+    case True{}:
+      Unit{}
+    case False{}:
+      match mem:
+        case C.Wasm.Memory{+p, +lim, +bytes}:
+          H.nr.written(C.Wasm.fits(p, a, k), f, s, ns, a, k, p, lim, bytes, i)
+
+# what alloc gave
+def H.nr.alloced(c: C.Wasm.Call, +f: Nat, +s: U32, ns: {U32.is_eq(s, 0) == False{} : Bool}, +k: U32, +i: List<&2, U32>) ->
+  H.NR(C.Wasm.run.alloced(C.Wasm.invoked(c, H.mod(s, False{})), f, k, i)):
+  match c:
+    case C.Wasm.Call.done{vs, mem, used}:
+      match vs:
+        case Nil{}:
+          Unit{}
+        case Con{+a, rest}:
+          H.nr.full(U32.is_eq(a, 4294967295), Nat.sub(f, used), s, ns, a, k, mem, i)
+    case C.Wasm.Call.trap{mem}:
+      Unit{}
+    case C.Wasm.Call.not_done{}:
+      Unit{}
+
+def H.nr.sized(n: Maybe<&2, U32>, +f: Nat, +s: U32, ns: {U32.is_eq(s, 0) == False{} : Bool}, +mem: C.Wasm.Memory, +i: List<&2, U32>) ->
+  H.NR(C.Wasm.run.sized(n, f, C.Wasm.Instance{H.mod(s, False{}), mem}, i)):
+  match n:
+    case None{}:
+      Unit{}
+    case Some{+k}:
+      H.nr.alloced(C.Wasm.call(f, C.Cir.alloc(0), [k], mem), f, s, ns, k, i)
+
+def H.nr.mem(b: Bool, +f: Nat, +s: U32, ns: {U32.is_eq(s, 0) == False{} : Bool}, +m: U32, +i: List<&2, U32>) ->
+  H.NR(C.Wasm.run.made(f, C.Wasm.instantiate.sized(C.Wasm.memory.of.if(b, C.Wasm.Memory{1, C.Wasm.limit(None{}, m), C.Wasm.Bytes.zero{}}),
+    Some{C.Wasm.Segment{20, []}}, H.mod(s, False{})), i)):
+  match b:
+    case True{}:
+      H.nr.sized(C.Wasm.length32(i), f, s, ns, C.Wasm.Memory{1, C.Wasm.limit(None{}, m), C.Wasm.Bytes.zero{}}, i)
+    case False{}:
+      Unit{}
+
+# the module that halts at once with s, not 0, gives no result
+def H.nr.run(+f: Nat, +s: U32, +i: List<&2, U32>, +m: U32, +ns: {U32.is_eq(s, 0) == False{} : Bool}) ->
+  H.NR(C.Wasm.run(f, C.Compiler.halt(s), i, m)):
+  %Equal.sym(Maybe<&2, C.Wasm.Module>, C.Wasm.decode.module(C.Compiler.halt(s)), Some{H.mod(s, False{})}, H.decoded(s, ns)) :
+    H.NR(C.Wasm.run.made(f, C.Wasm.instantiate.decoded(_, m), i))
+  H.nr.mem(U32.is_le(1, m), f, s, ns, m, i)
+
+# The lemmas
+# ----------
+
+# a module that halts at once with a status other than 0 gives no result
+def halt.no_result.proof(
+  +f: Nat, +s: U32, +i: List<&2, U32>, +m: U32, +o: List<&2, U32>,
+  ns: {U32.is_eq(s, 0) == False{} : Bool},
+  e: {C.Wasm.run(f, C.Compiler.halt(s), i, m) == C.Wasm.Outcome.result{o} : C.Wasm.Outcome}
+) -> Empty:
+  H.nr.use(C.Wasm.run(f, C.Compiler.halt(s), i, m), o, H.nr.run(f, s, i, m, ns), e)
+
+# Arithmetic of words
+# -------------------
+#
+# Every lemma here is over words of any n bits, so that its proof computes
+# only with variables; 2^32 never unfolds.
+
+def H.bn(b: Bool) -> Nat:
+  match b:
+    case False{}:
+      0n
+    case True{}:
+      1n
+
+# 2^n
+def H.W(n: Nat) -> Nat:
+  PN.D(n, H.bn(True{}))
+
+# a word is below 2^n
+def H.bound(+n: Nat, w: Word(n)) -> PN.Le(1n+Word.to_nat(n, w), H.W(n)):
+  match n:
+    case 0n:
+      Unit{}
+    case 1n+p:
+      match w:
+        case WCon{False{}, +t}:
+          PN.weaken(1n+Nat.double(Word.to_nat(p, t)), Nat.double(H.W(p)),
+            PN.double_mono(1n+Word.to_nat(p, t), H.W(p), H.bound(p, t)))
+        case WCon{True{}, +t}:
+          PN.double_mono(1n+Word.to_nat(p, t), H.W(p), H.bound(p, t))
+
+# the carry of a full adder
+def H.carry(a: Bool, +b: Bool, +c: Bool) -> Bool:
+  match a:
+    case False{}:
+      Bool.and(b, c)
+    case True{}:
+      Bool.or(b, c)
+
+# the carry out of Word.adc(n, a, b, False, c)
+def H.cout(n: Nat, a: Word(n), b: Word(n), c: Bool) -> Bool:
+  match n:
+    case 0n:
+      c
+    case 1n+p:
+      match a b:
+        case WCon{ab, at} WCon{bb, bt}:
+          H.cout(p, at, bt, H.carry(ab, bb, c))
+
+# 2x + 2y = 2(x + y)
+def H.dd(+x: Nat, +y: Nat) -> {Nat.add(Nat.double(x), Nat.double(y)) == Nat.double(Nat.add(x, y)) : Nat}:
+  Equal.sym(Nat, Nat.double(Nat.add(x, y)), Nat.add(Nat.double(x), Nat.double(y)), PN.double_add(x, y))
+
+# x + (b + y) = b + (x + y), for a bit b
+def H.add_bit(+x: Nat, b: Bool, +y: Nat) -> {Nat.add(x, Nat.add(H.bn(b), y)) == Nat.add(H.bn(b), Nat.add(x, y)) : Nat}:
+  match b:
+    case False{}:
+      {==}
+    case True{}:
+      PN.add_succ_r(x, y)
+
+def H.adc.l(+s: Bool, +S: Nat, +Dp: Nat, +k: Bool, +A: Nat, +B: Nat,
+  ih: {Nat.add(S, Dp) == Nat.add(H.bn(k), Nat.add(A, B)) : Nat}) ->
+  {Nat.add(H.bn(s), Nat.add(Nat.double(S), Nat.double(Dp))) == Nat.add(H.bn(s), Nat.double(Nat.add(H.bn(k), Nat.add(A, B)))) : Nat}:
+  %ih : {Nat.add(H.bn(s), Nat.add(Nat.double(S), Nat.double(Dp))) == Nat.add(H.bn(s), Nat.double(_)) : Nat}
+  Equal.cong(Nat, Nat, z => Nat.add(H.bn(s), z), Nat.add(Nat.double(S), Nat.double(Dp)), Nat.double(Nat.add(S, Dp)), H.dd(S, Dp))
+
+def H.adc.r(+c: Bool, +ab: Bool, +bb: Bool, +A: Nat, +B: Nat) ->
+  {Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(Nat.double(A), Nat.add(H.bn(bb), Nat.double(B))))) ==
+    Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(H.bn(bb), Nat.double(Nat.add(A, B))))) : Nat}:
+  %H.dd(A, B) : {Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(Nat.double(A), Nat.add(H.bn(bb), Nat.double(B))))) ==
+    Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(H.bn(bb), _))) : Nat}
+  Equal.cong(Nat, Nat, z => Nat.add(H.bn(c), Nat.add(H.bn(ab), z)),
+    Nat.add(Nat.double(A), Nat.add(H.bn(bb), Nat.double(B))), Nat.add(H.bn(bb), Nat.add(Nat.double(A), Nat.double(B))),
+    H.add_bit(Nat.double(A), bb, Nat.double(B)))
+
+# one bit of an addition: s + 2k = a + b + c
+def H.adc.fin(+s: Bool, +k: Bool, +c: Bool, +ab: Bool, +bb: Bool, +S: Nat, +Dp: Nat, +A: Nat, +B: Nat,
+  ih: {Nat.add(S, Dp) == Nat.add(H.bn(k), Nat.add(A, B)) : Nat},
+  mid: {Nat.add(H.bn(s), Nat.double(Nat.add(H.bn(k), Nat.add(A, B)))) ==
+    Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(H.bn(bb), Nat.double(Nat.add(A, B))))) : Nat}) ->
+  {Nat.add(H.bn(s), Nat.add(Nat.double(S), Nat.double(Dp))) ==
+    Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(Nat.double(A), Nat.add(H.bn(bb), Nat.double(B))))) : Nat}:
+  Equal.trans(Nat, Nat.add(H.bn(s), Nat.add(Nat.double(S), Nat.double(Dp))),
+    Nat.add(H.bn(s), Nat.double(Nat.add(H.bn(k), Nat.add(A, B)))),
+    Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(Nat.double(A), Nat.add(H.bn(bb), Nat.double(B))))),
+    H.adc.l(s, S, Dp, k, A, B, ih),
+    Equal.trans(Nat, Nat.add(H.bn(s), Nat.double(Nat.add(H.bn(k), Nat.add(A, B)))),
+      Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(H.bn(bb), Nat.double(Nat.add(A, B))))),
+      Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(Nat.double(A), Nat.add(H.bn(bb), Nat.double(B))))),
+      mid, Equal.sym(Nat, Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(Nat.double(A), Nat.add(H.bn(bb), Nat.double(B))))),
+        Nat.add(H.bn(c), Nat.add(H.bn(ab), Nat.add(H.bn(bb), Nat.double(Nat.add(A, B))))), H.adc.r(c, ab, bb, A, B))))
+
+# the value of an addition, with its carry out
+def H.adc(+n: Nat, +a: Word(n), +b: Word(n), +c: Bool) ->
+  {Nat.add(Word.to_nat(n, Word.adc(n, a, b, False{}, c)), PN.D(n, H.bn(H.cout(n, a, b, c)))) ==
+    Nat.add(H.bn(c), Nat.add(Word.to_nat(n, a), Word.to_nat(n, b))) : Nat}:
+  match n:
+    case 0n:
+      match c:
+        case False{}:
+          {==}
+        case True{}:
+          {==}
+    case 1n+p:
+      match a b c:
+        case WCon{False{}, +at} WCon{False{}, +bt} False{}:
+          H.adc.fin(False{}, False{}, False{}, False{}, False{}, Word.to_nat(p, Word.adc(p, at, bt, False{}, False{})),
+            PN.D(p, H.bn(H.cout(p, at, bt, False{}))), Word.to_nat(p, at), Word.to_nat(p, bt), H.adc(p, at, bt, False{}), {==})
+        case WCon{False{}, +at} WCon{False{}, +bt} True{}:
+          H.adc.fin(True{}, False{}, True{}, False{}, False{}, Word.to_nat(p, Word.adc(p, at, bt, False{}, False{})),
+            PN.D(p, H.bn(H.cout(p, at, bt, False{}))), Word.to_nat(p, at), Word.to_nat(p, bt), H.adc(p, at, bt, False{}), {==})
+        case WCon{False{}, +at} WCon{True{}, +bt} False{}:
+          H.adc.fin(True{}, False{}, False{}, False{}, True{}, Word.to_nat(p, Word.adc(p, at, bt, False{}, False{})),
+            PN.D(p, H.bn(H.cout(p, at, bt, False{}))), Word.to_nat(p, at), Word.to_nat(p, bt), H.adc(p, at, bt, False{}), {==})
+        case WCon{False{}, +at} WCon{True{}, +bt} True{}:
+          H.adc.fin(False{}, True{}, True{}, False{}, True{}, Word.to_nat(p, Word.adc(p, at, bt, False{}, True{})),
+            PN.D(p, H.bn(H.cout(p, at, bt, True{}))), Word.to_nat(p, at), Word.to_nat(p, bt), H.adc(p, at, bt, True{}), {==})
+        case WCon{True{}, +at} WCon{False{}, +bt} False{}:
+          H.adc.fin(True{}, False{}, False{}, True{}, False{}, Word.to_nat(p, Word.adc(p, at, bt, False{}, False{})),
+            PN.D(p, H.bn(H.cout(p, at, bt, False{}))), Word.to_nat(p, at), Word.to_nat(p, bt), H.adc(p, at, bt, False{}), {==})
+        case WCon{True{}, +at} WCon{False{}, +bt} True{}:
+          H.adc.fin(False{}, True{}, True{}, True{}, False{}, Word.to_nat(p, Word.adc(p, at, bt, False{}, True{})),
+            PN.D(p, H.bn(H.cout(p, at, bt, True{}))), Word.to_nat(p, at), Word.to_nat(p, bt), H.adc(p, at, bt, True{}), {==})
+        case WCon{True{}, +at} WCon{True{}, +bt} False{}:
+          H.adc.fin(False{}, True{}, False{}, True{}, True{}, Word.to_nat(p, Word.adc(p, at, bt, False{}, True{})),
+            PN.D(p, H.bn(H.cout(p, at, bt, True{}))), Word.to_nat(p, at), Word.to_nat(p, bt), H.adc(p, at, bt, True{}), {==})
+        case WCon{True{}, +at} WCon{True{}, +bt} True{}:
+          H.adc.fin(True{}, True{}, True{}, True{}, True{}, Word.to_nat(p, Word.adc(p, at, bt, False{}, True{})),
+            PN.D(p, H.bn(H.cout(p, at, bt, True{}))), Word.to_nat(p, at), Word.to_nat(p, bt), H.adc(p, at, bt, True{}), {==})
+
+# 2^n × 0 = 0
+def H.D0(n: Nat) -> {PN.D(n, 0n) == 0n : Nat}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+p:
+      %H.D0(p) : {Nat.double(PN.D(p, 0n)) == Nat.double(_) : Nat}
+      {==}
+
+def H.noc.z(+n: Nat, +V: Nat) -> {V == Nat.add(V, PN.D(n, 0n)) : Nat}:
+  %Equal.sym(Nat, PN.D(n, 0n), 0n, H.D0(n)) : {V == Nat.add(V, _) : Nat}
+  Equal.sym(Nat, Nat.add(V, 0n), V, PN.add_zero(V))
+
+# a sum below 2^n has no carry out
+def H.noc(o: Bool, +n: Nat, +V: Nat, +X: Nat, e: {Nat.add(V, PN.D(n, H.bn(o))) == X : Nat}, h: PN.Le(1n+X, H.W(n))) ->
+  {V == X : Nat}:
+  match o:
+    case False{}:
+      Equal.trans(Nat, V, Nat.add(V, PN.D(n, 0n)), X, H.noc.z(n, V), e)
+    case True{}:
+      +W = H.W(n)
+      Empty.absurd({V == X : Nat}, PN.not_succ_le(W,
+        PN.le_trans(1n+W, 1n+Nat.add(V, W), W, PN.le_add_l(V, W),
+          PN.le_rw_l(1n+X, 1n+Nat.add(V, W), W, Equal.sym(Nat, 1n+Nat.add(V, W), 1n+X,
+            Equal.cong(Nat, Nat, z => 1n+z, Nat.add(V, W), X, e)), h))))
+
+# an addition below 2^n is exact
+def H.add_ex(+n: Nat, +a: Word(n), +b: Word(n), h: PN.Le(1n+Nat.add(Word.to_nat(n, a), Word.to_nat(n, b)), H.W(n))) ->
+  {Word.to_nat(n, Word.add(n, a, b)) == Nat.add(Word.to_nat(n, a), Word.to_nat(n, b)) : Nat}:
+  H.noc(H.cout(n, a, b, False{}), n, Word.to_nat(n, Word.add(n, a, b)), Nat.add(Word.to_nat(n, a), Word.to_nat(n, b)),
+    H.adc(n, a, b, False{}), h)
+
+# an addition is at most the sum
+def H.add_le(+n: Nat, +a: Word(n), +b: Word(n)) ->
+  PN.Le(Word.to_nat(n, Word.add(n, a, b)), Nat.add(Word.to_nat(n, a), Word.to_nat(n, b))):
+  +V = Word.to_nat(n, Word.add(n, a, b))
+  +Dc = PN.D(n, H.bn(H.cout(n, a, b, False{})))
+  PN.le_rw_r(V, Nat.add(V, Dc), Nat.add(Word.to_nat(n, a), Word.to_nat(n, b)), H.adc(n, a, b, False{}), PN.le_add_r(V, Dc))
+
+# the bit that a shift left pushes out of the top
+def H.pout(n: Nat, c: Bool, w: Word(n)) -> Bool:
+  match n:
+    case 0n:
+      c
+    case 1n+p:
+      match w:
+        case WCon{b, t}:
+          H.pout(p, b, t)
+
+def H.sout(n: Nat, w: Word(n)) -> Bool:
+  match n:
+    case 0n:
+      False{}
+    case 1n+p:
+      match w:
+        case WCon{b, t}:
+          H.pout(p, b, t)
+
+def H.put.fin(+c: Bool, +b: Bool, +Pv: Nat, +Dp: Nat, +T: Nat,
+  ih: {Nat.add(Pv, Dp) == Nat.add(H.bn(b), Nat.double(T)) : Nat}) ->
+  {Nat.add(H.bn(c), Nat.add(Nat.double(Pv), Nat.double(Dp))) == Nat.add(H.bn(c), Nat.double(Nat.add(H.bn(b), Nat.double(T)))) : Nat}:
+  %ih : {Nat.add(H.bn(c), Nat.add(Nat.double(Pv), Nat.double(Dp))) == Nat.add(H.bn(c), Nat.double(_)) : Nat}
+  Equal.cong(Nat, Nat, z => Nat.add(H.bn(c), z), Nat.add(Nat.double(Pv), Nat.double(Dp)), Nat.double(Nat.add(Pv, Dp)), H.dd(Pv, Dp))
+
+# the value of a shift with c in at the bottom, with the bit out at the top
+def H.put(+n: Nat, +c: Bool, +w: Word(n)) ->
+  {Nat.add(Word.to_nat(n, Word.shl.put(n, c, w)), PN.D(n, H.bn(H.pout(n, c, w)))) == Nat.add(H.bn(c), Nat.double(Word.to_nat(n, w))) : Nat}:
+  match n:
+    case 0n:
+      match c:
+        case False{}:
+          {==}
+        case True{}:
+          {==}
+    case 1n+p:
+      match c w:
+        case False{} WCon{False{}, +t}:
+          H.put.fin(False{}, False{}, Word.to_nat(p, Word.shl.put(p, False{}, t)), PN.D(p, H.bn(H.pout(p, False{}, t))), Word.to_nat(p, t), H.put(p, False{}, t))
+        case False{} WCon{True{}, +t}:
+          H.put.fin(False{}, True{}, Word.to_nat(p, Word.shl.put(p, True{}, t)), PN.D(p, H.bn(H.pout(p, True{}, t))), Word.to_nat(p, t), H.put(p, True{}, t))
+        case True{} WCon{False{}, +t}:
+          H.put.fin(True{}, False{}, Word.to_nat(p, Word.shl.put(p, False{}, t)), PN.D(p, H.bn(H.pout(p, False{}, t))), Word.to_nat(p, t), H.put(p, False{}, t))
+        case True{} WCon{True{}, +t}:
+          H.put.fin(True{}, True{}, Word.to_nat(p, Word.shl.put(p, True{}, t)), PN.D(p, H.bn(H.pout(p, True{}, t))), Word.to_nat(p, t), H.put(p, True{}, t))
+
+# the value of a shift left, with the bit out at the top
+def H.shl(+n: Nat, +w: Word(n)) ->
+  {Nat.add(Word.to_nat(n, Word.shl(n, w)), PN.D(n, H.bn(H.sout(n, w)))) == Nat.double(Word.to_nat(n, w)) : Nat}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+p:
+      match w:
+        case WCon{False{}, +t}:
+          H.put.fin(False{}, False{}, Word.to_nat(p, Word.shl.put(p, False{}, t)), PN.D(p, H.bn(H.pout(p, False{}, t))), Word.to_nat(p, t), H.put(p, False{}, t))
+        case WCon{True{}, +t}:
+          H.put.fin(False{}, True{}, Word.to_nat(p, Word.shl.put(p, True{}, t)), PN.D(p, H.bn(H.pout(p, True{}, t))), Word.to_nat(p, t), H.put(p, True{}, t))
+
+# a shift left below 2^n is exact
+def H.shl_ex(+n: Nat, +w: Word(n), h: PN.Le(1n+Nat.double(Word.to_nat(n, w)), H.W(n))) ->
+  {Word.to_nat(n, Word.shl(n, w)) == Nat.double(Word.to_nat(n, w)) : Nat}:
+  H.noc(H.sout(n, w), n, Word.to_nat(n, Word.shl(n, w)), Nat.double(Word.to_nat(n, w)), H.shl(n, w), h)
+
+# all n bits are set (the top bit first)
+def H.is_ones(n: Nat, w: Word(n)) -> Bool:
+  match n:
+    case 0n:
+      True{}
+    case 1n+p:
+      match w:
+        case WCon{b, t}:
+          Bool.and(H.is_ones(p, t), b)
+
+# the word 1
+def H.one(n: Nat) -> Word(n):
+  match n:
+    case 0n:
+      WNil{}
+    case 1n+p:
+      WCon{True{}, Word.zero(p)}
+
+def H.and_l(a: Bool, b: Bool, h: {Bool.and(a, b) == True{} : Bool}) -> {a == True{} : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      L.ft({False{} == True{} : Bool}, h)
+
+def H.and_r(a: Bool, b: Bool, h: {Bool.and(a, b) == True{} : Bool}) -> {b == True{} : Bool}:
+  match a:
+    case True{}:
+      h
+    case False{}:
+      L.ft({b == True{} : Bool}, h)
+
+def H.and_t(a: Bool, h: {Bool.and(a, True{}) == False{} : Bool}) -> {a == False{} : Bool}:
+  match a:
+    case True{}:
+      h
+    case False{}:
+      {==}
+
+# adding zero with no carry
+def H.z0(+n: Nat, +t: Word(n)) -> {Word.adc(n, t, Word.zero(n), False{}, False{}) == t : Word(n)}:
+  match n:
+    case 0n:
+      match t:
+        case WNil{}:
+          {==}
+    case 1n+p:
+      match t:
+        case WCon{False{}, +r}:
+          %H.z0(p, r) : {WCon{False{}, Word.adc(p, r, Word.zero(p), False{}, False{})} == WCon{False{}, _} : Word(1n+p)}
+          {==}
+        case WCon{True{}, +r}:
+          %H.z0(p, r) : {WCon{True{}, Word.adc(p, r, Word.zero(p), False{}, False{})} == WCon{True{}, _} : Word(1n+p)}
+          {==}
+
+# adding zero with a carry, to a word that is not all ones
+def H.z1(+n: Nat, +t: Word(n), ok: {H.is_ones(n, t) == False{} : Bool}) ->
+  {Word.to_nat(n, Word.adc(n, t, Word.zero(n), False{}, True{})) == 1n+Word.to_nat(n, t) : Nat}:
+  match n:
+    case 0n:
+      match t:
+        case WNil{}:
+          L.ft({Word.to_nat(0n, Word.adc(0n, WNil{}, Word.zero(0n), False{}, True{})) == 1n+Word.to_nat(0n, WNil{}) : Nat}, Equal.sym(Bool, True{}, False{}, ok))
+    case 1n+p:
+      match t:
+        case WCon{False{}, +r}:
+          %Equal.sym(Word(p), Word.adc(p, r, Word.zero(p), False{}, False{}), r, H.z0(p, r)) :
+            {Word.to_nat(1n+p, WCon{True{}, _}) == 1n+Nat.double(Word.to_nat(p, r)) : Nat}
+          {==}
+        case WCon{True{}, +r}:
+          %Equal.sym(Nat, Word.to_nat(p, Word.adc(p, r, Word.zero(p), False{}, True{})), 1n+Word.to_nat(p, r),
+            H.z1(p, r, H.and_t(H.is_ones(p, r), ok))) :
+            {Nat.double(_) == 2n+Nat.double(Word.to_nat(p, r)) : Nat}
+          {==}
+
+# adding 1 to a word that is not all ones
+def H.inc(+n: Nat, +w: Word(n), ok: {H.is_ones(n, w) == False{} : Bool}) ->
+  {Word.to_nat(n, Word.add(n, w, H.one(n))) == 1n+Word.to_nat(n, w) : Nat}:
+  match n:
+    case 0n:
+      match w:
+        case WNil{}:
+          L.ft({Word.to_nat(0n, Word.add(0n, WNil{}, H.one(0n))) == 1n+Word.to_nat(0n, WNil{}) : Nat}, Equal.sym(Bool, True{}, False{}, ok))
+    case 1n+p:
+      match w:
+        case WCon{False{}, +r}:
+          %Equal.sym(Word(p), Word.adc(p, r, Word.zero(p), False{}, False{}), r, H.z0(p, r)) :
+            {Word.to_nat(1n+p, WCon{True{}, _}) == 1n+Nat.double(Word.to_nat(p, r)) : Nat}
+          {==}
+        case WCon{True{}, +r}:
+          %Equal.sym(Nat, Word.to_nat(p, Word.adc(p, r, Word.zero(p), False{}, True{})), 1n+Word.to_nat(p, r),
+            H.z1(p, r, H.and_t(H.is_ones(p, r), ok))) :
+            {Nat.double(_) == 2n+Nat.double(Word.to_nat(p, r)) : Nat}
+          {==}
+
+# a word of all ones is 2^n - 1
+def H.ones_val(+n: Nat, +w: Word(n), e: {H.is_ones(n, w) == True{} : Bool}) -> {1n+Word.to_nat(n, w) == H.W(n) : Nat}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+p:
+      match w:
+        case WCon{False{}, +r}:
+          L.ft({1n+Word.to_nat(1n+p, WCon{False{}, r}) == H.W(1n+p) : Nat}, H.and_r(H.is_ones(p, r), False{}, e))
+        case WCon{True{}, +r}:
+          %H.ones_val(p, r, H.and_l(H.is_ones(p, r), True{}, e)) :
+            {2n+Nat.double(Word.to_nat(p, r)) == Nat.double(_) : Nat}
+          {==}
+
+def H.not_ones.if(b: Bool, +n: Nat, +w: Word(n), e: {H.is_ones(n, w) == b : Bool},
+  h: PN.Le(2n+Word.to_nat(n, w), H.W(n))) -> {H.is_ones(n, w) == False{} : Bool}:
+  match b:
+    case False{}:
+      e
+    case True{}:
+      Empty.absurd({H.is_ones(n, w) == False{} : Bool}, PN.not_succ_le(1n+Word.to_nat(n, w),
+        PN.le_rw_r(2n+Word.to_nat(n, w), H.W(n), 1n+Word.to_nat(n, w),
+          Equal.sym(Nat, 1n+Word.to_nat(n, w), H.W(n), H.ones_val(n, w, e)), h)))
+
+# a word 2 below 2^n is not all ones
+def H.not_ones(+n: Nat, +w: Word(n), h: PN.Le(2n+Word.to_nat(n, w), H.W(n))) -> {H.is_ones(n, w) == False{} : Bool}:
+  H.not_ones.if(H.is_ones(n, w), n, w, {==}, h)
+
+# a shift right leaves the top bit clear
+def H.pad_top(+p: Nat, +t: Word(p)) -> {H.is_ones(1n+p, Word.shr.pad(p, t)) == False{} : Bool}:
+  match p:
+    case 0n:
+      {==}
+    case 1n+q:
+      match t:
+        case WCon{+b, +r}:
+          %Equal.sym(Bool, H.is_ones(1n+q, Word.shr.pad(q, r)), False{}, H.pad_top(q, r)) : {Bool.and(_, b) == False{} : Bool}
+          {==}
+
+def H.shr_top(+n: Nat, +w: Word(1n+n)) -> {H.is_ones(1n+n, Word.shr(1n+n, w)) == False{} : Bool}:
+  match w:
+    case WCon{b, +t}:
+      H.pad_top(n, t)
+
+# Nat
+# ---
+
+# 20 × x
+def H.t20(x: Nat) -> Nat:
+  match x:
+    case 0n:
+      0n
+    case 1n+p:
+      20n+H.t20(p)
+
+def H.t20_mono(+x: Nat, +y: Nat, h: PN.Le(x, y)) -> PN.Le(H.t20(x), H.t20(y)):
+  match x:
+    case 0n:
+      PN.le_zero(H.t20(y))
+    case 1n+p:
+      match y:
+        case 0n:
+          Empty.absurd(PN.Le(H.t20(1n+p), 0n), h)
+        case 1n+q:
+          H.t20_mono(p, q, h)
+
+# 20x < 20y gives x < y
+def H.t20_lt(+x: Nat, +y: Nat, h: PN.Le(1n+H.t20(x), H.t20(y))) -> PN.Le(1n+x, y):
+  match x y:
+    case _ 0n:
+      Empty.absurd(PN.Le(1n+x, 0n), h)
+    case 0n 1n+q:
+      PN.le_zero(q)
+    case 1n+p 1n+q:
+      H.t20_lt(p, q, h)
+
+def H.le_t20(+x: Nat) -> PN.Le(x, H.t20(x)):
+  match x:
+    case 0n:
+      Unit{}
+    case 1n+p:
+      PN.le_trans(p, H.t20(p), 19n+H.t20(p), H.le_t20(p), PN.le_add_l(19n, H.t20(p)))
+
+# 20 × 2x = 2 × 20x
+def H.t20_double(+x: Nat) -> {H.t20(Nat.double(x)) == Nat.double(H.t20(x)) : Nat}:
+  match x:
+    case 0n:
+      {==}
+    case 1n+p:
+      %H.t20_double(p) : {40n+H.t20(Nat.double(p)) == 40n+_ : Nat}
+      {==}
+
+# a + (k + b) = k + (a + b)
+def H.add_k(+a: Nat, +k: Nat, +b: Nat) -> {Nat.add(a, Nat.add(k, b)) == Nat.add(k, Nat.add(a, b)) : Nat}:
+  match k:
+    case 0n:
+      {==}
+    case 1n+q:
+      %H.add_k(a, q, b) : {Nat.add(a, 1n+Nat.add(q, b)) == 1n+_ : Nat}
+      PN.add_succ_r(a, Nat.add(q, b))
+
+# 16x + 4x = 20x
+def H.t20_shifts(+x: Nat) -> {Nat.add(PN.D(4n, x), PN.D(2n, x)) == H.t20(x) : Nat}:
+  match x:
+    case 0n:
+      {==}
+    case 1n+p:
+      %Equal.sym(Nat, Nat.add(PN.D(4n, p), Nat.add(4n, PN.D(2n, p))), Nat.add(4n, Nat.add(PN.D(4n, p), PN.D(2n, p))),
+        H.add_k(PN.D(4n, p), 4n, PN.D(2n, p))) : {16n+_ == 20n+H.t20(p) : Nat}
+      %Equal.sym(Nat, Nat.add(PN.D(4n, p), PN.D(2n, p)), H.t20(p), H.t20_shifts(p)) : {20n+_ == 20n+H.t20(p) : Nat}
+      {==}
+
+# n + m <= F gives m <= F - n
+def H.le_sub_add(+n: Nat, +m: Nat, +F: Nat, h: PN.Le(Nat.add(n, m), F)) -> PN.Le(m, Nat.sub(F, n)):
+  match n:
+    case 0n:
+      match F:
+        case 0n:
+          h
+        case 1n+q:
+          h
+    case 1n+p:
+      match F:
+        case 0n:
+          Empty.absurd(PN.Le(m, 0n), h)
+        case 1n+q:
+          H.le_sub_add(p, m, q, h)
+
+# n + m <= F gives n <= F
+def H.le_add_part(+n: Nat, +m: Nat, +F: Nat, h: PN.Le(Nat.add(n, m), F)) -> PN.Le(n, F):
+  PN.le_trans(n, Nat.add(n, m), F, PN.le_add_r(n, m), h)
+
+def H.le_double(+x: Nat) -> PN.Le(x, Nat.double(x)):
+  match x:
+    case 0n:
+      Unit{}
+    case 1n+p:
+      PN.le_succ(p, Nat.double(p), H.le_double(p))
+
+# j shifts left
+def H.shlj(j: Nat, +n: Nat, w: Word(n)) -> Word(n):
+  match j:
+    case 0n:
+      w
+    case 1n+q:
+      Word.shl(n, H.shlj(q, n, w))
+
+# j shifts left below 2^n are exact
+def H.shlj_ex(+j: Nat, +n: Nat, +w: Word(n), +h: PN.Le(1n+PN.D(j, Word.to_nat(n, w)), H.W(n))) ->
+  {Word.to_nat(n, H.shlj(j, n, w)) == PN.D(j, Word.to_nat(n, w)) : Nat}:
+  match j:
+    case 0n:
+      {==}
+    case 1n+q:
+      +X = Word.to_nat(n, w)
+      +Y = PN.D(q, X)
+      +sq = H.shlj(q, n, w)
+      +ih = H.shlj_ex(q, n, w, PN.le_trans(1n+Y, 1n+Nat.double(Y), H.W(n), H.le_double(Y), h))
+      Equal.trans(Nat, Word.to_nat(n, Word.shl(n, sq)), Nat.double(Word.to_nat(n, sq)), Nat.double(Y),
+        H.shl_ex(n, sq, PN.le_rw_l(1n+Nat.double(Y), 1n+Nat.double(Word.to_nat(n, sq)), H.W(n),
+          Equal.cong(Nat, Nat, z => 1n+Nat.double(z), Y, Word.to_nat(n, sq), Equal.sym(Nat, Word.to_nat(n, sq), Y, ih)), h)),
+        Equal.cong(Nat, Nat, z => Nat.double(z), Word.to_nat(n, sq), Y, ih))
+
+# 20x below 2^n, for x <= P where 2^4 + 20P = 2^n
+def H.t20_bound(+n: Nat, +X: Nat, +P: Nat, +hP: {Nat.add(H.W(4n), H.t20(P)) == H.W(n) : Nat}, +hx: PN.Le(X, P)) ->
+  PN.Le(1n+H.t20(X), H.W(n)):
+  PN.le_trans(1n+H.t20(X), 1n+H.t20(P), H.W(n), H.t20_mono(X, P, hx),
+    PN.le_rw_r(1n+H.t20(P), Nat.add(H.W(4n), H.t20(P)), H.W(n), hP, PN.le_add_l(15n, H.t20(P))))
+
+# 16x + 4x, the module's 20 × x, is exact for x <= P
+def H.tex_w(+n: Nat, +w: Word(n), +P: Nat, +hP: {Nat.add(H.W(4n), H.t20(P)) == H.W(n) : Nat},
+  +hx: PN.Le(Word.to_nat(n, w), P)) ->
+  {Word.to_nat(n, Word.add(n, H.shlj(4n, n, w), H.shlj(2n, n, w))) == H.t20(Word.to_nat(n, w)) : Nat}:
+  +X = Word.to_nat(n, w)
+  +b0 = H.t20_bound(n, X, P, hP, hx)
+  +D4 = PN.D(4n, X)
+  +D2 = PN.D(2n, X)
+  +ts = H.t20_shifts(X)
+  +s4 = H.shlj(4n, n, w)
+  +s2 = H.shlj(2n, n, w)
+  +bsum = PN.le_rw_l(1n+H.t20(X), 1n+Nat.add(D4, D2), H.W(n), Equal.cong(Nat, Nat, z => 1n+z, H.t20(X), Nat.add(D4, D2), Equal.sym(Nat, Nat.add(D4, D2), H.t20(X), ts)), b0)
+  +e4 = H.shlj_ex(4n, n, w, PN.le_trans(1n+D4, 1n+Nat.add(D4, D2), H.W(n), PN.le_add_r(D4, D2), bsum))
+  +e2 = H.shlj_ex(2n, n, w, PN.le_trans(1n+D2, 1n+Nat.add(D4, D2), H.W(n), PN.le_add_l(D4, D2), bsum))
+  +esum = Equal.trans(Nat, Nat.add(Word.to_nat(n, s4), Word.to_nat(n, s2)), Nat.add(D4, Word.to_nat(n, s2)), Nat.add(D4, D2),
+    Equal.cong(Nat, Nat, z => Nat.add(z, Word.to_nat(n, s2)), Word.to_nat(n, s4), D4, e4),
+    Equal.cong(Nat, Nat, z => Nat.add(D4, z), Word.to_nat(n, s2), D2, e2))
+  +ha = PN.le_rw_l(1n+Nat.add(D4, D2), 1n+Nat.add(Word.to_nat(n, s4), Word.to_nat(n, s2)), H.W(n),
+    Equal.cong(Nat, Nat, z => 1n+z, Nat.add(D4, D2), Nat.add(Word.to_nat(n, s4), Word.to_nat(n, s2)),
+      Equal.sym(Nat, Nat.add(Word.to_nat(n, s4), Word.to_nat(n, s2)), Nat.add(D4, D2), esum)), bsum)
+  Equal.trans(Nat, Word.to_nat(n, Word.add(n, s4, s2)), Nat.add(D4, D2), H.t20(X),
+    Equal.trans(Nat, Word.to_nat(n, Word.add(n, s4, s2)), Nat.add(Word.to_nat(n, s4), Word.to_nat(n, s2)), Nat.add(D4, D2),
+      H.add_ex(n, s4, s2, ha), esum),
+    ts)
+
+# Comparisons
+# -----------
+
+def H.rel_nge(c: Cmp, +x: Nat, +y: Nat, h: PN.Rel(c, x, y), e: {Cmp.is_ge(c) == False{} : Bool}) -> PN.Le(1n+x, y):
+  match c:
+    case LT{}:
+      h
+    case EQ{}:
+      Empty.absurd(PN.Le(1n+x, y), PN.true_ne_false(e))
+    case GT{}:
+      Empty.absurd(PN.Le(1n+x, y), PN.true_ne_false(e))
+
+def H.rel_ngt(c: Cmp, +x: Nat, +y: Nat, h: PN.Rel(c, x, y), e: {Cmp.is_gt(c) == False{} : Bool}) -> PN.Le(x, y):
+  match c:
+    case LT{}:
+      PN.weaken(x, y, h)
+    case EQ{}:
+      %h : PN.Le(x, _)
+      PN.le_refl(x)
+    case GT{}:
+      Empty.absurd(PN.Le(x, y), PN.true_ne_false(e))
+
+def H.rel_le(c: Cmp, +x: Nat, +y: Nat, h: PN.Rel(c, x, y), e: {Cmp.is_le(c) == True{} : Bool}) -> PN.Le(x, y):
+  match c:
+    case LT{}:
+      PN.weaken(x, y, h)
+    case EQ{}:
+      %h : PN.Le(x, _)
+      PN.le_refl(x)
+    case GT{}:
+      Empty.absurd(PN.Le(x, y), PN.false_ne_true(e))
+
+def H.rel_lt(c: Cmp, +x: Nat, +y: Nat, h: PN.Rel(c, x, y), l: PN.Le(1n+x, y)) -> {Cmp.is_lt(c) == True{} : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      Empty.absurd({Cmp.is_lt(EQ{}) == True{} : Bool}, PN.not_succ_le(y, PN.le_rw_l(1n+x, 1n+y, y, Equal.cong(Nat, Nat, z => 1n+z, x, y, h), l)))
+    case GT{}:
+      Empty.absurd({Cmp.is_lt(GT{}) == True{} : Bool}, PN.not_succ_le(y, PN.le_trans(1n+y, x, y, h, PN.weaken(x, y, l))))
+
+# Running to a status of 1
+# ------------------------
+
+# a call that gives the results [1]
+def H.GoodO(c: C.Wasm.Call) -> Type:
+  match c:
+    case C.Wasm.Call.done{rs, _, _}:
+      {rs == [1] : List<&2, U32>}
+    case C.Wasm.Call.trap{_}:
+      Empty
+    case C.Wasm.Call.not_done{}:
+      Empty
+
+def H.GoodO.plus(c: C.Wasm.Call, g: H.GoodO(c)) -> H.GoodO(C.Wasm.call.plus(c)):
+  match c:
+    case C.Wasm.Call.done{rs, m, n}:
+      g
+    case C.Wasm.Call.trap{m}:
+      g
+    case C.Wasm.Call.not_done{}:
+      g
+
+def H.GO(F: Nat, st: C.Wasm.Step) -> Type:
+  match st:
+    case C.Wasm.Step.next{fr, m}:
+      H.GoodO(C.Wasm.call.go(F, fr, m))
+    case C.Wasm.Step.done{rs, _}:
+      {rs == [1] : List<&2, U32>}
+    case C.Wasm.Step.trap{_}:
+      Empty
+
+def H.GO.stepped(F: Nat, st: C.Wasm.Step, h: H.GO(F, st)) ->
+  H.GoodO(C.Wasm.call.stepped(st, g => m => C.Wasm.call.go(F, g, m))):
+  match st:
+    case C.Wasm.Step.next{fr, m}:
+      H.GoodO.plus(C.Wasm.call.go(F, fr, m), h)
+    case C.Wasm.Step.done{rs, m}:
+      h
+    case C.Wasm.Step.trap{m}:
+      h
+
+# a run gives [1] when it does after n steps, with the fuel left
+def H.extO(n: Nat, +st: C.Wasm.Step, +F: Nat, hF: PN.Le(n, F), g: H.GO(Nat.sub(F, n), H.steps(n, st))) -> H.GO(F, st):
+  match n:
+    case 0n:
+      match F:
+        case 0n:
+          g
+        case 1n+q:
+          g
+    case 1n+p:
+      match st:
+        case C.Wasm.Step.next{fr, m}:
+          match F:
+            case 0n:
+              Empty.absurd(H.GO(0n, C.Wasm.Step.next{fr, m}), hF)
+            case 1n+F1:
+              H.GO.stepped(F1, C.Wasm.step(fr, m), H.extO(p, C.Wasm.step(fr, m), F1, hF, g))
+        case C.Wasm.Step.done{rs, m}:
+          g
+        case C.Wasm.Step.trap{m}:
+          g
+
+def H.brfixO(+F: Nat, +a: U32, +k: U32, +nx: U32, +mem: C.Wasm.Memory, -c: Bool, -B: Bool, e: {c == B : Bool},
+  g: H.GoodO(C.Wasm.call.go(F, H.brfr(1, a, k, nx, B), mem))) -> H.GoodO(C.Wasm.call.go(F, H.brfr(1, a, k, nx, c), mem)):
+  %Equal.sym(Bool, c, B, e) : H.GoodO(C.Wasm.call.go(F, H.brfr(1, a, k, nx, _), mem))
+  g
+
+def H.exitO(+F: Nat, hF: PN.Le(7n, F), +a: U32, +k: U32, +nx: U32, +mem: C.Wasm.Memory) ->
+  H.GoodO(C.Wasm.call.go(F, H.exfr(1, a, k, nx), mem)):
+  H.extO(7n, C.Wasm.Step.next{H.exfr(1, a, k, nx), mem}, F, hF, {==})

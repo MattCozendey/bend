@@ -26,7 +26,7 @@ import ./proof_img.bend as PI
 # A: a result of the machine's module is one that Cir gives
 def mach_wasm.sound(
   +f: Nat, +cells: List<&2, C.Cir.Cell>, +i: List<&2, U32>, +m: U32, +o: List<&2, U32>,
-  small: {U32.is_lt(C.Wasm.encode.len(C.Cir.Cell, cells), 67108864) == True{} : Bool},
+  small: {Nat.is_lt(List.length(&2, C.Cir.Cell, cells), U32.to_nat(67108864)) == True{} : Bool},
   safe: @n:Nat -> {C.Cir.result(n, C.Mach.code(), C.Mach.regs(), cells, i, m) != C.Wasm.Outcome.trap{} : C.Wasm.Outcome},
   e: {C.Wasm.run(f, C.Compiler.module(cells), i, m) == C.Wasm.Outcome.result{o} : C.Wasm.Outcome}
 ) -> &n:Nat -> {C.Cir.result(n, C.Mach.code(), C.Mach.regs(), cells, i, m) == C.Wasm.Outcome.result{o} : C.Wasm.Outcome}:
@@ -35,7 +35,7 @@ def mach_wasm.sound(
 # A: a result that Cir gives is one of the machine's module
 def mach_wasm.result(
   +n: Nat, +cells: List<&2, C.Cir.Cell>, +i: List<&2, U32>, +m: U32, +o: List<&2, U32>,
-  small: {U32.is_lt(C.Wasm.encode.len(C.Cir.Cell, cells), 67108864) == True{} : Bool},
+  small: {Nat.is_lt(List.length(&2, C.Cir.Cell, cells), U32.to_nat(67108864)) == True{} : Bool},
   e: {C.Cir.result(n, C.Mach.code(), C.Mach.regs(), cells, i, m) == C.Wasm.Outcome.result{o} : C.Wasm.Outcome}
 ) -> &f:Nat -> {C.Wasm.run(f, C.Compiler.module(cells), i, m) == C.Wasm.Outcome.result{o} : C.Wasm.Outcome}:
   ?TODO
@@ -43,7 +43,7 @@ def mach_wasm.result(
 # A: when Cir runs out of memory, so does the machine's module
 def mach_wasm.oom(
   +n: Nat, +cells: List<&2, C.Cir.Cell>, +i: List<&2, U32>, +m: U32,
-  small: {U32.is_lt(C.Wasm.encode.len(C.Cir.Cell, cells), 67108864) == True{} : Bool},
+  small: {Nat.is_lt(List.length(&2, C.Cir.Cell, cells), U32.to_nat(67108864)) == True{} : Bool},
   e: {C.Cir.result(n, C.Mach.code(), C.Mach.regs(), cells, i, m) == C.Wasm.Outcome.out_of_memory{} : C.Wasm.Outcome}
 ) -> &f:Nat -> {C.Wasm.run(f, C.Compiler.module(cells), i, m) == C.Wasm.Outcome.out_of_memory{} : C.Wasm.Outcome}:
   ?TODO
@@ -65,8 +65,8 @@ def img.small(
   +p: List<&2, U32>, +ds: List<&2, C.Def>,
   rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>},
   small: {C.Img.small(p, 0) == True{} : Bool}
-) -> {U32.is_lt(C.Wasm.encode.len(C.Cir.Cell, C.Img.cells(ds)), 67108864) == True{} : Bool}:
-  PI.img.small.proof(p, ds, rd, small)
+) -> {Nat.is_lt(List.length(&2, C.Cir.Cell, C.Img.cells(ds)), U32.to_nat(67108864)) == True{} : Bool}:
+  ?TODO
 
 # a book of 2^26 bytes or more needs more memory than a module can have
 def need.big(
