@@ -195,6 +195,7 @@ inductive Inst where
 
 structure St where
   defs : List (Option String × List UInt8) := []
+  -- the instances, the newest first, each with its name if it has one
   insts : List (Option String × Inst) := []
   pass : Nat := 0
   fail : Nat := 0
@@ -202,14 +203,15 @@ structure St where
   notDone : Nat := 0
   failures : Array String := #[]
 
-def St.set (s : St) (n : Option String) (i : Inst) : St :=
-  { s with insts := (none, i) :: (match n with | some k => (some k, i) :: s.insts | none => s.insts) }
+def St.add (s : St) (n : Option String) (i : Inst) : St := { s with insts := (n, i) :: s.insts }
 
--- the instance of the name, or the last one
+-- the position of the instance of the name, or of the newest
+def St.find (s : St) : Option String → Option Nat
+  | none => if s.insts.isEmpty then none else some 0
+  | some k => s.insts.findIdx? (·.1 == some k)
+
 def St.get (s : St) (n : Option String) : Option Inst :=
-  match n with
-  | none => (s.insts.find? (·.1.isNone)).map (·.2)
-  | some k => (s.insts.find? (·.1 == some k)).map (·.2)
+  (s.find n).bind fun j => s.insts[j]?.map (·.2)
 
 def St.defn (s : St) (n : Option String) : Option (List UInt8) :=
   match n with
@@ -238,23 +240,34 @@ def instOf (c : Cfg) (w : List UInt8) : Inst :=
   | .inst i => .ok i
   | _ => .none
 
--- an action: (invoke $i? "name" consts*)
-def action (c : Cfg) (s : St) (e : Sexp) : Option (Invoked × Option String) :=
+-- the instance that an action, (invoke $i? "name" consts*), names
+def target : Sexp → Option (Option String)
+  | .list (.atom "invoke" :: .atom n :: .str _ :: _) => some (some n)
+  | .list (.atom "invoke" :: .str _ :: _) => some none
+  | _ => none
+
+-- an action: the instance it names, and what the model gives, which is
+-- unsupported when the instance or the values are not of the subset
+def action (c : Cfg) (s : St) (e : Sexp) : Option (Option String × Invoked) :=
   let run (n : Option String) (name : List UInt8) (args : List Sexp) :=
-    match s.get n, args.mapM constOf with
-    | some (.ok i), some ns => some (invoke c i name ns, n)
-    | some .none, _ => some (.unsupported, n)
-    | _, _ => none
+    some (n, match s.get n, args.mapM constOf with
+      | some (.ok i), some ns => invoke c i name ns
+      | _, _ => .unsupported)
   match e with
   | .list (.atom "invoke" :: .atom n :: .str name :: args) => run (some n) name args
   | .list (.atom "invoke" :: .str name :: args) => run none name args
   | _ => none
 
--- the instance after an action, when it ran
-def St.after (s : St) (n : Option String) : Invoked → St
-  | .values _ i => s.set n (.ok i)
-  | .trap i => s.set n (.ok i)
-  | _ => s
+-- the instance after an action. When the model does not run the action to its
+-- end, the instance is not in the state that the script expects after it, so
+-- the commands on it after that are unsupported.
+def St.after (s : St) (n : Option String) (r : Invoked) : St :=
+  let i : Inst := match r with
+    | .values _ i | .trap i => .ok i
+    | .not_done | .unsupported | .stuck => .none
+  match (s.find n).bind fun j => s.insts[j]?.map (j, ·.1) with
+  | some (j, k) => { s with insts := s.insts.set j (k, i) }
+  | none => s
 
 -- a result pattern holds for the value v
 def patOk (p : Sexp) (v : Nat) : Option Bool :=
@@ -274,21 +287,21 @@ def command (c : Cfg) (s : St) (e : Sexp) : St :=
       | [.atom i] => (some i, none)
       | _ => (none, none)
     match s.defn d with
-    | some w => s.set n (instOf c w)
-    | none => s.set n .none
+    | some w => s.add n (instOf c w)
+    | none => s.add n .none
   | .list (.atom "module" :: rest) =>
     match moduleOf rest with
-    | some (n, w) => s.set n (instOf c w)
-    | none => s.set none .none
+    | some (n, w) => s.add n (instOf c w)
+    | none => s.add (match rest with | .atom n :: _ => if n.startsWith "$" then some n else none | _ => none) .none
   | .list [.atom "register", _] | .list [.atom "register", _, _] => s
   | .list (.atom "invoke" :: _) =>
     match action c s e with
-    | some (r, n) => s.after n r
+    | some (n, r) => s.after n r
     | none => s
   | .list (.atom "assert_return" :: a :: pats) =>
     match action c s a with
     | none => s.unsup
-    | some (r, n) =>
+    | some (n, r) =>
       let s := s.after n r
       match r with
       | .values vs _ =>
@@ -311,7 +324,7 @@ def command (c : Cfg) (s : St) (e : Sexp) : St :=
   | .list [.atom "assert_trap", a, _] =>
     match action c s a with
     | none => s.unsup
-    | some (r, n) =>
+    | some (n, r) =>
       let s := s.after n r
       match r with
       | .trap _ => s.passed
@@ -329,6 +342,12 @@ def command (c : Cfg) (s : St) (e : Sexp) : St :=
         | .stuck => s.failed "stuck" e
         | _ => s.failed "accepted" e
     else s.unsup
+  -- another assertion on an action: the model does not check it, but the
+  -- spec's harness runs the action
+  | .list (.atom _ :: a :: _) =>
+    match target a with
+    | some n => (s.after n .unsupported).unsup
+    | none => s.unsup
   | _ => s.unsup
 
 def runFile (c : Cfg) (h : IO.FS.Handle) (path : String) : IO St := do
