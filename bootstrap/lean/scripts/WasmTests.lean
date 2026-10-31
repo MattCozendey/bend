@@ -16,8 +16,10 @@ import Bootstrap.Script
 --
 -- It runs each command of a binary script (spec interpreter README: Binary
 -- Scripts) as the spec's harness does, and counts each assertion as passed,
--- failed, unsupported (the module or the values leave the subset, W1) or not
--- done (the model's fuel ran out). assert_invalid and assert_malformed pass
+-- failed, unsupported (the module or the values leave the subset, W1, or an
+-- earlier action left the instance in a state that the script does not
+-- expect: St.after) or not done (the model's fuel ran out). It reads x.pure
+-- next to each x.bin.wast (cut.ml). assert_invalid and assert_malformed pass
 -- only when the model refuses the module: it may never accept a module that
 -- the spec rejects (W1).
 
@@ -188,13 +190,16 @@ def invoke (c : Cfg) (i : Term) (name : List UInt8) (args : List Nat) : Invoked 
 -- Scripts
 -- -------
 
--- an instance, or why there is none
+-- an instance, with the exports of its module that change nothing in it
+-- (cut.ml), or why there is none
 inductive Inst where
-  | ok : Term → Inst
+  | ok : Term → List (List UInt8) → Inst
   | none
 
 structure St where
-  defs : List (Option String × List UInt8) := []
+  -- the modules that the script defines: each with its name if it has one,
+  -- its bytes, and its exports that change nothing in an instance
+  defs : List (Option String × List UInt8 × List (List UInt8)) := []
   -- the instances, the newest first, each with its name if it has one
   insts : List (Option String × Inst) := []
   pass : Nat := 0
@@ -213,7 +218,7 @@ def St.find (s : St) : Option String → Option Nat
 def St.get (s : St) (n : Option String) : Option Inst :=
   (s.find n).bind fun j => s.insts[j]?.map (·.2)
 
-def St.defn (s : St) (n : Option String) : Option (List UInt8) :=
+def St.defn (s : St) (n : Option String) : Option (List UInt8 × List (List UInt8)) :=
   match n with
   | none => s.defs.head?.map (·.2)
   | some k => (s.defs.find? (·.1 == some k)).map (·.2)
@@ -235,39 +240,42 @@ def moduleOf : List Sexp → Option (Option String × List UInt8)
     if n.startsWith "$" then (ss.mapM strOf).map fun bs => (some n, bs.flatten) else none
   | _ => none
 
-def instOf (c : Cfg) (w : List UInt8) : Inst :=
+def instOf (c : Cfg) (w : List UInt8) (p : List (List UInt8)) : Inst :=
   match instantiate c w with
-  | .inst i => .ok i
+  | .inst i => .ok i p
   | _ => .none
 
--- the instance that an action, (invoke $i? "name" consts*), names
-def target : Sexp → Option (Option String)
-  | .list (.atom "invoke" :: .atom n :: .str _ :: _) => some (some n)
-  | .list (.atom "invoke" :: .str _ :: _) => some none
+-- the instance and the export that an action, (invoke $i? "name" consts*),
+-- names
+def target : Sexp → Option (Option String × List UInt8)
+  | .list (.atom "invoke" :: .atom n :: .str name :: _) => some (some n, name)
+  | .list (.atom "invoke" :: .str name :: _) => some (none, name)
   | _ => none
 
--- an action: the instance it names, and what the model gives, which is
--- unsupported when the instance or the values are not of the subset
-def action (c : Cfg) (s : St) (e : Sexp) : Option (Option String × Invoked) :=
+-- an action: the instance and the export it names, and what the model gives,
+-- which is unsupported when the instance or the values are not of the subset
+def action (c : Cfg) (s : St) (e : Sexp) : Option (Option String × List UInt8 × Invoked) :=
   let run (n : Option String) (name : List UInt8) (args : List Sexp) :=
-    some (n, match s.get n, args.mapM constOf with
-      | some (.ok i), some ns => invoke c i name ns
+    some (n, name, match s.get n, args.mapM constOf with
+      | some (.ok i _), some ns => invoke c i name ns
       | _, _ => .unsupported)
   match e with
   | .list (.atom "invoke" :: .atom n :: .str name :: args) => run (some n) name args
   | .list (.atom "invoke" :: .str name :: args) => run none name args
   | _ => none
 
--- the instance after an action. When the model does not run the action to its
--- end, the instance is not in the state that the script expects after it, so
--- the commands on it after that are unsupported.
-def St.after (s : St) (n : Option String) (r : Invoked) : St :=
-  let i : Inst := match r with
-    | .values _ i | .trap i => .ok i
-    | .not_done | .unsupported | .stuck => .none
-  match (s.find n).bind fun j => s.insts[j]?.map (j, ·.1) with
-  | some (j, k) => { s with insts := s.insts.set j (k, i) }
-  | none => s
+-- the instance after an action on its export. When the model does not run the
+-- action to its end, and the export may change the instance, the instance is
+-- not in the state that the script expects after it, so the commands on it
+-- after that are unsupported.
+def St.after (s : St) (n : Option String) (name : List UInt8) (r : Invoked) : St :=
+  match (s.find n).bind fun j => s.insts[j]?.map (j, ·) with
+  | some (j, k, .ok i p) =>
+    let i' : Inst := match r with
+      | .values _ i' | .trap i' => .ok i' p
+      | .not_done | .unsupported | .stuck => if p.contains name then .ok i p else .none
+    { s with insts := s.insts.set j (k, i') }
+  | _ => s
 
 -- a result pattern holds for the value v
 def patOk (p : Sexp) (v : Nat) : Option Bool :=
@@ -275,11 +283,13 @@ def patOk (p : Sexp) (v : Nat) : Option Bool :=
   | .list (.atom "either" :: ps) => (ps.mapM fun q => constOf q).map fun ns => ns.contains v
   | _ => (constOf p).map (· == v)
 
-def command (c : Cfg) (s : St) (e : Sexp) : St :=
+-- the command e of the script, its k-th; pures gives the exports that change
+-- nothing in an instance of the module that a command defines
+def command (c : Cfg) (pures : Nat → List (List UInt8)) (k : Nat) (s : St) (e : Sexp) : St :=
   match e with
   | .list (.atom "module" :: .atom "definition" :: rest) =>
     match moduleOf rest with
-    | some (n, w) => { s with defs := (n, w) :: s.defs }
+    | some (n, w) => { s with defs := (n, w, pures k) :: s.defs }
     | none => s
   | .list (.atom "module" :: .atom "instance" :: rest) =>
     let (n, d) := match rest with
@@ -287,22 +297,22 @@ def command (c : Cfg) (s : St) (e : Sexp) : St :=
       | [.atom i] => (some i, none)
       | _ => (none, none)
     match s.defn d with
-    | some w => s.add n (instOf c w)
+    | some (w, p) => s.add n (instOf c w p)
     | none => s.add n .none
   | .list (.atom "module" :: rest) =>
     match moduleOf rest with
-    | some (n, w) => s.add n (instOf c w)
+    | some (n, w) => s.add n (instOf c w (pures k))
     | none => s.add (match rest with | .atom n :: _ => if n.startsWith "$" then some n else none | _ => none) .none
   | .list [.atom "register", _] | .list [.atom "register", _, _] => s
   | .list (.atom "invoke" :: _) =>
     match action c s e with
-    | some (n, r) => s.after n r
+    | some (n, name, r) => s.after n name r
     | none => s
   | .list (.atom "assert_return" :: a :: pats) =>
     match action c s a with
     | none => s.unsup
-    | some (n, r) =>
-      let s := s.after n r
+    | some (n, name, r) =>
+      let s := s.after n name r
       match r with
       | .values vs _ =>
         if vs.length != pats.length then s.failed s!"gave {vs}" e else
@@ -324,8 +334,8 @@ def command (c : Cfg) (s : St) (e : Sexp) : St :=
   | .list [.atom "assert_trap", a, _] =>
     match action c s a with
     | none => s.unsup
-    | some (n, r) =>
-      let s := s.after n r
+    | some (n, name, r) =>
+      let s := s.after n name r
       match r with
       | .trap _ => s.passed
       | .not_done => s.notdone
@@ -346,19 +356,32 @@ def command (c : Cfg) (s : St) (e : Sexp) : St :=
   -- spec's harness runs the action
   | .list (.atom _ :: a :: _) =>
     match target a with
-    | some n => (s.after n .unsupported).unsup
+    | some (n, name) => (s.after n name .unsupported).unsup
     | none => s.unsup
   | _ => s.unsup
 
+-- the exports that change nothing in an instance, for each command that defines
+-- a module: x.pure, which cut.ml writes next to the binary script x.bin.wast
+def pureOf (path : String) : IO (Nat → List (List UInt8)) := do
+  let p := String.ofList (path.toList.take (path.length - ".bin.wast".length)) ++ ".pure"
+  match parseSeq (← IO.FS.readFile p).toList false #[] with
+  | .error msg => throw (IO.userError s!"{p}: {msg}")
+  | .ok (es, _) =>
+    let m := es.filterMap fun e => match e with
+      | .list (.atom "pure" :: .atom i :: ns) => i.toNat?.map (·, ns.filterMap strOf)
+      | _ => none
+    return fun k => ((m.find? (·.1 == k)).map (·.2)).getD []
+
 def runFile (c : Cfg) (h : IO.FS.Handle) (path : String) : IO St := do
   let text ← IO.FS.readFile path
+  let pures ← pureOf path
   match parseSeq text.toList false #[] with
   | .error msg => throw (IO.userError s!"{path}: {msg}")
   | .ok (cmds, _) =>
     let mut s : St := {}
     let mut k := 0
     for e in cmds do
-      s := command c s e
+      s := command c pures k s e
       k := k + 1
       if k % 10 == 0 then
         h.putStrLn s!"  {path}: {k}/{cmds.length} commands, {s.pass} passed, {s.fail} failed"

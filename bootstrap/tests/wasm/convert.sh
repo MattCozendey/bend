@@ -6,8 +6,8 @@
 # script as wasm -d x.wast -o x.bin.wast does. Every tool is pinned: the
 # spec's commit, Ubuntu 24.04 and the exact packages below; the script
 # refuses to run with anything else. WORK is a folder for the spec's clone
-# and the build. The license, the tests (wast/) and their binary scripts
-# (bin/) go next to this script.
+# and the build. The license, the tests (wast/), and their binary scripts and
+# lists of pure exports (bin/) go next to this script.
 set -euo pipefail
 
 SPEC=https://github.com/WebAssembly/spec.git
@@ -59,5 +59,5 @@ mkdir -p "$here/wast" "$here/bin"
 cp spec/test/LICENSE "$here/LICENSE"
 for t in "${TESTS[@]}"; do
   cp "spec/test/core/$t.wast" "$here/wast/$t.wast"
-  cut/_build/default/cut/cut.exe "spec/test/core/$t.wast" > "$here/bin/$t.bin.wast"
+  cut/_build/default/cut/cut.exe "spec/test/core/$t.wast" "$here/bin/$t.pure" > "$here/bin/$t.bin.wast"
 done
