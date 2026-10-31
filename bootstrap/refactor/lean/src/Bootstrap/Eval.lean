@@ -84,3 +84,25 @@ theorem eval_det (h : Eval bk t u) (h' : Eval bk t u') : u = u' := by
           | (exfalso; solve_by_elim [eval_value, Value.lam, Value.prj, Value.mat, Value.lab,
               Value.rfl, rfl])
           | (congr 1 <;> (apply_assumption <;> first | rfl | assumption)); done)
+
+-- t reaches u after exactly n steps of Eval
+inductive Steps (bk : Book) : Nat → Term → Term → Prop
+  | refl : Steps bk 0 t t
+  | step : Eval bk t u → Steps bk n u v → Steps bk (n + 1) t v
+
+-- a run reaches at most one value, after one number of steps
+theorem steps_det : Steps bk n t v → Value bk v →
+    Steps bk m t w → Value bk w → n = m ∧ v = w := by
+  intro h hv h' hw
+  induction h generalizing m w with
+  | refl =>
+    cases h' with
+    | refl => exact ⟨rfl, rfl⟩
+    | step e _ => exact (eval_value e hv).elim
+  | step e _ ih =>
+    cases h' with
+    | refl => exact (eval_value e hw).elim
+    | step e' s =>
+      cases eval_det e e'
+      obtain ⟨rfl, rfl⟩ := ih hv s hw
+      exact ⟨rfl, rfl⟩
