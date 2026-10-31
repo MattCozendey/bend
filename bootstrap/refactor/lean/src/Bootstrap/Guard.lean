@@ -41,11 +41,12 @@ elab "#guard_axioms" : command => do
   let missing ← unimported env ((System.FilePath.mk (← getFileName)).parent.getD ".")
   unless missing.isEmpty do
     throwError "not imported by {env.mainModule}, so not checked: {missing}"
-  let bad ← (decls env).filterMapM fun n => do
+  let names := decls env
+  let bad ← names.filterMapM fun n => do
     let extra := (← collectAxioms n).toList.filter (!allowed.contains ·)
     return if extra.isEmpty then none else some m!"{n}: {extra}"
   unless bad.isEmpty do
     throwError "axioms beyond {allowed}:\n{MessageData.joinSep bad "\n"}"
-  logInfo m!"#guard_axioms: {(decls env).length} declarations of {env.mainModule} use only {allowed}"
+  logInfo m!"#guard_axioms: {names.length} declarations of {env.mainModule} use only {allowed}"
 
 end Guard
