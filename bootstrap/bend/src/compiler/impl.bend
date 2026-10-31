@@ -4060,15 +4060,136 @@ def Cir.run(prog: Cir.Stmt, regs: Nat, k: U32) -> Wasm.Func:
 def Cir.pages(b: U32) -> U32:
   U32.inc(U32.shrn(U32.sub(b, 1), 16n))
 
+# the bytes of the word w, the lowest first; then acc
+def Cir.word.bytes(+w: U32, acc: List<&2, U32>) -> List<&2, U32>:
+  Con{U32.and(w, 255), Con{U32.and(U32.shrn(w, 8n), 255), Con{U32.and(U32.shrn(w, 16n), 255),
+    Con{U32.shrn(w, 24n), acc}}}}
+
+# the bytes of the cells, 20 for each: its fields in order
+def Cir.bytes(cs: List<&2, Cir.Cell>) -> List<&2, U32>:
+  match cs:
+    case Nil{}:
+      Nil{}
+    case Con{Cir.Cell{a, b, c, d, e}, rest}:
+      Cir.word.bytes(a, Cir.word.bytes(b, Cir.word.bytes(c, Cir.word.bytes(d, Cir.word.bytes(e, Cir.bytes(rest))))))
+
 # the module of the program prog with regs registers, whose memory holds the
-# k cells of the book's bytes cells from byte 20 (W3): memory, alloc and run
-def Cir.module(prog: Cir.Stmt, regs: Nat, +k: U32, cells: List<&2, U32>) -> Wasm.Module:
+# cells from cell 1 (W3): memory, alloc and run
+def Cir.module(prog: Cir.Stmt, regs: Nat, +cells: List<&2, Cir.Cell>) -> Wasm.Module:
+  +k = Wasm.encode.len(Cir.Cell, cells)
   Wasm.Module{
     [Cir.alloc(k), Cir.run(prog, regs, k)],
     Some{Wasm.Limits{Cir.pages(Cir.input.at(k)), None{}}},
     [Wasm.Export.memory{Wasm.name.memory()}, Wasm.Export.func{Wasm.name.alloc(), 0},
      Wasm.Export.func{Wasm.name.run(), 1}],
-    Some{Wasm.Segment{20, cells}}}
+    Some{Wasm.Segment{20, Cir.bytes(cells)}}}
+
+# Runs
+# ----
+#
+# Cir.result: what Cir says that a run of the module of Cir.module gives, as
+# the host runs it (W5): the memory of the module's minimum, when the host
+# allows that many pages; the input after the cells, when alloc can make
+# room for it; then the program, from the first cell after the input, until
+# it halts: with 0, its bytes; with 1, out of memory; with 2, no result.
+
+# the cells cs, from the cell i on
+def Cir.load(cs: List<&2, Cir.Cell>, +i: U32, m: Cir.Cells) -> Cir.Cells:
+  match cs:
+    case Nil{}:
+      m
+    case Con{c, rest}:
+      Cir.load(rest, U32.inc(i), Cir.Cells.set(m, i, c))
+
+def Cir.ended.halt(zero: Bool, one: Bool, two: Bool, out: List<&2, U32>) -> Wasm.Outcome:
+  match zero one two:
+    case True{} _ _:
+      Wasm.Outcome.result{List.reverse(&2, U32, out)}
+    case False{} True{} _:
+      Wasm.Outcome.out_of_memory{}
+    case False{} False{} True{}:
+      Wasm.Outcome.no_result{}
+    case False{} False{} False{}:
+      Wasm.Outcome.trap{}
+
+# how a run ends, by how its program ended; past its end, run gives the
+# status 2
+def Cir.ended(r: Cir.Out) -> Wasm.Outcome:
+  match r:
+    case Cir.Out.next{_}:
+      Wasm.Outcome.no_result{}
+    case Cir.Out.halt{+s, Cir.State{_, _, _, _, _, _, _, _, _, out, _}}:
+      Cir.ended.halt(U32.is_eq(s, 0), U32.is_eq(s, 1), U32.is_eq(s, 2), out)
+    case Cir.Out.out_of_memory{}:
+      Wasm.Outcome.out_of_memory{}
+    case Cir.Out.trap{}:
+      Wasm.Outcome.trap{}
+    case Cir.Out.not_done{}:
+      Wasm.Outcome.not_done{}
+
+# the first cell after the image's k cells whose first byte is past end, as
+# run's first loop finds it
+def Cir.first(+k: U32, +end: U32) -> U32:
+  Bool.pick(U32, U32.is_ge(Cir.at(U32.inc(k)), end), U32.inc(k), U32.div(U32.add(end, 19), 20))
+
+def Cir.alloc.grow(enough: Bool, can: Bool, p: U32, need: U32) -> Maybe<&2, U32>:
+  match enough can:
+    case True{} _:
+      Some{p}
+    case False{} True{}:
+      Some{need}
+    case False{} False{}:
+      None{}
+
+def Cir.alloc.end(bad: Bool, +end: U32, +p: U32, +lim: U32) -> Maybe<&2, U32>:
+  match bad:
+    case True{}:
+      None{}
+    case False{}:
+      +need = Cir.pages(end)
+      Cir.alloc.grow(U32.is_le(need, p), U32.is_le(need, lim), p, need)
+
+# the pages of the memory after alloc(n) (Cir.alloc), when it holds p pages
+# and may grow to lim: none when it gives -1
+def Cir.alloc.pages(+k: U32, +n: U32, +p: U32, +lim: U32) -> Maybe<&2, U32>:
+  +a = Cir.input.at(k)
+  +end = U32.add(a, n)
+  Cir.alloc.end(U32.is_lt(end, a) || U32.is_gt(end, 4294967280), end, p, lim)
+
+def Cir.result.alloced(r: Maybe<&2, U32>, fuel: Nat, prog: Cir.Stmt, +regs: Nat, cells: List<&2, Cir.Cell>,
+  +k: U32, +end: U32, +lim: U32, i: List<&2, U32>) -> Wasm.Outcome:
+  match r:
+    case None{}:
+      Wasm.Outcome.out_of_memory{}
+    case Some{p}:
+      +first = Cir.first(k, end)
+      Cir.ended(Cir.exec(fuel, prog, Cir.State{
+        List.replicate(U32, regs, 0), Cir.load(cells, 1, Cir.Cells.none{}), 0, first, first, k, p, lim, i, Nil{}, 0}))
+
+def Cir.result.sized(n: Maybe<&2, U32>, fuel: Nat, prog: Cir.Stmt, +regs: Nat, cells: List<&2, Cir.Cell>,
+  +k: U32, +p: U32, +lim: U32, +i: List<&2, U32>) -> Wasm.Outcome:
+  match n:
+    case None{}:
+      Wasm.Outcome.out_of_memory{}
+    case Some{+len}:
+      Cir.result.alloced(Cir.alloc.pages(k, len, p, lim), fuel, prog, regs, cells, k,
+        U32.add(Cir.input.at(k), len), lim, i)
+
+def Cir.result.memory(ok: Bool, fuel: Nat, prog: Cir.Stmt, +regs: Nat, cells: List<&2, Cir.Cell>, +k: U32,
+  +p: U32, +lim: U32, +i: List<&2, U32>) -> Wasm.Outcome:
+  match ok:
+    case False{}:
+      Wasm.Outcome.out_of_memory{}
+    case True{}:
+      Cir.result.sized(Wasm.length32(i), fuel, prog, regs, cells, k, p, lim, i)
+
+# what a run of the module of Cir.module(prog, regs, cells) on the input i
+# with at most m pages gives, by Cir.exec with the fuel
+def Cir.result(fuel: Nat, prog: Cir.Stmt, +regs: Nat, +cells: List<&2, Cir.Cell>, +i: List<&2, U32>, +m: U32) ->
+  Wasm.Outcome:
+  +k = Wasm.encode.len(Cir.Cell, cells)
+  +p = Cir.pages(Cir.input.at(k))
+  Cir.result.memory(U32.is_le(p, m), fuel, prog, regs, cells, k, p, Wasm.min(m, 65536), i)
 
 # Machine
 # -------
@@ -5454,8 +5575,8 @@ type Img.Def is Data:
   Img.Def{k: List<&2, U32>, at: U32}
 
 # the five fields of a cell, then acc
-def Img.cell(f0: U32, f2: U32, f3: U32, f4: U32, acc: List<&2, U32>) -> List<&2, U32>:
-  Con{f0, Con{0, Con{f2, Con{f3, Con{f4, acc}}}}}
+def Img.cell(f0: U32, f2: U32, f3: U32, f4: U32, acc: List<&2, Cir.Cell>) -> List<&2, Cir.Cell>:
+  Con{Cir.Cell{f0, 0, f2, f3, f4}, acc}
 
 def Img.quan(q: Quan) -> U32:
   match q:
@@ -5598,8 +5719,8 @@ def Img.id(ks: List<&2, List<&2, U32>>, +k: List<&2, U32>, +i: U32) -> U32:
       Img.ref.if(Name.is_eq(n, k), i, u => Img.id(rest, k, U32.inc(i)))
 
 # the cells of the term t from the cell at, then acc
-def Img.term(t: Term, +ks: List<&2, List<&2, U32>>, +es: List<&2, Img.Def>, +at: U32, acc: List<&2, U32>) ->
-  List<&2, U32>:
+def Img.term(t: Term, +ks: List<&2, List<&2, U32>>, +es: List<&2, Img.Def>, +at: U32, acc: List<&2, Cir.Cell>) ->
+  List<&2, Cir.Cell>:
   match t:
     case Term.Var{+i}:
       Img.cell(Img.header(T.var(), 0, 1024, Img.fv(Term.Var{i})), U32.from_nat(i), 0, 0, acc)
@@ -5744,7 +5865,7 @@ def Img.defs(ds: List<&2, Def>, +at: U32) -> List<&2, Img.Def>:
 
 # the cells of the bodies of ds, from the cell at, then acc
 def Img.bodies(ds: List<&2, Def>, +ks: List<&2, List<&2, U32>>, +es: List<&2, Img.Def>, +at: U32) ->
-  List<&2, U32>:
+  List<&2, Cir.Cell>:
   match ds:
     case Nil{}:
       Nil{}
@@ -5752,7 +5873,7 @@ def Img.bodies(ds: List<&2, Def>, +ks: List<&2, List<&2, U32>>, +es: List<&2, Im
       Img.term(v, ks, es, at, Img.bodies(rest, ks, es, U32.add(at, Img.size(v))))
 
 # the cells of the image: n labels, from the name i
-def Img.labels(n: Nat, +i: U32, acc: List<&2, U32>) -> List<&2, U32>:
+def Img.labels(n: Nat, +i: U32, acc: List<&2, Cir.Cell>) -> List<&2, Cir.Cell>:
   match n:
     case 0n:
       acc
@@ -5760,11 +5881,11 @@ def Img.labels(n: Nat, +i: U32, acc: List<&2, U32>) -> List<&2, U32>:
       Img.cell(1549, i, 0, 0, Img.labels(m, U32.inc(i), acc))
 
 # a pair at quantity 1, a value and Data
-def Img.pair(a: U32, b: U32, acc: List<&2, U32>) -> List<&2, U32>:
+def Img.pair(a: U32, b: U32, acc: List<&2, Cir.Cell>) -> List<&2, Cir.Cell>:
   Img.cell(1866, a, b, 0, acc)
 
 # n levels of a word of False bits, from the cell at, then WNil; left is n
-def Img.zeros24(n: Nat, +left: U32, +at: U32, acc: List<&2, U32>) -> List<&2, U32>:
+def Img.zeros24(n: Nat, +left: U32, +at: U32, acc: List<&2, Cir.Cell>) -> List<&2, Cir.Cell>:
   match n:
     case 0n:
       acc
@@ -5774,7 +5895,7 @@ def Img.zeros24(n: Nat, +left: U32, +at: U32, acc: List<&2, U32>) -> List<&2, U3
           Img.zeros24(m, U32.sub(left, 1), U32.add(at, 3), acc))))
 
 # n cells of zeros
-def Img.blank(n: Nat, acc: List<&2, U32>) -> List<&2, U32>:
+def Img.blank(n: Nat, acc: List<&2, Cir.Cell>) -> List<&2, Cir.Cell>:
   match n:
     case 0n:
       acc
@@ -5783,7 +5904,7 @@ def Img.blank(n: Nat, acc: List<&2, U32>) -> List<&2, U32>:
 
 # the table by tag (I.table): the mask of the pointers, the binders above
 # each, and 1 for a former
-def Img.table(acc: List<&2, U32>) -> List<&2, U32>:
+def Img.table(acc: List<&2, Cir.Cell>) -> List<&2, Cir.Cell>:
   Img.cell(0, 0, 0, 0, Img.cell(0, 0, 0, 0, Img.cell(0, 3, 0, 0, Img.cell(0, 3, 4, 0,
   Img.cell(0, 1, 0, 1, Img.cell(0, 3, 0, 0, Img.cell(0, 3, 4, 1, Img.cell(0, 1, 1, 1,
   Img.cell(0, 3, 0, 0, Img.cell(0, 3, 4, 1, Img.cell(0, 3, 0, 0, Img.cell(0, 1, 0, 1,
@@ -5791,7 +5912,7 @@ def Img.table(acc: List<&2, U32>) -> List<&2, U32>:
   Img.cell(0, 7, 0, 1, Img.cell(0, 0, 0, 1, Img.cell(0, 7, 8, 0, acc)))))))))))))))))))
 
 # cells 1 to 363 (I.*), with main's body at the cell main, then acc
-def Img.prefix(main: U32, acc: List<&2, U32>) -> List<&2, U32>:
+def Img.prefix(main: U32, acc: List<&2, Cir.Cell>) -> List<&2, Cir.Cell>:
   Img.labels(11n, 0,
     Img.pair(I.lab(N.nil()), I.lab(N.unit()), Img.pair(I.lab(N.true()), I.lab(N.unit()),
     Img.pair(I.lab(N.false()), I.lab(N.unit()), Img.pair(I.lab(N.wnil()), I.lab(N.unit()),
@@ -5799,28 +5920,11 @@ def Img.prefix(main: U32, acc: List<&2, U32>) -> List<&2, U32>:
       Img.cell(1025, main, N.main(), 0,
         Img.blank(256n, Img.table(acc)))))))))
 
-# the cells of the image of the book ds, by their fields
-def Img.fields(+ds: List<&2, Def>) -> List<&2, U32>:
+# the cells of the image of the book ds
+def Img.cells(+ds: List<&2, Def>) -> List<&2, Cir.Cell>:
   +ks = Img.known(Img.names.defs(ds))
   +es = Img.defs(ds, I.book())
   Img.prefix(Img.ref(es, Program.name.main()), Img.bodies(ds, ks, es, I.book()))
-
-# the bytes of the fields, each in 4, the lowest first
-def Img.bytes(ws: List<&2, U32>) -> List<&2, U32>:
-  match ws:
-    case Nil{}:
-      Nil{}
-    case Con{+w, rest}:
-      Con{U32.and(w, 255), Con{U32.and(U32.shrn(w, 8n), 255), Con{U32.and(U32.shrn(w, 16n), 255),
-        Con{U32.shrn(w, 24n), Img.bytes(rest)}}}}
-
-# the number of cells of the image
-def Img.count(ds: List<&2, Def>) -> U32:
-  match ds:
-    case Nil{}:
-      U32.sub(I.book(), 1)
-    case Con{Def{_, _, v, _}, rest}:
-      U32.add(Img.size(v), Img.count(rest))
 
 def Img.small.if(full: Bool, more: Unit -> Bool) -> Bool:
   match full:
@@ -5843,20 +5947,27 @@ def Img.small(xs: List<&2, U32>, +n: U32) -> Bool:
 
 # a module whose run ends at once with the status s
 def Compiler.halt(s: U32) -> List<&2, U32>:
-  Wasm.encode(Cir.module(Cir.Stmt.halt{s}, 0n, 0, []))
+  Wasm.encode(Cir.module(Cir.Stmt.halt{s}, 0n, []))
 
-def Compiler.compile.of(small: Bool, r: Maybe<List<&2, Def>>) -> List<&2, U32>:
+# the module of the machine with the image's cells
+def Compiler.module(cells: List<&2, Cir.Cell>) -> List<&2, U32>:
+  Wasm.encode(Cir.module(Mach.code(), Mach.regs(), cells))
+
+# the module of the book that Book.read reads, r, by the cases of the
+# compiler; machine makes the machine's module of an image
+def Compiler.compile.of(machine: List<&2, Cir.Cell> -> List<&2, U32>, small: Bool, r: Maybe<List<&2, Def>>) ->
+  List<&2, U32>:
   match small r:
     case False{} _:
       Compiler.halt(1)
     case True{} None{}:
       Compiler.halt(2)
     case True{} Some{+ds}:
-      Wasm.encode(Cir.module(Mach.code(), Mach.regs(), Img.count(ds), Img.bytes(Img.fields(ds))))
+      machine(Img.cells(ds))
 
 # the compiler of step 1: the bytes of the module of the program whose book has
 # the bytes p (INVARIANTS #5). A book of 2^26 bytes or more needs more memory
 # than a module can have: its module runs out of memory at once. Bytes that
 # are no book give a module that gives no result
 def Compiler.compile(+p: List<&2, U32>) -> List<&2, U32>:
-  Compiler.compile.of(Img.small(p, 0), Book.read(p))
+  Compiler.compile.of(Compiler.module, Img.small(p, 0), Book.read(p))
