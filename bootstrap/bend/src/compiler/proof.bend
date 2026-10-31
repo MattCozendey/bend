@@ -19,6 +19,7 @@ import ./impl.bend as C
 import ./spec.bend as S
 import ./proof_need.bend as PN
 import ./proof_img.bend as PI
+import ./proof_halt.bend as PH
 
 # Open lemmas
 # -----------
@@ -54,11 +55,11 @@ def halt.no_result(
   ns: {U32.is_eq(s, 0) == False{} : Bool},
   e: {C.Wasm.run(f, C.Compiler.halt(s), i, m) == C.Wasm.Outcome.result{o} : C.Wasm.Outcome}
 ) -> Empty:
-  ?TODO
+  PH.halt.no_result.proof(f, s, i, m, o, ns, e)
 
 # A: a module that halts at once with the status 1 runs out of memory
 def halt.oom(+i: List<&2, U32>, +m: U32) -> &f:Nat -> {C.Wasm.run(f, C.Compiler.halt(1), i, m) == C.Wasm.Outcome.out_of_memory{} : C.Wasm.Outcome}:
-  ?TODO
+  PH.halt.oom.proof(i, m)
 
 # the image of a book of fewer than 2^26 bytes has fewer than 2^26 cells
 def img.small(
