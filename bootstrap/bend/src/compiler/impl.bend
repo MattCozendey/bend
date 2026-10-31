@@ -3421,10 +3421,8 @@ def Wasm.encode(m: Wasm.Module) -> List<&2, U32>:
 # cells of five U32 fields, the input's bytes and the output's. Cell c is the
 # 20 bytes from byte 20 × c of the module's memory: cells 1 to `image` hold
 # the book, the input's bytes follow them, and the machine's own cells start
-# at `first`. The free cells form a chain through their field 0, and the
-# memory grows by the pages that an access needs, as in the module that
-# Cir.module makes, so
-# that Cir.exec says what that module does. An access that the module could
+# at `first`. The memory grows by the pages that an access needs, as in the
+# module that Cir.module makes, so that Cir.exec says what that module does. An access that the module could
 # not make in the same way traps: the machine makes none.
 
 # a cell: five fields
@@ -3533,21 +3531,19 @@ type Cir.Stmt is Data:
   Cir.Stmt.set{r: Nat, e: Cir.Expr}
   Cir.Stmt.store{k: Nat, c: Cir.Expr, v: Cir.Expr}
   Cir.Stmt.alloc{r: Nat}
-  Cir.Stmt.free{c: Cir.Expr}
   Cir.Stmt.emit{v: Cir.Expr}
   Cir.Stmt.seq{a: Cir.Stmt, b: Cir.Stmt}
   Cir.Stmt.if{c: Cir.Expr, t: Cir.Stmt, e: Cir.Stmt}
   Cir.Stmt.while{c: Cir.Expr, body: Cir.Stmt}
   Cir.Stmt.halt{s: U32}
 
-# the state of a run: the registers; the cells, the first free one (0 for
-# none), the first never used (next), the first of the machine's own (first)
-# and the last of the book's (image); the memory's size and the limit
-# of its growth, in pages; the input; and the output, the last byte first,
-# with its length
+# the state of a run: the registers; the cells, the first never used (next),
+# the first of the machine's own (first) and the last of the book's (image);
+# the memory's size and the limit of its growth, in pages; the input; and the
+# output, the last byte first, with its length
 type Cir.State is Data:
   Cir.State{
-    regs: List<&2, U32>, cells: Cir.Cells, free: U32, next: U32, first: U32, image: U32,
+    regs: List<&2, U32>, cells: Cir.Cells, next: U32, first: U32, image: U32,
     pages: U32, limit: U32, input: List<&2, U32>, out: List<&2, U32>, outn: U32}
 
 # how a statement ends: after it, with the state; halted, with a status; out
@@ -3588,7 +3584,7 @@ def Cir.eval.field.if(ok: Bool, k: Nat, cells: Cir.Cells, i: U32) -> Maybe<&2, U
 
 def Cir.eval.field(k: Nat, c: Maybe<&2, U32>, st: Cir.State) -> Maybe<&2, U32>:
   match c st:
-    case Some{+i} Cir.State{_, cells, _, next, first, image, _, _, _, _, _}:
+    case Some{+i} Cir.State{_, cells, next, first, image, _, _, _, _, _}:
       Cir.eval.field.if(Cir.is_cell(i, image, first, next), k, cells, i)
     case None{} _:
       None{}
@@ -3610,17 +3606,17 @@ def Cir.eval.byte(i: Maybe<&2, U32>, input: List<&2, U32>) -> Maybe<&2, U32>:
 
 def Cir.eval.size(st: Cir.State) -> Maybe<&2, U32>:
   match st:
-    case Cir.State{_, _, _, _, _, _, _, _, input, _, _}:
+    case Cir.State{_, _, _, _, _, _, _, input, _, _}:
       Some{Wasm.encode.len(U32, input)}
 
 def Cir.eval.get(r: Nat, st: Cir.State) -> Maybe<&2, U32>:
   match st:
-    case Cir.State{regs, _, _, _, _, _, _, _, _, _, _}:
+    case Cir.State{regs, _, _, _, _, _, _, _, _, _}:
       List.get(&2, U32, regs, r)
 
 def Cir.eval.input(st: Cir.State) -> List<&2, U32>:
   match st:
-    case Cir.State{_, _, _, _, _, _, _, _, input, _, _}:
+    case Cir.State{_, _, _, _, _, _, _, input, _, _}:
       input
 
 # the value of an expression; nothing for an access that traps
@@ -3654,39 +3650,38 @@ def Cir.regs.set(+regs: List<&2, U32>, +r: Nat, v: U32) -> Maybe<&2, List<&2, U3
 
 def Cir.exec.set.of(regs: Maybe<&2, List<&2, U32>>, st: Cir.State) -> Cir.Out:
   match regs st:
-    case Some{rs} Cir.State{_, cells, free, next, first, image, pages, limit, input, out, outn}:
-      Cir.Out.next{Cir.State{rs, cells, free, next, first, image, pages, limit, input, out, outn}}
+    case Some{rs} Cir.State{_, cells, next, first, image, pages, limit, input, out, outn}:
+      Cir.Out.next{Cir.State{rs, cells, next, first, image, pages, limit, input, out, outn}}
     case None{} _:
       Cir.Out.trap{}
 
 def Cir.exec.set(r: Nat, v: Maybe<&2, U32>, +st: Cir.State) -> Cir.Out:
   match v st:
-    case Some{x} Cir.State{regs, _, _, _, _, _, _, _, _, _, _}:
+    case Some{x} Cir.State{regs, _, _, _, _, _, _, _, _, _}:
       Cir.exec.set.of(Cir.regs.set(regs, r, x), st)
     case None{} _:
       Cir.Out.trap{}
 
 def Cir.exec.store.if(ok: Bool, k: Nat, +i: U32, v: U32, st: Cir.State) -> Cir.Out:
   match ok st:
-    case True{} Cir.State{regs, +cells, free, next, first, image, pages, limit, input, out, outn}:
-      Cir.Out.next{Cir.State{regs, Cir.Cells.set(cells, i, Cir.Cell.set(k, Cir.Cells.get(cells, i), v)),
-        free, next, first, image, pages, limit, input, out, outn}}
+    case True{} Cir.State{regs, +cells, next, first, image, pages, limit, input, out, outn}:
+      Cir.Out.next{Cir.State{regs, Cir.Cells.set(cells, i, Cir.Cell.set(k, Cir.Cells.get(cells, i), v)), next, first, image, pages, limit, input, out, outn}}
     case False{} _:
       Cir.Out.trap{}
 
 def Cir.exec.store(k: Nat, c: Maybe<&2, U32>, v: Maybe<&2, U32>, +st: Cir.State) -> Cir.Out:
   match c v st:
-    case Some{+i} Some{x} Cir.State{_, _, _, +next, +first, +image, _, _, _, _, _}:
+    case Some{+i} Some{x} Cir.State{_, _, +next, +first, +image, _, _, _, _, _}:
       Cir.exec.store.if(Cir.is_cell(i, image, first, next), k, i, x, st)
     case _ _ _:
       Cir.Out.trap{}
 
 # a register holds the cell i, made all zeros
-def Cir.exec.took(r: Nat, +i: U32, st: Cir.State, free: U32, next: U32, pages: U32) -> Cir.Out:
+def Cir.exec.took(r: Nat, +i: U32, st: Cir.State, next: U32, pages: U32) -> Cir.Out:
   match st:
-    case Cir.State{regs, cells, _, _, first, image, _, limit, input, out, outn}:
+    case Cir.State{regs, cells, _, first, image, _, limit, input, out, outn}:
       Cir.exec.set(r, Some{i},
-        Cir.State{regs, Cir.Cells.set(cells, i, Cir.Cell.zero()), free, next, first, image, pages, limit, input, out, outn})
+        Cir.State{regs, Cir.Cells.set(cells, i, Cir.Cell.zero()), next, first, image, pages, limit, input, out, outn})
 
 def Cir.room.if(inside: Bool, can_grow: Bool, p: U32, need: U32) -> Maybe<&2, U32>:
   match inside can_grow:
@@ -3711,7 +3706,7 @@ def Cir.at(+c: U32) -> U32:
 def Cir.exec.bump.of(r: Nat, +next: U32, st: Cir.State, pages: Maybe<&2, U32>) -> Cir.Out:
   match pages:
     case Some{p}:
-      Cir.exec.took(r, next, st, 0, U32.inc(next), p)
+      Cir.exec.took(r, next, st, U32.inc(next), p)
     case None{}:
       Cir.Out.out_of_memory{}
 
@@ -3722,55 +3717,31 @@ def Cir.exec.bump.if(fits: Bool, r: Nat, +next: U32, +pages: U32, lim: U32, st: 
     case False{}:
       Cir.Out.out_of_memory{}
 
-def Cir.exec.reuse.if(none: Bool, r: Nat, +st: Cir.State) -> Cir.Out:
-  match none st:
-    case True{} Cir.State{_, _, _, +next, _, _, +pages, lim, _, _, _}:
-      Cir.exec.bump.if(U32.is_lt(next, 214748364), r, next, pages, lim, st)
-    case False{} Cir.State{_, +cells, +free, next, _, _, pages, _, _, _, _}:
-      Cir.exec.took(r, free, st, Cir.Cell.get(0n, Cir.Cells.get(cells, free)), next, pages)
-
 def Cir.exec.alloc.if(no_out: Bool, r: Nat, +st: Cir.State) -> Cir.Out:
   match no_out st:
-    case True{} Cir.State{_, _, +free, _, _, _, _, _, _, _, _}:
-      Cir.exec.reuse.if(U32.is_zero(free), r, st)
+    case True{} Cir.State{_, _, +next, _, _, +pages, lim, _, _, _}:
+      Cir.exec.bump.if(U32.is_lt(next, 214748364), r, next, pages, lim, st)
     case False{} _:
       Cir.Out.trap{}
 
-# a register gets a cell, all zeros: the first free one, or a new one, which
-# may grow the memory; out of memory when the memory cannot grow. Once
+# a register gets a new cell, all zeros, which may grow the memory; out of
+# memory when the memory cannot grow. Once
 # the output has begun, no cell may be taken: they would overlap
 def Cir.exec.alloc(r: Nat, +st: Cir.State) -> Cir.Out:
   match st:
-    case Cir.State{_, _, _, _, _, _, _, _, _, _, outn}:
+    case Cir.State{_, _, _, _, _, _, _, _, _, outn}:
       Cir.exec.alloc.if(U32.is_zero(outn), r, st)
-
-def Cir.exec.free.if(ok: Bool, +i: U32, st: Cir.State) -> Cir.Out:
-  match ok st:
-    case True{} Cir.State{regs, +cells, free, next, first, image, pages, limit, input, out, outn}:
-      Cir.Out.next{Cir.State{regs, Cir.Cells.set(cells, i, Cir.Cell.set(0n, Cir.Cells.get(cells, i), free)),
-        i, next, first, image, pages, limit, input, out, outn}}
-    case False{} _:
-      Cir.Out.trap{}
-
-# the cell i is free again: the first free one, whose field 0 holds the one
-# that was first
-def Cir.exec.free(c: Maybe<&2, U32>, +st: Cir.State) -> Cir.Out:
-  match c st:
-    case Some{+i} Cir.State{_, _, _, +next, +first, _, _, _, _, _, _}:
-      Cir.exec.free.if(U32.is_le(first, i) && U32.is_lt(i, next), i, st)
-    case None{} _:
-      Cir.Out.trap{}
 
 def Cir.exec.emit.of(pages: Maybe<&2, U32>, v: U32, st: Cir.State) -> Cir.Out:
   match pages st:
-    case Some{p} Cir.State{regs, cells, free, next, first, image, _, limit, input, out, outn}:
-      Cir.Out.next{Cir.State{regs, cells, free, next, first, image, p, limit, input, Con{U32.and(v, 255), out}, U32.inc(outn)}}
+    case Some{p} Cir.State{regs, cells, next, first, image, _, limit, input, out, outn}:
+      Cir.Out.next{Cir.State{regs, cells, next, first, image, p, limit, input, Con{U32.and(v, 255), out}, U32.inc(outn)}}
     case None{} _:
       Cir.Out.out_of_memory{}
 
 def Cir.exec.emit.if(ok: Bool, +b: U32, v: U32, +st: Cir.State) -> Cir.Out:
   match ok st:
-    case True{} Cir.State{_, _, _, _, _, _, +pages, lim, _, _, _}:
+    case True{} Cir.State{_, _, _, _, _, +pages, lim, _, _, _}:
       Cir.exec.emit.of(Cir.room(b, pages, lim), v, st)
     case False{} _:
       Cir.Out.out_of_memory{}
@@ -3780,7 +3751,7 @@ def Cir.exec.emit.if(ok: Bool, +b: U32, v: U32, +st: Cir.State) -> Cir.Out:
 # hold it
 def Cir.exec.emit(v: Maybe<&2, U32>, +st: Cir.State) -> Cir.Out:
   match v st:
-    case Some{x} Cir.State{_, _, _, +next, _, _, _, _, _, _, +outn}:
+    case Some{x} Cir.State{_, _, +next, _, _, _, _, _, _, +outn}:
       +b = U32.add(Cir.at(next), outn)
       Cir.exec.emit.if(U32.is_lt(next, 214748365) && U32.is_ge(b, outn), b, x, st)
     case None{} _:
@@ -3825,8 +3796,6 @@ def Cir.exec(+fuel: Nat, s: Cir.Stmt, +st: Cir.State) -> Cir.Out:
       Cir.exec.store(k, Cir.eval(c, st), Cir.eval(v, st), st)
     case _ Cir.Stmt.alloc{r}:
       Cir.exec.alloc(r, st)
-    case _ Cir.Stmt.free{c}:
-      Cir.exec.free(Cir.eval(c, st), st)
     case _ Cir.Stmt.emit{v}:
       Cir.exec.emit(Cir.eval(v, st), st)
     case _ Cir.Stmt.seq{a, b}:
@@ -3847,35 +3816,31 @@ def Cir.exec(+fuel: Nat, s: Cir.Stmt, +st: Cir.State) -> Cir.Out:
 #
 # Cir.module: the module of a Cir program, with the book's cells as the data
 # of its memory, from byte 20. Its function run (W5) keeps, in its locals 2 to
-# 8, the status it returns, the first free cell, the first cell never used,
-# the output's length and three scratch values; register r of the program is
-# local 9 + r. Every branch out of run is the last instruction of a block of
-# its own (W4). Its function alloc takes the input's bytes just after the
-# book's cells.
+# 7, the status it returns, the first cell never used, the output's length and
+# three scratch values; register r of the program is local 8 + r. Every
+# branch out of run is the last instruction of a block of its own (W4). Its
+# function alloc takes the input's bytes just after the book's cells.
 
 def Cir.l.status() -> U32:
   2
 
-def Cir.l.free() -> U32:
+def Cir.l.next() -> U32:
   3
 
-def Cir.l.next() -> U32:
+def Cir.l.outn() -> U32:
   4
 
-def Cir.l.outn() -> U32:
+def Cir.l.tmp() -> U32:
   5
 
-def Cir.l.tmp() -> U32:
+def Cir.l.need() -> U32:
   6
 
-def Cir.l.need() -> U32:
+def Cir.l.addr() -> U32:
   7
 
-def Cir.l.addr() -> U32:
-  8
-
 def Cir.l.reg(r: Nat) -> U32:
-  U32.add(9, U32.from_nat(r))
+  U32.add(8, U32.from_nat(r))
 
 def Cir.i.get(l: U32) -> Wasm.Instr:
   Wasm.Instr.local_get{l}
@@ -3944,19 +3909,15 @@ def Cir.code.zero(acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
   Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.const(0), Con{Wasm.Instr.store{12},
   Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.const(0), Con{Wasm.Instr.store{16}, acc}}}}}}}}}}}}}}}
 
-# Cir.exec.alloc: the first free cell, or a new one; then the cell made 0
+# Cir.exec.alloc: a new cell, when the memory can grow to hold it; then the
+# cell made 0
 def Cir.code.alloc(+r: U32, +d: Nat, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
-  Con{Wasm.Instr.block{
-    Con{Wasm.Instr.block{
-      Con{Cir.i.get(Cir.l.free()), Con{Wasm.Instr.eqz{}, Con{Wasm.Instr.br_if{0},
-      Con{Cir.i.get(Cir.l.free()), Con{Cir.i.set(r),
-      Con{Cir.i.get(Cir.l.free()), Cir.code.at([Wasm.Instr.load{0}, Cir.i.set(Cir.l.free()), Wasm.Instr.br{1}])}}}}}}},
-    Cir.code.unless([Cir.i.get(Cir.l.next()), Cir.i.const(214748364), Cir.i.op(Wasm.Op.lt_u{})], 1n+d,
-      Con{Cir.i.get(Cir.l.next()), Cir.code.at(Con{Cir.i.const(19), Con{Cir.i.op(Wasm.Op.add{}),
-        Cir.code.need(Cir.code.grow(1n+d,
-          [Cir.i.get(Cir.l.next()), Cir.i.set(r),
-           Cir.i.get(Cir.l.next()), Cir.i.const(1), Cir.i.op(Wasm.Op.add{}), Cir.i.set(Cir.l.next())]))}})})}},
-  Con{Cir.i.get(r), Cir.code.at(Con{Cir.i.set(Cir.l.addr()), Cir.code.zero(acc)})}}
+  Cir.code.unless([Cir.i.get(Cir.l.next()), Cir.i.const(214748364), Cir.i.op(Wasm.Op.lt_u{})], d,
+    Con{Cir.i.get(Cir.l.next()), Cir.code.at(Con{Cir.i.const(19), Con{Cir.i.op(Wasm.Op.add{}),
+      Cir.code.need(Cir.code.grow(d,
+        Con{Cir.i.get(Cir.l.next()), Con{Cir.i.set(r),
+        Con{Cir.i.get(Cir.l.next()), Con{Cir.i.const(1), Con{Cir.i.op(Wasm.Op.add{}), Con{Cir.i.set(Cir.l.next()),
+        Con{Cir.i.get(r), Cir.code.at(Con{Cir.i.set(Cir.l.addr()), Cir.code.zero(acc)})}}}}}}}))}})})
 
 # Cir.exec.emit: the byte at 20 × next + outn, after the memory grows to hold
 # it
@@ -3969,12 +3930,6 @@ def Cir.code.emit(v: Cir.Expr, +d: Nat, acc: List<&2, Wasm.Instr>) -> List<&2, W
           Con{Cir.i.get(Cir.l.addr()), Cir.code.expr(v, Con{Wasm.Instr.store8{0},
             Con{Cir.i.get(Cir.l.outn()), Con{Cir.i.const(1), Con{Cir.i.op(Wasm.Op.add{}),
               Con{Cir.i.set(Cir.l.outn()), acc}}}}})}))})}}})}
-
-# Cir.exec.free: the cell's field 0 holds the first free cell, and it becomes
-# the first
-def Cir.code.free(c: Cir.Expr, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
-  Cir.code.expr(c, Con{Cir.i.set(Cir.l.addr()), Con{Cir.i.get(Cir.l.addr()), Cir.code.at(
-    Con{Cir.i.get(Cir.l.free()), Con{Wasm.Instr.store{0}, Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.set(Cir.l.free()), acc}}}})}})
 
 # for a result, the output's first byte, 20 × next, at byte 0, and its length
 # at byte 4 (W5)
@@ -4001,8 +3956,6 @@ def Cir.code.stmt(s: Cir.Stmt, +d: Nat, acc: List<&2, Wasm.Instr>) -> List<&2, W
       Cir.code.expr(c, Cir.code.at(Cir.code.expr(v, Con{Wasm.Instr.store{U32.shln(U32.from_nat(k), 2n)}, acc})))
     case Cir.Stmt.alloc{r}:
       Cir.code.alloc(Cir.l.reg(r), d, acc)
-    case Cir.Stmt.free{c}:
-      Cir.code.free(c, acc)
     case Cir.Stmt.emit{v}:
       Cir.code.emit(v, d, acc)
     case Cir.Stmt.seq{a, b}:
@@ -4045,7 +3998,7 @@ def Cir.alloc(+k: U32) -> Wasm.Func:
 # run(a, n) (W5): the first cell after the input, then the program; the
 # status that it ends with
 def Cir.run(prog: Cir.Stmt, regs: Nat, k: U32) -> Wasm.Func:
-  Wasm.Func{2n, 1n, 7n+regs, [
+  Wasm.Func{2n, 1n, 6n+regs, [
     Cir.i.const(2), Cir.i.set(Cir.l.status()),
     Cir.i.get(0), Cir.i.get(1), Cir.i.op(Wasm.Op.add{}), Cir.i.set(Cir.l.addr()),
     Cir.i.const(U32.inc(k)), Cir.i.set(Cir.l.next()),
@@ -4118,7 +4071,7 @@ def Cir.ended(r: Cir.Out) -> Wasm.Outcome:
   match r:
     case Cir.Out.next{_}:
       Wasm.Outcome.no_result{}
-    case Cir.Out.halt{+s, Cir.State{_, _, _, _, _, _, _, _, _, out, _}}:
+    case Cir.Out.halt{+s, Cir.State{_, _, _, _, _, _, _, _, out, _}}:
       Cir.ended.halt(U32.is_eq(s, 0), U32.is_eq(s, 1), U32.is_eq(s, 2), out)
     case Cir.Out.out_of_memory{}:
       Wasm.Outcome.out_of_memory{}
@@ -4164,7 +4117,7 @@ def Cir.result.alloced(r: Maybe<&2, U32>, fuel: Nat, prog: Cir.Stmt, +regs: Nat,
     case Some{p}:
       +first = Cir.first(k, end)
       Cir.ended(Cir.exec(fuel, prog, Cir.State{
-        List.replicate(U32, regs, 0), Cir.load(cells, 1, Cir.Cells.none{}), 0, first, first, k, p, lim, i, Nil{}, 0}))
+        List.replicate(U32, regs, 0), Cir.load(cells, 1, Cir.Cells.none{}), first, first, k, p, lim, i, Nil{}, 0}))
 
 def Cir.result.sized(n: Maybe<&2, U32>, fuel: Nat, prog: Cir.Stmt, +regs: Nat, cells: List<&2, Cir.Cell>,
   +k: U32, +p: U32, +lim: U32, +i: List<&2, U32>) -> Wasm.Outcome:
