@@ -7,6 +7,7 @@ import Bootstrap.Program
 import Bootstrap.Code
 import Bootstrap.Book
 import Bootstrap.Copy.Reader
+import Bootstrap.Copy.Exists
 import Bootstrap.Read
 import Bootstrap.EvalSteps
 import Bootstrap.Join

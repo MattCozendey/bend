@@ -89,3 +89,15 @@ theorem conv_runs : Book.check B = .ok () → Term.Closed a → Term.Live B a �
   have dv := canon_data wt vv (pars_sr wt ht pv) hT
   rw [← data_pars hb dv p1]
   exact ⟨n, s, vv⟩
+
+-- a run's steps are reductions
+private theorem steps_pars (cl : Book.Closed B) : Steps B n a b → Pars B a b := by
+  intro s
+  induction s with
+  | refl => exact .refl
+  | step e _ ih => exact pars_trans (eval_pars cl e) ih
+
+-- in a book that --verdict accepts, a run of a to b proves a == b
+theorem runs_rfl : Book.check B = .ok () → Runs B a b → Typed B Γ Rfl (Eql a b T) := by
+  rintro hc ⟨_, s, _⟩
+  exact .rfl ⟨b, steps_pars (book_check B hc).2.1 s, .refl⟩
