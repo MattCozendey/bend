@@ -17,6 +17,7 @@
 import Base
 import ./impl.bend as C
 import ./spec.bend as S
+import ./proof_need.bend as PN
 
 # Open lemmas
 # -----------
@@ -72,7 +73,7 @@ def need.big(
   small: {C.Img.small(p, 0) == False{} : Bool},
   big: {Nat.is_le(C.Program.need(p, i, n), C.Program.memory(m)) == True{} : Bool}
 ) -> Empty:
-  ?TODO
+  PN.need.big.proof(p, i, n, m, small, big)
 
 # B: the machine never makes an access that its module could not make the
 # same way

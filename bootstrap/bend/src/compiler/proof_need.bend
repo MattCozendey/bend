@@ -505,10 +505,6 @@ def min.case(b: Bool, +m: U32, +k: U32, e: {U32.is_le(m, k) == b : Bool}) -> Le(
     case False{}:
       le_refl(U32.to_nat(k))
 
-# the minimum of m and k is at most k
-def min_le(+m: U32, +k: U32) -> Le(U32.to_nat(C.Wasm.min(m, k)), U32.to_nat(k)):
-  min.case(U32.is_le(m, k), m, k, {==})
-
 # Length of a big image
 # ---------------------
 
@@ -592,14 +588,48 @@ def le_one() -> Le(1n, 16777216n):
 
 # The memory
 # ----------
+#
+# Program.memory(m) is Nat.mul(65536n, y): a check that unfolds it against
+# another spelling of that product walks the 65536 steps of the literal, deeper
+# than the checker's stack. So the proof spells the product as the checker
+# holds it once it has evaluated it, Nat.add(y, Nat.mul(65535n, y)) with y
+# U32.to_nat(C.Wasm.min.if(Cmp.is_le(U32.cmp(m, 65536)), m, 65536)), and
+# meets it there: Q opens a goal on a fresh copy x of Program.memory(m); the
+# first rewrite compares two spellings of the goal that unfold x, so the
+# checker evaluates x in place, and the last step then matches the product with
+# x as written, without unfolding the literal.
+
+# the goal of bridge, on a fresh copy of x
+def Q(x: Nat, d: Nat) -> Type:
+  @e1: {x == x : Nat} -> @e2: {x == x : Nat} -> Le(x, d)
+
+# a proof of the goal on the copy proves it on x
+def use(+x: Nat, +d: Nat, k: Q(x, d)) -> Le(x, d):
+  k({==}, {==})
+
+# 65536 × y, as the checker holds the evaluated Program.memory(m)
+def bridge(+m: U32, +d: Nat,
+  h: Le(Nat.add(U32.to_nat(C.Wasm.min.if(Cmp.is_le(U32.cmp(m, 65536)), m, 65536)),
+    Nat.mul(65535n, U32.to_nat(C.Wasm.min.if(Cmp.is_le(U32.cmp(m, 65536)), m, 65536)))), d)
+) -> Le(C.Program.memory(m), d):
+  use(C.Program.memory(m), d, e1 => e2 =>
+    %e1 : T(Nat.is_le(_, d))
+    %e2 : Le(_, d)
+    h)
+
+# (1 + k) × y = y + k × y
+def mul_succ(+k: Nat, +y: Nat) -> {Nat.mul(1n+k, y) == Nat.add(y, Nat.mul(k, y)) : Nat}:
+  {==}
 
 # the memory of m is at most 2^32
-def memory_le(+m: U32) -> Le(Nat.mul(65536n, U32.to_nat(C.Wasm.min(m, 65536))), D(32n, 1n)):
-  +y = U32.to_nat(C.Wasm.min(m, 65536))
+def memory_le(+m: U32) -> Le(C.Program.memory(m), D(32n, 1n)):
+  +y = U32.to_nat(C.Wasm.min.if(Cmp.is_le(U32.cmp(m, 65536)), m, 65536))
   +t = U32.to_nat(65536)
-  le_trans(Nat.mul(65536n, y), Nat.mul(t, y), D(32n, 1n),
+  +hy = min.case(Cmp.is_le(U32.cmp(m, 65536)), m, 65536, {==})
+  +h = le_trans(Nat.mul(65536n, y), Nat.mul(t, y), D(32n, 1n),
     mul_mono_l(65536n, t, y, le_65536()),
-    le_rw_r(Nat.mul(t, y), Nat.mul(t, t), D(32n, 1n), sq_65536(), mul_mono_r(t, y, t, min_le(m, 65536))))
+    le_rw_r(Nat.mul(t, y), Nat.mul(t, t), D(32n, 1n), sq_65536(), mul_mono_r(t, y, t, hy)))
+  bridge(m, D(32n, 1n), le_rw_l(Nat.mul(65536n, y), Nat.add(y, Nat.mul(65535n, y)), D(32n, 1n), mul_succ(65535n, y), h))
 
 # The need
 # --------
@@ -620,5 +650,17 @@ def len_ge(+p: List<&2, U32>, small: {C.Img.small(p, 0) == False{} : Bool}) ->
   +h2 = le_rw_l(1n+U32.to_nat(67108863), D(26n, 1n), l, val_M(), h1)
   le_rw_l(Nat.mul(64n, D(26n, 1n)), D(32n, 1n), Nat.mul(64n, l), mul_64(), mul_mono_r(64n, D(26n, 1n), l, h2))
 
-def probe2(+m: U32) -> {C.Program.memory(m) == Nat.mul(65536n, U32.to_nat(C.Wasm.min(m, 65536))) : Nat}:
-  {==}
+# a book of 2^26 bytes or more needs more memory than a module can have
+def need.big.proof(
+  +p: List<&2, U32>, +i: List<&2, U32>, +n: Nat, +m: U32,
+  small: {C.Img.small(p, 0) == False{} : Bool},
+  big: {Nat.is_le(C.Program.need(p, i, n), C.Program.memory(m)) == True{} : Bool}
+) -> Empty:
+  +x = Nat.mul(64n, List.length(&2, U32, p))
+  +need = C.Program.need(p, i, n)
+  +mem = C.Program.memory(m)
+  +hn = {need_ge(p, C.Program.largest(p, i, n)) : Le(1n+x, need)}
+  not_succ_le(x,
+    le_trans(1n+x, need, x, hn,
+      le_trans(need, mem, x, toLe(need, mem, big),
+        le_trans(mem, D(32n, 1n), x, memory_le(m), len_ge(p, small)))))
