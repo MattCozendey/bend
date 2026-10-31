@@ -17,12 +17,11 @@ import Bootstrap
 
 open Quan Term
 
--- why a run of the program on i has no result
-def noResult (bk : Book) (fuel : Nat) (i : List UInt8) : String :=
-  let (v, n) := steps bk fuel (start i) 0
-  if (step bk v).isSome then s!"no result within {fuel} steps"
-  else if value bk v then s!"no result: after {n} steps, the value is not a list of bytes"
-  else s!"no result: stuck after {n} steps"
+-- why the end e of a run with this fuel gives no result
+def noResult (bk : Book) (fuel : Nat) (e : Term × Nat) : String :=
+  if (step bk e.1).isSome then s!"no result within {fuel} steps"
+  else if value bk e.1 then s!"no result: after {e.2} steps, the value is not a list of bytes"
+  else s!"no result: stuck after {e.2} steps"
 
 def env (k : String) : IO String := do
   let some v ← IO.getEnv k | throw (IO.userError s!"{k} is not set")
@@ -34,10 +33,12 @@ def runBook : IO Unit := do
   | .error e => throw (IO.userError e)
   | .ok bk =>
     let i := (← IO.FS.readBinFile (← env "INPUT")).toList
-    match interp bk fuel i with
+    let e := steps bk fuel (start i) 0
+    have _ : result bk e = interp bk fuel i := rfl
+    match result bk e with
     | some (r, n) =>
       IO.FS.writeBinFile (← env "OUTPUT") ⟨r.toArray⟩
       IO.println s!"{n} steps"
-    | none => throw (IO.userError (noResult bk fuel i))
+    | none => throw (IO.userError (noResult bk fuel e))
 
 #eval runBook
