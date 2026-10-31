@@ -1166,3 +1166,27 @@ def H.brfixO(+F: Nat, +a: U32, +k: U32, +nx: U32, +mem: C.Wasm.Memory, -c: Bool,
 def H.exitO(+F: Nat, hF: PN.Le(7n, F), +a: U32, +k: U32, +nx: U32, +mem: C.Wasm.Memory) ->
   H.GoodO(C.Wasm.call.go(F, H.exfr(1, a, k, nx), mem)):
   H.extO(7n, C.Wasm.Step.next{H.exfr(1, a, k, nx), mem}, F, hF, {==})
+
+# the fuel of b rounds of the first loop that go on
+def H.Rf(b: Nat) -> Nat:
+  match b:
+    case 0n:
+      0n
+    case 1n+p:
+      16n+H.Rf(p)
+
+# x < P gives x + 2 <= 2^n
+def H.small(+n: Nat, +X: Nat, +P: Nat, +hP: {Nat.add(H.W(4n), H.t20(P)) == H.W(n) : Nat}, h: PN.Le(1n+X, P)) ->
+  PN.Le(2n+X, H.W(n)):
+  PN.le_trans(2n+X, 1n+H.t20(P), H.W(n), PN.le_trans(1n+X, P, H.t20(P), h, H.le_t20(P)),
+    PN.le_rw_r(1n+H.t20(P), Nat.add(H.W(4n), H.t20(P)), H.W(n), hP, PN.le_add_l(15n, H.t20(P))))
+
+# the loop's exit, for any number of rounds left
+def H.loopO.exit(+F: Nat, +k: U32, +x: U32, +tmp: U32, +mem: C.Wasm.Memory, e: {H.C(20, k, x) == True{} : Bool},
+  h18: PN.Le(18n, F)) -> H.GoodO(C.Wasm.call.go(F, H.loopfr(1, 20, k, x, tmp), mem)):
+  +F10 = Nat.sub(F, 10n)
+  +h8 = H.le_sub_add(10n, 8n, F, h18)
+  H.extO(10n, C.Wasm.Step.next{H.loopfr(1, 20, k, x, tmp), mem}, F, H.le_add_part(10n, 8n, F, h18),
+    H.brfixO(F10, 20, k, x, mem, H.C(20, k, x), True{}, e,
+      H.extO(1n, C.Wasm.Step.next{H.brfr(1, 20, k, x, True{}), mem}, F10, H.le_add_part(1n, 7n, F10, h8),
+        H.exitO(Nat.sub(F10, 1n), H.le_sub_add(1n, 7n, F10, h8), 20, k, x, mem))))

@@ -1650,17 +1650,16 @@ def D_succ(+q: Nat, +x: Nat) -> {N.D(1n+q, x) == Nat.double(N.D(q, x)) : Nat}:
 
 # a book of at most m bytes, 1 + m = 2h, 363 <= h, has an image of fewer
 # than 2h cells (m and h stay variables: the checker never expands them)
-def core(+p: List<&2, U32>, +ds: List<&2, C.Def>, +m: Nat, +h25: Nat,
+def core.len(+p: List<&2, U32>, +ds: List<&2, C.Def>, +m: Nat, +h25: Nat,
   rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>},
   hl: N.Le(List.length(&2, U32, p), m),
   vm: {1n+m == Nat.double(h25) : Nat},
   h363: N.Le(363n, h25)
-) -> N.Le(1n+U32.to_nat(C.Wasm.encode.len(C.Cir.Cell, C.Img.cells(ds))), Nat.double(h25)):
+) -> N.Le(1n+List.length(&2, C.Cir.Cell, C.Img.cells(ds)), Nat.double(h25)):
   +l = List.length(&2, U32, p)
   +w = Wd(ds, 0n)
   +b = Bl(ds, 0n)
   +cells = C.Img.cells(ds)
-  +len = C.Wasm.encode.len(C.Cir.Cell, cells)
   +h2 = N.le_trans(Nat.double(w), l, m, read.le(p, ds, rd), hl)
   +h3 = N.le_rw_r(1n+Nat.double(w), 1n+m, Nat.double(h25), vm, h2)
   +h4 = half_lt(w, h25, h3)
@@ -1668,9 +1667,20 @@ def core(+p: List<&2, U32>, +ds: List<&2, C.Def>, +m: Nat, +h25: Nat,
   +h6 = N.add_mono(363n, h25, 1n+b, h25, h363, h5)
   +h7 = N.le_rw_r(Nat.add(363n, 1n+b), Nat.add(h25, h25), Nat.double(h25), add_self(h25), h6)
   +h8 = N.le_rw_l(Nat.add(363n, 1n+b), 1n+Nat.add(363n, b), Nat.double(h25), N.add_succ_r(363n, b), h7)
-  +h9 = lt_rw_l(Nat.add(363n, b), List.length(&2, C.Cir.Cell, cells), Nat.double(h25),
+  lt_rw_l(Nat.add(363n, b), List.length(&2, C.Cir.Cell, cells), Nat.double(h25),
     Equal.sym(Nat, List.length(&2, C.Cir.Cell, cells), Nat.add(363n, b), cells_len(ds)), h8)
-  N.le_trans(1n+U32.to_nat(len), 1n+List.length(&2, C.Cir.Cell, cells), Nat.double(h25), enc_len_le(cells), h9)
+
+# the same, for the U32 count of the cells
+def core(+p: List<&2, U32>, +ds: List<&2, C.Def>, +m: Nat, +h25: Nat,
+  rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>},
+  hl: N.Le(List.length(&2, U32, p), m),
+  vm: {1n+m == Nat.double(h25) : Nat},
+  h363: N.Le(363n, h25)
+) -> N.Le(1n+U32.to_nat(C.Wasm.encode.len(C.Cir.Cell, C.Img.cells(ds))), Nat.double(h25)):
+  +cells = C.Img.cells(ds)
+  +len = C.Wasm.encode.len(C.Cir.Cell, cells)
+  N.le_trans(1n+U32.to_nat(len), 1n+List.length(&2, C.Cir.Cell, cells), Nat.double(h25), enc_len_le(cells),
+    core.len(p, ds, m, h25, rd, hl, vm, h363))
 
 # the image of a book of fewer than 2^26 bytes has fewer than 2^26 cells
 def img.small.proof(
@@ -1694,3 +1704,43 @@ def img.small.proof(
     Equal.sym(Nat, h26, Nat.double(h25), D_succ(25n, 1n)), Equal.sym(Nat, U32.to_nat(67108864), h26, val_M2()))
   +h11 = N.le_rw_r(1n+U32.to_nat(len), Nat.double(h25), U32.to_nat(67108864), e, h10)
   lt_true(U32.cmp(len, 67108864), U32.to_nat(len), U32.to_nat(67108864), N.U32.rel(len, 67108864), h11)
+
+# 1 + a <= b makes a < b
+def lt_nat(+a: Nat, +b: Nat, h: N.Le(1n+a, b)) -> {Nat.is_lt(a, b) == True{} : Bool}:
+  match a:
+    case 0n:
+      match b:
+        case 0n:
+          Empty.absurd({Nat.is_lt(0n, 0n) == True{} : Bool}, h)
+        case 1n+q:
+          {==}
+    case 1n+p:
+      match b:
+        case 0n:
+          Empty.absurd({Nat.is_lt(1n+p, 0n) == True{} : Bool}, h)
+        case 1n+q:
+          lt_nat(p, q, h)
+
+# the image of a book of fewer than 2^26 bytes has fewer than 2^26 cells,
+# counted as a Nat
+def img.small.nat(
+  +p: List<&2, U32>, +ds: List<&2, C.Def>,
+  rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>},
+  small: {C.Img.small(p, 0) == True{} : Bool}
+) -> {Nat.is_lt(List.length(&2, C.Cir.Cell, C.Img.cells(ds)), U32.to_nat(67108864)) == True{} : Bool}:
+  +l = List.length(&2, U32, p)
+  +m = U32.to_nat(67108863)
+  +d9 = N.D(9n, 1n)
+  +h25 = N.D(25n, 1n)
+  +h26 = N.D(26n, 1n)
+  +n = List.length(&2, C.Cir.Cell, C.Img.cells(ds))
+  +h0 = small.le(p, 0, 67108863, {==}, le_zero_u32(67108863), small)
+  +h1 = N.le_rw_l(Nat.add(U32.to_nat(0), l), l, m, N.zero_add(l), h0)
+  +vm = Equal.trans(Nat, 1n+m, h26, Nat.double(h25), N.val_M(), D_succ(25n, 1n))
+  +h363 = N.le_trans(363n, d9, h25, Unit{},
+    N.le_rw_r(d9, N.D(16n, d9), h25, N.D_add(16n, 9n, 25n, 1n, {==}), D_ge(16n, d9)))
+  +h10 = core.len(p, ds, m, h25, rd, h1, vm, h363)
+  +e = Equal.trans(Nat, Nat.double(h25), h26, U32.to_nat(67108864),
+    Equal.sym(Nat, h26, Nat.double(h25), D_succ(25n, 1n)), Equal.sym(Nat, U32.to_nat(67108864), h26, val_M2()))
+  +h11 = N.le_rw_r(1n+n, Nat.double(h25), U32.to_nat(67108864), e, h10)
+  lt_nat(n, U32.to_nat(67108864), h11)
