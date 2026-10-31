@@ -9,6 +9,7 @@ import Bootstrap.Book
 import Bootstrap.Copy.Reader
 import Bootstrap.Read
 import Bootstrap.EvalSteps
+import Bootstrap.Join
 import Bootstrap.Script
 
 #guard_axioms
