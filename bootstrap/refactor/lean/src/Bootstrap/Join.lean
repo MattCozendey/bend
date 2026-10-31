@@ -10,7 +10,13 @@ import Bootstrap.Code
 
 open Quan Term
 
+-- Data with no dead part: labels, Rfl, and pairs of it at a live quantity
+inductive Plain : Term → Prop
+  | lab : Plain (Lab k)
+  | rfl : Plain Rfl
+  | tup : q.live = true → Plain a → Plain b → Plain (Tup q a b)
+
 -- in a book that --verdict accepts, a closed, live term a of a Data type,
--- that converts to the Data b, runs to b
+-- that converts to the plain b, runs to b
 theorem conv_runs : Book.check B = .ok () → Term.Closed a → Term.Live B a →
-    Typed B [] a A → Typed B [] A T2 → Data b → Conv B a b → Runs B a b := sorry
+    Typed B [] a A → Typed B [] A T2 → Plain b → Conv B a b → Runs B a b := sorry
