@@ -5,7 +5,7 @@ package bootstrap
 
 -- the kernel, bend2/bendtt.lean, read in place and unchanged
 lean_lib Kernel where
-  srcDir := "../../../bend2"
+  srcDir := "../../bend2"
   roots := #[`bendtt]
 
 -- the paths of the library's files: a new file changes them, so the root

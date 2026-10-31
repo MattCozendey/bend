@@ -4,7 +4,7 @@ import Bootstrap.Book
 -- ==========
 --
 -- A Lean model of the stack machine of the Bend reader
--- (bootstrap/refactor/bend/src/book), over the terms of its stack items.
+-- (bootstrap/bend/src/book), over the terms of its stack items.
 
 open Quan Term
 

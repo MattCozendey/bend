@@ -4,7 +4,7 @@ import Bootstrap.EvalSteps.Step
 -- =========
 --
 -- INVARIANTS #2: Eval.steps, the Bend copy of Eval
--- (bootstrap/refactor/bend/src/book), gives what the kernel's Eval gives,
+-- (bootstrap/bend/src/book), gives what the kernel's Eval gives,
 -- after the same number of steps, in both directions. The proof goes through
 -- step (Bootstrap/Interp.lean), which the copy follows case for case
 -- (src/Bootstrap/EvalSteps/).

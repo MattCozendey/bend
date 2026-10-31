@@ -342,7 +342,7 @@ def Book.read(xs: List<&2, U32>) -> Maybe<List<&2, Def>>:
 #
 # A copy of the kernel's Eval: Eval.steps(n, ds, t) gives the term that t
 # reaches after exactly n steps, in the book of the defs ds (INVARIANTS #2). It
-# follows step of bootstrap/refactor/lean/src/Bootstrap/Interp.lean case for
+# follows step of bootstrap/lean/src/Bootstrap/Interp.lean case for
 # case, and works out each part that a case may need before it picks one.
 
 # an argument of a spine, at its quantity
