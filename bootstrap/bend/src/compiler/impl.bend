@@ -4864,38 +4864,47 @@ def M.copy.end(+r: Nat, +root: Nat) -> Cir.Stmt:
     M.st(0n, M.g(root), M.c(K.root())),
     M.release(root)])
 
+# register r gets the copy of the term in register src, made by the stack in
+# register stack of new cells (above), from a root cell in register root: the
+# register depth holds the depth of the top cell, top that cell; part copies
+# the part in register at, for its field k, at the depth in register under
+def M.walk.copy(+r: Nat, +src: Nat, +root: Nat, +stack: Nat, +depth: Nat, +top: Nat, +k: Nat, +at: Nat,
+  +under: Nat, part: Cir.Stmt) -> Cir.Stmt:
+  M.do([
+    M.copy.root(root, src),
+    M.set(stack, M.g(root)),
+    M.set(depth, M.c(0)),
+    M.while(M.ne(M.g(stack), M.c(0)), M.do([
+      M.set(top, M.g(stack)),
+      M.if(M.eq(M.todo(M.g(top)), M.c(0)), M.do([
+        M.set(stack, M.f(1n, M.g(top))),
+        M.finish(top),
+        M.when(M.ne(M.g(stack), M.c(0)),
+          M.set(depth, M.sub(M.g(depth), M.bump(M.g(stack), M.todo.last(M.g(stack))))))]),
+      M.do([
+        M.set(k, M.todo.first(M.g(top))),
+        M.st(0n, M.g(top), M.sub(M.f(0n, M.g(top)), M.todo.bit(M.g(k)))),
+        M.set(at, M.get(M.g(top), M.g(k))),
+        M.set(under, M.add(M.g(depth), M.bump(M.g(top), M.g(k)))),
+        part]))])),
+    M.copy.end(r, root)])
+
 # register r gets the term in register v with each free variable from the
 # cutoff 0 on moved up by samt, as Term.shift does; a part whose free
 # variables are all below its cutoff is shared
 def M.shift(+r: Nat, +v: Nat) -> Cir.Stmt:
-  M.do([
-    M.copy.root(R.sroot(), v),
-    M.set(R.ss(), M.g(R.sroot())),
-    M.set(R.scut(), M.c(0)),
-    M.while(M.ne(M.g(R.ss()), M.c(0)), M.do([
-      M.set(R.snew(), M.g(R.ss())),
-      M.if(M.eq(M.todo(M.g(R.snew())), M.c(0)), M.do([
-        M.set(R.ss(), M.f(1n, M.g(R.snew()))),
-        M.finish(R.snew()),
-        M.when(M.ne(M.g(R.ss()), M.c(0)),
-          M.set(R.scut(), M.sub(M.g(R.scut()), M.bump(M.g(R.ss()), M.todo.last(M.g(R.ss()))))))]),
-      M.do([
-        M.set(R.sk(), M.todo.first(M.g(R.snew()))),
-        M.st(0n, M.g(R.snew()), M.sub(M.f(0n, M.g(R.snew())), M.todo.bit(M.g(R.sk())))),
-        M.set(R.ssrc(), M.get(M.g(R.snew()), M.g(R.sk()))),
-        M.set(R.sdep(), M.add(M.g(R.scut()), M.bump(M.g(R.snew()), M.g(R.sk())))),
-        M.if(M.and(M.lt(M.fv(M.g(R.ssrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.ssrc())), M.g(R.sdep()))),
+  M.walk.copy(r, v, R.sroot(), R.ss(), R.scut(), R.snew(), R.sk(), R.ssrc(), R.sdep(),
+    M.if(M.and(M.lt(M.fv(M.g(R.ssrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.ssrc())), M.g(R.sdep()))),
+      M.inc(R.ssrc()),
+      M.if(M.eq(M.tag(M.g(R.ssrc())), M.c(T.var())),
+        M.if(M.lt(M.f(2n, M.g(R.ssrc())), M.g(R.sdep())),
           M.inc(R.ssrc()),
-          M.if(M.eq(M.tag(M.g(R.ssrc())), M.c(T.var())),
-            M.if(M.lt(M.f(2n, M.g(R.ssrc())), M.g(R.sdep())),
-              M.inc(R.ssrc()),
-              M.do([
-                M.var(R.t1(), M.add(M.f(2n, M.g(R.ssrc())), M.g(R.samt()))),
-                M.put(R.snew(), R.sk(), M.g(R.t1()))])),
-            M.do([
-              M.copy.push(R.t1(), R.ssrc(), R.snew(), R.sk(), R.ss()),
-              M.set(R.scut(), M.g(R.sdep()))])))]))])),
-    M.copy.end(r, R.sroot())])
+          M.do([
+            M.var(R.t1(), M.add(M.f(2n, M.g(R.ssrc())), M.g(R.samt()))),
+            M.put(R.snew(), R.sk(), M.g(R.t1()))])),
+        M.do([
+          M.copy.push(R.t1(), R.ssrc(), R.snew(), R.sk(), R.ss()),
+          M.set(R.scut(), M.g(R.sdep()))]))))
 
 # the part in register csrc, which the new cell cnew holds in field ck, at
 # the depth cj: shared, when its free variables are all below cj; for a
@@ -4932,24 +4941,7 @@ def M.copy.part() -> Cir.Stmt:
 # register r gets the copy of the term in register src, as Term.subst gives
 # it at the depth 0, with the list of locals in cenv, of clen locals
 def M.copy(+r: Nat, +src: Nat) -> Cir.Stmt:
-  M.do([
-    M.copy.root(R.croot(), src),
-    M.set(R.cs(), M.g(R.croot())),
-    M.set(R.cd(), M.c(0)),
-    M.while(M.ne(M.g(R.cs()), M.c(0)), M.do([
-      M.set(R.cnew(), M.g(R.cs())),
-      M.if(M.eq(M.todo(M.g(R.cnew())), M.c(0)), M.do([
-        M.set(R.cs(), M.f(1n, M.g(R.cnew()))),
-        M.finish(R.cnew()),
-        M.when(M.ne(M.g(R.cs()), M.c(0)),
-          M.set(R.cd(), M.sub(M.g(R.cd()), M.bump(M.g(R.cs()), M.todo.last(M.g(R.cs()))))))]),
-      M.do([
-        M.set(R.ck(), M.todo.first(M.g(R.cnew()))),
-        M.st(0n, M.g(R.cnew()), M.sub(M.f(0n, M.g(R.cnew())), M.todo.bit(M.g(R.ck())))),
-        M.set(R.csrc(), M.get(M.g(R.cnew()), M.g(R.ck()))),
-        M.set(R.cj(), M.add(M.g(R.cd()), M.bump(M.g(R.cnew()), M.g(R.ck())))),
-        M.copy.part()]))])),
-    M.copy.end(r, R.croot())])
+  M.walk.copy(r, src, R.croot(), R.cs(), R.cd(), R.cnew(), R.ck(), R.csrc(), R.cj(), M.copy.part())
 
 # the run goes on when c is not 0; else it ends with no result
 def M.need(c: Cir.Expr, then: Cir.Stmt) -> Cir.Stmt:
@@ -5209,29 +5201,27 @@ def M.ev.ref() -> Cir.Stmt:
       M.set(R.wargs(), M.c(0)),
       M.call(M.set(R.mode(), M.c(1)), M.dec(R.c()))]))])
 
-# App q f x: f, in the frame App q □ x
-def M.ev.app() -> Cir.Stmt:
+# the part in field a of the focus c, to evaluate, in a frame of header h
+# that holds its part in field b
+def M.ev.frame(h: Cir.Expr, a: Nat, b: Nat) -> Cir.Stmt:
   M.do([
-    M.set(R.x(), M.f(2n, M.g(R.c()))),
-    M.set(R.y(), M.f(3n, M.g(R.c()))),
+    M.set(R.x(), M.f(a, M.g(R.c()))),
+    M.set(R.y(), M.f(b, M.g(R.c()))),
     M.inc(R.x()),
     M.inc(R.y()),
-    M.push(M.header(K.app_arg(), M.q(M.g(R.c())), M.c(0)), M.g(R.y()), M.c(0)),
+    M.push(h, M.g(R.y()), M.c(0)),
     M.dec(R.c()),
     M.set(R.focus(), M.g(R.x()))])
+
+# App q f x: f, in the frame App q □ x
+def M.ev.app() -> Cir.Stmt:
+  M.ev.frame(M.header(K.app_arg(), M.q(M.g(R.c())), M.c(0)), 2n, 3n)
 
 # Let q v f: v in the frame Let q □ f, when q is live; else f with v put in,
 # a step
 def M.ev.let() -> Cir.Stmt:
   M.if(M.ne(M.q(M.g(R.c())), M.c(0)),
-    M.do([
-      M.set(R.x(), M.f(2n, M.g(R.c()))),
-      M.set(R.y(), M.f(3n, M.g(R.c()))),
-      M.inc(R.x()),
-      M.inc(R.y()),
-      M.push(M.header(K.let_in(), M.q(M.g(R.c())), M.c(0)), M.g(R.y()), M.c(0)),
-      M.dec(R.c()),
-      M.set(R.focus(), M.g(R.x()))]),
+    M.ev.frame(M.header(K.let_in(), M.q(M.g(R.c())), M.c(0)), 2n, 3n),
     M.do([
       M.set(R.y(), M.f(2n, M.g(R.c()))),
       M.one(R.y()),
@@ -5244,19 +5234,9 @@ def M.ev.let() -> Cir.Stmt:
 # Tup q a b, not known to be a value: a in the frame Tup q □ b, when q is
 # live; else b in the frame Tup q a □
 def M.ev.tup() -> Cir.Stmt:
-  M.do([
-    M.set(R.x(), M.f(2n, M.g(R.c()))),
-    M.set(R.y(), M.f(3n, M.g(R.c()))),
-    M.inc(R.x()),
-    M.inc(R.y()),
-    M.if(M.ne(M.q(M.g(R.c())), M.c(0)),
-      M.do([
-        M.push(M.header(K.tup_b(), M.q(M.g(R.c())), M.c(0)), M.g(R.y()), M.c(0)),
-        M.set(R.focus(), M.g(R.x()))]),
-      M.do([
-        M.push(M.header(K.tup_a(), M.q(M.g(R.c())), M.c(0)), M.g(R.x()), M.c(0)),
-        M.set(R.focus(), M.g(R.y()))])),
-    M.dec(R.c())])
+  M.if(M.ne(M.q(M.g(R.c())), M.c(0)),
+    M.ev.frame(M.header(K.tup_b(), M.q(M.g(R.c())), M.c(0)), 2n, 3n),
+    M.ev.frame(M.header(K.tup_a(), M.q(M.g(R.c())), M.c(0)), 3n, 2n))
 
 # Rwt e P f: e, in the frame Rwt □ P f
 def M.ev.rwt() -> Cir.Stmt:
@@ -5273,14 +5253,7 @@ def M.ev.rwt() -> Cir.Stmt:
 
 # Min a b: a, in the frame Min □ b
 def M.ev.min() -> Cir.Stmt:
-  M.do([
-    M.set(R.x(), M.f(2n, M.g(R.c()))),
-    M.set(R.y(), M.f(3n, M.g(R.c()))),
-    M.inc(R.x()),
-    M.inc(R.y()),
-    M.push(M.c(K.min_b()), M.g(R.y()), M.c(0)),
-    M.dec(R.c()),
-    M.set(R.focus(), M.g(R.x()))])
+  M.ev.frame(M.c(K.min_b()), 2n, 3n)
 
 # mode 0: a value by its form, or flagged one, is returned; a variable, free
 # in the whole term, has no step
