@@ -66,7 +66,7 @@ def img.small(
   rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>},
   small: {C.Img.small(p, 0) == True{} : Bool}
 ) -> {Nat.is_lt(List.length(&2, C.Cir.Cell, C.Img.cells(ds)), U32.to_nat(67108864)) == True{} : Bool}:
-  ?TODO
+  PI.img.small.nat(p, ds, rd, small)
 
 # a book of 2^26 bytes or more needs more memory than a module can have
 def need.big(
