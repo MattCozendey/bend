@@ -4,5 +4,9 @@ import Bootstrap.Interp
 import Bootstrap.Bytes
 import Bootstrap.Run
 import Bootstrap.Program
+import Bootstrap.Code
+import Bootstrap.Book
+import Bootstrap.Copy.Reader
+import Bootstrap.Read
 
 #guard_axioms

@@ -19,9 +19,15 @@ def bits : Nat → Nat → Term
   | 0, _ => ctor "WNil" []
   | n + 1, v => ctor "WCon" [ctor (if v % 2 = 1 then "True" else "False") [], bits n (v / 2)]
 
-def bytes : List UInt8 → Term
+-- a list, as Base's List
+def list : List Term → Term
   | [] => ctor "Nil" []
-  | b :: bs => ctor "Con" [ctor "U32" [bits 32 b.toNat], bytes bs]
+  | x :: xs => ctor "Con" [x, list xs]
+
+-- a byte, as a U32 below 256
+def cell (b : UInt8) : Term := ctor "U32" [bits 32 b.toNat]
+
+def bytes (bs : List UInt8) : Term := list (bs.map cell)
 
 -- the value of a Word(n)
 def unbits : Nat → Term → Option Nat
@@ -53,9 +59,10 @@ theorem unbits_bits : unbits n (bits n v) = some (v % 2 ^ n) := by
 -- the bytes come back from their term
 theorem unbytes_bytes : unbytes (bytes i) = some i := by
   induction i with
-  | nil => simp [bytes, ctor, unbytes]
+  | nil => simp [bytes, list, ctor, unbytes]
   | cons b bs ih =>
     have hb : b.toNat < 256 := b.toNat_lt
     have h : b.toNat % 2 ^ 32 = b.toNat := Nat.mod_eq_of_lt (by omega)
-    simp [bytes, ctor, unbytes, unbits_bits, h, ih]
+    simp only [bytes] at ih
+    simp [bytes, list, cell, ctor, unbytes, unbits_bits, h, ih]
     exact hb
