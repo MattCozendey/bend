@@ -8,9 +8,8 @@ import Bootstrap.Script
 -- that the defs ROOTS need, them included, in the order of the file.
 --
 --   bend <file.bend> -o <file.bendtt>
---   lake build Bootstrap.Script
 --   BOOK=<file.bendtt> ROOTS=<name>,... NAME=<name> SOURCE=<file.bend> \
---     OUTPUT=<file.lean> lake env lean scripts/Copy.lean
+--     OUTPUT=<file.lean> lake lean scripts/Copy.lean
 --
 -- The Lean file defines a def «NAME.k» per def k, and NAME : List Def.
 

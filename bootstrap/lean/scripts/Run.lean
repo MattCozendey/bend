@@ -7,8 +7,7 @@ import Bootstrap.Script
 -- Runs the program of a .bendtt file on the bytes of a file with interp
 -- (src/Bootstrap/Program.lean), and writes the bytes it gives to a file.
 --
---   lake build
---   BOOK=prog.bendtt INPUT=in OUTPUT=out [FUEL=n] lake env lean scripts/Run.lean
+--   BOOK=prog.bendtt INPUT=in OUTPUT=out [FUEL=n] lake lean scripts/Run.lean
 --
 -- FUEL is defaultFuel when it is not set. On a result, it writes OUTPUT, prints
 -- the number of steps and exits with 0. Else it prints the error, and why there

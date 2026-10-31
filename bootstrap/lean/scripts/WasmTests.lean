@@ -11,9 +11,8 @@ import Bootstrap.Script
 -- plan trusts (src/Bootstrap/Run.lean), not by the TypeScript compiler.
 --
 --   bend bootstrap/bend/src/compiler/impl.bend -o <file.bendtt>
---   lake build Bootstrap.Run Bootstrap.Script
---   BOOK=<file.bendtt> TESTS=bootstrap/tests/wasm/bin ONLY=<test>,... \
---     OUT=<file.log> lake env lean scripts/WasmTests.lean
+--   BOOK=<file.bendtt> TESTS=../tests/wasm/bin ONLY=<test>,... \
+--     OUT=<file.log> lake lean scripts/WasmTests.lean
 --
 -- It runs each command of a binary script (spec interpreter README: Binary
 -- Scripts) as the spec's harness does, and counts each assertion as passed,
