@@ -5004,142 +5004,6 @@ def «reader.Book.read» : Def :=
             (Term.Lab "()")))),
     false⟩
 
-def «reader.Word.Nil.arms» : Def :=
-  ⟨"Word.Nil.arms",
-    Term.All (Quan.Q1) (Term.Enu ["WNil"]) (Term.Typ (Term.Lab "Q2")),
-    Term.Mat "WNil" (Term.Enu ["()"]) (Term.Efq),
-    false⟩
-
-def «reader.Word.Nil» : Def :=
-  ⟨"Word.Nil",
-    Term.Typ (Term.Lab "Q2"),
-    Term.Sig (Quan.Q1) (Term.Enu ["WNil"]) (Term.App (Quan.Q1) (Term.Ref "Word.Nil.arms") (Term.Var 0)),
-    false⟩
-
-def «reader.Word.Con.arms» : Def :=
-  ⟨"Word.Con.arms",
-    Term.All
-      (Quan.Q0)
-      (Term.Ref "Nat")
-      (Term.All (Quan.Q1) (Term.Enu ["WCon"]) (Term.Typ (Term.Lab "Q2"))),
-    Term.Lam
-      (Quan.Q0)
-      (Term.Mat
-        "WCon"
-        (Term.Sig
-          (Quan.Q1)
-          (Term.Ref "Bool")
-          (Term.Sig
-            (Quan.Q1)
-            (Term.App (Quan.Q1) (Term.Ref "Word") (Term.Var 1))
-            (Term.Enu ["()"])))
-        (Term.Efq)),
-    false⟩
-
-def «reader.Word.Con» : Def :=
-  ⟨"Word.Con",
-    Term.All (Quan.Q0) (Term.Ref "Nat") (Term.Typ (Term.Lab "Q2")),
-    Term.Lam
-      (Quan.Q0)
-      (Term.Sig
-        (Quan.Q1)
-        (Term.Enu ["WCon"])
-        (Term.App
-          (Quan.Q1)
-          (Term.App (Quan.Q0) (Term.Ref "Word.Con.arms") (Term.Var 1))
-          (Term.Var 0))),
-    false⟩
-
-def «reader.Word» : Def :=
-  ⟨"Word",
-    Term.All (Quan.Q1) (Term.Ref "Nat") (Term.Typ (Term.Lab "Q2")),
-    Term.Prj
-      (Term.Mat
-        "Zero"
-        (Term.Mat "()" (Term.Ref "Word.Nil") (Term.Efq))
-        (Term.Mat
-          "Succ"
-          (Term.Prj
-            (Term.Lam
-              (Quan.Q1)
-              (Term.Mat "()" (Term.App (Quan.Q0) (Term.Ref "Word.Con") (Term.Var 0)) (Term.Efq))))
-          (Term.Efq))),
-    false⟩
-
-def «reader.Maybe.arms» : Def :=
-  ⟨"Maybe.arms",
-    Term.All
-      (Quan.Q0)
-      (Term.Enu ["Q0", "Q1", "Q2"])
-      (Term.All
-        (Quan.Q0)
-        (Term.Typ (Term.Var 0))
-        (Term.All (Quan.Q1) (Term.Enu ["None", "Some"]) (Term.Typ (Term.Var 2)))),
-    Term.Lam
-      (Quan.Q0)
-      (Term.Lam
-        (Quan.Q0)
-        (Term.Mat
-          "None"
-          (Term.Enu ["()"])
-          (Term.Mat "Some" (Term.Sig (Quan.Q1) (Term.Var 0) (Term.Enu ["()"])) (Term.Efq)))),
-    false⟩
-
-def «reader.Maybe» : Def :=
-  ⟨"Maybe",
-    Term.All
-      (Quan.Q0)
-      (Term.Enu ["Q0", "Q1", "Q2"])
-      (Term.All (Quan.Q0) (Term.Typ (Term.Var 0)) (Term.Typ (Term.Var 1))),
-    Term.Lam
-      (Quan.Q0)
-      (Term.Lam
-        (Quan.Q0)
-        (Term.Sig
-          (Quan.Q1)
-          (Term.Enu ["None", "Some"])
-          (Term.App
-            (Quan.Q1)
-            (Term.App
-              (Quan.Q0)
-              (Term.App (Quan.Q0) (Term.Ref "Maybe.arms") (Term.Var 2))
-              (Term.Var 1))
-            (Term.Var 0)))),
-    false⟩
-
-def «reader.Bool.arms» : Def :=
-  ⟨"Bool.arms",
-    Term.All (Quan.Q1) (Term.Enu ["False", "True"]) (Term.Typ (Term.Lab "Q2")),
-    Term.Mat "False" (Term.Enu ["()"]) (Term.Mat "True" (Term.Enu ["()"]) (Term.Efq)),
-    false⟩
-
-def «reader.Bool» : Def :=
-  ⟨"Bool",
-    Term.Typ (Term.Lab "Q2"),
-    Term.Sig
-      (Quan.Q1)
-      (Term.Enu ["False", "True"])
-      (Term.App (Quan.Q1) (Term.Ref "Bool.arms") (Term.Var 0)),
-    false⟩
-
-def «reader.Nat.arms» : Def :=
-  ⟨"Nat.arms",
-    Term.All (Quan.Q1) (Term.Enu ["Zero", "Succ"]) (Term.Typ (Term.Lab "Q2")),
-    Term.Mat
-      "Zero"
-      (Term.Enu ["()"])
-      (Term.Mat "Succ" (Term.Sig (Quan.Q1) (Term.Ref "Nat") (Term.Enu ["()"])) (Term.Efq)),
-    false⟩
-
-def «reader.Nat» : Def :=
-  ⟨"Nat",
-    Term.Typ (Term.Lab "Q2"),
-    Term.Sig
-      (Quan.Q1)
-      (Term.Enu ["Zero", "Succ"])
-      (Term.App (Quan.Q1) (Term.Ref "Nat.arms") (Term.Var 0)),
-    false⟩
-
 def «reader.U32.arms» : Def :=
   ⟨"U32.arms",
     Term.All (Quan.Q1) (Term.Enu ["U32"]) (Term.Typ (Term.Lab "Q2")),
@@ -5386,6 +5250,142 @@ def «reader.U32» : Def :=
     Term.Sig (Quan.Q1) (Term.Enu ["U32"]) (Term.App (Quan.Q1) (Term.Ref "U32.arms") (Term.Var 0)),
     false⟩
 
+def «reader.Word.Nil.arms» : Def :=
+  ⟨"Word.Nil.arms",
+    Term.All (Quan.Q1) (Term.Enu ["WNil"]) (Term.Typ (Term.Lab "Q2")),
+    Term.Mat "WNil" (Term.Enu ["()"]) (Term.Efq),
+    false⟩
+
+def «reader.Word.Nil» : Def :=
+  ⟨"Word.Nil",
+    Term.Typ (Term.Lab "Q2"),
+    Term.Sig (Quan.Q1) (Term.Enu ["WNil"]) (Term.App (Quan.Q1) (Term.Ref "Word.Nil.arms") (Term.Var 0)),
+    false⟩
+
+def «reader.Word.Con.arms» : Def :=
+  ⟨"Word.Con.arms",
+    Term.All
+      (Quan.Q0)
+      (Term.Ref "Nat")
+      (Term.All (Quan.Q1) (Term.Enu ["WCon"]) (Term.Typ (Term.Lab "Q2"))),
+    Term.Lam
+      (Quan.Q0)
+      (Term.Mat
+        "WCon"
+        (Term.Sig
+          (Quan.Q1)
+          (Term.Ref "Bool")
+          (Term.Sig
+            (Quan.Q1)
+            (Term.App (Quan.Q1) (Term.Ref "Word") (Term.Var 1))
+            (Term.Enu ["()"])))
+        (Term.Efq)),
+    false⟩
+
+def «reader.Word.Con» : Def :=
+  ⟨"Word.Con",
+    Term.All (Quan.Q0) (Term.Ref "Nat") (Term.Typ (Term.Lab "Q2")),
+    Term.Lam
+      (Quan.Q0)
+      (Term.Sig
+        (Quan.Q1)
+        (Term.Enu ["WCon"])
+        (Term.App
+          (Quan.Q1)
+          (Term.App (Quan.Q0) (Term.Ref "Word.Con.arms") (Term.Var 1))
+          (Term.Var 0))),
+    false⟩
+
+def «reader.Word» : Def :=
+  ⟨"Word",
+    Term.All (Quan.Q1) (Term.Ref "Nat") (Term.Typ (Term.Lab "Q2")),
+    Term.Prj
+      (Term.Mat
+        "Zero"
+        (Term.Mat "()" (Term.Ref "Word.Nil") (Term.Efq))
+        (Term.Mat
+          "Succ"
+          (Term.Prj
+            (Term.Lam
+              (Quan.Q1)
+              (Term.Mat "()" (Term.App (Quan.Q0) (Term.Ref "Word.Con") (Term.Var 0)) (Term.Efq))))
+          (Term.Efq))),
+    false⟩
+
+def «reader.Maybe.arms» : Def :=
+  ⟨"Maybe.arms",
+    Term.All
+      (Quan.Q0)
+      (Term.Enu ["Q0", "Q1", "Q2"])
+      (Term.All
+        (Quan.Q0)
+        (Term.Typ (Term.Var 0))
+        (Term.All (Quan.Q1) (Term.Enu ["None", "Some"]) (Term.Typ (Term.Var 2)))),
+    Term.Lam
+      (Quan.Q0)
+      (Term.Lam
+        (Quan.Q0)
+        (Term.Mat
+          "None"
+          (Term.Enu ["()"])
+          (Term.Mat "Some" (Term.Sig (Quan.Q1) (Term.Var 0) (Term.Enu ["()"])) (Term.Efq)))),
+    false⟩
+
+def «reader.Maybe» : Def :=
+  ⟨"Maybe",
+    Term.All
+      (Quan.Q0)
+      (Term.Enu ["Q0", "Q1", "Q2"])
+      (Term.All (Quan.Q0) (Term.Typ (Term.Var 0)) (Term.Typ (Term.Var 1))),
+    Term.Lam
+      (Quan.Q0)
+      (Term.Lam
+        (Quan.Q0)
+        (Term.Sig
+          (Quan.Q1)
+          (Term.Enu ["None", "Some"])
+          (Term.App
+            (Quan.Q1)
+            (Term.App
+              (Quan.Q0)
+              (Term.App (Quan.Q0) (Term.Ref "Maybe.arms") (Term.Var 2))
+              (Term.Var 1))
+            (Term.Var 0)))),
+    false⟩
+
+def «reader.Bool.arms» : Def :=
+  ⟨"Bool.arms",
+    Term.All (Quan.Q1) (Term.Enu ["False", "True"]) (Term.Typ (Term.Lab "Q2")),
+    Term.Mat "False" (Term.Enu ["()"]) (Term.Mat "True" (Term.Enu ["()"]) (Term.Efq)),
+    false⟩
+
+def «reader.Bool» : Def :=
+  ⟨"Bool",
+    Term.Typ (Term.Lab "Q2"),
+    Term.Sig
+      (Quan.Q1)
+      (Term.Enu ["False", "True"])
+      (Term.App (Quan.Q1) (Term.Ref "Bool.arms") (Term.Var 0)),
+    false⟩
+
+def «reader.Nat.arms» : Def :=
+  ⟨"Nat.arms",
+    Term.All (Quan.Q1) (Term.Enu ["Zero", "Succ"]) (Term.Typ (Term.Lab "Q2")),
+    Term.Mat
+      "Zero"
+      (Term.Enu ["()"])
+      (Term.Mat "Succ" (Term.Sig (Quan.Q1) (Term.Ref "Nat") (Term.Enu ["()"])) (Term.Efq)),
+    false⟩
+
+def «reader.Nat» : Def :=
+  ⟨"Nat",
+    Term.Typ (Term.Lab "Q2"),
+    Term.Sig
+      (Quan.Q1)
+      (Term.Enu ["Zero", "Succ"])
+      (Term.App (Quan.Q1) (Term.Ref "Nat.arms") (Term.Var 0)),
+    false⟩
+
 def «reader.List.arms» : Def :=
   ⟨"List.arms",
     Term.All
@@ -5482,6 +5482,8 @@ def reader : List Def :=
    «reader.Book.read.done»,
    «reader.Book.read.go»,
    «reader.Book.read»,
+   «reader.U32.arms»,
+   «reader.U32»,
    «reader.Word.Nil.arms»,
    «reader.Word.Nil»,
    «reader.Word.Con.arms»,
@@ -5493,7 +5495,5 @@ def reader : List Def :=
    «reader.Bool»,
    «reader.Nat.arms»,
    «reader.Nat»,
-   «reader.U32.arms»,
-   «reader.U32»,
    «reader.List.arms»,
    «reader.List»]

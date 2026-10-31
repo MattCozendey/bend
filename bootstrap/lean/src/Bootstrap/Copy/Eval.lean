@@ -8450,160 +8450,6 @@ def «evalCopy.Eval.steps» : Def :=
               (Term.Tup (Quan.Q1) (Term.Var 0) (Term.Lab "()")))))),
     false⟩
 
-def «evalCopy.Cmp.arms» : Def :=
-  ⟨"Cmp.arms",
-    Term.All (Quan.Q1) (Term.Enu ["LT", "EQ", "GT"]) (Term.Typ (Term.Lab "Q2")),
-    Term.Mat
-      "LT"
-      (Term.Enu ["()"])
-      (Term.Mat "EQ" (Term.Enu ["()"]) (Term.Mat "GT" (Term.Enu ["()"]) (Term.Efq))),
-    false⟩
-
-def «evalCopy.Cmp» : Def :=
-  ⟨"Cmp",
-    Term.Typ (Term.Lab "Q2"),
-    Term.Sig
-      (Quan.Q1)
-      (Term.Enu ["LT", "EQ", "GT"])
-      (Term.App (Quan.Q1) (Term.Ref "Cmp.arms") (Term.Var 0)),
-    false⟩
-
-def «evalCopy.Word.Nil.arms» : Def :=
-  ⟨"Word.Nil.arms",
-    Term.All (Quan.Q1) (Term.Enu ["WNil"]) (Term.Typ (Term.Lab "Q2")),
-    Term.Mat "WNil" (Term.Enu ["()"]) (Term.Efq),
-    false⟩
-
-def «evalCopy.Word.Nil» : Def :=
-  ⟨"Word.Nil",
-    Term.Typ (Term.Lab "Q2"),
-    Term.Sig (Quan.Q1) (Term.Enu ["WNil"]) (Term.App (Quan.Q1) (Term.Ref "Word.Nil.arms") (Term.Var 0)),
-    false⟩
-
-def «evalCopy.Word.Con.arms» : Def :=
-  ⟨"Word.Con.arms",
-    Term.All
-      (Quan.Q0)
-      (Term.Ref "Nat")
-      (Term.All (Quan.Q1) (Term.Enu ["WCon"]) (Term.Typ (Term.Lab "Q2"))),
-    Term.Lam
-      (Quan.Q0)
-      (Term.Mat
-        "WCon"
-        (Term.Sig
-          (Quan.Q1)
-          (Term.Ref "Bool")
-          (Term.Sig
-            (Quan.Q1)
-            (Term.App (Quan.Q1) (Term.Ref "Word") (Term.Var 1))
-            (Term.Enu ["()"])))
-        (Term.Efq)),
-    false⟩
-
-def «evalCopy.Word.Con» : Def :=
-  ⟨"Word.Con",
-    Term.All (Quan.Q0) (Term.Ref "Nat") (Term.Typ (Term.Lab "Q2")),
-    Term.Lam
-      (Quan.Q0)
-      (Term.Sig
-        (Quan.Q1)
-        (Term.Enu ["WCon"])
-        (Term.App
-          (Quan.Q1)
-          (Term.App (Quan.Q0) (Term.Ref "Word.Con.arms") (Term.Var 1))
-          (Term.Var 0))),
-    false⟩
-
-def «evalCopy.Word» : Def :=
-  ⟨"Word",
-    Term.All (Quan.Q1) (Term.Ref "Nat") (Term.Typ (Term.Lab "Q2")),
-    Term.Prj
-      (Term.Mat
-        "Zero"
-        (Term.Mat "()" (Term.Ref "Word.Nil") (Term.Efq))
-        (Term.Mat
-          "Succ"
-          (Term.Prj
-            (Term.Lam
-              (Quan.Q1)
-              (Term.Mat "()" (Term.App (Quan.Q0) (Term.Ref "Word.Con") (Term.Var 0)) (Term.Efq))))
-          (Term.Efq))),
-    false⟩
-
-def «evalCopy.Maybe.arms» : Def :=
-  ⟨"Maybe.arms",
-    Term.All
-      (Quan.Q0)
-      (Term.Enu ["Q0", "Q1", "Q2"])
-      (Term.All
-        (Quan.Q0)
-        (Term.Typ (Term.Var 0))
-        (Term.All (Quan.Q1) (Term.Enu ["None", "Some"]) (Term.Typ (Term.Var 2)))),
-    Term.Lam
-      (Quan.Q0)
-      (Term.Lam
-        (Quan.Q0)
-        (Term.Mat
-          "None"
-          (Term.Enu ["()"])
-          (Term.Mat "Some" (Term.Sig (Quan.Q1) (Term.Var 0) (Term.Enu ["()"])) (Term.Efq)))),
-    false⟩
-
-def «evalCopy.Maybe» : Def :=
-  ⟨"Maybe",
-    Term.All
-      (Quan.Q0)
-      (Term.Enu ["Q0", "Q1", "Q2"])
-      (Term.All (Quan.Q0) (Term.Typ (Term.Var 0)) (Term.Typ (Term.Var 1))),
-    Term.Lam
-      (Quan.Q0)
-      (Term.Lam
-        (Quan.Q0)
-        (Term.Sig
-          (Quan.Q1)
-          (Term.Enu ["None", "Some"])
-          (Term.App
-            (Quan.Q1)
-            (Term.App
-              (Quan.Q0)
-              (Term.App (Quan.Q0) (Term.Ref "Maybe.arms") (Term.Var 2))
-              (Term.Var 1))
-            (Term.Var 0)))),
-    false⟩
-
-def «evalCopy.Bool.arms» : Def :=
-  ⟨"Bool.arms",
-    Term.All (Quan.Q1) (Term.Enu ["False", "True"]) (Term.Typ (Term.Lab "Q2")),
-    Term.Mat "False" (Term.Enu ["()"]) (Term.Mat "True" (Term.Enu ["()"]) (Term.Efq)),
-    false⟩
-
-def «evalCopy.Bool» : Def :=
-  ⟨"Bool",
-    Term.Typ (Term.Lab "Q2"),
-    Term.Sig
-      (Quan.Q1)
-      (Term.Enu ["False", "True"])
-      (Term.App (Quan.Q1) (Term.Ref "Bool.arms") (Term.Var 0)),
-    false⟩
-
-def «evalCopy.Nat.arms» : Def :=
-  ⟨"Nat.arms",
-    Term.All (Quan.Q1) (Term.Enu ["Zero", "Succ"]) (Term.Typ (Term.Lab "Q2")),
-    Term.Mat
-      "Zero"
-      (Term.Enu ["()"])
-      (Term.Mat "Succ" (Term.Sig (Quan.Q1) (Term.Ref "Nat") (Term.Enu ["()"])) (Term.Efq)),
-    false⟩
-
-def «evalCopy.Nat» : Def :=
-  ⟨"Nat",
-    Term.Typ (Term.Lab "Q2"),
-    Term.Sig
-      (Quan.Q1)
-      (Term.Enu ["Zero", "Succ"])
-      (Term.App (Quan.Q1) (Term.Ref "Nat.arms") (Term.Var 0)),
-    false⟩
-
 def «evalCopy.U32.arms» : Def :=
   ⟨"U32.arms",
     Term.All (Quan.Q1) (Term.Enu ["U32"]) (Term.Typ (Term.Lab "Q2")),
@@ -8850,6 +8696,160 @@ def «evalCopy.U32» : Def :=
     Term.Sig (Quan.Q1) (Term.Enu ["U32"]) (Term.App (Quan.Q1) (Term.Ref "U32.arms") (Term.Var 0)),
     false⟩
 
+def «evalCopy.Cmp.arms» : Def :=
+  ⟨"Cmp.arms",
+    Term.All (Quan.Q1) (Term.Enu ["LT", "EQ", "GT"]) (Term.Typ (Term.Lab "Q2")),
+    Term.Mat
+      "LT"
+      (Term.Enu ["()"])
+      (Term.Mat "EQ" (Term.Enu ["()"]) (Term.Mat "GT" (Term.Enu ["()"]) (Term.Efq))),
+    false⟩
+
+def «evalCopy.Cmp» : Def :=
+  ⟨"Cmp",
+    Term.Typ (Term.Lab "Q2"),
+    Term.Sig
+      (Quan.Q1)
+      (Term.Enu ["LT", "EQ", "GT"])
+      (Term.App (Quan.Q1) (Term.Ref "Cmp.arms") (Term.Var 0)),
+    false⟩
+
+def «evalCopy.Word.Nil.arms» : Def :=
+  ⟨"Word.Nil.arms",
+    Term.All (Quan.Q1) (Term.Enu ["WNil"]) (Term.Typ (Term.Lab "Q2")),
+    Term.Mat "WNil" (Term.Enu ["()"]) (Term.Efq),
+    false⟩
+
+def «evalCopy.Word.Nil» : Def :=
+  ⟨"Word.Nil",
+    Term.Typ (Term.Lab "Q2"),
+    Term.Sig (Quan.Q1) (Term.Enu ["WNil"]) (Term.App (Quan.Q1) (Term.Ref "Word.Nil.arms") (Term.Var 0)),
+    false⟩
+
+def «evalCopy.Word.Con.arms» : Def :=
+  ⟨"Word.Con.arms",
+    Term.All
+      (Quan.Q0)
+      (Term.Ref "Nat")
+      (Term.All (Quan.Q1) (Term.Enu ["WCon"]) (Term.Typ (Term.Lab "Q2"))),
+    Term.Lam
+      (Quan.Q0)
+      (Term.Mat
+        "WCon"
+        (Term.Sig
+          (Quan.Q1)
+          (Term.Ref "Bool")
+          (Term.Sig
+            (Quan.Q1)
+            (Term.App (Quan.Q1) (Term.Ref "Word") (Term.Var 1))
+            (Term.Enu ["()"])))
+        (Term.Efq)),
+    false⟩
+
+def «evalCopy.Word.Con» : Def :=
+  ⟨"Word.Con",
+    Term.All (Quan.Q0) (Term.Ref "Nat") (Term.Typ (Term.Lab "Q2")),
+    Term.Lam
+      (Quan.Q0)
+      (Term.Sig
+        (Quan.Q1)
+        (Term.Enu ["WCon"])
+        (Term.App
+          (Quan.Q1)
+          (Term.App (Quan.Q0) (Term.Ref "Word.Con.arms") (Term.Var 1))
+          (Term.Var 0))),
+    false⟩
+
+def «evalCopy.Word» : Def :=
+  ⟨"Word",
+    Term.All (Quan.Q1) (Term.Ref "Nat") (Term.Typ (Term.Lab "Q2")),
+    Term.Prj
+      (Term.Mat
+        "Zero"
+        (Term.Mat "()" (Term.Ref "Word.Nil") (Term.Efq))
+        (Term.Mat
+          "Succ"
+          (Term.Prj
+            (Term.Lam
+              (Quan.Q1)
+              (Term.Mat "()" (Term.App (Quan.Q0) (Term.Ref "Word.Con") (Term.Var 0)) (Term.Efq))))
+          (Term.Efq))),
+    false⟩
+
+def «evalCopy.Maybe.arms» : Def :=
+  ⟨"Maybe.arms",
+    Term.All
+      (Quan.Q0)
+      (Term.Enu ["Q0", "Q1", "Q2"])
+      (Term.All
+        (Quan.Q0)
+        (Term.Typ (Term.Var 0))
+        (Term.All (Quan.Q1) (Term.Enu ["None", "Some"]) (Term.Typ (Term.Var 2)))),
+    Term.Lam
+      (Quan.Q0)
+      (Term.Lam
+        (Quan.Q0)
+        (Term.Mat
+          "None"
+          (Term.Enu ["()"])
+          (Term.Mat "Some" (Term.Sig (Quan.Q1) (Term.Var 0) (Term.Enu ["()"])) (Term.Efq)))),
+    false⟩
+
+def «evalCopy.Maybe» : Def :=
+  ⟨"Maybe",
+    Term.All
+      (Quan.Q0)
+      (Term.Enu ["Q0", "Q1", "Q2"])
+      (Term.All (Quan.Q0) (Term.Typ (Term.Var 0)) (Term.Typ (Term.Var 1))),
+    Term.Lam
+      (Quan.Q0)
+      (Term.Lam
+        (Quan.Q0)
+        (Term.Sig
+          (Quan.Q1)
+          (Term.Enu ["None", "Some"])
+          (Term.App
+            (Quan.Q1)
+            (Term.App
+              (Quan.Q0)
+              (Term.App (Quan.Q0) (Term.Ref "Maybe.arms") (Term.Var 2))
+              (Term.Var 1))
+            (Term.Var 0)))),
+    false⟩
+
+def «evalCopy.Bool.arms» : Def :=
+  ⟨"Bool.arms",
+    Term.All (Quan.Q1) (Term.Enu ["False", "True"]) (Term.Typ (Term.Lab "Q2")),
+    Term.Mat "False" (Term.Enu ["()"]) (Term.Mat "True" (Term.Enu ["()"]) (Term.Efq)),
+    false⟩
+
+def «evalCopy.Bool» : Def :=
+  ⟨"Bool",
+    Term.Typ (Term.Lab "Q2"),
+    Term.Sig
+      (Quan.Q1)
+      (Term.Enu ["False", "True"])
+      (Term.App (Quan.Q1) (Term.Ref "Bool.arms") (Term.Var 0)),
+    false⟩
+
+def «evalCopy.Nat.arms» : Def :=
+  ⟨"Nat.arms",
+    Term.All (Quan.Q1) (Term.Enu ["Zero", "Succ"]) (Term.Typ (Term.Lab "Q2")),
+    Term.Mat
+      "Zero"
+      (Term.Enu ["()"])
+      (Term.Mat "Succ" (Term.Sig (Quan.Q1) (Term.Ref "Nat") (Term.Enu ["()"])) (Term.Efq)),
+    false⟩
+
+def «evalCopy.Nat» : Def :=
+  ⟨"Nat",
+    Term.Typ (Term.Lab "Q2"),
+    Term.Sig
+      (Quan.Q1)
+      (Term.Enu ["Zero", "Succ"])
+      (Term.App (Quan.Q1) (Term.Ref "Nat.arms") (Term.Var 0)),
+    false⟩
+
 def «evalCopy.List.arms» : Def :=
   ⟨"List.arms",
     Term.All
@@ -8986,6 +8986,8 @@ def evalCopy : List Def :=
    «evalCopy.Eval.step»,
    «evalCopy.Eval.run»,
    «evalCopy.Eval.steps»,
+   «evalCopy.U32.arms»,
+   «evalCopy.U32»,
    «evalCopy.Cmp.arms»,
    «evalCopy.Cmp»,
    «evalCopy.Word.Nil.arms»,
@@ -8999,7 +9001,5 @@ def evalCopy : List Def :=
    «evalCopy.Bool»,
    «evalCopy.Nat.arms»,
    «evalCopy.Nat»,
-   «evalCopy.U32.arms»,
-   «evalCopy.U32»,
    «evalCopy.List.arms»,
    «evalCopy.List»]
