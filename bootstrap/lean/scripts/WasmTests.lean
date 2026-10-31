@@ -177,7 +177,7 @@ inductive Invoked where
 def invoke (c : Cfg) (i : Term) (name : List UInt8) (args : List Nat) : Invoked :=
   let t := App Q1 (App Q1 (App Q1 (App Q1 (Ref "Wasm.invoke") c.fuel) i) (bytes name)) (list (args.map u32))
   match (evalTerm c t).bind unctor with
-  | some ("Wasm.Invoked.values", [vs, i']) =>
+  | some ("Wasm.Invoked.values", [vs, i', _]) =>
     match (unlist vs).bind (·.mapM unU32) with
     | some ns => .values ns i'
     | none => .stuck

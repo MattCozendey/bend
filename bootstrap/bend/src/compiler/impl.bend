@@ -963,12 +963,11 @@ def Eval.steps(n: Nat, ds: List<&2, Def>, t: Term) -> Maybe<Term>:
 # The part of WebAssembly that our compiler uses (PLAN, WHAT WE TRUST #6), as
 # the WebAssembly core spec defines it: W1 to W6, approved by the user.
 # Wasm.run(f, w, i, m) runs the module of the bytes w on the input bytes i,
-# with at most f steps for each of its two calls and at most m pages (of
-# 64 KiB) of memory. A module outside the subset gives unsupported and does
-# not run. The subset is in every version of the spec (1.0, 2.0, 3.0); where
-# they decode a number with more bits, the model reads the 32 bits of 1.0, so
-# it accepts only what every version accepts, and it runs that as every
-# version does.
+# in at most f steps, with at most m pages (of 64 KiB) of memory. A module
+# outside the subset gives unsupported and does not run. The subset is in
+# every version of the spec (1.0, 2.0, 3.0); where they decode a number with
+# more bits, the model reads the 32 bits of 1.0, so it accepts only what
+# every version accepts, and it runs that as every version does.
 
 # Types
 # -----
@@ -2469,19 +2468,29 @@ def Wasm.step(f: Wasm.Frame, mem: Wasm.Memory) -> Wasm.Step:
         case Con{x, rest}:
           Wasm.step.instr(x, rest, labels, results, stack, locals, mem)
 
-# how a call ends: its results and the memory; a trap, with the memory; or
-# no end within the fuel
+# how a call ends: its results, the memory, and the steps that it took; a
+# trap, with the memory; or no end within the fuel
 type Wasm.Call is Data:
-  Wasm.Call.done{results: List<&2, U32>, mem: Wasm.Memory}
+  Wasm.Call.done{results: List<&2, U32>, mem: Wasm.Memory, steps: Nat}
   Wasm.Call.trap{mem: Wasm.Memory}
   Wasm.Call.not_done{}
+
+# the call c, after one more step
+def Wasm.call.plus(c: Wasm.Call) -> Wasm.Call:
+  match c:
+    case Wasm.Call.done{rs, m, n}:
+      Wasm.Call.done{rs, m, 1n+n}
+    case Wasm.Call.trap{m}:
+      Wasm.Call.trap{m}
+    case Wasm.Call.not_done{}:
+      Wasm.Call.not_done{}
 
 def Wasm.call.stepped(s: Wasm.Step, more: Wasm.Frame -> Wasm.Memory -> Wasm.Call) -> Wasm.Call:
   match s:
     case Wasm.Step.next{f, m}:
-      more(f, m)
+      Wasm.call.plus(more(f, m))
     case Wasm.Step.done{rs, m}:
-      Wasm.Call.done{rs, m}
+      Wasm.Call.done{rs, m, 1n}
     case Wasm.Step.trap{m}:
       Wasm.Call.trap{m}
 
@@ -2661,18 +2670,19 @@ def Wasm.func.is_type(f: Maybe<&2, Wasm.Func>, p: Nat, q: Nat) -> Bool:
     case Some{Wasm.Func{a, b, _, _}}:
       Nat.is_eq(a, p) && Nat.is_eq(b, q)
 
-# how an invocation ends: its results, with the instance after it; a trap,
-# with the instance after it; no end within the fuel; or no such function
+# how an invocation ends: its results, with the instance after it and the
+# steps that it took; a trap, with the instance after it; no end within the
+# fuel; or no such function
 type Wasm.Invoked is Data:
-  Wasm.Invoked.values{vs: List<&2, U32>, i: Wasm.Instance}
+  Wasm.Invoked.values{vs: List<&2, U32>, i: Wasm.Instance, steps: Nat}
   Wasm.Invoked.trap{i: Wasm.Instance}
   Wasm.Invoked.not_done{}
   Wasm.Invoked.unsupported{}
 
 def Wasm.invoked(c: Wasm.Call, module: Wasm.Module) -> Wasm.Invoked:
   match c:
-    case Wasm.Call.done{vs, mem}:
-      Wasm.Invoked.values{vs, Wasm.Instance{module, mem}}
+    case Wasm.Call.done{vs, mem, n}:
+      Wasm.Invoked.values{vs, Wasm.Instance{module, mem}, n}
     case Wasm.Call.trap{mem}:
       Wasm.Invoked.trap{Wasm.Instance{module, mem}}
     case Wasm.Call.not_done{}:
@@ -2714,8 +2724,8 @@ def Wasm.invoke(fuel: Nat, inst: Wasm.Instance, name: List<&2, U32>, args: List<
 # means out of memory. It writes the input from the address that alloc
 # gives, then calls run(address, n), which gives 0 for a result, 1 for out of
 # memory and 2 for no result. For a result, bytes 0 to 3 of the memory hold
-# the output's address, and bytes 4 to 7 its length. Each of the two calls
-# may take f steps.
+# the output's address, and bytes 4 to 7 its length. The two calls take at
+# most f steps in all.
 
 # the names that the host uses, as ASCII bytes
 def Wasm.name.memory() -> List<&2, U32>:
@@ -2771,7 +2781,7 @@ def Wasm.run.status(zero: Bool, one: Bool, two: Bool, mem: Wasm.Memory) -> Wasm.
 # what run gave
 def Wasm.run.ran(r: Wasm.Invoked) -> Wasm.Outcome:
   match r:
-    case Wasm.Invoked.values{Con{+s, _}, Wasm.Instance{_, mem}}:
+    case Wasm.Invoked.values{Con{+s, _}, Wasm.Instance{_, mem}, _}:
       Wasm.run.status(U32.is_eq(s, 0), U32.is_eq(s, 1), U32.is_eq(s, 2), mem)
     case Wasm.Invoked.trap{_}:
       Wasm.Outcome.trap{}
@@ -2805,11 +2815,12 @@ def Wasm.run.alloced.if(full: Bool, f: Nat, inst: Wasm.Instance, a: U32, n: U32,
     case False{}:
       Wasm.run.input(f, inst, a, n, i)
 
-# what alloc gave: the input's address, or -1 for out of memory
+# what alloc gave: the input's address, or -1 for out of memory; run then
+# has the steps that alloc left
 def Wasm.run.alloced(r: Wasm.Invoked, f: Nat, n: U32, i: List<&2, U32>) -> Wasm.Outcome:
   match r:
-    case Wasm.Invoked.values{Con{+a, _}, inst}:
-      Wasm.run.alloced.if(U32.is_eq(a, 4294967295), f, inst, a, n, i)
+    case Wasm.Invoked.values{Con{+a, _}, inst, used}:
+      Wasm.run.alloced.if(U32.is_eq(a, 4294967295), Nat.sub(f, used), inst, a, n, i)
     case Wasm.Invoked.trap{_}:
       Wasm.Outcome.trap{}
     case Wasm.Invoked.not_done{}:
@@ -2853,8 +2864,7 @@ def Wasm.run.made(f: Nat, made: Wasm.Made, i: List<&2, U32>) -> Wasm.Outcome:
     case Wasm.Made.trap{}:
       Wasm.Outcome.trap{}
 
-# a run (W5) of the module of the bytes w on the input bytes i, with at most
-# f steps for each of its two calls, and at most m pages (64 KiB each) of
-# memory
+# a run (W5) of the module of the bytes w on the input bytes i, in at most f
+# steps of its functions, with at most m pages (64 KiB each) of memory
 def Wasm.run(f: Nat, w: List<&2, U32>, i: List<&2, U32>, m: U32) -> Wasm.Outcome:
   Wasm.run.made(f, Wasm.instantiate(w, m), i)
