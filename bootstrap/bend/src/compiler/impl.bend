@@ -4868,7 +4868,7 @@ def M.copy.end(+r: Nat, +root: Nat) -> Cir.Stmt:
 # register stack of new cells (above), from a root cell in register root: the
 # register depth holds the depth of the top cell, top that cell; part copies
 # the part in register at, for its field k, at the depth in register under
-def M.walk.copy(+r: Nat, +src: Nat, +root: Nat, +stack: Nat, +depth: Nat, +top: Nat, +k: Nat, +at: Nat,
+def M.copy.walk(+r: Nat, +src: Nat, +root: Nat, +stack: Nat, +depth: Nat, +top: Nat, +k: Nat, +at: Nat,
   +under: Nat, part: Cir.Stmt) -> Cir.Stmt:
   M.do([
     M.copy.root(root, src),
@@ -4893,7 +4893,7 @@ def M.walk.copy(+r: Nat, +src: Nat, +root: Nat, +stack: Nat, +depth: Nat, +top: 
 # cutoff 0 on moved up by samt, as Term.shift does; a part whose free
 # variables are all below its cutoff is shared
 def M.shift(+r: Nat, +v: Nat) -> Cir.Stmt:
-  M.walk.copy(r, v, R.sroot(), R.ss(), R.scut(), R.snew(), R.sk(), R.ssrc(), R.sdep(),
+  M.copy.walk(r, v, R.sroot(), R.ss(), R.scut(), R.snew(), R.sk(), R.ssrc(), R.sdep(),
     M.if(M.and(M.lt(M.fv(M.g(R.ssrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.ssrc())), M.g(R.sdep()))),
       M.inc(R.ssrc()),
       M.if(M.eq(M.tag(M.g(R.ssrc())), M.c(T.var())),
@@ -4941,7 +4941,7 @@ def M.copy.part() -> Cir.Stmt:
 # register r gets the copy of the term in register src, as Term.subst gives
 # it at the depth 0, with the list of locals in cenv, of clen locals
 def M.copy(+r: Nat, +src: Nat) -> Cir.Stmt:
-  M.walk.copy(r, src, R.croot(), R.cs(), R.cd(), R.cnew(), R.ck(), R.csrc(), R.cj(), M.copy.part())
+  M.copy.walk(r, src, R.croot(), R.cs(), R.cd(), R.cnew(), R.ck(), R.csrc(), R.cj(), M.copy.part())
 
 # the run goes on when c is not 0; else it ends with no result
 def M.need(c: Cir.Expr, then: Cir.Stmt) -> Cir.Stmt:
