@@ -1,4 +1,4 @@
-import Bootstrap
+import Bootstrap.Script
 
 -- Copy
 -- ====
@@ -7,18 +7,11 @@ import Bootstrap
 -- file, for the laws about our Bend code (src/Bootstrap/Code.lean):
 --
 --   bend <file.bend> -o <file.bendtt>
+--   lake build Bootstrap.Script
 --   BOOK=<file.bendtt> NAME=<name> SOURCE=<file.bend> OUTPUT=<file.lean> \
 --     lake env lean scripts/Copy.lean
 --
--- The Lean file defines a def «NAME.k» per def k, and NAME : List Def. Like
--- scripts/Run.lean, it takes its input from files, as Lean runs a script's
--- #eval with no stdin.
-
-open Quan Term
-
-def env (k : String) : IO String := do
-  let some v ← IO.getEnv k | throw (IO.userError s!"{k} is not set")
-  pure v
+-- The Lean file defines a def «NAME.k» per def k, and NAME : List Def.
 
 -- the Lean def that copies d: one atomic name, so that it opens no namespace in
 -- which a Bend name such as List hides Lean's
@@ -27,14 +20,12 @@ def copyDef (name : String) (d : Def) : String :=
   s!"    {(repr d.v).pretty 100 4},\n    {d.o}⟩\n\n"
 
 def copyBook : IO Unit := do
-  let name ← env "NAME"
-  match Book.parse (← IO.FS.readFile (← env "BOOK")) with
-  | .error msg => throw (IO.userError msg)
-  | .ok bk =>
-    IO.FS.writeFile (← env "OUTPUT") <|
-      s!"import bendtt\n\n-- Made by scripts/Copy.lean from the `bend -o` output of {← env "SOURCE"}.\n" ++
-      s!"-- Do not edit it.\n\nopen Quan Term\n\n" ++ String.join (bk.defs.map (copyDef name)) ++
-      s!"def {name} : List Def :=\n  [" ++ ",\n   ".intercalate (bk.defs.map fun d => s!"«{name}.{d.k}»") ++ "]\n"
-    IO.println s!"{bk.defs.length} defs"
+  let name ← Script.env "NAME"
+  let bk ← Script.book
+  IO.FS.writeFile (← Script.env "OUTPUT") <|
+    s!"import bendtt\n\n-- Made by scripts/Copy.lean from the `bend -o` output of {← Script.env "SOURCE"}.\n" ++
+    s!"-- Do not edit it.\n\nopen Quan Term\n\n" ++ String.join (bk.defs.map (copyDef name)) ++
+    s!"def {name} : List Def :=\n  [" ++ ",\n   ".intercalate (bk.defs.map fun d => s!"«{name}.{d.k}»") ++ "]\n"
+  IO.println s!"{bk.defs.length} defs"
 
 #eval copyBook

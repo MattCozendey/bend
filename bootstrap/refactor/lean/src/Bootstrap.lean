@@ -8,5 +8,6 @@ import Bootstrap.Code
 import Bootstrap.Book
 import Bootstrap.Copy.Reader
 import Bootstrap.Read
+import Bootstrap.Script
 
 #guard_axioms

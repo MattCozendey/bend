@@ -1,13 +1,11 @@
-import Bootstrap
+import Bootstrap.Program
+import Bootstrap.Script
 
 -- Run
 -- ===
 --
 -- Runs the program of a .bendtt file on the bytes of a file with interp
--- (src/Bootstrap/Program.lean), and writes the bytes it gives to a file. It
--- is a script and not an executable: the kernel's own main has the name that
--- an executable needs. Lean runs a script's #eval with no stdin and keeps its
--- stdout, so the bytes go through files.
+-- (src/Bootstrap/Program.lean), and writes the bytes it gives to a file.
 --
 --   lake build
 --   BOOK=prog.bendtt INPUT=in OUTPUT=out [FUEL=n] lake env lean scripts/Run.lean
@@ -27,22 +25,16 @@ def noResult (bk : Book) (fuel : Nat) : Term × Nat → String
     else if value bk v then s!"no result: after {n} steps, the value is not a list of bytes"
     else s!"no result: stuck after {n} steps"
 
-def env (k : String) : IO String := do
-  let some v ← IO.getEnv k | throw (IO.userError s!"{k} is not set")
-  pure v
-
 def runBook : IO Unit := do
   let fuel := ((← IO.getEnv "FUEL").bind String.toNat?).getD defaultFuel
-  match Book.parse (← IO.FS.readFile (← env "BOOK")) with
-  | .error msg => throw (IO.userError msg)
-  | .ok bk =>
-    let i := (← IO.FS.readBinFile (← env "INPUT")).toList
-    let e := steps bk fuel (start i) 0
-    have _ : result bk e = interp bk fuel i := rfl
-    match result bk e with
-    | some (r, n) =>
-      IO.FS.writeBinFile (← env "OUTPUT") ⟨r.toArray⟩
-      IO.println s!"{n} steps"
-    | none => throw (IO.userError (noResult bk fuel e))
+  let bk ← Script.book
+  let i := (← IO.FS.readBinFile (← Script.env "INPUT")).toList
+  let e := steps bk fuel (start i) 0
+  have _ : result bk e = interp bk fuel i := rfl
+  match result bk e with
+  | some (r, n) =>
+    IO.FS.writeBinFile (← Script.env "OUTPUT") ⟨r.toArray⟩
+    IO.println s!"{n} steps"
+  | none => throw (IO.userError (noResult bk fuel e))
 
 #eval runBook
