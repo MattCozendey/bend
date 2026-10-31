@@ -1,5 +1,7 @@
 #!/bin/bash
-# run.sh WORK: the tests of the compiler of step 1, until its laws are proven.
+# run.sh WORK: tests of kind c of the compiler of step 1, which the laws of
+# bootstrap/bend/src/compiler/spec.bend (no_wrong_result, no_other_failure,
+# enough_memory) replace once they are proven.
 # Each program of progs/ is compiled, and its module runs on each input in two
 # real engines (W5): bun's JavaScriptCore and node's V8. Each must give the
 # result that the Lean interpreter gives (scripts/Run.lean, which gives what
