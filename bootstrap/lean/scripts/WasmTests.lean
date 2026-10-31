@@ -342,8 +342,8 @@ def runFile (c : Cfg) (h : IO.FS.Handle) (path : String) : IO St := do
     for e in cmds do
       s := command c s e
       k := k + 1
-      if k % 50 == 0 then
-        h.putStrLn s!"  {path}: {k}/{cmds.length} commands"
+      if k % 10 == 0 then
+        h.putStrLn s!"  {path}: {k}/{cmds.length} commands, {s.pass} passed, {s.fail} failed"
         h.flush
     pure s
 

@@ -1207,11 +1207,19 @@ def Wasm.has(xs: List<&2, U32>, +n: U32) -> Bool:
     case Con{_, rest}:
       Wasm.has.if(U32.is_zero(n), u => Wasm.has(rest, U32.sub(n, 1)))
 
+def Wasm.decode.count.if(ok: Bool, n: U32, rest: List<&2, U32>) -> Maybe<&2, Wasm.Decoded<Nat>>:
+  match ok:
+    case True{}:
+      Some{Wasm.Decoded{U32.to_nat(n), rest}}
+    case False{}:
+      None{}
+
 # the length of a vector (spec 5.1: list), which counts items of a byte or
-# more, so no more than the bytes after it
+# more, so no more than the bytes after it; only then is it made a Nat, as a
+# larger one could take as many steps to make as it counts
 def Wasm.decode.count(bs: List<&2, U32>) -> Maybe<&2, Wasm.Decoded<Nat>>:
   Wasm.decode.bind(U32, Nat, Wasm.decode.u32(bs), +n => +r =>
-    Wasm.decode.keep(Nat, Wasm.has(r, n), U32.to_nat(n), r))
+    Wasm.decode.count.if(Wasm.has(r, n), n, r))
 
 # n bytes
 def Wasm.decode.take(n: Nat, bs: List<&2, U32>) -> Maybe<&2, Wasm.Decoded<List<&2, U32>>>:

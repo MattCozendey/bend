@@ -1,10 +1,12 @@
 #!/bin/bash
-# convert.sh WORK: the binary scripts (wasm -d x.wast -o x.bin.wast) of the
-# official WebAssembly tests that the Bend copy of WASM is tested with (W6),
-# made by the spec's own reference interpreter. Every tool is pinned: the
+# convert.sh WORK: the binary scripts of the official WebAssembly tests that
+# the Bend copy of WASM is tested with (W6), made by cut.ml, which reads each
+# test script with the spec's own reference interpreter, keeps in each module
+# that a command defines only its functions inside the subset, and writes the
+# script as wasm -d x.wast -o x.bin.wast does. Every tool is pinned: the
 # spec's commit, Ubuntu 24.04 and the exact packages below; the script
 # refuses to run with anything else. WORK is a folder for the spec's clone
-# and its build. The license, the tests (wast/) and their binary scripts
+# and the build. The license, the tests (wast/) and their binary scripts
 # (bin/) go next to this script.
 set -euo pipefail
 
@@ -34,19 +36,28 @@ done
 mkdir -p "$work"
 cd "$work"
 [ -d spec/.git ] || git init -q spec
-cd spec
-git fetch -q --depth 1 "$SPEC" "$COMMIT"
-git checkout -q --detach FETCH_HEAD
-if [ "$(git rev-parse HEAD)" != "$COMMIT" ]; then
+git -C spec fetch -q --depth 1 "$SPEC" "$COMMIT"
+git -C spec checkout -q --detach FETCH_HEAD
+if [ "$(git -C spec rev-parse HEAD)" != "$COMMIT" ]; then
   echo "convert.sh: the spec is not at $COMMIT" >&2
   exit 1
 fi
 
-make -C interpreter wasm
+# a dune workspace of the interpreter's library and cut.ml alone
+rm -rf cut
+mkdir -p cut/cut
+cp -r spec/interpreter cut/interpreter
+rm -rf cut/interpreter/_build
+printf '(lang dune 3.14)\n' > cut/dune-workspace
+printf '(lang dune 3.14)\n' > cut/cut/dune-project
+printf '(executable\n  (name cut)\n  (libraries wasm)\n  (flags (:standard -open Wasm)))\n' > cut/cut/dune
+cp "$here/cut.ml" cut/cut/cut.ml
+(cd cut && dune build ./cut/cut.exe)
+
 rm -rf "$here/wast" "$here/bin"
 mkdir -p "$here/wast" "$here/bin"
-cp test/LICENSE "$here/LICENSE"
+cp spec/test/LICENSE "$here/LICENSE"
 for t in "${TESTS[@]}"; do
-  cp "test/core/$t.wast" "$here/wast/$t.wast"
-  interpreter/wasm -d "test/core/$t.wast" -o "$here/bin/$t.bin.wast"
+  cp "spec/test/core/$t.wast" "$here/wast/$t.wast"
+  cut/_build/default/cut/cut.exe "spec/test/core/$t.wast" > "$here/bin/$t.bin.wast"
 done

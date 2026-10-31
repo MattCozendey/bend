@@ -75,12 +75,7 @@
   "\00\00\0b"
 )
 (module instance)
-(module definition $Func binary
-  "\00\61\73\6d\01\00\00\00\01\86\80\80\80\00\01\60"
-  "\01\7f\01\7f\03\82\80\80\80\00\01\00\07\85\80\80"
-  "\80\00\01\01\65\00\00\0a\8e\80\80\80\00\01\88\80"
-  "\80\80\00\00\20\00\41\01\6a\0f\0b"
-)
+(module definition $Func binary "\00\61\73\6d\01\00\00\00")
 (module instance $Func $Func)
 (assert_return (invoke "e" (i32.const 0x2a)) (i32.const 0x2b))
 (assert_return (invoke $Func "e" (i32.const 0x2a)) (i32.const 0x2b))
