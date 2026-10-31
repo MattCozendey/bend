@@ -5,8 +5,8 @@ OUR GOALS:
 1 - Our goal is a Bend compiler written in Bend(this doesn't necessarily include creating bend's CHECKER in bend btw) THAT I CAN TRUST(NEVER DISAGREES WITH THE KERNEL ABOUT WHAT THE KERNEL PROVES OR DISPROVES). WE ACCEPT SLOWNESS OR A BEND INTERPRETER-OR-COMPILER WRITTEN IN LEAN ALONG THE WAY. GETTING THIS RIGHT FROM THE START IS AN ABSOLUTE MUST. BEND IS ONLY WHAT THE PROVEN KERNEL GIVES A MEANING TO: EACH DEF WITH A BODY. DEFS WITH NO BODY ARE OUT: F32, EFFECTS, HANDLES, ARRAY ATOMICS.  WHEN WE ADD TO OUR COMPILER (OPTIMIZATIONS, OR FEATURES BEYOND THE PROVEN BEND), THE LAW FOR THE PROVEN BEND STAYS EXACTLY AS IT IS AND MUST STILL PASS --verdict. SO OUR COMPILER ALWAYS STAYS A PROVEN BEND COMPILER
 
 INVARIANTS/LAWS/THEOREMS:
-1 - "with enough memory, it always gives the result." - A compiled program may give no result only when it runs out of memory.
-2 - ""
+1 - "with enough memory, it always gives the result." - A compiled program may give no result only when it runs out of memory, and if it gives a result; it is the result that Eval gives.
+2 - #1 implies "for every program" instead of "for every program the kernel" accepts. This is intentional so we don't need a bend copy of the checker.
 
 WHAT WE TRUST:
 1 - Lean itself.
