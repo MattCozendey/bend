@@ -1183,10 +1183,70 @@ def H.small(+n: Nat, +X: Nat, +P: Nat, +hP: {Nat.add(H.W(4n), H.t20(P)) == H.W(n
 
 # the loop's exit, for any number of rounds left
 def H.loopO.exit(+F: Nat, +k: U32, +x: U32, +tmp: U32, +mem: C.Wasm.Memory, e: {H.C(20, k, x) == True{} : Bool},
-  h18: PN.Le(18n, F)) -> H.GoodO(C.Wasm.call.go(F, H.loopfr(1, 20, k, x, tmp), mem)):
+  +h18: PN.Le(18n, F)) -> H.GoodO(C.Wasm.call.go(F, H.loopfr(1, 20, k, x, tmp), mem)):
   +F10 = Nat.sub(F, 10n)
   +h8 = H.le_sub_add(10n, 8n, F, h18)
   H.extO(10n, C.Wasm.Step.next{H.loopfr(1, 20, k, x, tmp), mem}, F, H.le_add_part(10n, 8n, F, h18),
     H.brfixO(F10, 20, k, x, mem, H.C(20, k, x), True{}, e,
       H.extO(1n, C.Wasm.Step.next{H.brfr(1, 20, k, x, True{}), mem}, F10, H.le_add_part(1n, 7n, F10, h8),
         H.exitO(Nat.sub(F10, 1n), H.le_sub_add(1n, 7n, F10, h8), 20, k, x, mem))))
+
+# a round that goes on: 20 × next < a + n
+def H.loopO.lt(+k: U32, +w: Word(32n), +P: Nat, +hP: {Nat.add(H.W(4n), H.t20(P)) == H.W(32n) : Nat},
+  +hx: PN.Le(U32.to_nat(U32{w}), P), e: {H.C(20, k, U32{w}) == False{} : Bool}) ->
+  PN.Le(1n+H.t20(U32.to_nat(U32{w})), U32.to_nat(U32.add(20, k))):
+  +T = U32.add(U32.shln(U32{w}, 4n), U32.shln(U32{w}, 2n))
+  +E = U32.add(20, k)
+  PN.le_rw_l(1n+U32.to_nat(T), 1n+H.t20(U32.to_nat(U32{w})), U32.to_nat(E),
+    Equal.cong(Nat, Nat, z => 1n+z, U32.to_nat(T), H.t20(U32.to_nat(U32{w})), H.tex_w(32n, w, P, hP, hx)),
+    H.rel_nge(U32.cmp(T, E), U32.to_nat(T), U32.to_nat(E), PN.U32.rel(T, E), e))
+
+# the first loop gives [1], with b rounds of fuel at least: a round that
+# goes on has 20 × next < a + n <= 20P, so next < P, and next + 1 is exact
+def H.loopO(+b: Nat, +F: Nat, +k: U32, +x: U32, +tmp: U32, +mem: C.Wasm.Memory, B: Bool,
+  +eB: {H.C(20, k, x) == B : Bool}, +P: Nat, +hP: {Nat.add(H.W(4n), H.t20(P)) == H.W(32n) : Nat},
+  +hE: PN.Le(U32.to_nat(U32.add(20, k)), H.t20(P)), +hx: PN.Le(U32.to_nat(x), P),
+  +hb: PN.Le(1n+U32.to_nat(U32.add(20, k)), H.t20(Nat.add(U32.to_nat(x), b))),
+  +hF: PN.Le(Nat.add(H.Rf(b), 18n), F)) ->
+  H.GoodO(C.Wasm.call.go(F, H.loopfr(1, 20, k, x, tmp), mem)):
+  match b:
+    case 0n:
+      match x:
+        case U32{+w}:
+          match B:
+            case True{}:
+              H.loopO.exit(F, k, U32{w}, tmp, mem, eB, hF)
+            case False{}:
+              +X = U32.to_nat(U32{w})
+              +E = U32.to_nat(U32.add(20, k))
+              +lt = H.loopO.lt(k, w, P, hP, hx, eB)
+              +hb0 = PN.le_rw_r(1n+E, H.t20(Nat.add(X, 0n)), H.t20(X), Equal.cong(Nat, Nat, z => H.t20(z), Nat.add(X, 0n), X, PN.add_zero(X)), hb)
+              Empty.absurd(H.GoodO(C.Wasm.call.go(F, H.loopfr(1, 20, k, U32{w}, tmp), mem)),
+                PN.not_succ_le(H.t20(X), PN.weaken(1n+H.t20(X), H.t20(X), PN.le_trans(2n+H.t20(X), 1n+E, H.t20(X), lt, hb0))))
+    case 1n+q:
+      match x:
+        case U32{+w}:
+          match B:
+            case True{}:
+              H.loopO.exit(F, k, U32{w}, tmp, mem, eB, PN.le_trans(18n, Nat.add(H.Rf(1n+q), 18n), F, PN.le_add_l(H.Rf(1n+q), 18n), hF))
+            case False{}:
+              +X = U32.to_nat(U32{w})
+              +E = U32.to_nat(U32.add(20, k))
+              +lt = H.loopO.lt(k, w, P, hP, hx, eB)
+              +hxP = H.t20_lt(X, P, PN.le_trans(1n+H.t20(X), E, H.t20(P), lt, hE))
+              +ok = H.not_ones(32n, w, H.small(32n, Word.to_nat(32n, w), P, hP, hxP))
+              +x1 = U32.add(U32{w}, 1)
+              +einc = {H.inc(32n, w, ok) : {U32.to_nat(x1) == 1n+X : Nat}}
+              +hx1 = PN.le_rw_l(1n+X, U32.to_nat(x1), P, Equal.sym(Nat, U32.to_nat(x1), 1n+X, einc), hxP)
+              +eb = Equal.trans(Nat, H.t20(Nat.add(X, 1n+q)), H.t20(Nat.add(1n+X, q)), H.t20(Nat.add(U32.to_nat(x1), q)),
+                Equal.cong(Nat, Nat, z => H.t20(z), Nat.add(X, 1n+q), 1n+Nat.add(X, q), PN.add_succ_r(X, q)),
+                Equal.cong(Nat, Nat, z => H.t20(Nat.add(z, q)), 1n+X, U32.to_nat(x1), Equal.sym(Nat, U32.to_nat(x1), 1n+X, einc)))
+              +hb1 = PN.le_rw_r(1n+E, H.t20(Nat.add(X, 1n+q)), H.t20(Nat.add(U32.to_nat(x1), q)), eb, hb)
+              +F10 = Nat.sub(F, 10n)
+              +rest = Nat.add(H.Rf(q), 18n)
+              +h10 = H.le_sub_add(10n, Nat.add(6n, rest), F, hF)
+              H.extO(10n, C.Wasm.Step.next{H.loopfr(1, 20, k, U32{w}, tmp), mem}, F, H.le_add_part(10n, Nat.add(6n, rest), F, hF),
+                H.brfixO(F10, 20, k, U32{w}, mem, H.C(20, k, U32{w}), False{}, eB,
+                  H.extO(6n, C.Wasm.Step.next{H.brfr(1, 20, k, U32{w}, False{}), mem}, F10, H.le_add_part(6n, rest, F10, h10),
+                    H.loopO(q, Nat.sub(F10, 6n), k, x1, U32{w}, mem, H.C(20, k, x1), {==}, P, hP, hE, hx1, hb1,
+                      H.le_sub_add(6n, rest, F10, h10)))))
