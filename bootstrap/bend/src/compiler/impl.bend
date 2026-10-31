@@ -4267,7 +4267,7 @@ def R.csrc() -> Nat:
 def R.cd() -> Nat:
   32n
 
-def R.cdst() -> Nat:
+def R.sdep() -> Nat:
   33n
 
 def R.ck() -> Nat:
@@ -4288,7 +4288,7 @@ def R.cj() -> Nat:
 def R.croot() -> Nat:
   39n
 
-def R.cr() -> Nat:
+def R.sres() -> Nat:
   40n
 
 def R.cm() -> Nat:
@@ -4342,7 +4342,7 @@ def R.ssrc() -> Nat:
 def R.scut() -> Nat:
   57n
 
-def R.sdst() -> Nat:
+def R.sroot() -> Nat:
   58n
 
 def R.sk() -> Nat:
@@ -4440,12 +4440,6 @@ def K.min_a() -> U32:
 
 def K.arg() -> U32:
   41
-
-def K.copy() -> U32:
-  42
-
-def K.finish() -> U32:
-  43
 
 def K.check() -> U32:
   44
@@ -4655,65 +4649,86 @@ def M.header(k: U32, q: Cir.Expr, fl: Cir.Expr) -> Cir.Expr:
   M.or(M.or(M.c(k), M.shl(q, M.c(6))), fl)
 
 # Data: register dok gets 1 when the term in register r is Data (Lab, Rfl, or a
-# pair of Data whose first field is Data or dead), else 0; the term is then
-# flagged DATA
+# pair of Data whose first field is Data or dead), else 0. Each cell that the
+# check reaches is flagged DATA at once, and is not checked again: when the
+# check fails, the run ends with no result, so no flag is ever read wrong
 def M.data(+r: Nat) -> Cir.Stmt:
   M.do([
     M.set(R.dok(), M.c(1)),
-    M.when(M.not(M.flag(M.g(r), F.data())), M.do([
-      M.set(R.ds(), M.c(0)),
-      M.make(R.dc(), M.c(K.check()), M.g(r), M.c(0), M.c(0)),
-      M.st(1n, M.g(R.dc()), M.g(R.ds())),
-      M.set(R.ds(), M.g(R.dc())),
-      M.while(M.and(M.ne(M.g(R.ds()), M.c(0)), M.g(R.dok())), M.do([
-        M.set(R.dc(), M.g(R.ds())),
-        M.set(R.ds(), M.f(1n, M.g(R.dc()))),
-        M.set(R.t1(), M.f(2n, M.g(R.dc()))),
-        M.release(R.dc()),
-        M.when(M.not(M.flag(M.g(R.t1()), F.data())),
-          M.if(M.or(M.eq(M.tag(M.g(R.t1())), M.c(T.lab())), M.eq(M.tag(M.g(R.t1())), M.c(T.rfl()))),
-            Cir.Stmt.nop{},
-            M.if(M.eq(M.tag(M.g(R.t1())), M.c(T.tup())), M.do([
-              M.make(R.dc(), M.c(K.check()), M.f(3n, M.g(R.t1())), M.c(0), M.c(0)),
+    M.set(R.ds(), M.c(0)),
+    M.make(R.dc(), M.c(K.check()), M.g(r), M.c(0), M.c(0)),
+    M.st(1n, M.g(R.dc()), M.g(R.ds())),
+    M.set(R.ds(), M.g(R.dc())),
+    M.while(M.and(M.ne(M.g(R.ds()), M.c(0)), M.g(R.dok())), M.do([
+      M.set(R.dc(), M.g(R.ds())),
+      M.set(R.ds(), M.f(1n, M.g(R.dc()))),
+      M.set(R.t1(), M.f(2n, M.g(R.dc()))),
+      M.release(R.dc()),
+      M.when(M.not(M.flag(M.g(R.t1()), F.data())),
+        M.if(M.or(M.eq(M.tag(M.g(R.t1())), M.c(T.lab())), M.eq(M.tag(M.g(R.t1())), M.c(T.rfl()))),
+          M.st(0n, M.g(R.t1()), M.or(M.f(0n, M.g(R.t1())), M.c(F.data()))),
+          M.if(M.eq(M.tag(M.g(R.t1())), M.c(T.tup())), M.do([
+            M.st(0n, M.g(R.t1()), M.or(M.f(0n, M.g(R.t1())), M.c(F.data()))),
+            M.make(R.dc(), M.c(K.check()), M.f(3n, M.g(R.t1())), M.c(0), M.c(0)),
+            M.st(1n, M.g(R.dc()), M.g(R.ds())),
+            M.set(R.ds(), M.g(R.dc())),
+            M.when(M.ne(M.q(M.g(R.t1())), M.c(0)), M.do([
+              M.make(R.dc(), M.c(K.check()), M.f(2n, M.g(R.t1())), M.c(0), M.c(0)),
               M.st(1n, M.g(R.dc()), M.g(R.ds())),
-              M.set(R.ds(), M.g(R.dc())),
-              M.when(M.ne(M.q(M.g(R.t1())), M.c(0)), M.do([
-                M.make(R.dc(), M.c(K.check()), M.f(2n, M.g(R.t1())), M.c(0), M.c(0)),
-                M.st(1n, M.g(R.dc()), M.g(R.ds())),
-                M.set(R.ds(), M.g(R.dc()))]))]),
-              M.set(R.dok(), M.c(0)))))])),
-      M.while(M.ne(M.g(R.ds()), M.c(0)), M.do([
-        M.set(R.dc(), M.g(R.ds())),
-        M.set(R.ds(), M.f(1n, M.g(R.dc()))),
-        M.release(R.dc())])),
-      M.when(M.g(R.dok()), M.st(0n, M.g(r), M.or(M.f(0n, M.g(r)), M.c(F.data()))))]))])
+              M.set(R.ds(), M.g(R.dc()))]))]),
+            M.set(R.dok(), M.c(0)))))])),
+    M.while(M.ne(M.g(R.ds()), M.c(0)), M.do([
+      M.set(R.dc(), M.g(R.ds())),
+      M.set(R.ds(), M.f(1n, M.g(R.dc()))),
+      M.release(R.dc())]))])
 
-# a work cell of kind k on the stack in register s: fields a, b and c
-def M.work(+s: Nat, k: Cir.Expr, a: Cir.Expr, b: Cir.Expr, c: Cir.Expr) -> Cir.Stmt:
-  M.do([
-    M.make(R.t2(), k, a, b, c),
-    M.st(1n, M.g(R.t2()), M.g(s)),
-    M.set(s, M.g(R.t2()))])
+# a when c is 1, b when c is 0: by masks, with no branch
+def M.pick(+c: Cir.Expr, a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  M.or(M.and(a, M.sub(M.c(0), c)), M.and(b, M.sub(c, M.c(1))))
+
+def M.max(+a: Cir.Expr, +b: Cir.Expr) -> Cir.Expr:
+  M.pick(M.gt(a, b), a, b)
 
 # field k (2, 3 or 4, in register rk) of the cell in register rd gets v
 def M.put(+rd: Nat, +rk: Nat, +v: Cir.Expr) -> Cir.Stmt:
   M.if(M.eq(M.g(rk), M.c(2)), M.st(2n, M.g(rd), v),
     M.if(M.eq(M.g(rk), M.c(3)), M.st(3n, M.g(rd), v), M.st(4n, M.g(rd), v)))
 
-# the copy of a cell's parts: the part in field k, under bump more binders,
-# when the mask m says it is one, goes on the stack s with the depth d
-def M.parts.one(+s: Nat, k: Nat, kn: U32, bit: U32, shift: U32, +src: Nat, +d: Nat, +dst: Nat, +m: Nat) ->
-  Cir.Stmt:
-  M.when(M.ne(M.and(M.g(m), M.c(bit)), M.c(0)),
-    M.work(s, M.or(M.c(K.copy()), M.c(U32.shln(kn, 6n))), M.f(k, M.g(src)),
-      M.add(M.g(d), M.and(M.shr(M.entry(3n, M.g(src)), M.c(shift)), M.c(3))), M.g(dst)))
+# field k (2, 3 or 4) of the cell c
+def M.get(+c: Cir.Expr, +k: Cir.Expr) -> Cir.Expr:
+  M.pick(M.eq(k, M.c(2)), M.f(2n, c), M.pick(M.eq(k, M.c(3)), M.f(3n, c), M.f(4n, c)))
 
-def M.parts(+s: Nat, +src: Nat, +d: Nat, +dst: Nat, +m: Nat) -> Cir.Stmt:
-  M.do([
-    M.set(m, M.entry(2n, M.g(src))),
-    M.parts.one(s, 2n, 2, 1, 0, src, d, dst, m),
-    M.parts.one(s, 3n, 3, 2, 2, src, d, dst, m),
-    M.parts.one(s, 4n, 4, 4, 4, src, d, dst, m)])
+# the binders above field k (2, 3 or 4) of the term cell c, by the table
+def M.bump(+c: Cir.Expr, +k: Cir.Expr) -> Cir.Expr:
+  M.and(M.shr(M.entry(3n, c), M.shl(M.sub(k, M.c(2)), M.c(1))), M.c(3))
+
+# A copy makes its new cells in place: a new cell holds the parts of its
+# source until each is copied in turn, and bits 8 to 10 of its field 0 (for
+# fields 2 to 4) say which are still to copy. The new cells whose parts are
+# not all copied form a stack, linked by field 1, each above the cell that
+# holds it; a register holds the depth of the top one, under the binders of
+# the copy. A cell leaves the stack once its parts are copied: its fv is then
+# known, and field 1 counts its one pointer. A root cell, a Prj, holds the
+# result.
+
+# the bit, among those still to copy, of field k
+def M.todo.bit(+k: Cir.Expr) -> Cir.Expr:
+  M.shl(M.c(64), k)
+
+# the bits of the parts that the new cell c still has to copy
+def M.todo(+c: Cir.Expr) -> Cir.Expr:
+  M.and(M.f(0n, c), M.c(1792))
+
+# the first field that the new cell c still has to copy
+def M.todo.first(+c: Cir.Expr) -> Cir.Expr:
+  M.pick(M.ne(M.and(M.f(0n, c), M.c(256)), M.c(0)), M.c(2),
+    M.pick(M.ne(M.and(M.f(0n, c), M.c(512)), M.c(0)), M.c(3), M.c(4)))
+
+# the field of the new cell c that its last copied part is in: the highest
+# of its pointers that it does not still have to copy
+def M.todo.last(+c: Cir.Expr) -> Cir.Expr:
+  M.pick(M.eq(M.and(M.sub(M.entry(2n, c), M.shr(M.todo(c), M.c(8))), M.c(4)), M.c(4)), M.c(4),
+    M.pick(M.eq(M.and(M.sub(M.entry(2n, c), M.shr(M.todo(c), M.c(8))), M.c(2)), M.c(2)), M.c(3), M.c(2)))
 
 # fv of a part: in t1, its contribution to the fv of the cell c, whose field
 # k it is, under the binders of the table
@@ -4728,15 +4743,17 @@ def M.fv.part(+c: Nat, k: Nat, bit: U32, shift: U32) -> Cir.Stmt:
           M.when(M.ne(M.g(R.cm()), M.c(F.fv_max())),
             M.set(R.cm(), M.sub(M.g(R.t1()), M.g(R.t2())))))))]))
 
-# the fv of the new cell c, once its parts are made: the most of their fv,
-# less the binders above each; at most fv_max
+# the new cell c, once its parts are copied, leaves the stack: its fv is the
+# most of its parts' fv, less the binders above each, at most fv_max; and one
+# pointer points to it
 def M.finish(+c: Nat) -> Cir.Stmt:
   M.do([
+    M.st(1n, M.g(c), M.c(1)),
     M.set(R.cm(), M.c(0)),
     M.fv.part(c, 2n, 1, 0),
     M.fv.part(c, 3n, 2, 2),
     M.fv.part(c, 4n, 4, 4),
-    M.st(0n, M.g(c), M.or(M.and(M.f(0n, M.g(c)), M.c(8191)), M.shl(M.g(R.cm()), M.c(13))))])
+    M.st(0n, M.g(c), M.or(M.and(M.f(0n, M.g(c)), M.c(255)), M.shl(M.g(R.cm()), M.c(13))))])
 
 # v when small is 1, fv_max when it is 0: by masks, with no branch
 def M.if.e(+small: Cir.Expr, v: Cir.Expr) -> Cir.Expr:
@@ -4747,100 +4764,118 @@ def M.var(+r: Nat, +i: Cir.Expr) -> Cir.Stmt:
   M.make(r, M.or(M.c(T.var()), M.shl(
     M.if.e(M.lt(i, M.c(524286)), M.add(i, M.c(1))), M.c(13))), i, M.c(0), M.c(0))
 
-# the term v shifted: its free variables from the cutoff 0 up gain samt; into
-# field sk of the cell sdst
-def M.shift(+v: Nat) -> Cir.Stmt:
+# register r gets a new cell for the part in register src, which the cell in
+# register top holds in field k: the source's fields, all to copy; it goes on
+# the stack in register s
+def M.copy.push(+r: Nat, +src: Nat, +top: Nat, +k: Nat, +s: Nat) -> Cir.Stmt:
   M.do([
-    M.set(R.ss(), M.c(0)),
-    M.work(R.ss(), M.or(M.c(K.copy()), M.shl(M.g(R.sk()), M.c(6))), M.g(v), M.c(0), M.g(R.sdst())),
+    M.make(r, M.or(M.and(M.f(0n, M.g(src)), M.c(255)), M.shl(M.entry(2n, M.g(src)), M.c(8))),
+      M.f(2n, M.g(src)), M.f(3n, M.g(src)), M.f(4n, M.g(src))),
+    M.st(1n, M.g(r), M.g(s)),
+    M.put(top, k, M.g(r)),
+    M.set(s, M.g(r))])
+
+# the root of a copy of the term in register src, in register r: a Prj whose
+# part is to copy
+def M.copy.root(+r: Nat, +src: Nat) -> Cir.Stmt:
+  M.do([
+    M.make(r, M.c(U32.or(T.prj(), 256)), M.g(src), M.c(0), M.c(0)),
+    M.st(1n, M.g(r), M.c(0))])
+
+# register r gets the copy's result in the root cell in register root; the
+# root goes to the pend list, as a cell whose parts lose no pointer
+def M.copy.end(+r: Nat, +root: Nat) -> Cir.Stmt:
+  M.do([
+    M.set(r, M.f(2n, M.g(root))),
+    M.st(0n, M.g(root), M.c(K.root())),
+    M.release(root)])
+
+# register r gets the term in register v with each free variable from the
+# cutoff 0 on moved up by samt, as Term.shift does; a part whose free
+# variables are all below its cutoff is shared
+def M.shift(+r: Nat, +v: Nat) -> Cir.Stmt:
+  M.do([
+    M.copy.root(R.sroot(), v),
+    M.set(R.ss(), M.g(R.sroot())),
+    M.set(R.scut(), M.c(0)),
     M.while(M.ne(M.g(R.ss()), M.c(0)), M.do([
       M.set(R.snew(), M.g(R.ss())),
-      M.set(R.ss(), M.f(1n, M.g(R.snew()))),
-      M.if(M.eq(M.tag(M.g(R.snew())), M.c(K.finish())), M.do([
-        M.set(R.ssrc(), M.f(2n, M.g(R.snew()))),
-        M.release(R.snew()),
-        M.finish(R.ssrc())]),
+      M.if(M.eq(M.todo(M.g(R.snew())), M.c(0)), M.do([
+        M.set(R.ss(), M.f(1n, M.g(R.snew()))),
+        M.finish(R.snew()),
+        M.when(M.ne(M.g(R.ss()), M.c(0)),
+          M.set(R.scut(), M.sub(M.g(R.scut()), M.bump(M.g(R.ss()), M.todo.last(M.g(R.ss()))))))]),
       M.do([
-        M.set(R.ssrc(), M.f(2n, M.g(R.snew()))),
-        M.set(R.scut(), M.f(3n, M.g(R.snew()))),
-        M.set(R.sdst(), M.f(4n, M.g(R.snew()))),
-        M.set(R.sk(), M.and(M.shr(M.f(0n, M.g(R.snew())), M.c(6)), M.c(7))),
-        M.release(R.snew()),
-        M.if(M.and(M.lt(M.fv(M.g(R.ssrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.ssrc())), M.g(R.scut()))),
-          M.do([M.inc(R.ssrc()), M.put(R.sdst(), R.sk(), M.g(R.ssrc()))]),
+        M.set(R.sk(), M.todo.first(M.g(R.snew()))),
+        M.st(0n, M.g(R.snew()), M.sub(M.f(0n, M.g(R.snew())), M.todo.bit(M.g(R.sk())))),
+        M.set(R.ssrc(), M.get(M.g(R.snew()), M.g(R.sk()))),
+        M.set(R.sdep(), M.add(M.g(R.scut()), M.bump(M.g(R.snew()), M.g(R.sk())))),
+        M.if(M.and(M.lt(M.fv(M.g(R.ssrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.ssrc())), M.g(R.sdep()))),
+          M.inc(R.ssrc()),
           M.if(M.eq(M.tag(M.g(R.ssrc())), M.c(T.var())),
-            M.if(M.lt(M.f(2n, M.g(R.ssrc())), M.g(R.scut())),
-              M.do([M.inc(R.ssrc()), M.put(R.sdst(), R.sk(), M.g(R.ssrc()))]),
+            M.if(M.lt(M.f(2n, M.g(R.ssrc())), M.g(R.sdep())),
+              M.inc(R.ssrc()),
               M.do([
-                M.var(R.snew(), M.add(M.f(2n, M.g(R.ssrc())), M.g(R.samt()))),
-                M.put(R.sdst(), R.sk(), M.g(R.snew()))])),
+                M.var(R.t1(), M.add(M.f(2n, M.g(R.ssrc())), M.g(R.samt()))),
+                M.put(R.snew(), R.sk(), M.g(R.t1()))])),
             M.do([
-              M.make(R.snew(), M.and(M.f(0n, M.g(R.ssrc())), M.c(255)),
-                M.f(2n, M.g(R.ssrc())), M.f(3n, M.g(R.ssrc())), M.f(4n, M.g(R.ssrc()))),
-              M.put(R.sdst(), R.sk(), M.g(R.snew())),
-              M.work(R.ss(), M.c(K.finish()), M.g(R.snew()), M.c(0), M.c(0)),
-              M.parts(R.ss(), R.ssrc(), R.scut(), R.snew(), R.wb())])))]))]))])
+              M.copy.push(R.t1(), R.ssrc(), R.snew(), R.sk(), R.ss()),
+              M.set(R.scut(), M.g(R.sdep()))])))]))])),
+    M.copy.end(r, R.sroot())])
 
-# register r gets the copy of the term in register src, with the variable d + j
-# of each part under d binders as the term of the local j of the list in cenv,
-# of clen locals; a free variable past them, as the kernel's Env.sub does, is
-# j - clen; a part whose free variables are all below d is shared
+# the part in register csrc, which the new cell cnew holds in field ck, at
+# the depth cj: shared, when its free variables are all below cj; for a
+# variable cj + j, the local j of the list in cenv, of clen locals, shifted
+# by cj; for a variable past them, as the kernel's Env.sub does, j - clen;
+# else a new cell on the stack
+def M.copy.part() -> Cir.Stmt:
+  M.if(M.and(M.lt(M.fv(M.g(R.csrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.csrc())), M.g(R.cj()))),
+    M.inc(R.csrc()),
+    M.if(M.eq(M.tag(M.g(R.csrc())), M.c(T.var())),
+      M.if(M.lt(M.f(2n, M.g(R.csrc())), M.g(R.cj())),
+        M.inc(R.csrc()),
+        M.do([
+          M.set(R.t1(), M.sub(M.f(2n, M.g(R.csrc())), M.g(R.cj()))),
+          M.if(M.lt(M.g(R.t1()), M.g(R.clen())), M.do([
+            M.set(R.t2(), M.g(R.cenv())),
+            M.while(M.ne(M.g(R.t1()), M.c(0)), M.do([
+              M.set(R.t2(), M.f(1n, M.g(R.t2()))),
+              M.set(R.t1(), M.sub(M.g(R.t1()), M.c(1)))])),
+            M.set(R.t2(), M.f(2n, M.g(R.t2()))),
+            M.if(M.or(M.eq(M.fv(M.g(R.t2())), M.c(0)), M.eq(M.g(R.cj()), M.c(0))),
+              M.do([M.inc(R.t2()), M.put(R.cnew(), R.ck(), M.g(R.t2()))]),
+              M.do([
+                M.set(R.samt(), M.g(R.cj())),
+                M.shift(R.sres(), R.t2()),
+                M.put(R.cnew(), R.ck(), M.g(R.sres()))]))]),
+          M.do([
+            M.var(R.t2(), M.sub(M.f(2n, M.g(R.csrc())), M.g(R.clen()))),
+            M.put(R.cnew(), R.ck(), M.g(R.t2()))]))])),
+      M.do([
+        M.copy.push(R.t2(), R.csrc(), R.cnew(), R.ck(), R.cs()),
+        M.set(R.cd(), M.g(R.cj()))])))
+
+# register r gets the copy of the term in register src, as Term.subst gives
+# it at the depth 0, with the list of locals in cenv, of clen locals
 def M.copy(+r: Nat, +src: Nat) -> Cir.Stmt:
   M.do([
-    M.make(R.croot(), M.c(K.root()), M.c(0), M.c(0), M.c(0)),
-    M.set(R.cs(), M.c(0)),
-    M.work(R.cs(), M.or(M.c(K.copy()), M.c(128)), M.g(src), M.c(0), M.g(R.croot())),
+    M.copy.root(R.croot(), src),
+    M.set(R.cs(), M.g(R.croot())),
+    M.set(R.cd(), M.c(0)),
     M.while(M.ne(M.g(R.cs()), M.c(0)), M.do([
       M.set(R.cnew(), M.g(R.cs())),
-      M.set(R.cs(), M.f(1n, M.g(R.cnew()))),
-      M.if(M.eq(M.tag(M.g(R.cnew())), M.c(K.finish())), M.do([
-        M.set(R.csrc(), M.f(2n, M.g(R.cnew()))),
-        M.release(R.cnew()),
-        M.finish(R.csrc())]),
+      M.if(M.eq(M.todo(M.g(R.cnew())), M.c(0)), M.do([
+        M.set(R.cs(), M.f(1n, M.g(R.cnew()))),
+        M.finish(R.cnew()),
+        M.when(M.ne(M.g(R.cs()), M.c(0)),
+          M.set(R.cd(), M.sub(M.g(R.cd()), M.bump(M.g(R.cs()), M.todo.last(M.g(R.cs()))))))]),
       M.do([
-        M.set(R.csrc(), M.f(2n, M.g(R.cnew()))),
-        M.set(R.cd(), M.f(3n, M.g(R.cnew()))),
-        M.set(R.cdst(), M.f(4n, M.g(R.cnew()))),
-        M.set(R.ck(), M.and(M.shr(M.f(0n, M.g(R.cnew())), M.c(6)), M.c(7))),
-        M.release(R.cnew()),
-        M.if(M.and(M.lt(M.fv(M.g(R.csrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.csrc())), M.g(R.cd()))),
-          M.do([M.inc(R.csrc()), M.put(R.cdst(), R.ck(), M.g(R.csrc()))]),
-          M.if(M.eq(M.tag(M.g(R.csrc())), M.c(T.var())),
-            M.if(M.lt(M.f(2n, M.g(R.csrc())), M.g(R.cd())),
-              M.do([M.inc(R.csrc()), M.put(R.cdst(), R.ck(), M.g(R.csrc()))]),
-              M.do([
-                M.set(R.cj(), M.sub(M.f(2n, M.g(R.csrc())), M.g(R.cd()))),
-                M.if(M.lt(M.g(R.cj()), M.g(R.clen())), M.do([
-                  M.set(R.cnew(), M.g(R.cenv())),
-                  M.while(M.ne(M.g(R.cj()), M.c(0)), M.do([
-                    M.set(R.cnew(), M.f(1n, M.g(R.cnew()))),
-                    M.set(R.cj(), M.sub(M.g(R.cj()), M.c(1)))])),
-                  M.set(R.cnew(), M.f(2n, M.g(R.cnew()))),
-                  M.if(M.or(M.eq(M.fv(M.g(R.cnew())), M.c(0)), M.eq(M.g(R.cd()), M.c(0))),
-                    M.do([M.inc(R.cnew()), M.put(R.cdst(), R.ck(), M.g(R.cnew()))]),
-                    M.do([
-                      M.set(R.samt(), M.g(R.cd())),
-                      M.set(R.sdst(), M.g(R.cdst())),
-                      M.set(R.sk(), M.g(R.ck())),
-                      M.shift(R.cnew())]))]),
-                M.do([
-                  M.var(R.cnew(), M.sub(M.f(2n, M.g(R.csrc())), M.g(R.clen()))),
-                  M.put(R.cdst(), R.ck(), M.g(R.cnew()))]))])),
-            M.do([
-              M.make(R.cnew(), M.and(M.f(0n, M.g(R.csrc())), M.c(255)),
-                M.f(2n, M.g(R.csrc())), M.f(3n, M.g(R.csrc())), M.f(4n, M.g(R.csrc()))),
-              M.put(R.cdst(), R.ck(), M.g(R.cnew())),
-              M.work(R.cs(), M.c(K.finish()), M.g(R.cnew()), M.c(0), M.c(0)),
-              M.parts(R.cs(), R.csrc(), R.cd(), R.cnew(), R.wb())])))]))])),
-    M.set(r, M.f(2n, M.g(R.croot()))),
-    M.release(R.croot())])
-
-# a when c is 1, b when c is 0: by masks, with no branch
-def M.pick(+c: Cir.Expr, a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
-  M.or(M.and(a, M.sub(M.c(0), c)), M.and(b, M.sub(c, M.c(1))))
-
-def M.max(+a: Cir.Expr, +b: Cir.Expr) -> Cir.Expr:
-  M.pick(M.gt(a, b), a, b)
+        M.set(R.ck(), M.todo.first(M.g(R.cnew()))),
+        M.st(0n, M.g(R.cnew()), M.sub(M.f(0n, M.g(R.cnew())), M.todo.bit(M.g(R.ck())))),
+        M.set(R.csrc(), M.get(M.g(R.cnew()), M.g(R.ck()))),
+        M.set(R.cj(), M.add(M.g(R.cd()), M.bump(M.g(R.cnew()), M.g(R.ck())))),
+        M.copy.part()]))])),
+    M.copy.end(r, R.croot())])
 
 # the run goes on when c is not 0; else it ends with no result
 def M.need(c: Cir.Expr, then: Cir.Stmt) -> Cir.Stmt:
