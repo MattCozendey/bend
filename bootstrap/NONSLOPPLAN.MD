@@ -7,13 +7,14 @@ OUR GOALS:
 
 INVARIANTS/LAWS/THEOREMS:
 1 - FOR EVERY PROGRAM, NOT ONLY THE ONES THAT THE KERNEL ACCEPTS (SO WE NEED NO BEND COPY OF THE CHECKER): IF THE COMPILED PROGRAM GIVES A RESULT, IT IS THE RESULT THAT `Eval` GIVES. IF `Eval` GIVES A RESULT, THE COMPILED PROGRAM GIVES IT OR RUNS OUT OF MEMORY; WITH ENOUGH MEMORY (#4), IT ALWAYS GIVES IT. SO OUR COMPILER DOES NOT CHECK TYPES: A PROGRAM THAT THE KERNEL REJECTS MAY RUN FOREVER OR GET STUCK, AND ITS OWN LAWS HOLD ONLY AFTER `--verdict` ACCEPTS IT.
-2 - THE BEND COPY OF `Eval` AND OF THE KERNEL'S PARSER, WHICH THE LAWS OF STEP 1 USE, GIVES WHAT THE REAL ONES GIVE, AFTER THE SAME NUMBER OF STEPS, IN BOTH DIRECTIONS (NO EXTRA RESULT, NO MISSING RESULT). A LEAN THEOREM PROVES IT.
+2 - THE BEND COPY OF `Eval`, WHICH THE LAWS OF STEP 1 USE, GIVES WHAT THE REAL ONE GIVES, AFTER THE SAME NUMBER OF STEPS, IN BOTH DIRECTIONS (NO EXTRA RESULT, NO MISSING RESULT). A LEAN THEOREM PROVES IT.
 3 - A PROGRAM'S `main` TAKES A LIST OF BYTES AND GIVES A LIST OF BYTES: THAT LIST IS ITS RESULT, AND #1 HOLDS FOR EVERY INPUT. IF `Eval`'S FINAL VALUE IS NOT A LIST OF BYTES, BOTH SIDES COUNT AS "NO RESULT".
 4 - "ENOUGH MEMORY" IS AT LEAST F BYTES. F IS A FORMULA OF THE PROGRAM'S SIZE, THE INPUT'S SIZE AND THE NUMBER OF STEPS AFTER WHICH `Eval` GIVES THE RESULT. THE LAW FIXES F, SO THE COMPILER CAN'T CHOOSE IT. THIS RULES OUT A COMPILER THAT ALWAYS RUNS OUT OF MEMORY OR NEEDS ABSURD MEMORY, AND IT IS A REAL GUARANTEE ON REAL ENGINES WHENEVER F FITS IN WASM'S 4 GiB. F IS NOT CHOSEN YET.
+5 - OUR COMPILER DOES NOT READ .bendtt TEXT. ITS INPUT IS THE BOOK THAT THE KERNEL'S OWN PARSER (`Book.parse`) GIVES FOR THAT TEXT, WRITTEN AS A LIST OF BYTES (#3) BY THE LEAN WRITER (NOT A `partial def`). FOR EVERY BOOK, THE BEND READER, WHICH THE LAWS OF STEP 1 USE, GIVES BACK EXACTLY THAT BOOK FROM THE BYTES THAT THE LEAN WRITER WRITES FOR IT. A LEAN THEOREM PROVES IT.
 
 WHAT WE TRUST:
 1 - Lean itself.
-2 - The LEAN-VALIDATED, PROVEN-SOUND Bend kernel (`bend2/bendtt.lean`) is the definition of Bend. What it says a program computes IS what the program actually computes.
+2 - The LEAN-VALIDATED, PROVEN-SOUND Bend kernel (`bend2/bendtt.lean`) is the definition of Bend. What it says a program computes IS what the program actually computes. IT IS FIXED: WE CANNOT TOUCH IT IN ANY WAY WHATSOEVER.
 3 - From #2 follows that every proof in a Bend program that `--verdict` accepts is true (`--verdict` runs the kernel)
 4 - The .bendtt text produced from a .bend file via `bend -o` means what said .bend file says.
 5 - A WASM engine follows the WASM spec.
@@ -28,8 +29,9 @@ STEPS:
 1 - We must write BEND LAWS IN BEND'S SYNTAX about >OUR OWN< compiler, so that `--verdict` proves that it is correct by the rules of `Eval`. This is because our compiler is Bend code, and a Bend proof can talk about it directly(a Lean proof could only reason about it from the outside).
 2 - We must write a BEND INTERPRETER IN LEAN, with a Lean proof that it gives what `Eval` gives, so that we have a trusted way to RUN >OUR OWN< compiler (it runs any Bend program, ours included). This is because `Eval` is a list of rules, not a program (it can't run anything), we don't trust the current compiler, and our compiler can't run itself before it is compiled.
 3 - We must write a LEAN PROOF THAT JOINS #1 AND #2: when the interpreter runs >OUR OWN< compiler, the bytes it writes follow the laws of #1 (it works for any Bend program and its laws, ours included). This is because #1 only says that the compiler is correct by the rules of `Eval`, and #2 only says that the interpreter follows `Eval`. Without this proof, nothing says that the laws hold for what actually runs on the PC.
-4 - We must write the BEND COPY of `Eval` and of the kernel's parser, and the LEAN PROOF of INVARIANTS #2. This is because Bend can't use Lean's `Eval`, so #1 can only state its laws through a copy. Without this proof, a wrong copy makes #1 prove the wrong thing.
+4 - We must write the BEND COPY of `Eval` and the LEAN PROOF of INVARIANTS #2. This is because Bend can't use Lean's `Eval`, so #1 can only state its laws through a copy. Without this proof, a wrong copy makes #1 prove the wrong thing.
 5 - We must write the BEND COPY OF WASM'S MEANING (WHAT WE TRUST #6), so that the laws of #1 can say what a compiled program gives. This is because our compiler compiles to WASM (OUR GOALS #2), and the WASM spec is not written in Bend.
+6 - We must write the LEAN WRITER, the BEND READER and the LEAN PROOF of INVARIANTS #5. This is because the kernel's parser is made of `partial def`s, so no Lean theorem can say what it returns, and the kernel is fixed (WHAT WE TRUST #2): a Bend copy of the parser could never be proven to read a text as the kernel does. Without this proof, our compiler could compile a different book than the one the kernel read.
 
 NOTES:
 1 - The current UNTRUSTED TypeScript compiler is only a reference guide for ideas.
