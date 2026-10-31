@@ -24,9 +24,10 @@ theorem gives_det : Gives bk i r n → Gives bk i r' n' → r = r' ∧ n = n' :=
   obtain ⟨rfl, rfl⟩ := steps_det hs hv hs' hv'
   exact ⟨Option.some.inj (hu.symm.trans hu'), rfl⟩
 
--- what the end e of a run gives: the list of bytes at its value, and its steps
-def result (bk : Book) (e : Term × Nat) : Option (List UInt8 × Nat) :=
-  if value bk e.1 then (unbytes e.1).map (·, e.2) else none
+-- what the end (v, n) of a run gives: the list of bytes at its value v, and its
+-- n steps
+def result (bk : Book) : Term × Nat → Option (List UInt8 × Nat)
+  | (v, n) => if value bk v then (unbytes v).map (·, n) else none
 
 def interp (bk : Book) (fuel : Nat) (i : List UInt8) : Option (List UInt8 × Nat) :=
   result bk (steps bk fuel (start i) 0)
