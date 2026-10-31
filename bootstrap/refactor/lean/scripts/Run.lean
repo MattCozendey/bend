@@ -12,7 +12,7 @@ import Bootstrap
 --   lake build
 --   BOOK=prog.bendtt INPUT=in OUTPUT=out [FUEL=n] lake env lean scripts/Run.lean
 --
--- On a result, it writes OUTPUT, prints the number of steps and exits with
+-- FUEL is 100000000 when it is not set. On a result, it writes OUTPUT, prints the number of steps and exits with
 -- 0. Else it prints the error, and why there is no result, and exits with 1.
 
 open Quan Term
