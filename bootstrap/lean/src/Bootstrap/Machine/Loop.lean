@@ -11,7 +11,7 @@ open Quan Term
 namespace Machine
 
 theorem init_ok : (init t).Ok bk :=
-  ⟨fun _ h => by simp at h, fun _ h => by simp [init] at h⟩
+  ⟨trivial, fun _ h => by simp [init] at h⟩
 
 theorem init_term : (init t).term = t := by
   simp [init, State.term, plugs, Focus.term, close]

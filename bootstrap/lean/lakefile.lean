@@ -3,8 +3,8 @@ open Lake DSL
 
 -- Both libraries are also built to native code (precompileModules), with the
 -- clang of the Lean toolchain, and `lake lean` runs a script's #eval with it:
--- the same definitions, about 12 times faster than in Lean's interpreter (the
--- reader on its own book: 67 s with `lake env lean`, 5.5 s with `lake lean`).
+-- the same definitions, about 20 times faster than in Lean's interpreter (the
+-- reader on its own book: 56 s with `lake env lean`, 2.9 s with `lake lean`).
 package bootstrap
 
 -- the kernel, bend2/bendtt.lean, read in place and unchanged
