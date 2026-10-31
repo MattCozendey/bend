@@ -1,7 +1,7 @@
 import bendtt
 
--- Made by scripts/Copy.lean from the `bend -o` output of bootstrap/refactor/bend/src/book/impl.bend.
--- Do not edit it.
+-- Made by scripts/Copy.lean from the `bend -o` output of bootstrap/refactor/bend/src/book/impl.bend,
+-- for the roots Book.read, and the defs that they need. Do not edit it.
 
 open Quan Term
 

@@ -52,6 +52,18 @@ def defs (ds : List Def) : Term := list (ds.map defn)
 
 def some (x : Term) : Term := ctor "Some" [x]
 
+-- an Option, as Base's Maybe, with f the form of its value
+def maybe (f : α → Term) : Option α → Term
+  | .some x => some (f x)
+  | .none => ctor "None" []
+
+def env (e : Env) : Term := list (e.map term)
+
+def arg : Arg → Term
+  | (q, x) => ctor "Arg" [quan q, term x]
+
+def args (xs : List Arg) : Term := list (xs.map arg)
+
 end Form
 
 namespace Write
