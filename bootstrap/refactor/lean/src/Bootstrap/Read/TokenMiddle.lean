@@ -5,7 +5,8 @@ import Bootstrap.Read.Model
 -- Read.TokenMiddle
 -- ================
 --
--- Book.read.token, on a stack of values, does what the model does, for the tags 11 to 21.
+-- Book.read.token does what the model does, for the tags 11 to 21, on a stack
+-- of values.
 
 open Quan Term
 

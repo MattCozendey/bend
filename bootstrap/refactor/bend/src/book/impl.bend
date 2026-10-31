@@ -9,7 +9,6 @@ import Base
 
 # Types
 # -----
-
 type Quan is Data:
   Quan.Q0{}
   Quan.Q1{}
@@ -60,7 +59,6 @@ type Item is Data:
 #   7 8 names' nil and cons, 9 10 False True, 11 12 defs' nil and cons, 13 Def,
 #   14 to 32 the terms, in the kernel's order Var Ref Ann Let Typ Min All Lam
 #   App Sig Tup Prj Enu Lab Mat Efq Eql Rfl Rwt.
-
 def Book.read.succ(st: List<&2, Item>) -> Maybe<List<&2, Item>>:
   match st:
     case Con{Item.nat{n}, rest}:

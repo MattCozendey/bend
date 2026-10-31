@@ -24,7 +24,6 @@ def list : List Term → Term
   | [] => ctor "Nil" []
   | x :: xs => ctor "Con" [x, list xs]
 
--- a byte, as a U32 below 256
 def cell (b : UInt8) : Term := ctor "U32" [bits 32 b.toNat]
 
 def bytes (bs : List UInt8) : Term := list (bs.map cell)

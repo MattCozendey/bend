@@ -6,8 +6,8 @@ import Bootstrap.Read.TokenHigh
 -- Read.Go
 -- =======
 --
--- Book.read.go, the reader's loop, on a stack of values, does what the model
--- does.
+-- Book.read.go, the reader's loop, does what the model does, on a stack of
+-- values.
 
 open Quan Term
 
@@ -25,7 +25,7 @@ theorem value_token : Contains B reader → Value B (Ref "Book.read.token") := b
   have hk := h «reader.Book.read.token» (by simp [reader])
   exact Value.call (xs := []) hk .nil (walk_iff.1 (by simp [«reader.Book.read.token», walk, takes]))
 
--- Book.read.token, on a stack of values, does what the model does, for every tag
+-- Book.read.token does what the model does, for every tag, on a stack of values
 theorem token_run : Contains B reader → (∀ x ∈ s, Value B x) → Read.token t b s = some s' →
     Runs B (App Q1 (App Q1 (App Q1 (Ref "Book.read.token") (Form.nat t)) (list s)) (cell b))
       (Form.some (list s')) := by

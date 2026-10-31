@@ -5,14 +5,13 @@ import Bootstrap.Bytes
 --
 -- The Bend data form of the kernel's book (bootstrap/refactor/bend/src/book),
 -- as `bend -o` writes its values, and the Lean writer of INVARIANTS #5, whose
--- tokens Book.read reads back: two cells each, a tag and an argument, in
--- postfix order. The tags are in that Bend file.
+-- tokens Book.read reads back. That Bend file states the tokens. The writer
+-- puts each list last to first, as the reader puts each item in front.
 
 open Quan Term
 
 namespace Form
 
--- a name: the list of its UTF-8 bytes
 def name (k : String) : Term := bytes k.toUTF8.toList
 
 def nat : Nat → Term
@@ -57,10 +56,8 @@ end Form
 
 namespace Write
 
--- a token: its tag, and its argument
 def tok (tag : Nat) (arg : UInt8 := 0) : List UInt8 := [tag.toUInt8, arg]
 
--- a name's bytes go last to first, as the reader puts each in front
 def name (k : String) : List UInt8 := tok 5 ++ k.toUTF8.toList.reverse.flatMap (tok 6 ·)
 
 def nat : Nat → List UInt8
@@ -101,6 +98,5 @@ def defn (d : Def) : List UInt8 := name d.k ++ term d.T ++ term d.v ++ bool d.o 
 
 end Write
 
--- the defs of a book, as the bytes that Book.read reads back (INVARIANTS #5)
 def write (bk : Book) : List UInt8 :=
   Write.tok 11 ++ bk.defs.reverse.flatMap (Write.defn · ++ Write.tok 12)
