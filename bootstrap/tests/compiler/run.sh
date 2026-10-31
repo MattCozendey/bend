@@ -47,6 +47,7 @@ declare -A inputs=(
   [quant]="text:abc"
   [deep]="text:hello file:x20000"
   [big]="text:x"
+  [rwt]="text:hello text:"
 )
 
 fails=0
