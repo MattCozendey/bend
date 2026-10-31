@@ -2868,3 +2868,2960 @@ def Wasm.run.made(f: Nat, made: Wasm.Made, i: List<&2, U32>) -> Wasm.Outcome:
 # steps of its functions, with at most m pages (64 KiB each) of memory
 def Wasm.run(f: Nat, w: List<&2, U32>, i: List<&2, U32>, m: U32) -> Wasm.Outcome:
   Wasm.run.made(f, Wasm.instantiate(w, m), i)
+
+# Program
+# =======
+#
+# What a program gives on its input (INVARIANTS #3), and the memory that the
+# laws of step 1 (spec.bend) grant it (INVARIANTS #4). The terms mirror
+# bootstrap/lean/src/Bootstrap/Bytes.lean, and Program.gives mirrors Gives in
+# Program.lean, so that step 3 can join them.
+
+# the names of the constructors of a list of bytes, as `bend -o` writes them
+def Program.name.unit() -> List<&2, U32>:
+  [40, 41]
+
+def Program.name.nil() -> List<&2, U32>:
+  [78, 105, 108]
+
+def Program.name.con() -> List<&2, U32>:
+  [67, 111, 110]
+
+def Program.name.u32() -> List<&2, U32>:
+  [85, 51, 50]
+
+def Program.name.wnil() -> List<&2, U32>:
+  [87, 78, 105, 108]
+
+def Program.name.wcon() -> List<&2, U32>:
+  [87, 67, 111, 110]
+
+def Program.name.true() -> List<&2, U32>:
+  [84, 114, 117, 101]
+
+def Program.name.false() -> List<&2, U32>:
+  [70, 97, 108, 115, 101]
+
+def Program.name.main() -> List<&2, U32>:
+  [109, 97, 105, 110]
+
+# the fields of a constructor: each paired at quantity 1 with the rest, and ()
+# at the end
+def Program.fields(fs: List<&2, Term>) -> Term:
+  match fs:
+    case Nil{}:
+      Term.Lab{Program.name.unit()}
+    case Con{f, rest}:
+      Term.Tup{Quan.Q1{}, f, Program.fields(rest)}
+
+# the constructor k with the fields fs, as `bend -o` writes a value
+def Program.ctor(k: List<&2, U32>, fs: List<&2, Term>) -> Term:
+  Term.Tup{Quan.Q1{}, Term.Lab{k}, Program.fields(fs)}
+
+def Program.bit(b: Bool) -> Term:
+  match b:
+    case True{}:
+      Program.ctor(Program.name.true(), [])
+    case False{}:
+      Program.ctor(Program.name.false(), [])
+
+# a Word(n), its lowest bit first
+def Program.word(n: Nat, w: Word(n)) -> Term:
+  match n:
+    case 0n:
+      Program.ctor(Program.name.wnil(), [])
+    case 1n+p:
+      match w:
+        case WCon{b, t}:
+          Program.ctor(Program.name.wcon(), [Program.bit(b), Program.word(p, t)])
+
+def Program.cell.of(c: U32) -> Term:
+  match c:
+    case U32{w}:
+      Program.ctor(Program.name.u32(), [Program.word(32n, w)])
+
+# a byte of the input, as Base's U32: an element of the input is its low byte,
+# as a host that writes bytes writes it
+def Program.cell(b: U32) -> Term:
+  Program.cell.of(U32.and(b, 255))
+
+# a list of bytes, as Base's List<&2, U32>
+def Program.bytes(i: List<&2, U32>) -> Term:
+  match i:
+    case Nil{}:
+      Program.ctor(Program.name.nil(), [])
+    case Con{b, rest}:
+      Program.ctor(Program.name.con(), [Program.cell(b), Program.bytes(rest)])
+
+# the start of a run: main, applied once at quantity 1 to the input's bytes
+def Program.start(i: List<&2, U32>) -> Term:
+  Term.App{Quan.Q1{}, Term.Ref{Program.name.main()}, Program.bytes(i)}
+
+def Program.unbit.if(is_true: Bool, is_false: Bool) -> Maybe<&2, Bool>:
+  match is_true is_false:
+    case True{} _:
+      Some{True{}}
+    case False{} True{}:
+      Some{False{}}
+    case False{} False{}:
+      None{}
+
+# the Bool of a constructor's name
+def Program.unbit(+k: List<&2, U32>) -> Maybe<&2, Bool>:
+  Program.unbit.if(Name.is_eq(k, Program.name.true()), Name.is_eq(k, Program.name.false()))
+
+def Program.unword.nil(ok: Bool) -> Maybe<&2, Word(0n)>:
+  match ok:
+    case True{}:
+      Some{WNil{}}
+    case False{}:
+      None{}
+
+def Program.unword.con(-p: Nat, ok: Bool, b: Maybe<&2, Bool>, w: Maybe<&2, Word(p)>) ->
+  Maybe<&2, Word(1n+p)>:
+  match ok b w:
+    case True{} Some{x} Some{t}:
+      Some{WCon{x, t}}
+    case _ _ _:
+      None{}
+
+# the Word(n) that Program.word gives the term of; nothing for any other term
+def Program.unword(n: Nat, t: Term) -> Maybe<&2, Word(n)>:
+  match n:
+    case 0n:
+      match t:
+        case Term.Tup{Quan.Q1{}, Term.Lab{+k}, Term.Lab{+u}}:
+          Program.unword.nil(Name.is_eq(k, Program.name.wnil()) && Name.is_eq(u, Program.name.unit()))
+        case _:
+          None{}
+    case 1n+p:
+      match t:
+        case Term.Tup{Quan.Q1{}, Term.Lab{+k},
+            Term.Tup{Quan.Q1{}, Term.Tup{Quan.Q1{}, Term.Lab{+b}, Term.Lab{+u1}}, Term.Tup{Quan.Q1{}, w, Term.Lab{+u2}}}}:
+          Program.unword.con(p,
+            Name.is_eq(k, Program.name.wcon()) && Name.is_eq(u1, Program.name.unit()) && Name.is_eq(u2, Program.name.unit()),
+            Program.unbit(b), Program.unword(p, w))
+        case _:
+          None{}
+
+def Program.unbytes.nil(ok: Bool) -> Maybe<&2, List<&2, U32>>:
+  match ok:
+    case True{}:
+      Some{Nil{}}
+    case False{}:
+      None{}
+
+def Program.unbytes.byte(lt: Bool, v: U32, bs: List<&2, U32>) -> Maybe<&2, List<&2, U32>>:
+  match lt:
+    case True{}:
+      Some{Con{v, bs}}
+    case False{}:
+      None{}
+
+def Program.unbytes.con(ok: Bool, w: Maybe<&2, Word(32n)>, bs: Maybe<&2, List<&2, U32>>) ->
+  Maybe<&2, List<&2, U32>>:
+  match ok w bs:
+    case True{} Some{+x} Some{rest}:
+      Program.unbytes.byte(U32.is_lt(U32{x}, 256), U32{x}, rest)
+    case _ _ _:
+      None{}
+
+# the list of bytes that Program.bytes gives the term of, each below 256;
+# nothing for any other term
+def Program.unbytes(t: Term) -> Maybe<&2, List<&2, U32>>:
+  match t:
+    case Term.Tup{Quan.Q1{}, Term.Lab{+k}, Term.Lab{+u}}:
+      Program.unbytes.nil(Name.is_eq(k, Program.name.nil()) && Name.is_eq(u, Program.name.unit()))
+    case Term.Tup{Quan.Q1{}, Term.Lab{+k},
+        Term.Tup{Quan.Q1{}, Term.Tup{Quan.Q1{}, Term.Lab{+c}, Term.Tup{Quan.Q1{}, w, Term.Lab{+u1}}},
+          Term.Tup{Quan.Q1{}, rest, Term.Lab{+u2}}}}:
+      Program.unbytes.con(
+        Name.is_eq(k, Program.name.con()) && Name.is_eq(c, Program.name.u32()) &&
+          Name.is_eq(u1, Program.name.unit()) && Name.is_eq(u2, Program.name.unit()),
+        Program.unword(32n, w), Program.unbytes(rest))
+    case _:
+      None{}
+
+def Program.result.if(ok: Bool, v: Term) -> Maybe<&2, List<&2, U32>>:
+  match ok:
+    case True{}:
+      Program.unbytes(v)
+    case False{}:
+      None{}
+
+# the bytes at the end r of a run, when it is a value that is a list of bytes
+def Program.result(ds: List<&2, Def>, r: Maybe<Term>) -> Maybe<&2, List<&2, U32>>:
+  match r:
+    case None{}:
+      None{}
+    case Some{+v}:
+      Program.result.if(Eval.vals(ds, v, False{}), v)
+
+def Program.gives.of(r: Maybe<List<&2, Def>>, i: List<&2, U32>, n: Nat) -> Maybe<&2, List<&2, U32>>:
+  match r:
+    case None{}:
+      None{}
+    case Some{+ds}:
+      Program.result(ds, Eval.steps(n, ds, Program.start(i)))
+
+# INVARIANTS #3: what the program of the book bytes p (INVARIANTS #5) gives on
+# the input i after exactly n steps of Eval: the list of bytes of the value that
+# it reaches, or nothing
+def Program.gives(p: List<&2, U32>, i: List<&2, U32>, n: Nat) -> Maybe<&2, List<&2, U32>>:
+  Program.gives.of(Book.read(p), i, n)
+
+# the nodes of a term
+def Term.size(t: Term) -> Nat:
+  match t:
+    case Term.Var{_}:
+      1n
+    case Term.Ref{_}:
+      1n
+    case Term.Ann{x, T}:
+      1n+Nat.add(Term.size(x), Term.size(T))
+    case Term.Let{_, v, f}:
+      1n+Nat.add(Term.size(v), Term.size(f))
+    case Term.Typ{q}:
+      1n+Term.size(q)
+    case Term.Min{a, b}:
+      1n+Nat.add(Term.size(a), Term.size(b))
+    case Term.All{_, A, B}:
+      1n+Nat.add(Term.size(A), Term.size(B))
+    case Term.Lam{_, f}:
+      1n+Term.size(f)
+    case Term.App{_, f, x}:
+      1n+Nat.add(Term.size(f), Term.size(x))
+    case Term.Sig{_, A, B}:
+      1n+Nat.add(Term.size(A), Term.size(B))
+    case Term.Tup{_, a, b}:
+      1n+Nat.add(Term.size(a), Term.size(b))
+    case Term.Prj{h}:
+      1n+Term.size(h)
+    case Term.Enu{_}:
+      1n
+    case Term.Lab{_}:
+      1n
+    case Term.Mat{_, h, m}:
+      1n+Nat.add(Term.size(h), Term.size(m))
+    case Term.Efq{}:
+      1n
+    case Term.Eql{a, b, T}:
+      1n+Nat.add(Term.size(a), Nat.add(Term.size(b), Term.size(T)))
+    case Term.Rfl{}:
+      1n
+    case Term.Rwt{e, P, f}:
+      1n+Nat.add(Term.size(e), Nat.add(Term.size(P), Term.size(f)))
+
+def Program.largest.next(r: Maybe<Term>, more: Term -> Nat) -> Nat:
+  match r:
+    case None{}:
+      0n
+    case Some{t}:
+      more(t)
+
+# the most nodes of a term that the run from t reaches within n steps, t
+# included
+def Program.largest.go(n: Nat, +ds: List<&2, Def>, +t: Term) -> Nat:
+  match n:
+    case 0n:
+      Term.size(t)
+    case 1n+m:
+      Nat.max(Term.size(t), Program.largest.next(Eval.step(ds, t), u => Program.largest.go(m, ds, u)))
+
+def Program.largest.of(r: Maybe<List<&2, Def>>, i: List<&2, U32>, n: Nat) -> Nat:
+  match r:
+    case None{}:
+      0n
+    case Some{ds}:
+      Program.largest.go(n, ds, Program.start(i))
+
+# S of INVARIANTS #4: the most nodes of a term that the run on the input i
+# reaches within n steps; the input is in the first term
+def Program.largest(p: List<&2, U32>, i: List<&2, U32>, n: Nat) -> Nat:
+  Program.largest.of(Book.read(p), i, n)
+
+# F of INVARIANTS #4 (C1, approved): 64 × (|p| + S) + 2^24 bytes
+def Program.need(+p: List<&2, U32>, i: List<&2, U32>, n: Nat) -> Nat:
+  Nat.add(Nat.mul(64n, Nat.add(List.length(&2, U32, p), Program.largest(p, i, n))), 16777216n)
+
+# the bytes of m pages of 2^16 bytes, up to 2^16 pages: as much as a memory of
+# 32-bit addresses can have
+def Program.memory(m: U32) -> Nat:
+  Nat.mul(65536n, U32.to_nat(Wasm.min(m, 65536)))
+
+# Compiler
+# ========
+#
+# The compiler of step 1 (C2 to C4, approved): a fixed machine (C3) with the
+# program's book as the data of its memory. The machine is written in
+# Cir, a small language of memory cells (C5), which Cir.module translates to a
+# module of the subset of WASM that the Bend copy of WASM models (W2, W3).
+
+# Encoding
+# --------
+#
+# The bytes of a module of the subset, as Wasm.decode.module reads them.
+
+def Wasm.encode.leb.if(last: Bool, b: U32, more: Unit -> List<&2, U32>) -> List<&2, U32>:
+  match last:
+    case True{}:
+      [b]
+    case False{}:
+      Con{U32.or(b, 128), more(Unit{})}
+
+def Wasm.encode.uleb.go(fuel: Nat, +v: U32) -> List<&2, U32>:
+  match fuel:
+    case 0n:
+      []
+    case 1n+f:
+      +r = U32.shrn(v, 7n)
+      Wasm.encode.leb.if(U32.is_zero(r), U32.and(v, 127), u => Wasm.encode.uleb.go(f, r))
+
+# a U32 as unsigned LEB128 (spec 5.2.2): seven bits a byte, the lowest first
+def Wasm.encode.uleb(v: U32) -> List<&2, U32>:
+  Wasm.encode.uleb.go(5n, v)
+
+# the bits that an arithmetic shift right by 7 brings in at the top
+def Wasm.encode.sign(neg: Bool) -> U32:
+  match neg:
+    case True{}:
+      4261412864
+    case False{}:
+      0
+
+def Wasm.encode.sleb.go(fuel: Nat, +v: U32) -> List<&2, U32>:
+  match fuel:
+    case 0n:
+      []
+    case 1n+f:
+      +b = U32.and(v, 127)
+      +r = U32.or(U32.shrn(v, 7n), Wasm.encode.sign(U32.is_ne(U32.and(v, 2147483648), 0)))
+      +low = U32.is_zero(U32.and(b, 64))
+      Wasm.encode.leb.if((U32.is_zero(r) && low) || (U32.is_eq(r, 4294967295) && Bool.not(low)), b,
+        u => Wasm.encode.sleb.go(f, r))
+
+# a U32 as signed 32-bit LEB128 (spec 5.2.2), of its two's complement value
+def Wasm.encode.sleb(v: U32) -> List<&2, U32>:
+  Wasm.encode.sleb.go(5n, v)
+
+# the number of items of a list
+def Wasm.encode.len(-A: Data, xs: List<&2, A>) -> U32:
+  match xs:
+    case Nil{}:
+      0
+    case Con{_, rest}:
+      U32.inc(Wasm.encode.len(A, rest))
+
+# a vector (spec 5.1.3): the number n of its items, then their bytes
+def Wasm.encode.vec(n: U32, items: List<&2, U32>) -> List<&2, U32>:
+  List.append(&2, U32, Wasm.encode.uleb(n), items)
+
+# bytes after their number: a vector of bytes or a name (spec 5.1.3, 5.2.4)
+def Wasm.encode.sized(+c: List<&2, U32>) -> List<&2, U32>:
+  Wasm.encode.vec(Wasm.encode.len(U32, c), c)
+
+# the labels of a br_table, then the bytes acc
+def Wasm.encode.labels(ls: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
+  match ls:
+    case Nil{}:
+      acc
+    case Con{l, rest}:
+      List.append(&2, U32, Wasm.encode.uleb(l), Wasm.encode.labels(rest, acc))
+
+def Wasm.encode.opcode(o: Wasm.Op) -> U32:
+  match o:
+    case Wasm.Op.add{}:
+      106
+    case Wasm.Op.sub{}:
+      107
+    case Wasm.Op.and{}:
+      113
+    case Wasm.Op.or{}:
+      114
+    case Wasm.Op.shl{}:
+      116
+    case Wasm.Op.shr_u{}:
+      118
+    case Wasm.Op.eq{}:
+      70
+    case Wasm.Op.ne{}:
+      71
+    case Wasm.Op.lt_u{}:
+      73
+    case Wasm.Op.gt_u{}:
+      75
+    case Wasm.Op.le_u{}:
+      77
+    case Wasm.Op.ge_u{}:
+      79
+
+# an opcode and its immediate, then the bytes acc
+def Wasm.encode.with(op: U32, imm: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
+  Con{op, List.append(&2, U32, imm, acc)}
+
+# the instructions xs (spec 5.4), then the bytes acc; a load or a store names
+# the natural alignment of its width
+def Wasm.encode.instrs(xs: List<&2, Wasm.Instr>, acc: List<&2, U32>) -> List<&2, U32>:
+  match xs:
+    case Nil{}:
+      acc
+    case Con{x, rest}:
+      match x:
+        case Wasm.Instr.const{n}:
+          Wasm.encode.with(65, Wasm.encode.sleb(n), Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.local_get{i}:
+          Wasm.encode.with(32, Wasm.encode.uleb(i), Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.local_set{i}:
+          Wasm.encode.with(33, Wasm.encode.uleb(i), Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.local_tee{i}:
+          Wasm.encode.with(34, Wasm.encode.uleb(i), Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.op{o}:
+          Con{Wasm.encode.opcode(o), Wasm.encode.instrs(rest, acc)}
+        case Wasm.Instr.eqz{}:
+          Con{69, Wasm.encode.instrs(rest, acc)}
+        case Wasm.Instr.load{o}:
+          Wasm.encode.with(40, Con{2, Wasm.encode.uleb(o)}, Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.load8_u{o}:
+          Wasm.encode.with(45, Con{0, Wasm.encode.uleb(o)}, Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.store{o}:
+          Wasm.encode.with(54, Con{2, Wasm.encode.uleb(o)}, Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.store8{o}:
+          Wasm.encode.with(58, Con{0, Wasm.encode.uleb(o)}, Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.memory_size{}:
+          Con{63, Con{0, Wasm.encode.instrs(rest, acc)}}
+        case Wasm.Instr.memory_grow{}:
+          Con{64, Con{0, Wasm.encode.instrs(rest, acc)}}
+        case Wasm.Instr.block{body}:
+          Con{2, Con{64, Wasm.encode.instrs(body, Con{11, Wasm.encode.instrs(rest, acc)})}}
+        case Wasm.Instr.loop{body}:
+          Con{3, Con{64, Wasm.encode.instrs(body, Con{11, Wasm.encode.instrs(rest, acc)})}}
+        case Wasm.Instr.br{l}:
+          Wasm.encode.with(12, Wasm.encode.uleb(l), Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.br_if{l}:
+          Wasm.encode.with(13, Wasm.encode.uleb(l), Wasm.encode.instrs(rest, acc))
+        case Wasm.Instr.br_table{+ls, l}:
+          Wasm.encode.with(14, Wasm.encode.uleb(Wasm.encode.len(U32, ls)),
+            Wasm.encode.labels(ls, List.append(&2, U32, Wasm.encode.uleb(l), Wasm.encode.instrs(rest, acc))))
+
+# the value type i32, n times
+def Wasm.encode.i32s(n: Nat) -> List<&2, U32>:
+  match n:
+    case 0n:
+      []
+    case 1n+p:
+      Con{127, Wasm.encode.i32s(p)}
+
+# a function's type (spec 5.3.6): 0x60, then its parameters and results
+def Wasm.encode.functype(f: Wasm.Func) -> List<&2, U32>:
+  match f:
+    case Wasm.Func{p, q, _, _}:
+      Con{96, List.append(&2, U32, Wasm.encode.sized(Wasm.encode.i32s(p)), Wasm.encode.sized(Wasm.encode.i32s(q)))}
+
+def Wasm.encode.functypes(fs: List<&2, Wasm.Func>) -> List<&2, U32>:
+  match fs:
+    case Nil{}:
+      []
+    case Con{f, rest}:
+      List.append(&2, U32, Wasm.encode.functype(f), Wasm.encode.functypes(rest))
+
+# the function section: function i has type i
+def Wasm.encode.indices(fs: List<&2, Wasm.Func>, +i: U32) -> List<&2, U32>:
+  match fs:
+    case Nil{}:
+      []
+    case Con{_, rest}:
+      List.append(&2, U32, Wasm.encode.uleb(i), Wasm.encode.indices(rest, U32.inc(i)))
+
+# a function's locals after its parameters (spec 5.5.13): one group of n
+# locals of i32, or none
+def Wasm.encode.locals(+n: Nat) -> List<&2, U32>:
+  match n:
+    case 0n:
+      [0]
+    case 1n+_:
+      Con{1, List.append(&2, U32, Wasm.encode.uleb(U32.from_nat(n)), [127])}
+
+# a function's code (spec 5.5.13): its size, its locals, its body and its end
+def Wasm.encode.code(f: Wasm.Func) -> List<&2, U32>:
+  match f:
+    case Wasm.Func{_, _, n, body}:
+      Wasm.encode.sized(List.append(&2, U32, Wasm.encode.locals(n), Wasm.encode.instrs(body, [11])))
+
+def Wasm.encode.codes(fs: List<&2, Wasm.Func>) -> List<&2, U32>:
+  match fs:
+    case Nil{}:
+      []
+    case Con{f, rest}:
+      List.append(&2, U32, Wasm.encode.code(f), Wasm.encode.codes(rest))
+
+# an export (spec 5.5.10): its name, then 0 and a function index, or 2 and
+# memory 0
+def Wasm.encode.export(e: Wasm.Export) -> List<&2, U32>:
+  match e:
+    case Wasm.Export.func{name, i}:
+      List.append(&2, U32, Wasm.encode.sized(name), Con{0, Wasm.encode.uleb(i)})
+    case Wasm.Export.memory{name}:
+      List.append(&2, U32, Wasm.encode.sized(name), [2, 0])
+
+def Wasm.encode.exports(es: List<&2, Wasm.Export>) -> List<&2, U32>:
+  match es:
+    case Nil{}:
+      []
+    case Con{e, rest}:
+      List.append(&2, U32, Wasm.encode.export(e), Wasm.encode.exports(rest))
+
+# a memory's limits (spec 5.3.7): 0 and a minimum, or 1, a minimum and a
+# maximum
+def Wasm.encode.limits(l: Wasm.Limits) -> List<&2, U32>:
+  match l:
+    case Wasm.Limits{min, None{}}:
+      Con{0, Wasm.encode.uleb(min)}
+    case Wasm.Limits{min, Some{max}}:
+      Con{1, List.append(&2, U32, Wasm.encode.uleb(min), Wasm.encode.uleb(max))}
+
+# a section (spec 5.5.2): its id, its size and its content c; then the bytes
+# acc
+def Wasm.encode.section(id: U32, c: List<&2, U32>, acc: List<&2, U32>) -> List<&2, U32>:
+  Con{id, List.append(&2, U32, Wasm.encode.sized(c), acc)}
+
+# the memory section, when there is a memory
+def Wasm.encode.memory(m: Maybe<&2, Wasm.Limits>, acc: List<&2, U32>) -> List<&2, U32>:
+  match m:
+    case None{}:
+      acc
+    case Some{l}:
+      Wasm.encode.section(5, Con{1, Wasm.encode.limits(l)}, acc)
+
+# the data section, when there is a segment: 0, an active segment of memory
+# 0, its offset as the constant expression i32.const n end, then its bytes
+def Wasm.encode.data(d: Maybe<&2, Wasm.Segment>) -> List<&2, U32>:
+  match d:
+    case None{}:
+      []
+    case Some{Wasm.Segment{o, bs}}:
+      Wasm.encode.section(11, Con{1, Con{0, Con{65, List.append(&2, U32, Wasm.encode.sleb(o), Con{11, Wasm.encode.sized(bs)})}}}, [])
+
+# a module of the subset (spec 5.5.15): the magic \0asm, version 1, then its
+# sections in the order of their ids; function i has type i
+def Wasm.encode(m: Wasm.Module) -> List<&2, U32>:
+  match m:
+    case Wasm.Module{+fs, mem, +es, d}:
+      +n = Wasm.encode.len(Wasm.Func, fs)
+      Con{0, Con{97, Con{115, Con{109, Con{1, Con{0, Con{0, Con{0,
+        Wasm.encode.section(1, Wasm.encode.vec(n, Wasm.encode.functypes(fs)),
+          Wasm.encode.section(3, Wasm.encode.vec(n, Wasm.encode.indices(fs, 0)),
+            Wasm.encode.memory(mem,
+              Wasm.encode.section(7, Wasm.encode.vec(Wasm.encode.len(Wasm.Export, es), Wasm.encode.exports(es)),
+                Wasm.encode.section(10, Wasm.encode.vec(n, Wasm.encode.codes(fs)), Wasm.encode.data(d))))))}}}}}}}}
+
+# Cir
+# ---
+#
+# The language of the machine (C5): statements over U32 registers, a memory of
+# cells of five U32 fields, the input's bytes and the output's. Cell c is the
+# 20 bytes from byte 20 × c of the module's memory: cells 1 to `image` hold
+# the book, the input's bytes follow them, and the machine's own cells start
+# at `first`. The free cells form a chain through their field 0, and the
+# memory grows by the pages that an access needs, as in the module that
+# Cir.module makes, so
+# that Cir.exec says what that module does. An access that the module could
+# not make in the same way traps: the machine makes none.
+
+# a cell: five fields
+type Cir.Cell is Data:
+  Cir.Cell{f0: U32, f1: U32, f2: U32, f3: U32, f4: U32}
+
+def Cir.Cell.zero() -> Cir.Cell:
+  Cir.Cell{0, 0, 0, 0, 0}
+
+# field k of a cell, from 0 to 4
+def Cir.Cell.get(k: Nat, c: Cir.Cell) -> U32:
+  match k c:
+    case 0n Cir.Cell{a, _, _, _, _}:
+      a
+    case 1n Cir.Cell{_, b, _, _, _}:
+      b
+    case 2n Cir.Cell{_, _, x, _, _}:
+      x
+    case 3n Cir.Cell{_, _, _, y, _}:
+      y
+    case _ Cir.Cell{_, _, _, _, z}:
+      z
+
+def Cir.Cell.set(k: Nat, c: Cir.Cell, v: U32) -> Cir.Cell:
+  match k c:
+    case 0n Cir.Cell{_, b, x, y, z}:
+      Cir.Cell{v, b, x, y, z}
+    case 1n Cir.Cell{a, _, x, y, z}:
+      Cir.Cell{a, v, x, y, z}
+    case 2n Cir.Cell{a, b, _, y, z}:
+      Cir.Cell{a, b, v, y, z}
+    case 3n Cir.Cell{a, b, x, _, z}:
+      Cir.Cell{a, b, x, v, z}
+    case _ Cir.Cell{a, b, x, y, _}:
+      Cir.Cell{a, b, x, y, v}
+
+# the cells, by the bits of their number, the lowest first; a missing cell is
+# all zeros
+type Cir.Cells is Data:
+  Cir.Cells.none{}
+  Cir.Cells.one{c: Cir.Cell}
+  Cir.Cells.node{lo: Cir.Cells, hi: Cir.Cells}
+
+def Cir.Cells.get.at(n: Nat, w: Word(n), m: Cir.Cells) -> Cir.Cell:
+  match n:
+    case 0n:
+      match m:
+        case Cir.Cells.one{c}:
+          c
+        case _:
+          Cir.Cell.zero()
+    case 1n+p:
+      match w:
+        case WCon{bit, t}:
+          match bit m:
+            case False{} Cir.Cells.node{lo, _}:
+              Cir.Cells.get.at(p, t, lo)
+            case True{} Cir.Cells.node{_, hi}:
+              Cir.Cells.get.at(p, t, hi)
+            case _ _:
+              Cir.Cell.zero()
+
+def Cir.Cells.set.at(n: Nat, w: Word(n), m: Cir.Cells, c: Cir.Cell) -> Cir.Cells:
+  match n:
+    case 0n:
+      Cir.Cells.one{c}
+    case 1n+p:
+      match w:
+        case WCon{bit, t}:
+          match bit m:
+            case False{} Cir.Cells.node{lo, hi}:
+              Cir.Cells.node{Cir.Cells.set.at(p, t, lo, c), hi}
+            case True{} Cir.Cells.node{lo, hi}:
+              Cir.Cells.node{lo, Cir.Cells.set.at(p, t, hi, c)}
+            case False{} _:
+              Cir.Cells.node{Cir.Cells.set.at(p, t, Cir.Cells.none{}, c), Cir.Cells.none{}}
+            case True{} _:
+              Cir.Cells.node{Cir.Cells.none{}, Cir.Cells.set.at(p, t, Cir.Cells.none{}, c)}
+
+# the cell numbered i
+def Cir.Cells.get(m: Cir.Cells, i: U32) -> Cir.Cell:
+  match i:
+    case U32{w}:
+      Cir.Cells.get.at(32n, w, m)
+
+def Cir.Cells.set(m: Cir.Cells, i: U32, c: Cir.Cell) -> Cir.Cells:
+  match i:
+    case U32{w}:
+      Cir.Cells.set.at(32n, w, m, c)
+
+# the registers r of a Cir program are Nat; its cells' fields are numbered 0
+# to 4
+type Cir.Expr is Data:
+  Cir.Expr.const{n: U32}
+  Cir.Expr.get{r: Nat}
+  Cir.Expr.op{op: Wasm.Op, a: Cir.Expr, b: Cir.Expr}
+  Cir.Expr.eqz{a: Cir.Expr}
+  Cir.Expr.field{k: Nat, c: Cir.Expr}
+  Cir.Expr.byte{i: Cir.Expr}
+  Cir.Expr.size{}
+
+# a while repeats its body while its condition is not 0; halt ends the run
+# with a status: 0 a result, 2 no result
+type Cir.Stmt is Data:
+  Cir.Stmt.nop{}
+  Cir.Stmt.set{r: Nat, e: Cir.Expr}
+  Cir.Stmt.store{k: Nat, c: Cir.Expr, v: Cir.Expr}
+  Cir.Stmt.alloc{r: Nat}
+  Cir.Stmt.free{c: Cir.Expr}
+  Cir.Stmt.emit{v: Cir.Expr}
+  Cir.Stmt.seq{a: Cir.Stmt, b: Cir.Stmt}
+  Cir.Stmt.if{c: Cir.Expr, t: Cir.Stmt, e: Cir.Stmt}
+  Cir.Stmt.while{c: Cir.Expr, body: Cir.Stmt}
+  Cir.Stmt.halt{s: U32}
+
+# the state of a run: the registers; the cells, the first free one (0 for
+# none), the first never used (next), the first of the machine's own (first)
+# and the last of the book's (image); the memory's size and the limit
+# of its growth, in pages; the input; and the output, the last byte first,
+# with its length
+type Cir.State is Data:
+  Cir.State{
+    regs: List<&2, U32>, cells: Cir.Cells, free: U32, next: U32, first: U32, image: U32,
+    pages: U32, limit: U32, input: List<&2, U32>, out: List<&2, U32>, outn: U32}
+
+# how a statement ends: after it, with the state; halted, with a status; out
+# of memory; with an access that the module could not make in the same way;
+# or out of fuel
+type Cir.Out is Data:
+  Cir.Out.next{st: Cir.State}
+  Cir.Out.halt{s: U32, st: Cir.State}
+  Cir.Out.out_of_memory{}
+  Cir.Out.trap{}
+  Cir.Out.not_done{}
+
+# the cell i is one the machine may use: one of the book's, or one of its own
+# that it took
+def Cir.is_cell(+i: U32, +image: U32, +first: U32, +next: U32) -> Bool:
+  (Bool.not(U32.is_zero(i)) && U32.is_le(i, image)) || (U32.is_le(first, i) && U32.is_lt(i, next))
+
+def Cir.eval.op(o: Wasm.Op, a: Maybe<&2, U32>, b: Maybe<&2, U32>) -> Maybe<&2, U32>:
+  match a b:
+    case Some{x} Some{y}:
+      Some{Wasm.op(o, x, y)}
+    case _ _:
+      None{}
+
+def Cir.eval.eqz(a: Maybe<&2, U32>) -> Maybe<&2, U32>:
+  match a:
+    case Some{x}:
+      Some{Bool.to_u32(U32.is_zero(x))}
+    case None{}:
+      None{}
+
+def Cir.eval.field.if(ok: Bool, k: Nat, cells: Cir.Cells, i: U32) -> Maybe<&2, U32>:
+  match ok:
+    case True{}:
+      Some{Cir.Cell.get(k, Cir.Cells.get(cells, i))}
+    case False{}:
+      None{}
+
+def Cir.eval.field(k: Nat, c: Maybe<&2, U32>, st: Cir.State) -> Maybe<&2, U32>:
+  match c st:
+    case Some{+i} Cir.State{_, cells, _, next, first, image, _, _, _, _, _}:
+      Cir.eval.field.if(Cir.is_cell(i, image, first, next), k, cells, i)
+    case None{} _:
+      None{}
+
+def Cir.eval.byte.of(b: Maybe<&2, U32>) -> Maybe<&2, U32>:
+  match b:
+    case Some{x}:
+      Some{U32.and(x, 255)}
+    case None{}:
+      None{}
+
+# the input's byte i: the low byte of its element i
+def Cir.eval.byte(i: Maybe<&2, U32>, input: List<&2, U32>) -> Maybe<&2, U32>:
+  match i:
+    case Some{x}:
+      Cir.eval.byte.of(List.get(&2, U32, input, U32.to_nat(x)))
+    case None{}:
+      None{}
+
+def Cir.eval.size(st: Cir.State) -> Maybe<&2, U32>:
+  match st:
+    case Cir.State{_, _, _, _, _, _, _, _, input, _, _}:
+      Some{Wasm.encode.len(U32, input)}
+
+def Cir.eval.get(r: Nat, st: Cir.State) -> Maybe<&2, U32>:
+  match st:
+    case Cir.State{regs, _, _, _, _, _, _, _, _, _, _}:
+      List.get(&2, U32, regs, r)
+
+def Cir.eval.input(st: Cir.State) -> List<&2, U32>:
+  match st:
+    case Cir.State{_, _, _, _, _, _, _, _, input, _, _}:
+      input
+
+# the value of an expression; nothing for an access that traps
+def Cir.eval(e: Cir.Expr, +st: Cir.State) -> Maybe<&2, U32>:
+  match e:
+    case Cir.Expr.const{n}:
+      Some{n}
+    case Cir.Expr.get{r}:
+      Cir.eval.get(r, st)
+    case Cir.Expr.op{o, a, b}:
+      Cir.eval.op(o, Cir.eval(a, st), Cir.eval(b, st))
+    case Cir.Expr.eqz{a}:
+      Cir.eval.eqz(Cir.eval(a, st))
+    case Cir.Expr.field{k, c}:
+      Cir.eval.field(k, Cir.eval(c, st), st)
+    case Cir.Expr.byte{i}:
+      Cir.eval.byte(Cir.eval(i, st), Cir.eval.input(st))
+    case Cir.Expr.size{}:
+      Cir.eval.size(st)
+
+def Cir.regs.set.if(ok: Bool, regs: List<&2, U32>, r: Nat, v: U32) -> Maybe<&2, List<&2, U32>>:
+  match ok:
+    case True{}:
+      Some{List.set(&2, U32, regs, r, v)}
+    case False{}:
+      None{}
+
+# the registers with r set to v, when there is a register r
+def Cir.regs.set(+regs: List<&2, U32>, +r: Nat, v: U32) -> Maybe<&2, List<&2, U32>>:
+  Cir.regs.set.if(Nat.is_lt(r, List.length(&2, U32, regs)), regs, r, v)
+
+def Cir.exec.set.of(regs: Maybe<&2, List<&2, U32>>, st: Cir.State) -> Cir.Out:
+  match regs st:
+    case Some{rs} Cir.State{_, cells, free, next, first, image, pages, limit, input, out, outn}:
+      Cir.Out.next{Cir.State{rs, cells, free, next, first, image, pages, limit, input, out, outn}}
+    case None{} _:
+      Cir.Out.trap{}
+
+def Cir.exec.set(r: Nat, v: Maybe<&2, U32>, +st: Cir.State) -> Cir.Out:
+  match v st:
+    case Some{x} Cir.State{regs, _, _, _, _, _, _, _, _, _, _}:
+      Cir.exec.set.of(Cir.regs.set(regs, r, x), st)
+    case None{} _:
+      Cir.Out.trap{}
+
+def Cir.exec.store.if(ok: Bool, k: Nat, +i: U32, v: U32, st: Cir.State) -> Cir.Out:
+  match ok st:
+    case True{} Cir.State{regs, +cells, free, next, first, image, pages, limit, input, out, outn}:
+      Cir.Out.next{Cir.State{regs, Cir.Cells.set(cells, i, Cir.Cell.set(k, Cir.Cells.get(cells, i), v)),
+        free, next, first, image, pages, limit, input, out, outn}}
+    case False{} _:
+      Cir.Out.trap{}
+
+def Cir.exec.store(k: Nat, c: Maybe<&2, U32>, v: Maybe<&2, U32>, +st: Cir.State) -> Cir.Out:
+  match c v st:
+    case Some{+i} Some{x} Cir.State{_, _, _, +next, +first, +image, _, _, _, _, _}:
+      Cir.exec.store.if(Cir.is_cell(i, image, first, next), k, i, x, st)
+    case _ _ _:
+      Cir.Out.trap{}
+
+# a register holds the cell i, made all zeros
+def Cir.exec.took(r: Nat, +i: U32, st: Cir.State, free: U32, next: U32, pages: U32) -> Cir.Out:
+  match st:
+    case Cir.State{regs, cells, _, _, first, image, _, limit, input, out, outn}:
+      Cir.exec.set(r, Some{i},
+        Cir.State{regs, Cir.Cells.set(cells, i, Cir.Cell.zero()), free, next, first, image, pages, limit, input, out, outn})
+
+def Cir.room.if(inside: Bool, can_grow: Bool, p: U32, need: U32) -> Maybe<&2, U32>:
+  match inside can_grow:
+    case True{} _:
+      Some{p}
+    case False{} True{}:
+      Some{need}
+    case False{} False{}:
+      None{}
+
+# the pages that the memory has once the byte b is in it, when it holds p
+# pages and may grow to lim: (b >> 16) + 1 at least; none when it cannot grow
+# that far
+def Cir.room(b: U32, +p: U32, +lim: U32) -> Maybe<&2, U32>:
+  +need = U32.inc(U32.shrn(b, 16n))
+  Cir.room.if(U32.is_le(need, p), U32.is_le(need, lim), p, need)
+
+# 20 × c, the first byte of the cell c
+def Cir.at(+c: U32) -> U32:
+  U32.add(U32.shln(c, 4n), U32.shln(c, 2n))
+
+def Cir.exec.bump.of(r: Nat, +next: U32, st: Cir.State, pages: Maybe<&2, U32>) -> Cir.Out:
+  match pages:
+    case Some{p}:
+      Cir.exec.took(r, next, st, 0, U32.inc(next), p)
+    case None{}:
+      Cir.Out.out_of_memory{}
+
+def Cir.exec.bump.if(fits: Bool, r: Nat, +next: U32, +pages: U32, lim: U32, st: Cir.State) -> Cir.Out:
+  match fits:
+    case True{}:
+      Cir.exec.bump.of(r, next, st, Cir.room(U32.add(Cir.at(next), 19), pages, lim))
+    case False{}:
+      Cir.Out.out_of_memory{}
+
+def Cir.exec.reuse.if(none: Bool, r: Nat, +st: Cir.State) -> Cir.Out:
+  match none st:
+    case True{} Cir.State{_, _, _, +next, _, _, +pages, lim, _, _, _}:
+      Cir.exec.bump.if(U32.is_lt(next, 214748364), r, next, pages, lim, st)
+    case False{} Cir.State{_, +cells, +free, next, _, _, pages, _, _, _, _}:
+      Cir.exec.took(r, free, st, Cir.Cell.get(0n, Cir.Cells.get(cells, free)), next, pages)
+
+def Cir.exec.alloc.if(no_out: Bool, r: Nat, +st: Cir.State) -> Cir.Out:
+  match no_out st:
+    case True{} Cir.State{_, _, +free, _, _, _, _, _, _, _, _}:
+      Cir.exec.reuse.if(U32.is_zero(free), r, st)
+    case False{} _:
+      Cir.Out.trap{}
+
+# a register gets a cell, all zeros: the first free one, or a new one, which
+# may grow the memory; out of memory when the memory cannot grow. Once
+# the output has begun, no cell may be taken: they would overlap
+def Cir.exec.alloc(r: Nat, +st: Cir.State) -> Cir.Out:
+  match st:
+    case Cir.State{_, _, _, _, _, _, _, _, _, _, outn}:
+      Cir.exec.alloc.if(U32.is_zero(outn), r, st)
+
+def Cir.exec.free.if(ok: Bool, +i: U32, st: Cir.State) -> Cir.Out:
+  match ok st:
+    case True{} Cir.State{regs, +cells, free, next, first, image, pages, limit, input, out, outn}:
+      Cir.Out.next{Cir.State{regs, Cir.Cells.set(cells, i, Cir.Cell.set(0n, Cir.Cells.get(cells, i), free)),
+        i, next, first, image, pages, limit, input, out, outn}}
+    case False{} _:
+      Cir.Out.trap{}
+
+# the cell i is free again: the first free one, whose field 0 holds the one
+# that was first
+def Cir.exec.free(c: Maybe<&2, U32>, +st: Cir.State) -> Cir.Out:
+  match c st:
+    case Some{+i} Cir.State{_, _, _, +next, +first, _, _, _, _, _, _}:
+      Cir.exec.free.if(U32.is_le(first, i) && U32.is_lt(i, next), i, st)
+    case None{} _:
+      Cir.Out.trap{}
+
+def Cir.exec.emit.of(pages: Maybe<&2, U32>, v: U32, st: Cir.State) -> Cir.Out:
+  match pages st:
+    case Some{p} Cir.State{regs, cells, free, next, first, image, _, limit, input, out, outn}:
+      Cir.Out.next{Cir.State{regs, cells, free, next, first, image, p, limit, input, Con{U32.and(v, 255), out}, U32.inc(outn)}}
+    case None{} _:
+      Cir.Out.out_of_memory{}
+
+def Cir.exec.emit.if(ok: Bool, +b: U32, v: U32, +st: Cir.State) -> Cir.Out:
+  match ok st:
+    case True{} Cir.State{_, _, _, _, _, _, +pages, lim, _, _, _}:
+      Cir.exec.emit.of(Cir.room(b, pages, lim), v, st)
+    case False{} _:
+      Cir.Out.out_of_memory{}
+
+# the byte v (its low 8 bits) goes at the end of the output, which lies after
+# the cells, at byte 20 × next; out of memory when the memory cannot grow to
+# hold it
+def Cir.exec.emit(v: Maybe<&2, U32>, +st: Cir.State) -> Cir.Out:
+  match v st:
+    case Some{x} Cir.State{_, _, _, +next, _, _, _, _, _, _, +outn}:
+      +b = U32.add(Cir.at(next), outn)
+      Cir.exec.emit.if(U32.is_lt(next, 214748365) && U32.is_ge(b, outn), b, x, st)
+    case None{} _:
+      Cir.Out.trap{}
+
+def Cir.exec.then(r: Cir.Out, more: Cir.State -> Cir.Out) -> Cir.Out:
+  match r:
+    case Cir.Out.next{st}:
+      more(st)
+    case Cir.Out.halt{s, st}:
+      Cir.Out.halt{s, st}
+    case Cir.Out.out_of_memory{}:
+      Cir.Out.out_of_memory{}
+    case Cir.Out.trap{}:
+      Cir.Out.trap{}
+    case Cir.Out.not_done{}:
+      Cir.Out.not_done{}
+
+def Cir.exec.if.of(zero: Bool, yes: Unit -> Cir.Out, no: Unit -> Cir.Out) -> Cir.Out:
+  match zero:
+    case False{}:
+      yes(Unit{})
+    case True{}:
+      no(Unit{})
+
+def Cir.exec.if(c: Maybe<&2, U32>, yes: Unit -> Cir.Out, no: Unit -> Cir.Out) -> Cir.Out:
+  match c:
+    case Some{x}:
+      Cir.exec.if.of(U32.is_zero(x), yes, no)
+    case None{}:
+      Cir.Out.trap{}
+
+# a run of the statement s from the state st; each round of a while takes a
+# unit of fuel
+def Cir.exec(+fuel: Nat, s: Cir.Stmt, +st: Cir.State) -> Cir.Out:
+  match fuel s:
+    case _ Cir.Stmt.nop{}:
+      Cir.Out.next{st}
+    case _ Cir.Stmt.set{r, e}:
+      Cir.exec.set(r, Cir.eval(e, st), st)
+    case _ Cir.Stmt.store{k, c, v}:
+      Cir.exec.store(k, Cir.eval(c, st), Cir.eval(v, st), st)
+    case _ Cir.Stmt.alloc{r}:
+      Cir.exec.alloc(r, st)
+    case _ Cir.Stmt.free{c}:
+      Cir.exec.free(Cir.eval(c, st), st)
+    case _ Cir.Stmt.emit{v}:
+      Cir.exec.emit(Cir.eval(v, st), st)
+    case _ Cir.Stmt.seq{a, b}:
+      Cir.exec.then(Cir.exec(fuel, a, st), t => Cir.exec(fuel, b, t))
+    case _ Cir.Stmt.if{c, t, e}:
+      Cir.exec.if(Cir.eval(c, st), u => Cir.exec(fuel, t, st), u => Cir.exec(fuel, e, st))
+    case 0n Cir.Stmt.while{_, _}:
+      Cir.Out.not_done{}
+    case 1n+f Cir.Stmt.while{+c, +body}:
+      Cir.exec.if(Cir.eval(c, st),
+        u => Cir.exec.then(Cir.exec(f, body, st), t => Cir.exec(f, Cir.Stmt.while{c, body}, t)),
+        u => Cir.Out.next{st})
+    case _ Cir.Stmt.halt{s}:
+      Cir.Out.halt{s, st}
+
+# Translation
+# -----------
+#
+# Cir.module: the module of a Cir program, with the book's cells as the data
+# of its memory, from byte 20. Its function run (W5) keeps, in its locals 2 to
+# 8, the status it returns, the first free cell, the first cell never used,
+# the output's length and three scratch values; register r of the program is
+# local 9 + r. Every branch out of run is the last instruction of a block of
+# its own (W4). Its function alloc takes the input's bytes just after the
+# book's cells.
+
+def Cir.l.status() -> U32:
+  2
+
+def Cir.l.free() -> U32:
+  3
+
+def Cir.l.next() -> U32:
+  4
+
+def Cir.l.outn() -> U32:
+  5
+
+def Cir.l.tmp() -> U32:
+  6
+
+def Cir.l.need() -> U32:
+  7
+
+def Cir.l.addr() -> U32:
+  8
+
+def Cir.l.reg(r: Nat) -> U32:
+  U32.add(9, U32.from_nat(r))
+
+def Cir.i.get(l: U32) -> Wasm.Instr:
+  Wasm.Instr.local_get{l}
+
+def Cir.i.set(l: U32) -> Wasm.Instr:
+  Wasm.Instr.local_set{l}
+
+def Cir.i.op(o: Wasm.Op) -> Wasm.Instr:
+  Wasm.Instr.op{o}
+
+def Cir.i.const(n: U32) -> Wasm.Instr:
+  Wasm.Instr.const{n}
+
+# the cell number on the stack, turned into its first byte, 20 × c; then acc
+def Cir.code.at(acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  Con{Wasm.Instr.local_tee{Cir.l.tmp()}, Con{Cir.i.const(4), Con{Cir.i.op(Wasm.Op.shl{}),
+    Con{Cir.i.get(Cir.l.tmp()), Con{Cir.i.const(2), Con{Cir.i.op(Wasm.Op.shl{}),
+      Con{Cir.i.op(Wasm.Op.add{}), acc}}}}}}}
+
+# an expression, whose value it leaves on the stack; then acc
+def Cir.code.expr(e: Cir.Expr, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  match e:
+    case Cir.Expr.const{n}:
+      Con{Cir.i.const(n), acc}
+    case Cir.Expr.get{r}:
+      Con{Cir.i.get(Cir.l.reg(r)), acc}
+    case Cir.Expr.op{o, a, b}:
+      Cir.code.expr(a, Cir.code.expr(b, Con{Cir.i.op(o), acc}))
+    case Cir.Expr.eqz{a}:
+      Cir.code.expr(a, Con{Wasm.Instr.eqz{}, acc})
+    case Cir.Expr.field{k, c}:
+      Cir.code.expr(c, Cir.code.at(Con{Wasm.Instr.load{U32.shln(U32.from_nat(k), 2n)}, acc}))
+    case Cir.Expr.byte{i}:
+      Cir.code.expr(i, Con{Cir.i.get(0), Con{Cir.i.op(Wasm.Op.add{}), Con{Wasm.Instr.load8_u{0},
+        Con{Cir.i.const(255), Con{Cir.i.op(Wasm.Op.and{}), acc}}}}})
+    case Cir.Expr.size{}:
+      Con{Cir.i.get(1), acc}
+
+# the status s, then a branch out of run: the label d + 1 levels out, from a
+# block of its own at d levels inside run's block
+def Cir.code.exit(s: U32, d: Nat) -> Wasm.Instr:
+  Wasm.Instr.block{[Cir.i.const(s), Cir.i.set(Cir.l.status()), Wasm.Instr.br{U32.from_nat(1n+d)}]}
+
+# the instructions cond, which leave a Bool; when it is 0, out of memory
+def Cir.code.unless(cond: List<&2, Wasm.Instr>, d: Nat, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  Con{Wasm.Instr.block{List.append(&2, Wasm.Instr, cond, [Wasm.Instr.br_if{0}, Cir.code.exit(1, 1n+d)])}, acc}
+
+# the memory grows to the pages in local need, when it has fewer; out of
+# memory when it cannot
+def Cir.code.grow(d: Nat, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  Con{Wasm.Instr.block{Con{Cir.i.get(Cir.l.need()), Con{Wasm.Instr.memory_size{}, Con{Cir.i.op(Wasm.Op.le_u{}),
+    Con{Wasm.Instr.br_if{0},
+      Cir.code.unless([Cir.i.get(Cir.l.need()), Wasm.Instr.memory_size{}, Cir.i.op(Wasm.Op.sub{}),
+        Wasm.Instr.memory_grow{}, Cir.i.const(4294967295), Cir.i.op(Wasm.Op.ne{})], 1n+d, [])}}}}}, acc}
+
+# the pages (b >> 16) + 1 that the byte b on the stack needs, into local need
+def Cir.code.need(acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  Con{Cir.i.const(16), Con{Cir.i.op(Wasm.Op.shr_u{}), Con{Cir.i.const(1), Con{Cir.i.op(Wasm.Op.add{}),
+    Con{Cir.i.set(Cir.l.need()), acc}}}}}
+
+# the five fields of the cell at the byte in local addr, made 0
+def Cir.code.zero(acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.const(0), Con{Wasm.Instr.store{0},
+  Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.const(0), Con{Wasm.Instr.store{4},
+  Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.const(0), Con{Wasm.Instr.store{8},
+  Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.const(0), Con{Wasm.Instr.store{12},
+  Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.const(0), Con{Wasm.Instr.store{16}, acc}}}}}}}}}}}}}}}
+
+# Cir.exec.alloc: the first free cell, or a new one; then the cell made 0
+def Cir.code.alloc(+r: U32, +d: Nat, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  Con{Wasm.Instr.block{
+    Con{Wasm.Instr.block{
+      Con{Cir.i.get(Cir.l.free()), Con{Wasm.Instr.eqz{}, Con{Wasm.Instr.br_if{0},
+      Con{Cir.i.get(Cir.l.free()), Con{Cir.i.set(r),
+      Con{Cir.i.get(Cir.l.free()), Cir.code.at([Wasm.Instr.load{0}, Cir.i.set(Cir.l.free()), Wasm.Instr.br{1}])}}}}}}},
+    Cir.code.unless([Cir.i.get(Cir.l.next()), Cir.i.const(214748364), Cir.i.op(Wasm.Op.lt_u{})], 1n+d,
+      Con{Cir.i.get(Cir.l.next()), Cir.code.at(Con{Cir.i.const(19), Con{Cir.i.op(Wasm.Op.add{}),
+        Cir.code.need(Cir.code.grow(1n+d,
+          [Cir.i.get(Cir.l.next()), Cir.i.set(r),
+           Cir.i.get(Cir.l.next()), Cir.i.const(1), Cir.i.op(Wasm.Op.add{}), Cir.i.set(Cir.l.next())]))}})})}},
+  Con{Cir.i.get(r), Cir.code.at(Con{Cir.i.set(Cir.l.addr()), Cir.code.zero(acc)})}}
+
+# Cir.exec.emit: the byte at 20 × next + outn, after the memory grows to hold
+# it
+def Cir.code.emit(v: Cir.Expr, +d: Nat, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  Con{Cir.i.get(Cir.l.next()), Cir.code.at(Con{Cir.i.get(Cir.l.outn()), Con{Cir.i.op(Wasm.Op.add{}),
+    Con{Cir.i.set(Cir.l.addr()),
+      Cir.code.unless([Cir.i.get(Cir.l.next()), Cir.i.const(214748365), Cir.i.op(Wasm.Op.lt_u{}),
+        Cir.i.get(Cir.l.addr()), Cir.i.get(Cir.l.outn()), Cir.i.op(Wasm.Op.ge_u{}), Cir.i.op(Wasm.Op.and{})], d,
+        Con{Cir.i.get(Cir.l.addr()), Cir.code.need(Cir.code.grow(d,
+          Con{Cir.i.get(Cir.l.addr()), Cir.code.expr(v, Con{Wasm.Instr.store8{0},
+            Con{Cir.i.get(Cir.l.outn()), Con{Cir.i.const(1), Con{Cir.i.op(Wasm.Op.add{}),
+              Con{Cir.i.set(Cir.l.outn()), acc}}}}})}))})}}})}
+
+# Cir.exec.free: the cell's field 0 holds the first free cell, and it becomes
+# the first
+def Cir.code.free(c: Cir.Expr, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  Cir.code.expr(c, Con{Cir.i.set(Cir.l.addr()), Con{Cir.i.get(Cir.l.addr()), Cir.code.at(
+    Con{Cir.i.get(Cir.l.free()), Con{Wasm.Instr.store{0}, Con{Cir.i.get(Cir.l.addr()), Con{Cir.i.set(Cir.l.free()), acc}}}})}})
+
+# for a result, the output's first byte, 20 × next, at byte 0, and its length
+# at byte 4 (W5)
+def Cir.code.result(ok: Bool) -> List<&2, Wasm.Instr>:
+  match ok:
+    case True{}:
+      Con{Cir.i.const(0), Con{Cir.i.get(Cir.l.next()), Cir.code.at(
+        [Wasm.Instr.store{0}, Cir.i.const(0), Cir.i.get(Cir.l.outn()), Wasm.Instr.store{4}])}}
+    case False{}:
+      []
+
+def Cir.code.halt(+s: U32, d: Nat) -> Wasm.Instr:
+  Wasm.Instr.block{Con{Cir.i.const(s), Con{Cir.i.set(Cir.l.status()),
+    List.append(&2, Wasm.Instr, Cir.code.result(U32.is_zero(s)), [Wasm.Instr.br{U32.from_nat(1n+d)}])}}}
+
+# a statement at d levels inside run's block; then acc
+def Cir.code.stmt(s: Cir.Stmt, +d: Nat, acc: List<&2, Wasm.Instr>) -> List<&2, Wasm.Instr>:
+  match s:
+    case Cir.Stmt.nop{}:
+      acc
+    case Cir.Stmt.set{r, e}:
+      Cir.code.expr(e, Con{Cir.i.set(Cir.l.reg(r)), acc})
+    case Cir.Stmt.store{k, c, v}:
+      Cir.code.expr(c, Cir.code.at(Cir.code.expr(v, Con{Wasm.Instr.store{U32.shln(U32.from_nat(k), 2n)}, acc})))
+    case Cir.Stmt.alloc{r}:
+      Cir.code.alloc(Cir.l.reg(r), d, acc)
+    case Cir.Stmt.free{c}:
+      Cir.code.free(c, acc)
+    case Cir.Stmt.emit{v}:
+      Cir.code.emit(v, d, acc)
+    case Cir.Stmt.seq{a, b}:
+      Cir.code.stmt(a, d, Cir.code.stmt(b, d, acc))
+    case Cir.Stmt.if{c, t, e}:
+      Con{Wasm.Instr.block{Con{
+        Wasm.Instr.block{Cir.code.expr(c, Con{Wasm.Instr.eqz{}, Con{Wasm.Instr.br_if{0},
+          Cir.code.stmt(t, 2n+d, [Wasm.Instr.br{1}])}})},
+        Cir.code.stmt(e, 1n+d, [])}}, acc}
+    case Cir.Stmt.while{c, body}:
+      Con{Wasm.Instr.block{[Wasm.Instr.loop{Cir.code.expr(c, Con{Wasm.Instr.eqz{}, Con{Wasm.Instr.br_if{1},
+        Cir.code.stmt(body, 2n+d, [Wasm.Instr.br{0}])}})}]}, acc}
+    case Cir.Stmt.halt{s}:
+      Con{Cir.code.halt(s, d), acc}
+
+# the first byte of the input: just after cells 0 to k
+def Cir.input.at(k: U32) -> U32:
+  Cir.at(U32.inc(k))
+
+# alloc(n) (W5): the first byte of the input's n bytes, just after the book's
+# k cells, once the memory holds them; -1 when it cannot. The input ends below
+# byte 4294967280, so that the cells after it have numbers below 2^32 / 20
+def Cir.alloc(+k: U32) -> Wasm.Func:
+  +a = Cir.input.at(k)
+  Wasm.Func{1n, 1n, 3n, [
+    Cir.i.const(4294967295), Cir.i.set(2),
+    Cir.i.const(a), Cir.i.get(0), Cir.i.op(Wasm.Op.add{}), Cir.i.set(1),
+    Wasm.Instr.block{[
+      Cir.i.get(1), Cir.i.const(a), Cir.i.op(Wasm.Op.lt_u{}), Wasm.Instr.br_if{0},
+      Cir.i.get(1), Cir.i.const(4294967280), Cir.i.op(Wasm.Op.gt_u{}), Wasm.Instr.br_if{0},
+      Cir.i.get(1), Cir.i.const(1), Cir.i.op(Wasm.Op.sub{}), Cir.i.const(16), Cir.i.op(Wasm.Op.shr_u{}),
+      Cir.i.const(1), Cir.i.op(Wasm.Op.add{}), Cir.i.set(3),
+      Wasm.Instr.block{[
+        Cir.i.get(3), Wasm.Instr.memory_size{}, Cir.i.op(Wasm.Op.le_u{}), Wasm.Instr.br_if{0},
+        Cir.i.get(3), Wasm.Instr.memory_size{}, Cir.i.op(Wasm.Op.sub{}), Wasm.Instr.memory_grow{},
+        Cir.i.const(4294967295), Cir.i.op(Wasm.Op.eq{}), Wasm.Instr.br_if{1}]},
+      Cir.i.const(a), Cir.i.set(2)]},
+    Cir.i.get(2)]}
+
+# run(a, n) (W5): the first cell after the input, then the program; the
+# status that it ends with
+def Cir.run(prog: Cir.Stmt, regs: Nat, k: U32) -> Wasm.Func:
+  Wasm.Func{2n, 1n, 7n+regs, [
+    Cir.i.const(2), Cir.i.set(Cir.l.status()),
+    Cir.i.get(0), Cir.i.get(1), Cir.i.op(Wasm.Op.add{}), Cir.i.set(Cir.l.addr()),
+    Cir.i.const(U32.inc(k)), Cir.i.set(Cir.l.next()),
+    Wasm.Instr.block{[Wasm.Instr.loop{Con{Cir.i.get(Cir.l.next()), Cir.code.at(
+      [Cir.i.get(Cir.l.addr()), Cir.i.op(Wasm.Op.ge_u{}), Wasm.Instr.br_if{1},
+       Cir.i.get(Cir.l.next()), Cir.i.const(1), Cir.i.op(Wasm.Op.add{}), Cir.i.set(Cir.l.next()),
+       Wasm.Instr.br{0}])}}]},
+    Wasm.Instr.block{Cir.code.stmt(prog, 0n, [])},
+    Cir.i.get(Cir.l.status())]}
+
+# the pages that bytes 0 to b - 1 need, for b above 0
+def Cir.pages(b: U32) -> U32:
+  U32.inc(U32.shrn(U32.sub(b, 1), 16n))
+
+# the module of the program prog with regs registers, whose memory holds the
+# k cells of the book's bytes cells from byte 20 (W3): memory, alloc and run
+def Cir.module(prog: Cir.Stmt, regs: Nat, +k: U32, cells: List<&2, U32>) -> Wasm.Module:
+  Wasm.Module{
+    [Cir.alloc(k), Cir.run(prog, regs, k)],
+    Some{Wasm.Limits{Cir.pages(Cir.input.at(k)), None{}}},
+    [Wasm.Export.memory{Wasm.name.memory()}, Wasm.Export.func{Wasm.name.alloc(), 0},
+     Wasm.Export.func{Wasm.name.run(), 1}],
+    Some{Wasm.Segment{20, cells}}}
+
+# Machine
+# -------
+#
+# The machine of C3, as a Cir program: Mach.code. A term is a graph of cells;
+# a cell never changes after it is made, but for the flags that say what is
+# known of it. Field 0 holds its tag (bits 0 to 5: the kernel's order of
+# formers, Var 0 to Rwt 18; 32 and above for the machine's own cells), its
+# quantity (bits 6 and 7), its flags (VALUE, DATA, STATIC, K, OWNED: bits 8
+# to 12) and fv (bits 13 up): 1 + the highest free variable of its term, 0
+# when it has none. Field 1 counts the pointers to it, or links it into a
+# list. Fields 2 to 4 hold its parts: as the kernel's formers do, in order;
+# a Ref holds its def's body and its name, a Lab and a Mat their name, by the
+# number that the image gives it.
+#
+# The machine runs as the Lean machine (bootstrap/lean, Machine.lean) does,
+# on closed terms: a focus, and a stack of frames, which are cells. A call or
+# a λ copies its code, with pointers to its arguments: a part whose free
+# variables the copy does not reach is shared, not copied. A cell whose count
+# drops to 0 goes to a list of cells to reuse, and its parts lose a pointer
+# when the cell is reused.
+
+# building Cir
+
+def M.c(n: U32) -> Cir.Expr:
+  Cir.Expr.const{n}
+
+def M.g(r: Nat) -> Cir.Expr:
+  Cir.Expr.get{r}
+
+def M.f(k: Nat, c: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.field{k, c}
+
+def M.add(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.add{}, a, b}
+
+def M.sub(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.sub{}, a, b}
+
+def M.and(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.and{}, a, b}
+
+def M.or(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.or{}, a, b}
+
+def M.shl(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.shl{}, a, b}
+
+def M.shr(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.shr_u{}, a, b}
+
+def M.eq(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.eq{}, a, b}
+
+def M.ne(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.ne{}, a, b}
+
+def M.lt(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.lt_u{}, a, b}
+
+def M.le(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.le_u{}, a, b}
+
+def M.gt(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.gt_u{}, a, b}
+
+def M.ge(a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.op{Wasm.Op.ge_u{}, a, b}
+
+def M.not(a: Cir.Expr) -> Cir.Expr:
+  Cir.Expr.eqz{a}
+
+def M.set(r: Nat, e: Cir.Expr) -> Cir.Stmt:
+  Cir.Stmt.set{r, e}
+
+def M.st(k: Nat, c: Cir.Expr, v: Cir.Expr) -> Cir.Stmt:
+  Cir.Stmt.store{k, c, v}
+
+def M.do(ss: List<&2, Cir.Stmt>) -> Cir.Stmt:
+  match ss:
+    case Nil{}:
+      Cir.Stmt.nop{}
+    case Con{s, rest}:
+      Cir.Stmt.seq{s, M.do(rest)}
+
+def M.if(c: Cir.Expr, t: Cir.Stmt, e: Cir.Stmt) -> Cir.Stmt:
+  Cir.Stmt.if{c, t, e}
+
+def M.when(c: Cir.Expr, t: Cir.Stmt) -> Cir.Stmt:
+  Cir.Stmt.if{c, t, Cir.Stmt.nop{}}
+
+def M.while(c: Cir.Expr, body: Cir.Stmt) -> Cir.Stmt:
+  Cir.Stmt.while{c, body}
+
+def M.halt(s: U32) -> Cir.Stmt:
+  Cir.Stmt.halt{s}
+
+# the registers
+
+def R.focus() -> Nat:
+  0n
+
+def R.mode() -> Nat:
+  1n
+
+def R.sp() -> Nat:
+  2n
+
+def R.pend() -> Nat:
+  3n
+
+def R.dx() -> Nat:
+  4n
+
+def R.dr() -> Nat:
+  5n
+
+def R.aq() -> Nat:
+  6n
+
+def R.am() -> Nat:
+  7n
+
+def R.c() -> Nat:
+  8n
+
+def R.h() -> Nat:
+  9n
+
+def R.tag() -> Nat:
+  10n
+
+def R.x() -> Nat:
+  11n
+
+def R.y() -> Nat:
+  12n
+
+def R.z() -> Nat:
+  13n
+
+def R.q() -> Nat:
+  14n
+
+def R.n() -> Nat:
+  15n
+
+def R.fr() -> Nat:
+  16n
+
+def R.k() -> Nat:
+  17n
+
+def R.p() -> Nat:
+  18n
+
+def R.wt() -> Nat:
+  19n
+
+def R.wenv() -> Nat:
+  20n
+
+def R.wargs() -> Nat:
+  21n
+
+def R.wa() -> Nat:
+  22n
+
+def R.wx() -> Nat:
+  23n
+
+def R.wq() -> Nat:
+  24n
+
+def R.wn() -> Nat:
+  25n
+
+def R.wres() -> Nat:
+  26n
+
+def R.wok() -> Nat:
+  27n
+
+def R.wb() -> Nat:
+  28n
+
+def R.wh() -> Nat:
+  29n
+
+def R.cs() -> Nat:
+  30n
+
+def R.csrc() -> Nat:
+  31n
+
+def R.cd() -> Nat:
+  32n
+
+def R.cdst() -> Nat:
+  33n
+
+def R.ck() -> Nat:
+  34n
+
+def R.cnew() -> Nat:
+  35n
+
+def R.cenv() -> Nat:
+  36n
+
+def R.clen() -> Nat:
+  37n
+
+def R.cj() -> Nat:
+  38n
+
+def R.croot() -> Nat:
+  39n
+
+def R.cr() -> Nat:
+  40n
+
+def R.cm() -> Nat:
+  41n
+
+def R.ds() -> Nat:
+  42n
+
+def R.dok() -> Nat:
+  43n
+
+def R.dc() -> Nat:
+  44n
+
+def R.oc() -> Nat:
+  45n
+
+def R.ow() -> Nat:
+  46n
+
+def R.ov() -> Nat:
+  47n
+
+def R.oi() -> Nat:
+  48n
+
+def R.ii() -> Nat:
+  49n
+
+def R.ib() -> Nat:
+  50n
+
+def R.il() -> Nat:
+  51n
+
+def R.iu() -> Nat:
+  52n
+
+def R.iw() -> Nat:
+  53n
+
+def R.ij() -> Nat:
+  54n
+
+def R.ss() -> Nat:
+  55n
+
+def R.ssrc() -> Nat:
+  56n
+
+def R.scut() -> Nat:
+  57n
+
+def R.sdst() -> Nat:
+  58n
+
+def R.sk() -> Nat:
+  59n
+
+def R.snew() -> Nat:
+  60n
+
+def R.samt() -> Nat:
+  61n
+
+def R.t1() -> Nat:
+  62n
+
+def R.t2() -> Nat:
+  63n
+
+def Mach.regs() -> Nat:
+  64n
+
+# the tags of the formers, in the kernel's order
+
+def T.var() -> U32:
+  0
+
+def T.ref() -> U32:
+  1
+
+def T.ann() -> U32:
+  2
+
+def T.let() -> U32:
+  3
+
+def T.min() -> U32:
+  5
+
+def T.lam() -> U32:
+  7
+
+def T.app() -> U32:
+  8
+
+def T.tup() -> U32:
+  10
+
+def T.prj() -> U32:
+  11
+
+def T.lab() -> U32:
+  13
+
+def T.mat() -> U32:
+  14
+
+def T.efq() -> U32:
+  15
+
+def T.rfl() -> U32:
+  17
+
+def T.rwt() -> U32:
+  18
+
+# the machine's own cells: frames (the kernel's App, Let, Tup, Rwt and Min
+# with a hole), the arguments and locals of a walk, and work for a copy and a
+# check
+
+def K.app_arg() -> U32:
+  32
+
+def K.app_val() -> U32:
+  33
+
+def K.app_fun() -> U32:
+  34
+
+def K.let_in() -> U32:
+  35
+
+def K.tup_b() -> U32:
+  36
+
+def K.tup_a() -> U32:
+  37
+
+def K.rwt() -> U32:
+  38
+
+def K.min_b() -> U32:
+  39
+
+def K.min_a() -> U32:
+  40
+
+def K.arg() -> U32:
+  41
+
+def K.copy() -> U32:
+  42
+
+def K.finish() -> U32:
+  43
+
+def K.check() -> U32:
+  44
+
+def K.root() -> U32:
+  45
+
+# the flags
+
+def F.value() -> U32:
+  256
+
+def F.data() -> U32:
+  512
+
+def F.static() -> U32:
+  1024
+
+def F.known() -> U32:
+  2048
+
+def F.owned() -> U32:
+  4096
+
+# the most that fv holds: a cell whose fv is this is never shared
+def F.fv_max() -> U32:
+  524287
+
+# the cells that the image holds first (Mach.image): the labels of the names
+# 0 to 10, then constant terms, the cache of the input's bytes, and a table
+# by tag
+
+def I.lab(id: U32) -> U32:
+  U32.inc(id)
+
+def I.nil() -> U32:
+  12
+
+def I.true() -> U32:
+  13
+
+def I.false() -> U32:
+  14
+
+def I.wnil() -> U32:
+  15
+
+# the word of 24 False bits, then WNil: 24 levels of 3 cells
+def I.z24() -> U32:
+  16
+
+def I.ref_main() -> U32:
+  88
+
+def I.cache() -> U32:
+  89
+
+# by tag t, the cell I.table() + t holds the mask of its pointers in field 2
+# (1 for field 2, 2 for 3, 4 for 4), the binders above each in field 3 (2
+# bits each, the field 2's lowest) and 1 in field 4 when a term of the tag is
+# a value by its form
+def I.table() -> U32:
+  345
+
+# the first cell of the book's defs
+def I.book() -> U32:
+  364
+
+# the names that the machine knows, by number
+
+def N.unit() -> U32:
+  0
+
+def N.nil() -> U32:
+  1
+
+def N.con() -> U32:
+  2
+
+def N.u32() -> U32:
+  3
+
+def N.wnil() -> U32:
+  4
+
+def N.wcon() -> U32:
+  5
+
+def N.true() -> U32:
+  6
+
+def N.false() -> U32:
+  7
+
+def N.q0() -> U32:
+  8
+
+def N.q1() -> U32:
+  9
+
+def N.q2() -> U32:
+  10
+
+def N.main() -> U32:
+  11
+
+# the parts of a cell
+
+def M.tag(c: Cir.Expr) -> Cir.Expr:
+  M.and(M.f(0n, c), M.c(63))
+
+def M.q(c: Cir.Expr) -> Cir.Expr:
+  M.and(M.shr(M.f(0n, c), M.c(6)), M.c(3))
+
+def M.flag(c: Cir.Expr, flag: U32) -> Cir.Expr:
+  M.ne(M.and(M.f(0n, c), M.c(flag)), M.c(0))
+
+def M.fv(c: Cir.Expr) -> Cir.Expr:
+  M.shr(M.f(0n, c), M.c(13))
+
+# the entry of the table by tag for the cell c, a term
+def M.entry(k: Nat, c: Cir.Expr) -> Cir.Expr:
+  M.f(k, M.add(M.c(I.table()), M.tag(c)))
+
+# the cell in register r gains a pointer, unless it is none or one of the
+# image's
+def M.inc(+r: Nat) -> Cir.Stmt:
+  M.when(M.ne(M.g(r), M.c(0)),
+    M.when(M.not(M.flag(M.g(r), F.static())),
+      M.st(1n, M.g(r), M.add(M.f(1n, M.g(r)), M.c(1)))))
+
+# the cell in register r loses a pointer; at 0 it goes to the list of cells
+# to reuse, the pend list
+def M.dec(+r: Nat) -> Cir.Stmt:
+  M.when(M.ne(M.g(r), M.c(0)),
+    M.when(M.not(M.flag(M.g(r), F.static())), M.do([
+      M.set(R.dr(), M.sub(M.f(1n, M.g(r)), M.c(1))),
+      M.st(1n, M.g(r), M.g(R.dr())),
+      M.when(M.eq(M.g(R.dr()), M.c(0)), M.do([
+        M.st(1n, M.g(r), M.g(R.pend())),
+        M.set(R.pend(), M.g(r))]))])))
+
+# the part in field k of the cell aq loses a pointer, when the mask am says it
+# is one
+def M.dec.part(k: Nat, bit: U32) -> Cir.Stmt:
+  M.when(M.ne(M.and(M.g(R.am()), M.c(bit)), M.c(0)), M.do([
+    M.set(R.dx(), M.f(k, M.g(R.aq()))),
+    M.dec(R.dx())]))
+
+# register r gets a cell, all zeros: the first of the pend list, whose parts
+# then lose a pointer, or a new one
+def M.alloc(+r: Nat) -> Cir.Stmt:
+  M.if(M.ne(M.g(R.pend()), M.c(0)), M.do([
+    M.set(R.aq(), M.g(R.pend())),
+    M.set(R.pend(), M.f(1n, M.g(R.aq()))),
+    M.if(M.lt(M.tag(M.g(R.aq())), M.c(32)),
+      M.set(R.am(), M.entry(2n, M.g(R.aq()))),
+      M.set(R.am(), M.c(0))),
+    M.dec.part(2n, 1),
+    M.dec.part(3n, 2),
+    M.dec.part(4n, 4),
+    M.st(0n, M.g(R.aq()), M.c(0)),
+    M.st(1n, M.g(R.aq()), M.c(0)),
+    M.st(2n, M.g(R.aq()), M.c(0)),
+    M.st(3n, M.g(R.aq()), M.c(0)),
+    M.st(4n, M.g(R.aq()), M.c(0)),
+    M.set(r, M.g(R.aq()))]),
+    Cir.Stmt.alloc{r})
+
+# register r gets a new cell: the header h, one pointer to it, and the fields
+# a, b and c
+def M.make(+r: Nat, h: Cir.Expr, a: Cir.Expr, b: Cir.Expr, c: Cir.Expr) -> Cir.Stmt:
+  M.do([
+    M.alloc(r),
+    M.st(0n, M.g(r), h),
+    M.st(1n, M.g(r), M.c(1)),
+    M.st(2n, M.g(r), a),
+    M.st(3n, M.g(r), b),
+    M.st(4n, M.g(r), c)])
+
+# the machine's own cell in register r goes to the pend list: its parts lose
+# no pointer when it is reused
+def M.release(+r: Nat) -> Cir.Stmt:
+  M.do([
+    M.st(1n, M.g(r), M.g(R.pend())),
+    M.set(R.pend(), M.g(r))])
+
+# a new frame on the stack: the header h, and the fields a and b
+def M.push(h: Cir.Expr, a: Cir.Expr, b: Cir.Expr) -> Cir.Stmt:
+  M.do([
+    M.alloc(R.fr()),
+    M.st(0n, M.g(R.fr()), h),
+    M.st(1n, M.g(R.fr()), M.g(R.sp())),
+    M.st(2n, M.g(R.fr()), a),
+    M.st(3n, M.g(R.fr()), b),
+    M.set(R.sp(), M.g(R.fr()))])
+
+# the top frame leaves the stack, and goes to the pend list
+def M.pop() -> Cir.Stmt:
+  M.do([
+    M.set(R.fr(), M.g(R.sp())),
+    M.set(R.sp(), M.f(1n, M.g(R.fr()))),
+    M.release(R.fr())])
+
+# a header of the kind k, the quantity q and the flags fl
+def M.header(k: U32, q: Cir.Expr, fl: Cir.Expr) -> Cir.Expr:
+  M.or(M.or(M.c(k), M.shl(q, M.c(6))), fl)
+
+# Data: register dok gets 1 when the term in register r is Data (Lab, Rfl, or a
+# pair of Data whose first field is Data or dead), else 0; the term is then
+# flagged DATA
+def M.data(+r: Nat) -> Cir.Stmt:
+  M.do([
+    M.set(R.dok(), M.c(1)),
+    M.when(M.not(M.flag(M.g(r), F.data())), M.do([
+      M.set(R.ds(), M.c(0)),
+      M.make(R.dc(), M.c(K.check()), M.g(r), M.c(0), M.c(0)),
+      M.st(1n, M.g(R.dc()), M.g(R.ds())),
+      M.set(R.ds(), M.g(R.dc())),
+      M.while(M.and(M.ne(M.g(R.ds()), M.c(0)), M.g(R.dok())), M.do([
+        M.set(R.dc(), M.g(R.ds())),
+        M.set(R.ds(), M.f(1n, M.g(R.dc()))),
+        M.set(R.t1(), M.f(2n, M.g(R.dc()))),
+        M.release(R.dc()),
+        M.when(M.not(M.flag(M.g(R.t1()), F.data())),
+          M.if(M.or(M.eq(M.tag(M.g(R.t1())), M.c(T.lab())), M.eq(M.tag(M.g(R.t1())), M.c(T.rfl()))),
+            Cir.Stmt.nop{},
+            M.if(M.eq(M.tag(M.g(R.t1())), M.c(T.tup())), M.do([
+              M.make(R.dc(), M.c(K.check()), M.f(3n, M.g(R.t1())), M.c(0), M.c(0)),
+              M.st(1n, M.g(R.dc()), M.g(R.ds())),
+              M.set(R.ds(), M.g(R.dc())),
+              M.when(M.ne(M.q(M.g(R.t1())), M.c(0)), M.do([
+                M.make(R.dc(), M.c(K.check()), M.f(2n, M.g(R.t1())), M.c(0), M.c(0)),
+                M.st(1n, M.g(R.dc()), M.g(R.ds())),
+                M.set(R.ds(), M.g(R.dc()))]))]),
+              M.set(R.dok(), M.c(0)))))])),
+      M.while(M.ne(M.g(R.ds()), M.c(0)), M.do([
+        M.set(R.dc(), M.g(R.ds())),
+        M.set(R.ds(), M.f(1n, M.g(R.dc()))),
+        M.release(R.dc())])),
+      M.when(M.g(R.dok()), M.st(0n, M.g(r), M.or(M.f(0n, M.g(r)), M.c(F.data()))))]))])
+
+# a work cell of kind k on the stack in register s: fields a, b and c
+def M.work(+s: Nat, k: Cir.Expr, a: Cir.Expr, b: Cir.Expr, c: Cir.Expr) -> Cir.Stmt:
+  M.do([
+    M.make(R.t2(), k, a, b, c),
+    M.st(1n, M.g(R.t2()), M.g(s)),
+    M.set(s, M.g(R.t2()))])
+
+# field k (2, 3 or 4, in register rk) of the cell in register rd gets v
+def M.put(+rd: Nat, +rk: Nat, +v: Cir.Expr) -> Cir.Stmt:
+  M.if(M.eq(M.g(rk), M.c(2)), M.st(2n, M.g(rd), v),
+    M.if(M.eq(M.g(rk), M.c(3)), M.st(3n, M.g(rd), v), M.st(4n, M.g(rd), v)))
+
+# the copy of a cell's parts: the part in field k, under bump more binders,
+# when the mask m says it is one, goes on the stack s with the depth d
+def M.parts.one(+s: Nat, k: Nat, kn: U32, bit: U32, shift: U32, +src: Nat, +d: Nat, +dst: Nat, +m: Nat) ->
+  Cir.Stmt:
+  M.when(M.ne(M.and(M.g(m), M.c(bit)), M.c(0)),
+    M.work(s, M.or(M.c(K.copy()), M.c(U32.shln(kn, 6n))), M.f(k, M.g(src)),
+      M.add(M.g(d), M.and(M.shr(M.entry(3n, M.g(src)), M.c(shift)), M.c(3))), M.g(dst)))
+
+def M.parts(+s: Nat, +src: Nat, +d: Nat, +dst: Nat, +m: Nat) -> Cir.Stmt:
+  M.do([
+    M.set(m, M.entry(2n, M.g(src))),
+    M.parts.one(s, 2n, 2, 1, 0, src, d, dst, m),
+    M.parts.one(s, 3n, 3, 2, 2, src, d, dst, m),
+    M.parts.one(s, 4n, 4, 4, 4, src, d, dst, m)])
+
+# fv of a part: in t1, its contribution to the fv of the cell c, whose field
+# k it is, under the binders of the table
+def M.fv.part(+c: Nat, k: Nat, bit: U32, shift: U32) -> Cir.Stmt:
+  M.when(M.ne(M.and(M.entry(2n, M.g(c)), M.c(bit)), M.c(0)), M.do([
+    M.set(R.t1(), M.fv(M.f(k, M.g(c)))),
+    M.set(R.t2(), M.and(M.shr(M.entry(3n, M.g(c)), M.c(shift)), M.c(3))),
+    M.if(M.eq(M.g(R.t1()), M.c(F.fv_max())),
+      M.set(R.cm(), M.c(F.fv_max())),
+      M.when(M.gt(M.g(R.t1()), M.g(R.t2())),
+        M.when(M.gt(M.sub(M.g(R.t1()), M.g(R.t2())), M.g(R.cm())),
+          M.when(M.ne(M.g(R.cm()), M.c(F.fv_max())),
+            M.set(R.cm(), M.sub(M.g(R.t1()), M.g(R.t2())))))))]))
+
+# the fv of the new cell c, once its parts are made: the most of their fv,
+# less the binders above each; at most fv_max
+def M.finish(+c: Nat) -> Cir.Stmt:
+  M.do([
+    M.set(R.cm(), M.c(0)),
+    M.fv.part(c, 2n, 1, 0),
+    M.fv.part(c, 3n, 2, 2),
+    M.fv.part(c, 4n, 4, 4),
+    M.st(0n, M.g(c), M.or(M.and(M.f(0n, M.g(c)), M.c(8191)), M.shl(M.g(R.cm()), M.c(13))))])
+
+# v when small is 1, fv_max when it is 0: by masks, with no branch
+def M.if.e(+small: Cir.Expr, v: Cir.Expr) -> Cir.Expr:
+  M.or(M.and(v, M.sub(M.c(0), small)), M.and(M.c(F.fv_max()), M.sub(small, M.c(1))))
+
+# a new variable i in register r: its fv is i + 1, at most fv_max
+def M.var(+r: Nat, +i: Cir.Expr) -> Cir.Stmt:
+  M.make(r, M.or(M.c(T.var()), M.shl(
+    M.if.e(M.lt(i, M.c(524286)), M.add(i, M.c(1))), M.c(13))), i, M.c(0), M.c(0))
+
+# the term v shifted: its free variables from the cutoff 0 up gain samt; into
+# field sk of the cell sdst
+def M.shift(+v: Nat) -> Cir.Stmt:
+  M.do([
+    M.set(R.ss(), M.c(0)),
+    M.work(R.ss(), M.or(M.c(K.copy()), M.shl(M.g(R.sk()), M.c(6))), M.g(v), M.c(0), M.g(R.sdst())),
+    M.while(M.ne(M.g(R.ss()), M.c(0)), M.do([
+      M.set(R.snew(), M.g(R.ss())),
+      M.set(R.ss(), M.f(1n, M.g(R.snew()))),
+      M.if(M.eq(M.tag(M.g(R.snew())), M.c(K.finish())), M.do([
+        M.set(R.ssrc(), M.f(2n, M.g(R.snew()))),
+        M.release(R.snew()),
+        M.finish(R.ssrc())]),
+      M.do([
+        M.set(R.ssrc(), M.f(2n, M.g(R.snew()))),
+        M.set(R.scut(), M.f(3n, M.g(R.snew()))),
+        M.set(R.sdst(), M.f(4n, M.g(R.snew()))),
+        M.set(R.sk(), M.and(M.shr(M.f(0n, M.g(R.snew())), M.c(6)), M.c(7))),
+        M.release(R.snew()),
+        M.if(M.and(M.lt(M.fv(M.g(R.ssrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.ssrc())), M.g(R.scut()))),
+          M.do([M.inc(R.ssrc()), M.put(R.sdst(), R.sk(), M.g(R.ssrc()))]),
+          M.if(M.eq(M.tag(M.g(R.ssrc())), M.c(T.var())),
+            M.if(M.lt(M.f(2n, M.g(R.ssrc())), M.g(R.scut())),
+              M.do([M.inc(R.ssrc()), M.put(R.sdst(), R.sk(), M.g(R.ssrc()))]),
+              M.do([
+                M.var(R.snew(), M.add(M.f(2n, M.g(R.ssrc())), M.g(R.samt()))),
+                M.put(R.sdst(), R.sk(), M.g(R.snew()))])),
+            M.do([
+              M.make(R.snew(), M.and(M.f(0n, M.g(R.ssrc())), M.c(255)),
+                M.f(2n, M.g(R.ssrc())), M.f(3n, M.g(R.ssrc())), M.f(4n, M.g(R.ssrc()))),
+              M.put(R.sdst(), R.sk(), M.g(R.snew())),
+              M.work(R.ss(), M.c(K.finish()), M.g(R.snew()), M.c(0), M.c(0)),
+              M.parts(R.ss(), R.ssrc(), R.scut(), R.snew(), R.wb())])))]))]))])
+
+# register r gets the copy of the term in register src, with the variable d + j
+# of each part under d binders as the term of the local j of the list in cenv,
+# of clen locals; a free variable past them, as the kernel's Env.sub does, is
+# j - clen; a part whose free variables are all below d is shared
+def M.copy(+r: Nat, +src: Nat) -> Cir.Stmt:
+  M.do([
+    M.make(R.croot(), M.c(K.root()), M.c(0), M.c(0), M.c(0)),
+    M.set(R.cs(), M.c(0)),
+    M.work(R.cs(), M.or(M.c(K.copy()), M.c(128)), M.g(src), M.c(0), M.g(R.croot())),
+    M.while(M.ne(M.g(R.cs()), M.c(0)), M.do([
+      M.set(R.cnew(), M.g(R.cs())),
+      M.set(R.cs(), M.f(1n, M.g(R.cnew()))),
+      M.if(M.eq(M.tag(M.g(R.cnew())), M.c(K.finish())), M.do([
+        M.set(R.csrc(), M.f(2n, M.g(R.cnew()))),
+        M.release(R.cnew()),
+        M.finish(R.csrc())]),
+      M.do([
+        M.set(R.csrc(), M.f(2n, M.g(R.cnew()))),
+        M.set(R.cd(), M.f(3n, M.g(R.cnew()))),
+        M.set(R.cdst(), M.f(4n, M.g(R.cnew()))),
+        M.set(R.ck(), M.and(M.shr(M.f(0n, M.g(R.cnew())), M.c(6)), M.c(7))),
+        M.release(R.cnew()),
+        M.if(M.and(M.lt(M.fv(M.g(R.csrc())), M.c(F.fv_max())), M.le(M.fv(M.g(R.csrc())), M.g(R.cd()))),
+          M.do([M.inc(R.csrc()), M.put(R.cdst(), R.ck(), M.g(R.csrc()))]),
+          M.if(M.eq(M.tag(M.g(R.csrc())), M.c(T.var())),
+            M.if(M.lt(M.f(2n, M.g(R.csrc())), M.g(R.cd())),
+              M.do([M.inc(R.csrc()), M.put(R.cdst(), R.ck(), M.g(R.csrc()))]),
+              M.do([
+                M.set(R.cj(), M.sub(M.f(2n, M.g(R.csrc())), M.g(R.cd()))),
+                M.if(M.lt(M.g(R.cj()), M.g(R.clen())), M.do([
+                  M.set(R.cnew(), M.g(R.cenv())),
+                  M.while(M.ne(M.g(R.cj()), M.c(0)), M.do([
+                    M.set(R.cnew(), M.f(1n, M.g(R.cnew()))),
+                    M.set(R.cj(), M.sub(M.g(R.cj()), M.c(1)))])),
+                  M.set(R.cnew(), M.f(2n, M.g(R.cnew()))),
+                  M.if(M.or(M.eq(M.fv(M.g(R.cnew())), M.c(0)), M.eq(M.g(R.cd()), M.c(0))),
+                    M.do([M.inc(R.cnew()), M.put(R.cdst(), R.ck(), M.g(R.cnew()))]),
+                    M.do([
+                      M.set(R.samt(), M.g(R.cd())),
+                      M.set(R.sdst(), M.g(R.cdst())),
+                      M.set(R.sk(), M.g(R.ck())),
+                      M.shift(R.cnew())]))]),
+                M.do([
+                  M.var(R.cnew(), M.sub(M.f(2n, M.g(R.csrc())), M.g(R.clen()))),
+                  M.put(R.cdst(), R.ck(), M.g(R.cnew()))]))])),
+            M.do([
+              M.make(R.cnew(), M.and(M.f(0n, M.g(R.csrc())), M.c(255)),
+                M.f(2n, M.g(R.csrc())), M.f(3n, M.g(R.csrc())), M.f(4n, M.g(R.csrc()))),
+              M.put(R.cdst(), R.ck(), M.g(R.cnew())),
+              M.work(R.cs(), M.c(K.finish()), M.g(R.cnew()), M.c(0), M.c(0)),
+              M.parts(R.cs(), R.csrc(), R.cd(), R.cnew(), R.wb())])))]))])),
+    M.set(r, M.f(2n, M.g(R.croot()))),
+    M.release(R.croot())])
+
+# a when c is 1, b when c is 0: by masks, with no branch
+def M.pick(+c: Cir.Expr, a: Cir.Expr, b: Cir.Expr) -> Cir.Expr:
+  M.or(M.and(a, M.sub(M.c(0), c)), M.and(b, M.sub(c, M.c(1))))
+
+def M.max(+a: Cir.Expr, +b: Cir.Expr) -> Cir.Expr:
+  M.pick(M.gt(a, b), a, b)
+
+# the run goes on when c is not 0; else it ends with no result
+def M.need(c: Cir.Expr, then: Cir.Stmt) -> Cir.Stmt:
+  M.if(c, then, M.halt(2))
+
+# the term of an argument cell loses a pointer when the cell owned it; the
+# cell goes to the pend list
+def M.release.arg(+a: Nat) -> Cir.Stmt:
+  M.do([
+    M.when(M.flag(M.g(a), F.owned()), M.do([M.set(R.dx(), M.f(2n, M.g(a))), M.dec(R.dx())])),
+    M.release(a)])
+
+# all the cells of the list in register l go to the pend list
+def M.release.all(+l: Nat) -> Cir.Stmt:
+  M.while(M.ne(M.g(l), M.c(0)), M.do([
+    M.set(R.wa(), M.g(l)),
+    M.set(l, M.f(1n, M.g(R.wa()))),
+    M.release.arg(R.wa())]))
+
+# the quantity of a pair's first field, the pair's in register r used at q
+def M.fld(+r: Cir.Expr, q: Cir.Expr) -> Cir.Expr:
+  M.pick(M.eq(r, M.c(1)), q, r)
+
+# a λ, a λ-match or Efq: a node of a case tree, which takes an argument, by
+# its tag t
+def M.takes(+t: Cir.Expr) -> Cir.Expr:
+  M.or(M.or(M.eq(t, M.c(T.lam())), M.eq(t, M.c(T.prj()))), M.or(M.eq(t, M.c(T.mat())), M.eq(t, M.c(T.efq()))))
+
+# a λ of the case tree binds the first argument: both live or both dead, and
+# Data when the λ's quantity is 2
+def M.walk.lam() -> Cir.Stmt:
+  M.if(M.eq(M.g(R.wargs()), M.c(0)), M.set(R.wres(), M.c(2)), M.do([
+    M.set(R.wa(), M.g(R.wargs())),
+    M.set(R.wq(), M.q(M.g(R.wa()))),
+    M.set(R.wx(), M.f(2n, M.g(R.wa()))),
+    M.set(R.wok(), M.eq(M.ne(M.q(M.g(R.wt())), M.c(0)), M.ne(M.g(R.wq()), M.c(0)))),
+    M.when(M.and(M.g(R.wok()), M.eq(M.q(M.g(R.wt())), M.c(2))), M.do([
+      M.data(R.wx()),
+      M.set(R.wok(), M.g(R.dok()))])),
+    M.if(M.g(R.wok()), M.do([
+      M.set(R.wargs(), M.f(1n, M.g(R.wa()))),
+      M.st(1n, M.g(R.wa()), M.g(R.wenv())),
+      M.set(R.wenv(), M.g(R.wa())),
+      M.set(R.wn(), M.add(M.g(R.wn()), M.c(1))),
+      M.set(R.wt(), M.f(2n, M.g(R.wt())))]),
+      M.set(R.wres(), M.c(3)))]))
+
+# a λ-match of pairs splits the first argument, a live pair, into its fields
+def M.walk.prj() -> Cir.Stmt:
+  M.if(M.eq(M.g(R.wargs()), M.c(0)), M.set(R.wres(), M.c(2)), M.do([
+    M.set(R.wa(), M.g(R.wargs())),
+    M.set(R.wq(), M.q(M.g(R.wa()))),
+    M.set(R.wx(), M.f(2n, M.g(R.wa()))),
+    M.if(M.and(M.ne(M.g(R.wq()), M.c(0)), M.eq(M.tag(M.g(R.wx())), M.c(T.tup()))), M.do([
+      M.set(R.wb(), M.q(M.g(R.wx()))),
+      M.make(R.wh(),
+        M.header(K.arg(), M.fld(M.g(R.wb()), M.g(R.wq())),
+          M.and(M.and(M.f(0n, M.g(R.wa())), M.c(F.known())), M.sub(M.c(0), M.ne(M.g(R.wb()), M.c(0))))),
+        M.f(2n, M.g(R.wx())), M.c(0), M.c(0)),
+      M.st(1n, M.g(R.wh()), M.g(R.wa())),
+      M.st(2n, M.g(R.wa()), M.f(3n, M.g(R.wx()))),
+      M.set(R.wargs(), M.g(R.wh())),
+      M.set(R.wt(), M.f(2n, M.g(R.wt())))]),
+      M.set(R.wres(), M.c(3)))]))
+
+# a λ-match of labels takes its first case on the first argument's label, a
+# live one; else its other case, on the same argument
+def M.walk.mat() -> Cir.Stmt:
+  M.if(M.eq(M.g(R.wargs()), M.c(0)), M.set(R.wres(), M.c(2)), M.do([
+    M.set(R.wa(), M.g(R.wargs())),
+    M.set(R.wq(), M.q(M.g(R.wa()))),
+    M.set(R.wx(), M.f(2n, M.g(R.wa()))),
+    M.if(M.and(M.ne(M.g(R.wq()), M.c(0)), M.eq(M.tag(M.g(R.wx())), M.c(T.lab()))),
+      M.if(M.eq(M.f(2n, M.g(R.wx())), M.f(2n, M.g(R.wt()))), M.do([
+        M.set(R.wargs(), M.f(1n, M.g(R.wa()))),
+        M.release.arg(R.wa()),
+        M.set(R.wt(), M.f(3n, M.g(R.wt())))]),
+      M.do([
+        M.st(0n, M.g(R.wa()), M.or(M.f(0n, M.g(R.wa())), M.c(F.known()))),
+        M.set(R.wt(), M.f(4n, M.g(R.wt())))])),
+      M.set(R.wres(), M.c(3)))]))
+
+# App q f (Var v), where f's head takes an argument: the local v goes first
+# among the arguments (a free variable when there is no local v); any other
+# App is a leaf
+def M.walk.app() -> Cir.Stmt:
+  M.do([
+    M.set(R.wx(), M.f(3n, M.g(R.wt()))),
+    M.if(M.ne(M.tag(M.g(R.wx())), M.c(T.var())), M.set(R.wres(), M.c(1)), M.do([
+      M.set(R.wh(), M.f(2n, M.g(R.wt()))),
+      M.while(M.eq(M.tag(M.g(R.wh())), M.c(T.app())), M.set(R.wh(), M.f(2n, M.g(R.wh())))),
+      M.set(R.wok(), M.takes(M.tag(M.g(R.wh())))),
+      M.if(M.not(M.g(R.wok())), M.set(R.wres(), M.c(1)), M.do([
+        M.set(R.wb(), M.f(2n, M.g(R.wx()))),
+        M.if(M.lt(M.g(R.wb()), M.g(R.wn())), M.do([
+          M.set(R.wh(), M.g(R.wenv())),
+          M.while(M.ne(M.g(R.wb()), M.c(0)), M.do([
+            M.set(R.wh(), M.f(1n, M.g(R.wh()))),
+            M.set(R.wb(), M.sub(M.g(R.wb()), M.c(1)))])),
+          M.make(R.wa(), M.header(K.arg(), M.q(M.g(R.wt())), M.and(M.f(0n, M.g(R.wh())), M.c(F.known()))),
+            M.f(2n, M.g(R.wh())), M.c(0), M.c(0))]),
+        M.do([
+          M.var(R.wx(), M.sub(M.g(R.wb()), M.g(R.wn()))),
+          M.make(R.wa(), M.header(K.arg(), M.q(M.g(R.wt())), M.c(F.owned())), M.g(R.wx()), M.c(0), M.c(0))])),
+        M.st(1n, M.g(R.wa()), M.g(R.wargs())),
+        M.set(R.wargs(), M.g(R.wa())),
+        M.set(R.wt(), M.f(2n, M.g(R.wt())))]))]))])
+
+# the walk (Eval.walk) of the case tree in register wt on the argument list
+# in wargs: wres is 1 at a leaf, 2 when the tree needs more arguments, 3 when
+# there is no walk; wenv holds the wn locals that its λs bound
+def M.walk() -> Cir.Stmt:
+  M.do([
+    M.set(R.wenv(), M.c(0)),
+    M.set(R.wn(), M.c(0)),
+    M.set(R.wres(), M.c(0)),
+    M.while(M.eq(M.g(R.wres()), M.c(0)),
+      M.if(M.eq(M.tag(M.g(R.wt())), M.c(T.lam())), M.walk.lam(),
+        M.if(M.eq(M.tag(M.g(R.wt())), M.c(T.prj())), M.walk.prj(),
+          M.if(M.eq(M.tag(M.g(R.wt())), M.c(T.mat())), M.walk.mat(),
+            M.if(M.eq(M.tag(M.g(R.wt())), M.c(T.app())), M.walk.app(),
+              M.if(M.eq(M.tag(M.g(R.wt())), M.c(T.efq())),
+                M.set(R.wres(), M.pick(M.eq(M.g(R.wargs()), M.c(0)), M.c(2), M.c(3))),
+                M.set(R.wres(), M.c(1))))))))])
+
+# a call (Eval.call) of the case tree in wt on the arguments in wargs: at a
+# leaf, the copy of the leaf with the walk's locals is the focus, after done,
+# and the arguments left are frames; when the tree needs more arguments,
+# partial; else no result
+def M.call(partial: Cir.Stmt, done: Cir.Stmt) -> Cir.Stmt:
+  M.do([
+    M.walk(),
+    M.if(M.eq(M.g(R.wres()), M.c(1)), M.do([
+      M.set(R.cenv(), M.g(R.wenv())),
+      M.set(R.clen(), M.g(R.wn())),
+      M.copy(R.n(), R.wt()),
+      M.set(R.wh(), M.c(0)),
+      M.while(M.ne(M.g(R.wargs()), M.c(0)), M.do([
+        M.set(R.wa(), M.g(R.wargs())),
+        M.set(R.wargs(), M.f(1n, M.g(R.wa()))),
+        M.st(1n, M.g(R.wa()), M.g(R.wh())),
+        M.set(R.wh(), M.g(R.wa()))])),
+      M.while(M.ne(M.g(R.wh()), M.c(0)), M.do([
+        M.set(R.wa(), M.g(R.wh())),
+        M.set(R.wh(), M.f(1n, M.g(R.wa()))),
+        M.set(R.wx(), M.f(2n, M.g(R.wa()))),
+        M.inc(R.wx()),
+        M.push(M.header(K.app_val(), M.q(M.g(R.wa())), M.and(M.f(0n, M.g(R.wa())), M.c(F.known()))), M.g(R.wx()), M.c(0)),
+        M.release.arg(R.wa())])),
+      M.release.all(R.wenv()),
+      done,
+      M.set(R.focus(), M.g(R.n())),
+      M.set(R.mode(), M.c(0))]),
+    M.if(M.eq(M.g(R.wres()), M.c(2)), M.do([
+      M.release.all(R.wargs()),
+      M.release.all(R.wenv()),
+      partial]),
+      M.halt(2)))])
+
+# the locals of a copy: the one term in register r
+def M.one(+r: Nat) -> Cir.Stmt:
+  M.do([
+    M.make(R.wa(), M.c(K.arg()), M.g(r), M.c(0), M.c(0)),
+    M.st(1n, M.g(R.wa()), M.c(0)),
+    M.set(R.cenv(), M.g(R.wa())),
+    M.set(R.clen(), M.c(1))])
+
+# App q f x (Eval.redex), with the quantity in q, f in x and x in y, both owned
+def M.redex() -> Cir.Stmt:
+  M.if(M.eq(M.tag(M.g(R.x())), M.c(T.lam())), M.do([
+    M.set(R.wok(), M.eq(M.ne(M.q(M.g(R.x())), M.c(0)), M.ne(M.g(R.q()), M.c(0)))),
+    M.when(M.and(M.g(R.wok()), M.eq(M.q(M.g(R.x())), M.c(2))), M.do([
+      M.data(R.y()),
+      M.set(R.wok(), M.g(R.dok()))])),
+    M.need(M.g(R.wok()), M.do([
+      M.one(R.y()),
+      M.set(R.z(), M.f(2n, M.g(R.x()))),
+      M.copy(R.n(), R.z()),
+      M.release(R.wa()),
+      M.dec(R.y()),
+      M.dec(R.x()),
+      M.set(R.focus(), M.g(R.n())),
+      M.set(R.mode(), M.c(0))]))]),
+  M.if(M.eq(M.tag(M.g(R.x())), M.c(T.prj())),
+    M.need(M.and(M.ne(M.g(R.q()), M.c(0)), M.eq(M.tag(M.g(R.y())), M.c(T.tup()))), M.do([
+      M.set(R.p(), M.q(M.g(R.y()))),
+      M.set(R.z(), M.f(2n, M.g(R.y()))),
+      M.set(R.k(), M.f(3n, M.g(R.y()))),
+      M.inc(R.z()),
+      M.inc(R.k()),
+      M.push(M.header(K.app_val(), M.g(R.q()), M.c(F.known())), M.g(R.k()), M.c(0)),
+      M.push(M.header(K.app_val(), M.fld(M.g(R.p()), M.g(R.q())),
+        M.and(M.c(F.known()), M.sub(M.c(0), M.ne(M.g(R.p()), M.c(0))))), M.g(R.z()), M.c(0)),
+      M.set(R.n(), M.f(2n, M.g(R.x()))),
+      M.inc(R.n()),
+      M.dec(R.y()),
+      M.dec(R.x()),
+      M.set(R.focus(), M.g(R.n())),
+      M.set(R.mode(), M.c(0))])),
+  M.if(M.eq(M.tag(M.g(R.x())), M.c(T.mat())),
+    M.need(M.and(M.ne(M.g(R.q()), M.c(0)), M.eq(M.tag(M.g(R.y())), M.c(T.lab()))),
+      M.if(M.eq(M.f(2n, M.g(R.y())), M.f(2n, M.g(R.x()))), M.do([
+        M.set(R.n(), M.f(3n, M.g(R.x()))),
+        M.inc(R.n()),
+        M.dec(R.y()),
+        M.dec(R.x()),
+        M.set(R.focus(), M.g(R.n())),
+        M.set(R.mode(), M.c(0))]),
+      M.do([
+        M.set(R.n(), M.f(4n, M.g(R.x()))),
+        M.inc(R.n()),
+        M.push(M.header(K.app_val(), M.g(R.q()), M.c(F.known())), M.g(R.y()), M.c(0)),
+        M.dec(R.x()),
+        M.set(R.focus(), M.g(R.n())),
+        M.set(R.mode(), M.c(0))]))),
+  M.do([
+    M.make(R.wa(), M.header(K.arg(), M.g(R.q()), M.and(M.c(F.known()), M.sub(M.c(0), M.ne(M.g(R.q()), M.c(0))))),
+      M.g(R.y()), M.c(0), M.c(0)),
+    M.st(1n, M.g(R.wa()), M.c(0)),
+    M.set(R.wargs(), M.g(R.wa())),
+    M.set(R.wh(), M.g(R.x())),
+    M.while(M.eq(M.tag(M.g(R.wh())), M.c(T.app())), M.do([
+      M.make(R.wa(), M.header(K.arg(), M.q(M.g(R.wh())),
+        M.and(M.c(F.known()), M.sub(M.c(0), M.ne(M.q(M.g(R.wh())), M.c(0))))), M.f(3n, M.g(R.wh())), M.c(0), M.c(0)),
+      M.st(1n, M.g(R.wa()), M.g(R.wargs())),
+      M.set(R.wargs(), M.g(R.wa())),
+      M.set(R.wh(), M.f(2n, M.g(R.wh())))])),
+    M.need(M.eq(M.tag(M.g(R.wh())), M.c(T.ref())), M.do([
+      M.set(R.wt(), M.f(2n, M.g(R.wh()))),
+      M.need(M.ne(M.g(R.wt()), M.c(0)),
+        M.call(
+          M.do([
+            M.make(R.n(), M.or(M.header(T.app(), M.g(R.q()), M.c(F.value())),
+              M.shl(M.max(M.fv(M.g(R.x())), M.fv(M.g(R.y()))), M.c(13))), M.g(R.x()), M.g(R.y()), M.c(0)),
+            M.set(R.focus(), M.g(R.n())),
+            M.set(R.mode(), M.c(1))]),
+          M.do([M.dec(R.y()), M.dec(R.x())])))]))]))))
+
+# the moves of the machine (the Lean machine's move), by the focus: in mode 0
+# a term to evaluate, in mode 1 a value; a step of Eval, or a move that only
+# finds the next step
+
+# Ann x T: x, a step
+def M.ev.ann() -> Cir.Stmt:
+  M.do([
+    M.set(R.n(), M.f(2n, M.g(R.c()))),
+    M.inc(R.n()),
+    M.dec(R.c()),
+    M.set(R.focus(), M.g(R.n()))])
+
+# Ref k: the call of k on no arguments: a step to its leaf; or, when its case
+# tree takes an argument, a value
+def M.ev.ref() -> Cir.Stmt:
+  M.do([
+    M.set(R.wt(), M.f(2n, M.g(R.c()))),
+    M.need(M.ne(M.g(R.wt()), M.c(0)), M.do([
+      M.set(R.wargs(), M.c(0)),
+      M.call(M.set(R.mode(), M.c(1)), M.dec(R.c()))]))])
+
+# App q f x: f, in the frame App q □ x
+def M.ev.app() -> Cir.Stmt:
+  M.do([
+    M.set(R.x(), M.f(2n, M.g(R.c()))),
+    M.set(R.y(), M.f(3n, M.g(R.c()))),
+    M.inc(R.x()),
+    M.inc(R.y()),
+    M.push(M.header(K.app_arg(), M.q(M.g(R.c())), M.c(0)), M.g(R.y()), M.c(0)),
+    M.dec(R.c()),
+    M.set(R.focus(), M.g(R.x()))])
+
+# Let q v f: v in the frame Let q □ f, when q is live; else f with v put in,
+# a step
+def M.ev.let() -> Cir.Stmt:
+  M.if(M.ne(M.q(M.g(R.c())), M.c(0)),
+    M.do([
+      M.set(R.x(), M.f(2n, M.g(R.c()))),
+      M.set(R.y(), M.f(3n, M.g(R.c()))),
+      M.inc(R.x()),
+      M.inc(R.y()),
+      M.push(M.header(K.let_in(), M.q(M.g(R.c())), M.c(0)), M.g(R.y()), M.c(0)),
+      M.dec(R.c()),
+      M.set(R.focus(), M.g(R.x()))]),
+    M.do([
+      M.set(R.y(), M.f(2n, M.g(R.c()))),
+      M.one(R.y()),
+      M.set(R.z(), M.f(3n, M.g(R.c()))),
+      M.copy(R.n(), R.z()),
+      M.release(R.wa()),
+      M.dec(R.c()),
+      M.set(R.focus(), M.g(R.n()))]))
+
+# Tup q a b, not known to be a value: a in the frame Tup q □ b, when q is
+# live; else b in the frame Tup q a □
+def M.ev.tup() -> Cir.Stmt:
+  M.do([
+    M.set(R.x(), M.f(2n, M.g(R.c()))),
+    M.set(R.y(), M.f(3n, M.g(R.c()))),
+    M.inc(R.x()),
+    M.inc(R.y()),
+    M.if(M.ne(M.q(M.g(R.c())), M.c(0)),
+      M.do([
+        M.push(M.header(K.tup_b(), M.q(M.g(R.c())), M.c(0)), M.g(R.y()), M.c(0)),
+        M.set(R.focus(), M.g(R.x()))]),
+      M.do([
+        M.push(M.header(K.tup_a(), M.q(M.g(R.c())), M.c(0)), M.g(R.x()), M.c(0)),
+        M.set(R.focus(), M.g(R.y()))])),
+    M.dec(R.c())])
+
+# Rwt e P f: e, in the frame Rwt □ P f
+def M.ev.rwt() -> Cir.Stmt:
+  M.do([
+    M.set(R.x(), M.f(2n, M.g(R.c()))),
+    M.set(R.y(), M.f(3n, M.g(R.c()))),
+    M.set(R.z(), M.f(4n, M.g(R.c()))),
+    M.inc(R.x()),
+    M.inc(R.y()),
+    M.inc(R.z()),
+    M.push(M.c(K.rwt()), M.g(R.y()), M.g(R.z())),
+    M.dec(R.c()),
+    M.set(R.focus(), M.g(R.x()))])
+
+# Min a b: a, in the frame Min □ b
+def M.ev.min() -> Cir.Stmt:
+  M.do([
+    M.set(R.x(), M.f(2n, M.g(R.c()))),
+    M.set(R.y(), M.f(3n, M.g(R.c()))),
+    M.inc(R.x()),
+    M.inc(R.y()),
+    M.push(M.c(K.min_b()), M.g(R.y()), M.c(0)),
+    M.dec(R.c()),
+    M.set(R.focus(), M.g(R.x()))])
+
+# mode 0: a value by its form, or flagged one, is returned; a variable, free
+# in the whole term, has no step
+def M.ev() -> Cir.Stmt:
+  M.do([
+    M.set(R.c(), M.g(R.focus())),
+    M.set(R.tag(), M.tag(M.g(R.c()))),
+    M.if(M.or(M.flag(M.g(R.c()), F.value()), M.ne(M.entry(4n, M.g(R.c())), M.c(0))),
+      M.set(R.mode(), M.c(1)),
+    M.if(M.eq(M.g(R.tag()), M.c(T.app())), M.ev.app(),
+    M.if(M.eq(M.g(R.tag()), M.c(T.ref())), M.ev.ref(),
+    M.if(M.eq(M.g(R.tag()), M.c(T.ann())), M.ev.ann(),
+    M.if(M.eq(M.g(R.tag()), M.c(T.let())), M.ev.let(),
+    M.if(M.eq(M.g(R.tag()), M.c(T.tup())), M.ev.tup(),
+    M.if(M.eq(M.g(R.tag()), M.c(T.rwt())), M.ev.rwt(),
+    M.if(M.eq(M.g(R.tag()), M.c(T.min())), M.ev.min(),
+      M.halt(2)))))))))])
+
+# the frame in register h, whose term is in field 2, gets the focus there and
+# the header hd; its term becomes the focus, to evaluate
+def M.swap(hd: Cir.Expr) -> Cir.Stmt:
+  M.do([
+    M.set(R.n(), M.f(2n, M.g(R.h()))),
+    M.st(0n, M.g(R.h()), hd),
+    M.st(2n, M.g(R.h()), M.g(R.focus())),
+    M.set(R.focus(), M.g(R.n())),
+    M.set(R.mode(), M.c(0))])
+
+# Let q □ f, with the value v: f with v put in, a step, when q may hold v
+def M.ret.let() -> Cir.Stmt:
+  M.do([
+    M.set(R.wok(), M.c(1)),
+    M.when(M.eq(M.g(R.q()), M.c(2)), M.do([
+      M.data(R.focus()),
+      M.set(R.wok(), M.g(R.dok()))])),
+    M.need(M.g(R.wok()), M.do([
+      M.set(R.z(), M.f(2n, M.g(R.h()))),
+      M.pop(),
+      M.one(R.focus()),
+      M.copy(R.n(), R.z()),
+      M.release(R.wa()),
+      M.dec(R.focus()),
+      M.dec(R.z()),
+      M.set(R.focus(), M.g(R.n())),
+      M.set(R.mode(), M.c(0))]))])
+
+# Tup q a □, with the value v: the value Tup q a v
+def M.ret.tup() -> Cir.Stmt:
+  M.do([
+    M.set(R.x(), M.f(2n, M.g(R.h()))),
+    M.pop(),
+    M.make(R.n(), M.or(M.header(T.tup(), M.g(R.q()), M.c(F.value())),
+      M.shl(M.max(M.fv(M.g(R.x())), M.fv(M.g(R.focus()))), M.c(13))), M.g(R.x()), M.g(R.focus()), M.c(0)),
+    M.set(R.focus(), M.g(R.n()))])
+
+# Rwt □ P f, with the value v: f, a step, when v is Rfl
+def M.ret.rwt() -> Cir.Stmt:
+  M.need(M.eq(M.tag(M.g(R.focus())), M.c(T.rfl())), M.do([
+    M.set(R.y(), M.f(2n, M.g(R.h()))),
+    M.set(R.n(), M.f(3n, M.g(R.h()))),
+    M.pop(),
+    M.dec(R.y()),
+    M.dec(R.focus()),
+    M.set(R.focus(), M.g(R.n())),
+    M.set(R.mode(), M.c(0))]))
+
+# the name i is Q0, Q1 or Q2
+def M.quan(+i: Cir.Expr) -> Cir.Expr:
+  M.and(M.ge(i, M.c(N.q0())), M.le(i, M.c(N.q2())))
+
+# the least of the quantities that the names i and j name: 2 below none, and
+# 0 below all
+def M.qmin(+i: Cir.Expr, +j: Cir.Expr) -> Cir.Expr:
+  M.pick(M.eq(i, M.c(N.q2())), j,
+    M.pick(M.eq(j, M.c(N.q2())), i,
+      M.pick(M.or(M.eq(i, M.c(N.q0())), M.eq(j, M.c(N.q0()))), M.c(N.q0()), M.c(N.q1()))))
+
+# Min a □, with the value v: the meet of a and v, a step, when both are labels
+# of quantities
+def M.ret.min() -> Cir.Stmt:
+  M.do([
+    M.set(R.x(), M.f(2n, M.g(R.h()))),
+    M.pop(),
+    M.need(M.and(M.eq(M.tag(M.g(R.x())), M.c(T.lab())), M.eq(M.tag(M.g(R.focus())), M.c(T.lab()))), M.do([
+      M.set(R.p(), M.f(2n, M.g(R.x()))),
+      M.set(R.k(), M.f(2n, M.g(R.focus()))),
+      M.need(M.and(M.quan(M.g(R.p())), M.quan(M.g(R.k()))), M.do([
+        M.set(R.n(), M.add(M.qmin(M.g(R.p()), M.g(R.k())), M.c(1))),
+        M.dec(R.x()),
+        M.dec(R.focus()),
+        M.set(R.focus(), M.g(R.n())),
+        M.set(R.mode(), M.c(0))]))]))])
+
+# the cell in register r is a pair at quantity 1
+def M.pair(+r: Nat) -> Cir.Expr:
+  M.eq(M.and(M.f(0n, M.g(r)), M.c(255)), M.c(U32.or(T.tup(), 64)))
+
+# the cell c is the label of the name i
+def M.is_lab(+c: Cir.Expr, i: U32) -> Cir.Expr:
+  M.and(M.eq(M.tag(c), M.c(T.lab())), M.eq(M.f(2n, c), M.c(i)))
+
+# the pair in register r ends a constructor's fields: its second is ()
+def M.last(+r: Nat) -> Cir.Expr:
+  M.is_lab(M.f(3n, M.g(r)), N.unit())
+
+# a bit of a word, in register t1: True or False, with no fields; ov gains
+# 1 << oi when it is True
+def M.out.bit() -> Cir.Stmt:
+  M.need(M.pair(R.t1()), M.need(M.last(R.t1()),
+    M.need(M.eq(M.tag(M.f(2n, M.g(R.t1()))), M.c(T.lab())), M.do([
+      M.set(R.t2(), M.f(2n, M.f(2n, M.g(R.t1())))),
+      M.need(M.or(M.eq(M.g(R.t2()), M.c(N.true())), M.eq(M.g(R.t2()), M.c(N.false()))),
+        M.when(M.eq(M.g(R.t2()), M.c(N.true())),
+          M.set(R.ov(), M.or(M.g(R.ov()), M.shl(M.c(1), M.g(R.oi()))))))]))))
+
+# the word of 32 bits in register ow, the lowest first, into ov
+def M.out.word() -> Cir.Stmt:
+  M.do([
+    M.set(R.ov(), M.c(0)),
+    M.set(R.oi(), M.c(0)),
+    M.while(M.lt(M.g(R.oi()), M.c(32)),
+      M.need(M.pair(R.ow()), M.need(M.is_lab(M.f(2n, M.g(R.ow())), N.wcon()), M.do([
+        M.set(R.ow(), M.f(3n, M.g(R.ow()))),
+        M.need(M.pair(R.ow()), M.do([
+          M.set(R.t1(), M.f(2n, M.g(R.ow()))),
+          M.out.bit(),
+          M.set(R.ow(), M.f(3n, M.g(R.ow()))),
+          M.need(M.pair(R.ow()), M.need(M.last(R.ow()), M.do([
+            M.set(R.ow(), M.f(2n, M.g(R.ow()))),
+            M.set(R.oi(), M.add(M.g(R.oi()), M.c(1)))])))]))])))),
+    M.need(M.pair(R.ow()), M.need(M.is_lab(M.f(2n, M.g(R.ow())), N.wnil()), M.need(M.last(R.ow()),
+      Cir.Stmt.nop{})))])
+
+# the cell of a list in register oc, Con: its byte goes out, and oc gets the
+# rest of the list
+def M.out.con() -> Cir.Stmt:
+  M.do([
+    M.set(R.oc(), M.f(3n, M.g(R.oc()))),
+    M.need(M.pair(R.oc()), M.do([
+      M.set(R.ow(), M.f(2n, M.g(R.oc()))),
+      M.set(R.oc(), M.f(3n, M.g(R.oc()))),
+      M.need(M.pair(R.oc()), M.need(M.last(R.oc()), M.do([
+        M.set(R.oc(), M.f(2n, M.g(R.oc()))),
+        M.need(M.pair(R.ow()), M.need(M.is_lab(M.f(2n, M.g(R.ow())), N.u32()), M.do([
+          M.set(R.ow(), M.f(3n, M.g(R.ow()))),
+          M.need(M.pair(R.ow()), M.need(M.last(R.ow()), M.do([
+            M.set(R.ow(), M.f(2n, M.g(R.ow()))),
+            M.out.word(),
+            M.need(M.lt(M.g(R.ov()), M.c(256)), Cir.Stmt.emit{M.g(R.ov())})])))])))])))]))])
+
+# mode 1 with no frame: the run ends with the bytes of the value, when it is a
+# list of bytes (Program.unbytes); else with no result
+def M.out() -> Cir.Stmt:
+  M.do([
+    M.set(R.oc(), M.g(R.focus())),
+    M.while(M.c(1),
+      M.need(M.pair(R.oc()), M.need(M.eq(M.tag(M.f(2n, M.g(R.oc()))), M.c(T.lab())), M.do([
+        M.set(R.ow(), M.f(2n, M.f(2n, M.g(R.oc())))),
+        M.if(M.eq(M.g(R.ow()), M.c(N.nil())), M.need(M.last(R.oc()), M.halt(0)),
+          M.need(M.eq(M.g(R.ow()), M.c(N.con())), M.out.con()))]))))])
+
+# mode 1: the value v in the focus goes into the top frame
+def M.ret() -> Cir.Stmt:
+  M.if(M.eq(M.g(R.sp()), M.c(0)), M.out(), M.do([
+    M.set(R.h(), M.g(R.sp())),
+    M.set(R.tag(), M.tag(M.g(R.h()))),
+    M.set(R.q(), M.q(M.g(R.h()))),
+    M.if(M.or(M.eq(M.g(R.tag()), M.c(K.app_arg())), M.eq(M.g(R.tag()), M.c(K.app_val()))),
+      M.if(M.and(M.ne(M.g(R.q()), M.c(0)), M.not(M.flag(M.g(R.h()), F.known()))),
+        M.swap(M.header(K.app_fun(), M.g(R.q()), M.c(0))),
+        M.do([
+          M.set(R.x(), M.g(R.focus())),
+          M.set(R.y(), M.f(2n, M.g(R.h()))),
+          M.pop(),
+          M.redex()])),
+    M.if(M.eq(M.g(R.tag()), M.c(K.app_fun())), M.do([
+      M.set(R.x(), M.f(2n, M.g(R.h()))),
+      M.set(R.y(), M.g(R.focus())),
+      M.pop(),
+      M.redex()]),
+    M.if(M.eq(M.g(R.tag()), M.c(K.let_in())), M.ret.let(),
+    M.if(M.eq(M.g(R.tag()), M.c(K.tup_b())), M.swap(M.header(K.tup_a(), M.g(R.q()), M.c(0))),
+    M.if(M.eq(M.g(R.tag()), M.c(K.tup_a())), M.ret.tup(),
+    M.if(M.eq(M.g(R.tag()), M.c(K.rwt())), M.ret.rwt(),
+    M.if(M.eq(M.g(R.tag()), M.c(K.min_b())), M.swap(M.c(K.min_a())),
+      M.ret.min())))))))]))
+
+# the header of a pair at quantity 1, a value and Data, that no count frees
+def M.h.static() -> U32:
+  1866
+
+# the same, freed by its count
+def M.h.data() -> U32:
+  842
+
+# the start of the run (Program.start): main, applied at quantity 1 to the
+# list of the input's bytes, built from its last. A byte's U32 is made once,
+# into the cache, and never freed: 8 bits over the image's 24 False bits
+def M.input() -> Cir.Stmt:
+  M.do([
+    M.set(R.il(), M.c(I.nil())),
+    M.set(R.ii(), Cir.Expr.size{}),
+    M.while(M.ne(M.g(R.ii()), M.c(0)), M.do([
+      M.set(R.ii(), M.sub(M.g(R.ii()), M.c(1))),
+      M.set(R.ib(), Cir.Expr.byte{M.g(R.ii())}),
+      M.set(R.iu(), M.f(2n, M.add(M.c(I.cache()), M.g(R.ib())))),
+      M.when(M.eq(M.g(R.iu()), M.c(0)), M.do([
+        M.set(R.iw(), M.c(I.z24())),
+        M.set(R.ij(), M.c(8)),
+        M.while(M.ne(M.g(R.ij()), M.c(0)), M.do([
+          M.set(R.ij(), M.sub(M.g(R.ij()), M.c(1))),
+          M.make(R.t1(), M.c(M.h.static()), M.g(R.iw()), M.c(I.lab(N.unit())), M.c(0)),
+          M.make(R.t2(), M.c(M.h.static()),
+            M.pick(M.and(M.shr(M.g(R.ib()), M.g(R.ij())), M.c(1)), M.c(I.true()), M.c(I.false())),
+            M.g(R.t1()), M.c(0)),
+          M.make(R.iw(), M.c(M.h.static()), M.c(I.lab(N.wcon())), M.g(R.t2()), M.c(0))])),
+        M.make(R.t1(), M.c(M.h.static()), M.g(R.iw()), M.c(I.lab(N.unit())), M.c(0)),
+        M.make(R.iu(), M.c(M.h.static()), M.c(I.lab(N.u32())), M.g(R.t1()), M.c(0)),
+        M.st(2n, M.add(M.c(I.cache()), M.g(R.ib())), M.g(R.iu()))])),
+      M.make(R.t1(), M.c(M.h.data()), M.g(R.il()), M.c(I.lab(N.unit())), M.c(0)),
+      M.make(R.t2(), M.c(M.h.data()), M.g(R.iu()), M.g(R.t1()), M.c(0)),
+      M.make(R.il(), M.c(M.h.data()), M.c(I.lab(N.con())), M.g(R.t2()), M.c(0))])),
+    M.make(R.focus(), M.c(U32.or(T.app(), 64)), M.c(I.ref_main()), M.g(R.il()), M.c(0))])
+
+# the machine (C3): the start, then a move per round, until a halt
+def Mach.code() -> Cir.Stmt:
+  M.do([
+    M.input(),
+    M.set(R.mode(), M.c(0)),
+    M.while(M.c(1), M.if(M.eq(M.g(R.mode()), M.c(0)), M.ev(), M.ret()))])
+
+# Image
+# -----
+#
+# The cells that the module's memory holds from cell 1 (Mach.code's I.*):
+# the labels of the names 0 to 10, constant terms, the cache of the input's
+# bytes, the table by tag, then the bodies of the book's defs, each a tree of
+# cells in pre-order. Each cell of the image is STATIC: no count frees it. A
+# Ref holds the body of the first def of its name, as Book.get finds it, or
+# 0; a Lab and a Mat hold the number of their name: the place of its first
+# copy in a list of names whose first are the machine's (N.*).
+
+# a def's name and the first cell of its body
+type Img.Def is Data:
+  Img.Def{k: List<&2, U32>, at: U32}
+
+# the five fields of a cell, then acc
+def Img.cell(f0: U32, f2: U32, f3: U32, f4: U32, acc: List<&2, U32>) -> List<&2, U32>:
+  Con{f0, Con{0, Con{f2, Con{f3, Con{f4, acc}}}}}
+
+def Img.quan(q: Quan) -> U32:
+  match q:
+    case Quan.Q0{}:
+      0
+    case Quan.Q1{}:
+      1
+    case Quan.Q2{}:
+      2
+
+# the nodes of a term, as a U32
+def Img.size(t: Term) -> U32:
+  match t:
+    case Term.Var{_}:
+      1
+    case Term.Ref{_}:
+      1
+    case Term.Ann{x, T}:
+      U32.inc(U32.add(Img.size(x), Img.size(T)))
+    case Term.Let{_, v, f}:
+      U32.inc(U32.add(Img.size(v), Img.size(f)))
+    case Term.Typ{q}:
+      U32.inc(Img.size(q))
+    case Term.Min{a, b}:
+      U32.inc(U32.add(Img.size(a), Img.size(b)))
+    case Term.All{_, A, B}:
+      U32.inc(U32.add(Img.size(A), Img.size(B)))
+    case Term.Lam{_, f}:
+      U32.inc(Img.size(f))
+    case Term.App{_, f, x}:
+      U32.inc(U32.add(Img.size(f), Img.size(x)))
+    case Term.Sig{_, A, B}:
+      U32.inc(U32.add(Img.size(A), Img.size(B)))
+    case Term.Tup{_, a, b}:
+      U32.inc(U32.add(Img.size(a), Img.size(b)))
+    case Term.Prj{h}:
+      U32.inc(Img.size(h))
+    case Term.Enu{_}:
+      1
+    case Term.Lab{_}:
+      1
+    case Term.Mat{_, h, m}:
+      U32.inc(U32.add(Img.size(h), Img.size(m)))
+    case Term.Efq{}:
+      1
+    case Term.Eql{a, b, T}:
+      U32.inc(U32.add(Img.size(a), U32.add(Img.size(b), Img.size(T))))
+    case Term.Rfl{}:
+      1
+    case Term.Rwt{e, P, f}:
+      U32.inc(U32.add(Img.size(e), U32.add(Img.size(P), Img.size(f))))
+
+# fv of a part under k binders, as the cell that holds it counts it: fv_max
+# stays fv_max
+def Img.down(+fv: U32, +k: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(fv, 524287), 524287, Bool.pick(U32, U32.is_gt(fv, k), U32.sub(fv, k), 0))
+
+# fv of a term: 1 + its highest free variable, 0 when it has none, at most
+# fv_max (M.var, M.finish)
+def Img.fv(t: Term) -> U32:
+  match t:
+    case Term.Var{i}:
+      +u = U32.from_nat(i)
+      Bool.pick(U32, U32.is_lt(u, 524286), U32.inc(u), 524287)
+    case Term.Ref{_}:
+      0
+    case Term.Ann{x, T}:
+      U32.max(Img.fv(x), Img.fv(T))
+    case Term.Let{_, v, f}:
+      U32.max(Img.fv(v), Img.down(Img.fv(f), 1))
+    case Term.Typ{q}:
+      Img.fv(q)
+    case Term.Min{a, b}:
+      U32.max(Img.fv(a), Img.fv(b))
+    case Term.All{_, A, B}:
+      U32.max(Img.fv(A), Img.down(Img.fv(B), 1))
+    case Term.Lam{_, f}:
+      Img.down(Img.fv(f), 1)
+    case Term.App{_, f, x}:
+      U32.max(Img.fv(f), Img.fv(x))
+    case Term.Sig{_, A, B}:
+      U32.max(Img.fv(A), Img.down(Img.fv(B), 1))
+    case Term.Tup{_, a, b}:
+      U32.max(Img.fv(a), Img.fv(b))
+    case Term.Prj{h}:
+      Img.fv(h)
+    case Term.Enu{_}:
+      0
+    case Term.Lab{_}:
+      0
+    case Term.Mat{_, h, m}:
+      U32.max(Img.fv(h), Img.fv(m))
+    case Term.Efq{}:
+      0
+    case Term.Eql{a, b, T}:
+      U32.max(Img.fv(a), U32.max(Img.fv(b), Img.fv(T)))
+    case Term.Rfl{}:
+      0
+    case Term.Rwt{e, P, f}:
+      U32.max(Img.fv(e), U32.max(Img.down(Img.fv(P), 2), Img.fv(f)))
+
+# a value by its form alone, with no call in it: the image flags such a pair
+# VALUE
+def Img.is_value(t: Term) -> Bool:
+  match t:
+    case Term.Tup{q, a, b}:
+      (Bool.not(Quan.live(q)) || Img.is_value(a)) && Img.is_value(b)
+    case u:
+      Term.is_former(u)
+
+# a cell's field 0: the tag t, the quantity q, the flags fl and fv
+def Img.header(+t: U32, +q: U32, +fl: U32, +fv: U32) -> U32:
+  U32.or(U32.or(U32.or(t, U32.shln(q, 6n)), fl), U32.shln(fv, 13n))
+
+# STATIC, with VALUE and DATA when they hold
+def Img.flags(value: Bool, data: Bool) -> U32:
+  U32.or(1024, U32.or(Bool.pick(U32, value, 256, 0), Bool.pick(U32, data, 512, 0)))
+
+def Img.ref.if(b: Bool, +at: U32, more: Unit -> U32) -> U32:
+  match b:
+    case True{}:
+      at
+    case False{}:
+      more(Unit{})
+
+# the body of the first def of the name k, or 0 when there is none
+def Img.ref(es: List<&2, Img.Def>, +k: List<&2, U32>) -> U32:
+  match es:
+    case Nil{}:
+      0
+    case Con{Img.Def{+n, +at}, rest}:
+      Img.ref.if(Name.is_eq(n, k), at, u => Img.ref(rest, k))
+
+# the number of the name k: the place of its first copy in ks, from i
+def Img.id(ks: List<&2, List<&2, U32>>, +k: List<&2, U32>, +i: U32) -> U32:
+  match ks:
+    case Nil{}:
+      i
+    case Con{+n, rest}:
+      Img.ref.if(Name.is_eq(n, k), i, u => Img.id(rest, k, U32.inc(i)))
+
+# the cells of the term t from the cell at, then acc
+def Img.term(t: Term, +ks: List<&2, List<&2, U32>>, +es: List<&2, Img.Def>, +at: U32, acc: List<&2, U32>) ->
+  List<&2, U32>:
+  match t:
+    case Term.Var{+i}:
+      Img.cell(Img.header(T.var(), 0, 1024, Img.fv(Term.Var{i})), U32.from_nat(i), 0, 0, acc)
+    case Term.Ref{+k}:
+      Img.cell(Img.header(T.ref(), 0, 1024, 0), Img.ref(es, k), 0, 0, acc)
+    case Term.Ann{+x, +T}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(x))
+      Img.cell(Img.header(T.ann(), 0, 1024, Img.fv(Term.Ann{x, T})), a, b, 0,
+        Img.term(x, ks, es, a, Img.term(T, ks, es, b, acc)))
+    case Term.Let{+q, +v, +f}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(v))
+      Img.cell(Img.header(T.let(), Img.quan(q), 1024, Img.fv(Term.Let{q, v, f})), a, b, 0,
+        Img.term(v, ks, es, a, Img.term(f, ks, es, b, acc)))
+    case Term.Typ{+x}:
+      +a = U32.inc(at)
+      Img.cell(Img.header(4, 0, 1024, Img.fv(x)), a, 0, 0, Img.term(x, ks, es, a, acc))
+    case Term.Min{+x, +y}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(x))
+      Img.cell(Img.header(T.min(), 0, 1024, Img.fv(Term.Min{x, y})), a, b, 0,
+        Img.term(x, ks, es, a, Img.term(y, ks, es, b, acc)))
+    case Term.All{+q, +A, +B}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(A))
+      Img.cell(Img.header(6, Img.quan(q), 1024, Img.fv(Term.All{q, A, B})), a, b, 0,
+        Img.term(A, ks, es, a, Img.term(B, ks, es, b, acc)))
+    case Term.Lam{+q, +f}:
+      +a = U32.inc(at)
+      Img.cell(Img.header(T.lam(), Img.quan(q), 1024, Img.fv(Term.Lam{q, f})), a, 0, 0,
+        Img.term(f, ks, es, a, acc))
+    case Term.App{+q, +f, +x}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(f))
+      Img.cell(Img.header(T.app(), Img.quan(q), 1024, Img.fv(Term.App{q, f, x})), a, b, 0,
+        Img.term(f, ks, es, a, Img.term(x, ks, es, b, acc)))
+    case Term.Sig{+q, +A, +B}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(A))
+      Img.cell(Img.header(9, Img.quan(q), 1024, Img.fv(Term.Sig{q, A, B})), a, b, 0,
+        Img.term(A, ks, es, a, Img.term(B, ks, es, b, acc)))
+    case Term.Tup{+q, +x, +y}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(x))
+      Img.cell(Img.header(T.tup(), Img.quan(q),
+          Img.flags(Img.is_value(Term.Tup{q, x, y}), Term.is_data(Term.Tup{q, x, y})), Img.fv(Term.Tup{q, x, y})),
+        a, b, 0, Img.term(x, ks, es, a, Img.term(y, ks, es, b, acc)))
+    case Term.Prj{+h}:
+      +a = U32.inc(at)
+      Img.cell(Img.header(T.prj(), 0, 1024, Img.fv(h)), a, 0, 0, Img.term(h, ks, es, a, acc))
+    case Term.Enu{_}:
+      Img.cell(Img.header(12, 0, 1024, 0), 0, 0, 0, acc)
+    case Term.Lab{+k}:
+      Img.cell(Img.header(T.lab(), 0, 1536, 0), Img.id(ks, k, 0), 0, 0, acc)
+    case Term.Mat{+k, +h, +m}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(h))
+      Img.cell(Img.header(T.mat(), 0, 1024, Img.fv(Term.Mat{k, h, m})), Img.id(ks, k, 0), a, b,
+        Img.term(h, ks, es, a, Img.term(m, ks, es, b, acc)))
+    case Term.Efq{}:
+      Img.cell(Img.header(T.efq(), 0, 1024, 0), 0, 0, 0, acc)
+    case Term.Eql{+x, +y, +T}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(x))
+      +c = U32.add(b, Img.size(y))
+      Img.cell(Img.header(16, 0, 1024, Img.fv(Term.Eql{x, y, T})), a, b, c,
+        Img.term(x, ks, es, a, Img.term(y, ks, es, b, Img.term(T, ks, es, c, acc))))
+    case Term.Rfl{}:
+      Img.cell(Img.header(T.rfl(), 0, 1536, 0), 0, 0, 0, acc)
+    case Term.Rwt{+e, +P, +f}:
+      +a = U32.inc(at)
+      +b = U32.add(a, Img.size(e))
+      +c = U32.add(b, Img.size(P))
+      Img.cell(Img.header(T.rwt(), 0, 1024, Img.fv(Term.Rwt{e, P, f})), a, b, c,
+        Img.term(e, ks, es, a, Img.term(P, ks, es, b, Img.term(f, ks, es, c, acc))))
+
+# the names of the labels and λ-matches of t, then acc
+def Img.names(t: Term, acc: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match t:
+    case Term.Var{_}:
+      acc
+    case Term.Ref{_}:
+      acc
+    case Term.Ann{x, T}:
+      Img.names(x, Img.names(T, acc))
+    case Term.Let{_, v, f}:
+      Img.names(v, Img.names(f, acc))
+    case Term.Typ{q}:
+      Img.names(q, acc)
+    case Term.Min{a, b}:
+      Img.names(a, Img.names(b, acc))
+    case Term.All{_, A, B}:
+      Img.names(A, Img.names(B, acc))
+    case Term.Lam{_, f}:
+      Img.names(f, acc)
+    case Term.App{_, f, x}:
+      Img.names(f, Img.names(x, acc))
+    case Term.Sig{_, A, B}:
+      Img.names(A, Img.names(B, acc))
+    case Term.Tup{_, a, b}:
+      Img.names(a, Img.names(b, acc))
+    case Term.Prj{h}:
+      Img.names(h, acc)
+    case Term.Enu{_}:
+      acc
+    case Term.Lab{k}:
+      Con{k, acc}
+    case Term.Mat{k, h, m}:
+      Con{k, Img.names(h, Img.names(m, acc))}
+    case Term.Efq{}:
+      acc
+    case Term.Eql{a, b, T}:
+      Img.names(a, Img.names(b, Img.names(T, acc)))
+    case Term.Rfl{}:
+      acc
+    case Term.Rwt{e, P, f}:
+      Img.names(e, Img.names(P, Img.names(f, acc)))
+
+# the names of the bodies of ds
+def Img.names.defs(ds: List<&2, Def>) -> List<&2, List<&2, U32>>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Con{Def{_, _, v, _}, rest}:
+      Img.names(v, Img.names.defs(rest))
+
+# the names that the machine knows (N.*), in front of the book's
+def Img.known(ks: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  Con{Program.name.unit(), Con{Program.name.nil(), Con{Program.name.con(), Con{Program.name.u32(),
+    Con{Program.name.wnil(), Con{Program.name.wcon(), Con{Program.name.true(), Con{Program.name.false(),
+    Con{Quan.name(Quan.Q0{}), Con{Quan.name(Quan.Q1{}), Con{Quan.name(Quan.Q2{}), Con{Program.name.main(),
+    ks}}}}}}}}}}}}
+
+# each def's name and the first cell of its body, from the cell at
+def Img.defs(ds: List<&2, Def>, +at: U32) -> List<&2, Img.Def>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Con{Def{k, _, v, _}, rest}:
+      Con{Img.Def{k, at}, Img.defs(rest, U32.add(at, Img.size(v)))}
+
+# the cells of the bodies of ds, from the cell at, then acc
+def Img.bodies(ds: List<&2, Def>, +ks: List<&2, List<&2, U32>>, +es: List<&2, Img.Def>, +at: U32) ->
+  List<&2, U32>:
+  match ds:
+    case Nil{}:
+      Nil{}
+    case Con{Def{_, _, +v, _}, rest}:
+      Img.term(v, ks, es, at, Img.bodies(rest, ks, es, U32.add(at, Img.size(v))))
+
+# the cells of the image: n labels, from the name i
+def Img.labels(n: Nat, +i: U32, acc: List<&2, U32>) -> List<&2, U32>:
+  match n:
+    case 0n:
+      acc
+    case 1n+m:
+      Img.cell(1549, i, 0, 0, Img.labels(m, U32.inc(i), acc))
+
+# a pair at quantity 1, a value and Data
+def Img.pair(a: U32, b: U32, acc: List<&2, U32>) -> List<&2, U32>:
+  Img.cell(1866, a, b, 0, acc)
+
+# n levels of a word of False bits, from the cell at, then WNil; left is n
+def Img.zeros24(n: Nat, +left: U32, +at: U32, acc: List<&2, U32>) -> List<&2, U32>:
+  match n:
+    case 0n:
+      acc
+    case 1n+m:
+      Img.pair(I.lab(N.wcon()), U32.inc(at), Img.pair(I.false(), U32.add(at, 2),
+        Img.pair(Bool.pick(U32, U32.is_eq(left, 1), I.wnil(), U32.add(at, 3)), I.lab(N.unit()),
+          Img.zeros24(m, U32.sub(left, 1), U32.add(at, 3), acc))))
+
+# n cells of zeros
+def Img.blank(n: Nat, acc: List<&2, U32>) -> List<&2, U32>:
+  match n:
+    case 0n:
+      acc
+    case 1n+m:
+      Img.cell(0, 0, 0, 0, Img.blank(m, acc))
+
+# the table by tag (I.table): the mask of the pointers, the binders above
+# each, and 1 for a former
+def Img.table(acc: List<&2, U32>) -> List<&2, U32>:
+  Img.cell(0, 0, 0, 0, Img.cell(0, 0, 0, 0, Img.cell(0, 3, 0, 0, Img.cell(0, 3, 4, 0,
+  Img.cell(0, 1, 0, 1, Img.cell(0, 3, 0, 0, Img.cell(0, 3, 4, 1, Img.cell(0, 1, 1, 1,
+  Img.cell(0, 3, 0, 0, Img.cell(0, 3, 4, 1, Img.cell(0, 3, 0, 0, Img.cell(0, 1, 0, 1,
+  Img.cell(0, 0, 0, 1, Img.cell(0, 0, 0, 1, Img.cell(0, 6, 0, 1, Img.cell(0, 0, 0, 1,
+  Img.cell(0, 7, 0, 1, Img.cell(0, 0, 0, 1, Img.cell(0, 7, 8, 0, acc)))))))))))))))))))
+
+# cells 1 to 363 (I.*), with main's body at the cell main, then acc
+def Img.prefix(main: U32, acc: List<&2, U32>) -> List<&2, U32>:
+  Img.labels(11n, 0,
+    Img.pair(I.lab(N.nil()), I.lab(N.unit()), Img.pair(I.lab(N.true()), I.lab(N.unit()),
+    Img.pair(I.lab(N.false()), I.lab(N.unit()), Img.pair(I.lab(N.wnil()), I.lab(N.unit()),
+    Img.zeros24(24n, 24, I.z24(),
+      Img.cell(1025, main, N.main(), 0,
+        Img.blank(256n, Img.table(acc)))))))))
+
+# the cells of the image of the book ds, by their fields
+def Img.fields(+ds: List<&2, Def>) -> List<&2, U32>:
+  +ks = Img.known(Img.names.defs(ds))
+  +es = Img.defs(ds, I.book())
+  Img.prefix(Img.ref(es, Program.name.main()), Img.bodies(ds, ks, es, I.book()))
+
+# the bytes of the fields, each in 4, the lowest first
+def Img.bytes(ws: List<&2, U32>) -> List<&2, U32>:
+  match ws:
+    case Nil{}:
+      Nil{}
+    case Con{+w, rest}:
+      Con{U32.and(w, 255), Con{U32.and(U32.shrn(w, 8n), 255), Con{U32.and(U32.shrn(w, 16n), 255),
+        Con{U32.shrn(w, 24n), Img.bytes(rest)}}}}
+
+# the number of cells of the image
+def Img.count(ds: List<&2, Def>) -> U32:
+  match ds:
+    case Nil{}:
+      U32.sub(I.book(), 1)
+    case Con{Def{_, _, v, _}, rest}:
+      U32.add(Img.size(v), Img.count(rest))
+
+def Img.small.if(full: Bool, more: Unit -> Bool) -> Bool:
+  match full:
+    case True{}:
+      False{}
+    case False{}:
+      more(Unit{})
+
+# the book's bytes are fewer than 2^26 from the n-th: enough for its numbers to
+# fit in a U32, and more than a memory of 2^32 bytes can hold with them
+def Img.small(xs: List<&2, U32>, +n: U32) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case Con{_, rest}:
+      Img.small.if(U32.is_eq(n, 67108863), u => Img.small(rest, U32.inc(n)))
+
+# Compile
+# -------
+
+# a module whose run ends at once with the status s
+def Compiler.halt(s: U32) -> List<&2, U32>:
+  Wasm.encode(Cir.module(Cir.Stmt.halt{s}, 0n, 0, []))
+
+def Compiler.compile.of(small: Bool, r: Maybe<List<&2, Def>>) -> List<&2, U32>:
+  match small r:
+    case False{} _:
+      Compiler.halt(1)
+    case True{} None{}:
+      Compiler.halt(2)
+    case True{} Some{+ds}:
+      Wasm.encode(Cir.module(Mach.code(), Mach.regs(), Img.count(ds), Img.bytes(Img.fields(ds))))
+
+# the compiler of step 1: the bytes of the module of the program whose book has
+# the bytes p (INVARIANTS #5). A book of 2^26 bytes or more needs more memory
+# than a module can have: its module runs out of memory at once. Bytes that
+# are no book give a module that gives no result
+def Compiler.compile(+p: List<&2, U32>) -> List<&2, U32>:
+  Compiler.compile.of(Img.small(p, 0), Book.read(p))
