@@ -1,6 +1,6 @@
 import bendtt
 
--- Made by scripts/Copy.lean from the `bend -o` output of bootstrap/bend/src/book/impl.bend,
+-- Made by scripts/Copy.lean from the `bend -o` output of bootstrap/bend/src/compiler/impl.bend,
 -- for the roots Eval.steps, and the defs that they need. Do not edit it.
 
 open Quan Term

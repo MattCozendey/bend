@@ -4,7 +4,7 @@ import Bootstrap.Read.Write
 -- Read
 -- ====
 --
--- INVARIANTS #5: the Bend reader (bootstrap/bend/src/book) gives back
+-- INVARIANTS #5: the Bend reader (bootstrap/bend/src/compiler) gives back
 -- each book from the bytes that the Lean writer writes for it. The proof goes
 -- through a Lean model of the reader's stack machine, over the terms of its
 -- stack items: the model reads back the writer's bytes, and the Bend code does

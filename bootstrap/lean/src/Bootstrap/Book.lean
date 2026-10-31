@@ -3,7 +3,7 @@ import Bootstrap.Bytes
 -- Book
 -- ====
 --
--- The Bend data form of the kernel's book (bootstrap/bend/src/book),
+-- The Bend data form of the kernel's book (bootstrap/bend/src/compiler),
 -- as `bend -o` writes its values, and the Lean writer of INVARIANTS #5, whose
 -- tokens Book.read reads back. That Bend file states the tokens. The writer
 -- puts each list last to first, as the reader puts each item in front.
