@@ -18,6 +18,7 @@ import Base
 import ./impl.bend as C
 import ./spec.bend as S
 import ./proof_need.bend as PN
+import ./proof_img.bend as PI
 
 # Open lemmas
 # -----------
@@ -65,7 +66,7 @@ def img.small(
   rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>},
   small: {C.Img.small(p, 0) == True{} : Bool}
 ) -> {U32.is_lt(C.Wasm.encode.len(C.Cir.Cell, C.Img.cells(ds)), 67108864) == True{} : Bool}:
-  ?TODO
+  PI.img.small.proof(p, ds, rd, small)
 
 # a book of 2^26 bytes or more needs more memory than a module can have
 def need.big(
