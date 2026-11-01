@@ -941,6 +941,499 @@ def Heap.fz(+m: C.Cir.Cells, +nx: U32, +fi: U32, +rs: List<&2, U32>, +pend: U32,
     (Cnt.fz(n, m, z, x, fi, n, fi, ps, rs, hf0, hf1, htN, hxt, hcn),
     (Pts.fz(n, m, z, x, ps, fi, nx, hf1, add0.l(PM.Pc(n, m, ps, fi, z), PM.RcL(rs, z), hz0), htN, hpt), hr))))
 
+# The nodes of the held terms
+# ---------------------------
+#
+# A node of a term that Is says, at a cell r that is not z, is not z either
+# (node.ne): its parts are STATIC or have a pointer (part.ne). So a store to z
+# keeps which cells are nodes (Node.fz), and Held.
+
+def node.or2(e: Bool, a: Bool, -G: Type, h: {Bool.or(e, a) == True{} : Bool}, ke: {e == True{} : Bool} -> G, ka: {a == True{} : Bool} -> G) -> G:
+  match e:
+    case True{}:
+      ke({==})
+    case False{}:
+      ka(h)
+
+def node.or3(e: Bool, a: Bool, b: Bool, -G: Type, h: {Bool.or(e, Bool.or(a, b)) == True{} : Bool}, ke: {e == True{} : Bool} -> G,
+  ka: {a == True{} : Bool} -> G, kb: {b == True{} : Bool} -> G) -> G:
+  match e:
+    case True{}:
+      ke({==})
+    case False{}:
+      node.or2(a, b, G, h, ka, kb)
+
+def node.or4(e: Bool, a: Bool, b: Bool, d: Bool, -G: Type, h: {Bool.or(e, Bool.or(a, Bool.or(b, d))) == True{} : Bool}, ke: {e == True{} : Bool} -> G,
+  ka: {a == True{} : Bool} -> G, kb: {b == True{} : Bool} -> G, kd: {d == True{} : Bool} -> G) -> G:
+  match e:
+    case True{}:
+      ke({==})
+    case False{}:
+      node.or3(a, b, d, G, h, ka, kb, kd)
+
+# the cell c, equal to r, is not z when r is not
+def rew.ne(+r: U32, +c: U32, +z: U32, e: {U32.is_eq(r, c) == True{} : Bool}, hr: {U32.is_eq(r, z) == False{} : Bool}) -> {U32.is_eq(c, z) == False{} : Bool}:
+  %PM.u32.eq(r, c, e) : {U32.is_eq(_, z) == False{} : Bool}
+  hr
+
+# a node c of the term t at r, a cell that is not z, is not z
+def node.ne(t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +r: U32, +c: U32, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hr: {U32.is_eq(r, z) == False{} : Bool}, h: PM.Is(ds, m, im, fi, nx, ks, img, r, t), hn: {PM.Node(t, m, r, c) == True{} : Bool}) ->
+  {U32.is_eq(c, z) == False{} : Bool}:
+  match t:
+    case C.Term.Var{_}:
+      rew.ne(r, c, z, hn, hr)
+    case C.Term.Ref{_}:
+      rew.ne(r, c, z, hn, hr)
+    case C.Term.Enu{_}:
+      rew.ne(r, c, z, hn, hr)
+    case C.Term.Lab{_}:
+      rew.ne(r, c, z, hn, hr)
+    case C.Term.Efq{}:
+      rew.ne(r, c, z, hn, hr)
+    case C.Term.Rfl{}:
+      rew.ne(r, c, z, hn, hr)
+    case C.Term.Ann{+a, +b}:
+      (+nd, rr) = h
+      (pa, pb) = rr
+      (spa, ha) = pa
+      (spb, hb) = pb
+      node.or3(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 2, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Ann{a, b}, 2, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Ann{a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 2, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Ann{a, b}, 2, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Ann{a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb, e))
+    case C.Term.Min{+a, +b}:
+      (+nd, rr) = h
+      (pa, pb) = rr
+      (spa, ha) = pa
+      (spb, hb) = pb
+      node.or3(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 5, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Min{a, b}, 5, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Min{a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 5, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Min{a, b}, 5, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Min{a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb, e))
+    case C.Term.Let{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      node.or3(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 3, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Let{q, a, b}, 3, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Let{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 3, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Let{q, a, b}, 3, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Let{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb, e))
+    case C.Term.All{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      node.or3(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 6, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.All{q, a, b}, 6, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.All{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 6, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.All{q, a, b}, 6, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.All{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb, e))
+    case C.Term.App{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      node.or3(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 8, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.App{q, a, b}, 8, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.App{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 8, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.App{q, a, b}, 8, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.App{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb, e))
+    case C.Term.Sig{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      node.or3(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 9, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Sig{q, a, b}, 9, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Sig{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 9, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Sig{q, a, b}, 9, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Sig{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb, e))
+    case C.Term.Tup{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      node.or3(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 10, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Tup{q, a, b}, 10, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Tup{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 10, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Tup{q, a, b}, 10, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Tup{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb, e))
+    case C.Term.Typ{+a}:
+      (+nd, pa) = h
+      (spa, ha) = pa
+      node.or2(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 4, 1, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Typ{a}, 4, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Typ{a}, tbl), mem.hd(PM.Fd(2n, m, r), Nil{}), hz0, hzs), ha, e))
+    case C.Term.Prj{+a}:
+      (+nd, pa) = h
+      (spa, ha) = pa
+      node.or2(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 11, 1, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Prj{a}, 11, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Prj{a}, tbl), mem.hd(PM.Fd(2n, m, r), Nil{}), hz0, hzs), ha, e))
+    case C.Term.Lam{+q, +a}:
+      (+nd, rr) = h
+      (qs, pa) = rr
+      (spa, ha) = pa
+      node.or2(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 7, 1, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Lam{q, a}, 7, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Lam{q, a}, tbl), mem.hd(PM.Fd(2n, m, r), Nil{}), hz0, hzs), ha, e))
+    case C.Term.Mat{+k, +a, +b}:
+      (+nd, rr) = h
+      (nm, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      node.or3(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(4n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 14, 6, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Mat{k, a, b}, 14, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Mat{k, a, b}, tbl), mem.hd(PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(4n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(4n, m, r), z, 14, 6, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Mat{k, a, b}, 14, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Mat{k, a, b}, tbl), mem.tl(PM.Fd(3n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(4n, m, r), Nil{}}, mem.hd(PM.Fd(4n, m, r), Nil{})), hz0, hzs), hb, e))
+    case C.Term.Eql{+a, +b, +d}:
+      (+nd, rr) = h
+      (pa, r2) = rr
+      (spa, ha) = pa
+      (pb, pd) = r2
+      (spb, hb) = pb
+      (spd, hd) = pd
+      node.or4(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 16, 7, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Eql{a, b, d}, 16, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 16, 7, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Eql{a, b, d}, 16, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}, mem.hd(PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}})), hz0, hzs), hb, e),
+        e => node.ne(d, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(4n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(4n, m, r), z, 16, 7, spd, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Eql{a, b, d}, 16, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}, mem.tl(PM.Fd(3n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(4n, m, r), Nil{}}, mem.hd(PM.Fd(4n, m, r), Nil{}))), hz0, hzs), hd, e))
+    case C.Term.Rwt{+a, +b, +d}:
+      (+nd, rr) = h
+      (pa, r2) = rr
+      (spa, ha) = pa
+      (pb, pd) = r2
+      (spb, hb) = pb
+      (spd, hd) = pd
+      node.or4(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c), {U32.is_eq(c, z) == False{} : Bool}, hn,
+        e => rew.ne(r, c, z, e, hr),
+        e => node.ne(a, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 18, 7, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Rwt{a, b, d}, 18, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}), hz0, hzs), ha, e),
+        e => node.ne(b, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 18, 7, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Rwt{a, b, d}, 18, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}, mem.hd(PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}})), hz0, hzs), hb, e),
+        e => node.ne(d, ds, m, im, fi, nx, ks, img, ps, rs, z, PM.Fd(4n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(4n, m, r), z, 18, 7, spd, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Rwt{a, b, d}, 18, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}, mem.tl(PM.Fd(3n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(4n, m, r), Nil{}}, mem.hd(PM.Fd(4n, m, r), Nil{}))), hz0, hzs), hd, e))
+
+# a store to z keeps the nodes of a term at a cell r that is not z
+def Node.fz(t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +r: U32, +c: U32, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hr: {U32.is_eq(r, z) == False{} : Bool}, h: PM.Is(ds, m, im, fi, nx, ks, img, r, t)) ->
+  {PM.Node(t, C.Cir.Cells.set(m, z, x), r, c) == PM.Node(t, m, r, c) : Bool}:
+  match t:
+    case C.Term.Var{_}:
+      {==}
+    case C.Term.Ref{_}:
+      {==}
+    case C.Term.Enu{_}:
+      {==}
+    case C.Term.Lab{_}:
+      {==}
+    case C.Term.Efq{}:
+      {==}
+    case C.Term.Rfl{}:
+      {==}
+    case C.Term.Ann{+a, +b}:
+      (+nd, rr) = h
+      (pa, pb) = rr
+      (spa, ha) = pa
+      (spb, hb) = pb
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 2, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Ann{a, b}, 2, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Ann{a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 2, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Ann{a, b}, 2, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Ann{a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), _)) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      {==}
+    case C.Term.Min{+a, +b}:
+      (+nd, rr) = h
+      (pa, pb) = rr
+      (spa, ha) = pa
+      (spb, hb) = pb
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 5, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Min{a, b}, 5, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Min{a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 5, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Min{a, b}, 5, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Min{a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), _)) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      {==}
+    case C.Term.Let{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 3, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Let{q, a, b}, 3, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Let{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 3, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Let{q, a, b}, 3, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Let{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), _)) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      {==}
+    case C.Term.All{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 6, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.All{q, a, b}, 6, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.All{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 6, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.All{q, a, b}, 6, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.All{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), _)) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      {==}
+    case C.Term.App{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 8, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.App{q, a, b}, 8, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.App{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 8, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.App{q, a, b}, 8, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.App{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), _)) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      {==}
+    case C.Term.Sig{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 9, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Sig{q, a, b}, 9, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Sig{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 9, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Sig{q, a, b}, 9, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Sig{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), _)) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      {==}
+    case C.Term.Tup{+q, +a, +b}:
+      (+nd, rr) = h
+      (qs, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 10, 3, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Tup{q, a, b}, 10, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Tup{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Nil{}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 10, 3, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Tup{q, a, b}, 10, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Tup{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Nil{}}, mem.hd(PM.Fd(3n, m, r), Nil{})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), _)) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c))) : Bool}
+      {==}
+    case C.Term.Typ{+a}:
+      (+nd, pa) = h
+      (spa, ha) = pa
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c)) == Bool.or(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c)) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 4, 1, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Typ{a}, 4, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Typ{a}, tbl), mem.hd(PM.Fd(2n, m, r), Nil{}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), _) == Bool.or(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c)) : Bool}
+      {==}
+    case C.Term.Prj{+a}:
+      (+nd, pa) = h
+      (spa, ha) = pa
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c)) == Bool.or(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c)) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 11, 1, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Prj{a}, 11, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Prj{a}, tbl), mem.hd(PM.Fd(2n, m, r), Nil{}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), _) == Bool.or(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c)) : Bool}
+      {==}
+    case C.Term.Lam{+q, +a}:
+      (+nd, rr) = h
+      (qs, pa) = rr
+      (spa, ha) = pa
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c)) == Bool.or(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c)) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 7, 1, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Lam{q, a}, 7, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Lam{q, a}, tbl), mem.hd(PM.Fd(2n, m, r), Nil{}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), _) == Bool.or(U32.is_eq(r, c), PM.Node(a, m, PM.Fd(2n, m, r), c)) : Bool}
+      {==}
+    case C.Term.Mat{+k, +a, +b}:
+      (+nd, rr) = h
+      (nm, r2) = rr
+      (pa, pb) = r2
+      (spa, ha) = pa
+      (spb, hb) = pb
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c), PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(4n, _), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(4n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(a, m, PM.Fd(3n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 14, 6, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Mat{k, a, b}, 14, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Mat{k, a, b}, tbl), mem.hd(PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(4n, m, r), c))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(4n, m, r), c))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(4n, m, r), c), PM.Node(b, m, PM.Fd(4n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(4n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(4n, m, r), z, 14, 6, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Mat{k, a, b}, 14, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Mat{k, a, b}, tbl), mem.tl(PM.Fd(3n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(4n, m, r), Nil{}}, mem.hd(PM.Fd(4n, m, r), Nil{})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(3n, m, r), c), _)) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(4n, m, r), c))) : Bool}
+      {==}
+    case C.Term.Eql{+a, +b, +d}:
+      (+nd, rr) = h
+      (pa, r2) = rr
+      (spa, ha) = pa
+      (pb, pd) = r2
+      (spb, hb) = pb
+      (spd, hd) = pd
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), Bool.or(PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c), PM.Node(d, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(4n, _), c)))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c)))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 16, 7, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Eql{a, b, d}, 16, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, Bool.or(PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(d, C.Cir.Cells.set(m, z, x), PM.Fd(4n, m, r), c)))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c)))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 16, 7, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Eql{a, b, d}, 16, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}, mem.hd(PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(_, PM.Node(d, C.Cir.Cells.set(m, z, x), PM.Fd(4n, m, r), c)))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c)))) : Bool}
+      %Equal.sym(Bool, PM.Node(d, C.Cir.Cells.set(m, z, x), PM.Fd(4n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c),
+        Node.fz(d, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(4n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(4n, m, r), z, 16, 7, spd, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Eql{a, b, d}, 16, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}, mem.tl(PM.Fd(3n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(4n, m, r), Nil{}}, mem.hd(PM.Fd(4n, m, r), Nil{}))), hz0, hzs), hd)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), _))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c)))) : Bool}
+      {==}
+    case C.Term.Rwt{+a, +b, +d}:
+      (+nd, rr) = h
+      (pa, r2) = rr
+      (spa, ha) = pa
+      (pb, pd) = r2
+      (spb, hb) = pb
+      (spd, hd) = pd
+      +ec = PM.cl.go(m, r, z, x, hr)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), r), C.Cir.Cells.get(m, r), ec) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(2n, _), c), Bool.or(PM.Node(b, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(3n, _), c), PM.Node(d, C.Cir.Cells.set(m, z, x), C.Cir.Cell.get(4n, _), c)))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c)))) : Bool}
+      %Equal.sym(Bool, PM.Node(a, C.Cir.Cells.set(m, z, x), PM.Fd(2n, m, r), c), PM.Node(a, m, PM.Fd(2n, m, r), c),
+        Node.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(2n, m, r), z, 18, 7, spa, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Rwt{a, b, d}, 18, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.hd(PM.Fd(2n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}), hz0, hzs), ha)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(_, Bool.or(PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(d, C.Cir.Cells.set(m, z, x), PM.Fd(4n, m, r), c)))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c)))) : Bool}
+      %Equal.sym(Bool, PM.Node(b, C.Cir.Cells.set(m, z, x), PM.Fd(3n, m, r), c), PM.Node(b, m, PM.Fd(3n, m, r), c),
+        Node.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(3n, m, r), z, 18, 7, spb, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Rwt{a, b, d}, 18, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(3n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}, mem.hd(PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}})), hz0, hzs), hb)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(_, PM.Node(d, C.Cir.Cells.set(m, z, x), PM.Fd(4n, m, r), c)))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c)))) : Bool}
+      %Equal.sym(Bool, PM.Node(d, C.Cir.Cells.set(m, z, x), PM.Fd(4n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c),
+        Node.fz(d, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(4n, m, r), c, tbl, hz0, hzs,
+          part.ne(m, nx, fi, ps, rs, r, PM.Fd(4n, m, r), z, 18, 7, spd, nd.tg(ds, im, fi, nx, r, C.Cir.Cells.get(m, r), C.Term.Rwt{a, b, d}, 18, nd), {==},
+            tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(3n, m, r), Con{PM.Fd(4n, m, r), Nil{}}}, mem.tl(PM.Fd(3n, m, r), PM.Fd(4n, m, r), Con{PM.Fd(4n, m, r), Nil{}}, mem.hd(PM.Fd(4n, m, r), Nil{}))), hz0, hzs), hd)) :
+        {Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), _))) == Bool.or(U32.is_eq(r, c), Bool.or(PM.Node(a, m, PM.Fd(2n, m, r), c), Bool.or(PM.Node(b, m, PM.Fd(3n, m, r), c), PM.Node(d, m, PM.Fd(4n, m, r), c)))) : Bool}
+      {==}
+
 # A store to a cell that nothing points to: the terms
 # --------------------------------------------------
 
@@ -980,26 +1473,66 @@ def lt0.le1(p: Nat, h: {Nat.is_lt(0n, p) == True{} : Bool}) -> N.Le(1n, p):
     case 1n+q:
       N.le_zero(q)
 
-def held.ne(f: Bool, +m: C.Cir.Cells, +c: U32, +z: U32, +n: Nat, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>,
-  ef: {PM.Fl(m, c, 1024) == f : Bool}, h: {Bool.or(f, Nat.is_lt(0n, PM.Ptr(n, m, fi, ps, rs, c))) == True{} : Bool},
-  hz0: {PM.Ptr(n, m, fi, ps, rs, z) == 0n : Nat}, hzs: {PM.Fl(m, z, 1024) == False{} : Bool}) -> {U32.is_eq(c, z) == False{} : Bool}:
+# a node of an owned root's term is not z
+def nodes.ne(os: List<&2, PM.Rt>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +c: U32, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hn: {NeAll(PM.Rt.cells(os), z) == True{} : Bool}, ho: PM.Rts(ds, m, im, fi, nx, ks, img, os), h: {PM.Nodes(os, m, c) == True{} : Bool}) ->
+  {U32.is_eq(c, z) == False{} : Bool}:
+  match os:
+    case Nil{}:
+      PM.bool.ft({U32.is_eq(c, z) == False{} : Bool}, h)
+    case Con{PM.Rt{+r, +u}, +rest}:
+      (hu, hr) = ho
+      +hn2 = hn
+      node.or2(PM.Node(u, m, r, c), PM.Nodes(rest, m, c), {U32.is_eq(c, z) == False{} : Bool}, h,
+        e => node.ne(u, ds, m, im, fi, nx, ks, img, ps, rs, z, r, c, tbl, hz0, hzs, neall.hd(r, z, PM.Rt.cells(rest), hn2), hu, e),
+        e => nodes.ne(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, c, tbl, hz0, hzs, neall.tl(r, z, PM.Rt.cells(rest), hn2), hr, e))
+
+def held.ne(f: Bool, +os: List<&2, PM.Rt>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +c: U32, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hn: {NeAll(PM.Rt.cells(os), z) == True{} : Bool}, ho: PM.Rts(ds, m, im, fi, nx, ks, img, os),
+  ef: {PM.Fl(m, c, 1024) == f : Bool}, h: {Bool.or(f, PM.Nodes(os, m, c)) == True{} : Bool}) -> {U32.is_eq(c, z) == False{} : Bool}:
   match f:
     case True{}:
       ne.st(U32.is_eq(c, z), m, c, z, {==}, ef, hzs)
     case False{}:
-      ne.ptr(U32.is_eq(c, z), c, z, n, m, fi, ps, rs, {==}, lt0.le1(PM.Ptr(n, m, fi, ps, rs, c), h), hz0)
+      nodes.ne(os, ds, m, im, fi, nx, ks, img, ps, rs, z, c, tbl, hz0, hzs, hn, ho, h)
 
 # no borrowed cell is z, which is not STATIC and has no pointer
-def neall.held(bs: List<&2, PM.Rt>, +m: C.Cir.Cells, +z: U32, +n: Nat, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>,
-  +hz0: {PM.Ptr(n, m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool}, h: PM.Held(m, n, fi, ps, rs, bs)) ->
+def neall.held(bs: List<&2, PM.Rt>, +os: List<&2, PM.Rt>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32,
+  +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  +hn: {NeAll(PM.Rt.cells(os), z) == True{} : Bool}, +ho: PM.Rts(ds, m, im, fi, nx, ks, img, os), h: PM.Held(m, os, bs)) ->
   {NeAll(PM.Rt.cells(bs), z) == True{} : Bool}:
   match bs:
     case Nil{}:
       {==}
     case Con{PM.Rt{+c, _}, +rest}:
       (hh, hr) = h
-      neall.cons(c, z, PM.Rt.cells(rest), held.ne(PM.Fl(m, c, 1024), m, c, z, n, fi, ps, rs, {==}, hh, hz0, hzs),
-        neall.held(rest, m, z, n, fi, ps, rs, hz0, hzs, hr))
+      neall.cons(c, z, PM.Rt.cells(rest), held.ne(PM.Fl(m, c, 1024), os, ds, m, im, fi, nx, ks, img, ps, rs, z, c, tbl, hz0, hzs, hn, ho, {==}, hh),
+        neall.held(rest, os, ds, m, im, fi, nx, ks, img, ps, rs, z, tbl, hz0, hzs, hn, ho, hr))
+
+# a store to z keeps the nodes of the owned roots' terms
+def Nodes.fz(os: List<&2, PM.Rt>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +c: U32, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hn: {NeAll(PM.Rt.cells(os), z) == True{} : Bool}, ho: PM.Rts(ds, m, im, fi, nx, ks, img, os)) ->
+  {PM.Nodes(os, C.Cir.Cells.set(m, z, x), c) == PM.Nodes(os, m, c) : Bool}:
+  match os:
+    case Nil{}:
+      {==}
+    case Con{PM.Rt{+r, +u}, +rest}:
+      (hu, hr) = ho
+      +hn2 = hn
+      %Equal.sym(Bool, PM.Node(u, C.Cir.Cells.set(m, z, x), r, c), PM.Node(u, m, r, c),
+        Node.fz(u, ds, m, im, fi, nx, ks, img, ps, rs, z, x, r, c, tbl, hz0, hzs, neall.hd(r, z, PM.Rt.cells(rest), hn2), hu)) :
+        {Bool.or(_, PM.Nodes(rest, C.Cir.Cells.set(m, z, x), c)) == Bool.or(PM.Node(u, m, r, c), PM.Nodes(rest, m, c)) : Bool}
+      %Equal.sym(Bool, PM.Nodes(rest, C.Cir.Cells.set(m, z, x), c), PM.Nodes(rest, m, c),
+        Nodes.fz(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, tbl, hz0, hzs, neall.tl(r, z, PM.Rt.cells(rest), hn2), hr)) :
+        {Bool.or(PM.Node(u, m, r, c), _) == Bool.or(PM.Node(u, m, r, c), PM.Nodes(rest, m, c)) : Bool}
+      {==}
 
 # a store to z keeps the terms of cells that are not z
 def Rts.fz(xs: List<&2, PM.Rt>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
@@ -1017,10 +1550,11 @@ def Rts.fz(xs: List<&2, PM.Rt>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32,
         Rts.fz(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, neall.tl(c, z, PM.Rt.cells(rest), hn2), hr))
 
 # a store to z keeps Held
-def Held.fz(bs: List<&2, PM.Rt>, +m: C.Cir.Cells, +n: Nat, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
-  +hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
-  +htN: {TblR(n, m, fi, z) == True{} : Bool}, hn: {NeAll(PM.Rt.cells(bs), z) == True{} : Bool}, h: PM.Held(m, n, fi, ps, rs, bs)) ->
-  PM.Held(C.Cir.Cells.set(m, z, x), n, fi, ps, rs, bs):
+def Held.fz(bs: List<&2, PM.Rt>, +os: List<&2, PM.Rt>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32,
+  +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
+  +tbl: PM.Tbl(m, im, fi, nx), +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat},
+  +hzs: {PM.Fl(m, z, 1024) == False{} : Bool}, +hno: {NeAll(PM.Rt.cells(os), z) == True{} : Bool}, +ho: PM.Rts(ds, m, im, fi, nx, ks, img, os),
+  hn: {NeAll(PM.Rt.cells(bs), z) == True{} : Bool}, h: PM.Held(m, os, bs)) -> PM.Held(C.Cir.Cells.set(m, z, x), os, bs):
   match bs:
     case Nil{}:
       Unit{}
@@ -1029,11 +1563,11 @@ def Held.fz(bs: List<&2, PM.Rt>, +m: C.Cir.Cells, +n: Nat, +fi: U32, +ps: List<&
       +hn2 = hn
       +M2 = C.Cir.Cells.set(m, z, x)
       ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, c), C.Cir.Cells.get(m, c), PM.cl.go(m, c, z, x, neall.hd(c, z, PM.Rt.cells(rest), hn2))) :
-          {Bool.or(U32.is_ne(U32.and(C.Cir.Cell.get(0n, _), 1024), 0), Nat.is_lt(0n, PM.Ptr(n, M2, fi, ps, rs, c))) == True{} : Bool};
-        %Equal.sym(Nat, PM.Ptr(n, M2, fi, ps, rs, c), PM.Ptr(n, m, fi, ps, rs, c), Ptr.eq(n, m, z, x, fi, ps, rs, c, hf0, hf1, htN)) :
-          {Bool.or(PM.Fl(m, c, 1024), Nat.is_lt(0n, _)) == True{} : Bool};
+          {Bool.or(U32.is_ne(U32.and(C.Cir.Cell.get(0n, _), 1024), 0), PM.Nodes(os, M2, c)) == True{} : Bool};
+        %Equal.sym(Bool, PM.Nodes(os, M2, c), PM.Nodes(os, m, c), Nodes.fz(os, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, tbl, hz0, hzs, hno, ho)) :
+          {Bool.or(PM.Fl(m, c, 1024), _) == True{} : Bool};
         hh),
-        Held.fz(rest, m, n, fi, ps, rs, z, x, hf0, hf1, htN, neall.tl(c, z, PM.Rt.cells(rest), hn2), hr))
+        Held.fz(rest, os, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, hno, ho, neall.tl(c, z, PM.Rt.cells(rest), hn2), hr))
 
 # Fs of a frame, past the test of its tag
 def FsR(c: Bool, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +tg: U32) -> List<&2, U32>:
@@ -1195,16 +1729,16 @@ def TblB(rs: List<&2, PM.Row>, +at: U32) -> Bool:
     case Con{_, rest}:
       Bool.and(U32.is_le(at, 363), TblB(rest, U32.inc(at)))
 
-# a cell at most 363 is not z, past 363
-def lit.ne(b: Bool, +l: U32, +z: U32, eb: {U32.is_eq(l, z) == b : Bool}, hl: {U32.is_le(l, 363) == True{} : Bool},
-  hz: N.Le(1n+U32.to_nat(363), U32.to_nat(z))) -> {U32.is_eq(l, z) == False{} : Bool}:
+# a cell at most bd is not z, past bd
+def lit.ne(b: Bool, +l: U32, +z: U32, +bd: U32, eb: {U32.is_eq(l, z) == b : Bool}, hl: {U32.is_le(l, bd) == True{} : Bool},
+  hz: N.Le(1n+U32.to_nat(bd), U32.to_nat(z))) -> {U32.is_eq(l, z) == False{} : Bool}:
   match b:
     case False{}:
       eb
     case True{}:
       +e = PM.u32.eq(l, z, eb)
-      Empty.absurd({U32.is_eq(l, z) == False{} : Bool}, N.not_succ_le(U32.to_nat(363), N.le_trans(1n+U32.to_nat(363), U32.to_nat(z), U32.to_nat(363), hz,
-        N.le_rw_l(U32.to_nat(l), U32.to_nat(z), U32.to_nat(363), Equal.cong(U32, Nat, w => U32.to_nat(w), l, z, e), u.le(l, 363, hl)))))
+      Empty.absurd({U32.is_eq(l, z) == False{} : Bool}, N.not_succ_le(U32.to_nat(bd), N.le_trans(1n+U32.to_nat(bd), U32.to_nat(z), U32.to_nat(bd), hz,
+        N.le_rw_l(U32.to_nat(l), U32.to_nat(z), U32.to_nat(bd), Equal.cong(U32, Nat, w => U32.to_nat(w), l, z, e), u.le(l, bd, hl)))))
 
 def Tbl.fz(rs: List<&2, PM.Row>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +z: U32, +x: C.Cir.Cell, +at: U32,
   +hz: N.Le(1n+U32.to_nat(363), U32.to_nat(z)), hb: {TblB(rs, at) == True{} : Bool}, h: PM.Tbl.go(rs, m, im, fi, nx, at)) ->
@@ -1219,43 +1753,34 @@ def Tbl.fz(rs: List<&2, PM.Row>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, 
       (e4, r4) = r3
       +hb2 = hb
       +M2 = C.Cir.Cells.set(m, z, x)
-      +ne = lit.ne(U32.is_eq(at, z), at, z, {==}, and.l(U32.is_le(at, 363), TblB(rest, U32.inc(at)), hb2), hz)
+      +ne = lit.ne(U32.is_eq(at, z), at, z, 363, {==}, and.l(U32.is_le(at, 363), TblB(rest, U32.inc(at)), hb2), hz)
       +ea = PM.cl.go(m, at, z, x, ne)
       (ec, ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, at), C.Cir.Cells.get(m, at), ea) : {C.Cir.Cell.get(2n, _) == a : U32}; e2),
         ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, at), C.Cir.Cells.get(m, at), ea) : {C.Cir.Cell.get(3n, _) == b : U32}; e3),
         ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, at), C.Cir.Cells.get(m, at), ea) : {C.Cir.Cell.get(4n, _) == c : U32}; e4),
           Tbl.fz(rest, m, im, fi, nx, z, x, U32.inc(at), hz, and.r(U32.is_le(at, 363), TblB(rest, U32.inc(at)), hb2), r4)))))
 
-# no root of the defs dl, from at, is z
-def Roots.ne(dl: List<&2, C.Def>, +at: U32, +z: U32) -> Bool:
-  match dl:
-    case Nil{}:
-      True{}
-    case Con{C.Def{_, _, +v, _}, rest}:
-      Bool.and(Bool.not(U32.is_eq(at, z)), Roots.ne(rest, U32.add(at, C.Img.size(v)), z))
-
 def Defs.fz(dl: List<&2, C.Def>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
   +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +at: U32, +tbl: PM.Tbl(m, im, fi, nx),
   +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
-  hr: {Roots.ne(dl, at, z) == True{} : Bool}, h: PM.Defs(dl, ds, m, im, fi, nx, ks, img, at)) ->
+  +hzi: N.Le(1n+U32.to_nat(im), U32.to_nat(z)), h: PM.Defs(dl, ds, m, im, fi, nx, ks, img, at)) ->
   PM.Defs(dl, ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, at):
   match dl:
     case Nil{}:
       Unit{}
     case Con{C.Def{_, _, +v, _}, +rest}:
       (e0, r1) = h
-      (hv, r2) = r1
-      +hr2 = hr
-      (e0, (is.fz(v, ds, m, im, fi, nx, ks, img, ps, rs, z, x, at, tbl, hz0, hzs,
-          not.t(U32.is_eq(at, z), and.l(Bool.not(U32.is_eq(at, z)), Roots.ne(rest, U32.add(at, C.Img.size(v)), z), hr2)), hv),
-        Defs.fz(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, x, U32.add(at, C.Img.size(v)), tbl, hz0, hzs,
-          and.r(Bool.not(U32.is_eq(at, z)), Roots.ne(rest, U32.add(at, C.Img.size(v)), z), hr2), r2)))
+      (ele, r2) = r1
+      (hv, r3) = r2
+      +ele2 = {ele : {U32.is_le(at, im) == True{} : Bool}}
+      (e0, (ele2, (is.fz(v, ds, m, im, fi, nx, ks, img, ps, rs, z, x, at, tbl, hz0, hzs, lit.ne(U32.is_eq(at, z), at, z, im, {==}, ele2, hzi), hv),
+        Defs.fz(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, x, U32.add(at, C.Img.size(v)), tbl, hz0, hzs, hzi, r3))))
 
 # a store to z, one of the machine's own cells, keeps the image
 def ImgOK.fz(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32,
   +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
   +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
-  hzo: {PM.Own(fi, nx, z) == True{} : Bool}, hr: {Roots.ne(ds, C.I.book(), z) == True{} : Bool},
+  hzo: {PM.Own(fi, nx, z) == True{} : Bool},
   h: PM.ImgOK(ds, ks, img, m, im, fi, nx)) -> PM.ImgOK(ds, ks, img, C.Cir.Cells.set(m, z, x), im, fi, nx):
   (+tbl, r1) = h
   (hd, r2) = r1
@@ -1266,14 +1791,13 @@ def ImgOK.fz(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, 
   (e363a, eima) = r6
   +e363 = {e363a : {U32.is_le(363, im) == True{} : Bool}}
   +eim = {eima : {U32.is_lt(im, fi) == True{} : Bool}}
-  +hz = N.le_trans(1n+U32.to_nat(363), U32.to_nat(fi), U32.to_nat(z),
-    N.le_trans(1n+U32.to_nat(363), 1n+U32.to_nat(im), U32.to_nat(fi), u.le(363, im, e363), u.lt(im, fi, eim)),
-    u.le(fi, z, and.l(U32.is_le(fi, z), U32.is_lt(z, nx), hzo)))
+  +hzi = N.le_trans(1n+U32.to_nat(im), U32.to_nat(fi), U32.to_nat(z), u.lt(im, fi, eim), u.le(fi, z, and.l(U32.is_le(fi, z), U32.is_lt(z, nx), hzo)))
+  +hz = N.le_trans(1n+U32.to_nat(363), 1n+U32.to_nat(im), U32.to_nat(z), u.le(363, im, e363), hzi)
   (Tbl.fz(PM.Tbl.rows(), m, im, fi, nx, z, x, 345, hz, {==}, tbl),
-    (Defs.fz(ds, ds, m, im, fi, nx, ks, img, ps, rs, z, x, C.I.book(), tbl, hz0, hzs, hr, hd),
-    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q0{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 9, tbl, hz0, hzs, lit.ne(U32.is_eq(9, z), 9, z, {==}, {==}, hz), h9),
-    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q1{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 10, tbl, hz0, hzs, lit.ne(U32.is_eq(10, z), 10, z, {==}, {==}, hz), h10),
-    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q2{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 11, tbl, hz0, hzs, lit.ne(U32.is_eq(11, z), 11, z, {==}, {==}, hz), h11),
+    (Defs.fz(ds, ds, m, im, fi, nx, ks, img, ps, rs, z, x, C.I.book(), tbl, hz0, hzs, hzi, hd),
+    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q0{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 9, tbl, hz0, hzs, lit.ne(U32.is_eq(9, z), 9, z, 363, {==}, {==}, hz), h9),
+    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q1{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 10, tbl, hz0, hzs, lit.ne(U32.is_eq(10, z), 10, z, 363, {==}, {==}, hz), h10),
+    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q2{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 11, tbl, hz0, hzs, lit.ne(U32.is_eq(11, z), 11, z, 363, {==}, {==}, hz), h11),
     (hks, (e363, eim)))))))
 
 # the table, of the image

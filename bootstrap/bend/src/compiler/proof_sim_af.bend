@@ -164,3 +164,101 @@ def af.s4(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes) ->
     Q.Cfg([C.Wasm.Instr.memory_grow{}, C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}],
       [af.LG(k), af.LB()], [U32.sub(af.need(k, len), p)], af.L2(k, len), C.Wasm.Memory{p, lim, B}) : C.Wasm.Step}:
   {==}
+
+def af.C4(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes) -> C.Wasm.Step:
+  Q.Cfg([C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}], [af.LG(k), af.LB()], [p], af.L2(k, len),
+    C.Wasm.Memory{af.need(k, len), lim, B})
+
+# memory.grow by need - p, within the limit: need pages
+def af.grow(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +e4: {U32.is_le(af.need(k, len), lim) == True{} : Bool},
+  +hge: {U32.is_ge(af.need(k, len), p) == True{} : Bool}) ->
+  {PH.H.steps(1n, Q.Cfg([C.Wasm.Instr.memory_grow{}, C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}],
+      [af.LG(k), af.LB()], [U32.sub(af.need(k, len), p)], af.L2(k, len), C.Wasm.Memory{p, lim, B})) == af.C4(k, len, p, lim, B) : C.Wasm.Step}:
+  +nd = af.need(k, len)
+  +R = {[C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}] : List<&2, C.Wasm.Instr>}
+  +LS = {[af.LG(k), af.LB()] : List<&2, C.Wasm.Label>}
+  %Equal.sym(U32, U32.add(p, U32.sub(nd, p)), nd, A.U32.addsub(p, nd)) :
+    {C.Wasm.step.grown(Bool.and(U32.is_ge(_, p), U32.is_le(_, lim)), p, _, lim, B, R, LS, 1n, [], af.L2(k, len)) == af.C4(k, len, p, lim, B) : C.Wasm.Step}
+  %Equal.sym(Bool, U32.is_ge(nd, p), True{}, hge) :
+    {C.Wasm.step.grown(Bool.and(_, U32.is_le(nd, lim)), p, nd, lim, B, R, LS, 1n, [], af.L2(k, len)) == af.C4(k, len, p, lim, B) : C.Wasm.Step}
+  %Equal.sym(Bool, U32.is_le(nd, lim), True{}, e4) :
+    {C.Wasm.step.grown(Bool.and(True{}, _), p, nd, lim, B, R, LS, 1n, [], af.L2(k, len)) == af.C4(k, len, p, lim, B) : C.Wasm.Step}
+  {==}
+
+def af.and.f(b: Bool) -> {Bool.and(b, False{}) == False{} : Bool}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+# memory.grow past the limit: -1
+def af.nogrow(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +e4: {U32.is_le(af.need(k, len), lim) == False{} : Bool}) ->
+  {PH.H.steps(1n, Q.Cfg([C.Wasm.Instr.memory_grow{}, C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}],
+      [af.LG(k), af.LB()], [U32.sub(af.need(k, len), p)], af.L2(k, len), C.Wasm.Memory{p, lim, B})) ==
+    Q.Cfg([C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}], [af.LG(k), af.LB()], [4294967295], af.L2(k, len),
+      C.Wasm.Memory{p, lim, B}) : C.Wasm.Step}:
+  +nd = af.need(k, len)
+  +R = {[C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}] : List<&2, C.Wasm.Instr>}
+  +LS = {[af.LG(k), af.LB()] : List<&2, C.Wasm.Label>}
+  +G = Q.Cfg(R, LS, [4294967295], af.L2(k, len), C.Wasm.Memory{p, lim, B})
+  %Equal.sym(U32, U32.add(p, U32.sub(nd, p)), nd, A.U32.addsub(p, nd)) :
+    {C.Wasm.step.grown(Bool.and(U32.is_ge(_, p), U32.is_le(_, lim)), p, _, lim, B, R, LS, 1n, [], af.L2(k, len)) == G : C.Wasm.Step}
+  %Equal.sym(Bool, U32.is_le(nd, lim), False{}, e4) :
+    {C.Wasm.step.grown(Bool.and(U32.is_ge(nd, p), _), p, nd, lim, B, R, LS, 1n, [], af.L2(k, len)) == G : C.Wasm.Step}
+  %Equal.sym(Bool, Bool.and(U32.is_ge(nd, p), False{}), False{}, af.and.f(U32.is_ge(nd, p))) :
+    {C.Wasm.step.grown(_, p, nd, lim, B, R, LS, 1n, [], af.L2(k, len)) == G : C.Wasm.Step}
+  {==}
+
+# after the growth: p is not -1, so on to the end
+def af.tail(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}) ->
+  {PH.H.steps(9n, af.C4(k, len, p, lim, B)) == C.Wasm.Step.done{[af.a(k)], C.Wasm.Memory{af.need(k, len), lim, B}} : C.Wasm.Step}:
+  +M2 = {C.Wasm.Memory{af.need(k, len), lim, B} : C.Wasm.Memory}
+  +C5 = Q.Cfg([C.Wasm.Instr.br_if{1}], [af.LG(k), af.LB()], [Bool.to_u32(U32.is_eq(p, 4294967295))], af.L2(k, len), M2)
+  S.steps.then(2n, 7n, af.C4(k, len, p, lim, B), C5, C.Wasm.Step.done{[af.a(k)], M2}, {==},
+    %Equal.sym(Bool, U32.is_eq(p, 4294967295), False{}, hp) :
+      {PH.H.steps(7n, Q.Cfg([C.Wasm.Instr.br_if{1}], [af.LG(k), af.LB()], [Bool.to_u32(_)], af.L2(k, len), M2)) ==
+        C.Wasm.Step.done{[af.a(k)], M2} : C.Wasm.Step}
+    {==})
+
+# the memory lacks the pages: the run to memory.grow
+def af.q3(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
+  e2: {U32.is_gt(af.E(k, len), 4294967280) == False{} : Bool}, e3: {U32.is_le(af.need(k, len), p) == False{} : Bool}) ->
+  {PH.H.steps(31n, C.Wasm.Step.next{af.fr0(k, len), C.Wasm.Memory{p, lim, B}}) ==
+    Q.Cfg([C.Wasm.Instr.memory_grow{}, C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}],
+      [af.LG(k), af.LB()], [U32.sub(af.need(k, len), p)], af.L2(k, len), C.Wasm.Memory{p, lim, B}) : C.Wasm.Step}:
+  +mm = {C.Wasm.Memory{p, lim, B} : C.Wasm.Memory}
+  +v = Bool.to_u32(U32.is_le(af.need(k, len), p))
+  +C4 = Q.Cfg(Con{C.Wasm.Instr.br_if{0}, af.G1()}, [af.LG(k), af.LB()], [v], af.L2(k, len), mm)
+  +C5 = Q.Cfg(af.G1(), [af.LG(k), af.LB()], [], af.L2(k, len), mm)
+  +C6 = Q.Cfg([C.Wasm.Instr.memory_grow{}, C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}],
+      [af.LG(k), af.LB()], [U32.sub(af.need(k, len), p)], af.L2(k, len), mm)
+  S.steps.then(27n, 4n, C.Wasm.Step.next{af.fr0(k, len), mm}, C4, C6, af.q2(k, len, p, lim, B, e1, e2),
+    S.steps.then(1n, 3n, C4, C5, C6, A.br.no(v, A.tz.f(U32.is_le(af.need(k, len), p), e3), af.G1(), [af.LG(k), af.LB()], af.L2(k, len), mm),
+      af.s4(k, len, p, lim, B)))
+
+def af.p4(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
+  e2: {U32.is_gt(af.E(k, len), 4294967280) == False{} : Bool}, e3: {U32.is_le(af.need(k, len), p) == False{} : Bool},
+  +e4: {U32.is_le(af.need(k, len), lim) == True{} : Bool}, +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}) ->
+  {PH.H.steps(41n, C.Wasm.Step.next{af.fr0(k, len), C.Wasm.Memory{p, lim, B}}) ==
+    C.Wasm.Step.done{[af.a(k)], C.Wasm.Memory{af.need(k, len), lim, B}} : C.Wasm.Step}:
+  +nd = af.need(k, len)
+  +hge = A.ge.of(nd, p, N.weaken(U32.to_nat(p), U32.to_nat(nd), A.nle.u32(nd, p, e3)))
+  +C6 = Q.Cfg([C.Wasm.Instr.memory_grow{}, C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}],
+      [af.LG(k), af.LB()], [U32.sub(nd, p)], af.L2(k, len), C.Wasm.Memory{p, lim, B})
+  S.steps.then(31n, 10n, C.Wasm.Step.next{af.fr0(k, len), C.Wasm.Memory{p, lim, B}}, C6,
+    C.Wasm.Step.done{[af.a(k)], C.Wasm.Memory{nd, lim, B}}, af.q3(k, len, p, lim, B, e1, e2, e3),
+    S.steps.then(1n, 9n, C6, af.C4(k, len, p, lim, B), C.Wasm.Step.done{[af.a(k)], C.Wasm.Memory{nd, lim, B}},
+      af.grow(k, len, p, lim, B, e4, hge), af.tail(k, len, p, lim, B, hp)))
+
+def af.p5(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
+  e2: {U32.is_gt(af.E(k, len), 4294967280) == False{} : Bool}, e3: {U32.is_le(af.need(k, len), p) == False{} : Bool},
+  +e4: {U32.is_le(af.need(k, len), lim) == False{} : Bool}) ->
+  {PH.H.steps(37n, C.Wasm.Step.next{af.fr0(k, len), C.Wasm.Memory{p, lim, B}}) ==
+    C.Wasm.Step.done{[4294967295], C.Wasm.Memory{p, lim, B}} : C.Wasm.Step}:
+  +mm = {C.Wasm.Memory{p, lim, B} : C.Wasm.Memory}
+  +C6 = Q.Cfg([C.Wasm.Instr.memory_grow{}, C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}],
+      [af.LG(k), af.LB()], [U32.sub(af.need(k, len), p)], af.L2(k, len), mm)
+  +C7 = Q.Cfg([C.Cir.i.const(4294967295), C.Cir.i.op(C.Wasm.Op.eq{}), C.Wasm.Instr.br_if{1}], [af.LG(k), af.LB()], [4294967295], af.L2(k, len), mm)
+  S.steps.then(31n, 6n, C.Wasm.Step.next{af.fr0(k, len), mm}, C6, C.Wasm.Step.done{[4294967295], mm}, af.q3(k, len, p, lim, B, e1, e2, e3),
+    S.steps.then(1n, 5n, C6, C7, C.Wasm.Step.done{[4294967295], mm}, af.nogrow(k, len, p, lim, B, e4), {==}))
