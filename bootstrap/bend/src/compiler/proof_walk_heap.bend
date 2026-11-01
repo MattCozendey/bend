@@ -893,15 +893,19 @@ def PendOK.fz(qs: List<&2, U32>, +ps: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +
     case Con{+p, +rest}:
       (ho, r1) = h
       (hs, r2) = r1
-      (hp0, r3) = r2
+      (htg, r3) = r2
+      (hp0, r4) = r3
       +M2 = C.Cir.Cells.set(m, z, x)
       +hq2 = hq
       +ne = or.f.l(U32.is_eq(p, z), PM.Mem(rest, z), hq2)
-      (ho, ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, p), C.Cir.Cells.get(m, p), PM.cl.go(m, p, z, x, ne)) :
+      +ec = PM.cl.go(m, p, z, x, ne)
+      (ho, ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, p), C.Cir.Cells.get(m, p), ec) :
           {U32.is_ne(U32.and(C.Cir.Cell.get(0n, _), 1024), 0) == False{} : Bool}; hs),
+        ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, p), C.Cir.Cells.get(m, p), ec) :
+          {Bool.or(U32.is_lt(U32.and(C.Cir.Cell.get(0n, _), 63), 19), U32.is_le(32, U32.and(C.Cir.Cell.get(0n, _), 63))) == True{} : Bool}; htg),
         ((%Equal.sym(Nat, PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), M2, fi, ps, rs, p), PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, p),
             Ptr.eq(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, z, x, fi, ps, rs, p, hf0, hf1, htN)) : {_ == 0n : Nat}; hp0),
-          PendOK.fz(rest, ps, m, z, x, fi, nx, rs, hf0, hf1, htN, or.f.r(U32.is_eq(p, z), PM.Mem(rest, z), hq2), r3))))
+          PendOK.fz(rest, ps, m, z, x, fi, nx, rs, hf0, hf1, htN, or.f.r(U32.is_eq(p, z), PM.Mem(rest, z), hq2), r4)))))
 
 # the pend list's links, none of them at z
 def Chain.fz(qs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +p: U32, hq: {PM.Mem(qs, z) == False{} : Bool},

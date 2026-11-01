@@ -1479,6 +1479,58 @@ def is.fresh(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img
     FrsK(dk, ds, C.Cir.Cells.set(m, nx, x), im, fi, U32.inc(nx), ks, img, ps, sp, fs))):
   ?TODO
 
+# Open: what the phases need of HS (this file)
+# --------------------------------------------
+#
+# held.ptr: a cell that HS holds (STATIC, or a node of an owned root's term)
+# is STATIC or has a pointer, so it is in no pend list, and no M.alloc takes
+# it. node.part: a part (Fs) of a node of an owned term is a node of it too.
+# store.post: a store, at a cell that nothing points to and that holds no
+# pointer, of a cell of the machine's own kinds whose pointers are those of
+# the owned roots us: they leave the roots. data.flag: setting the flag DATA
+# of a cell keeps HSK, when (for dk) each term that the cell stands for is
+# Data.
+
+def held.ptr(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
+  +fi: U32, +im: U32, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>,
+  +c: U32,
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
+  hn: {Bool.or(Fl(m, c, 1024), Nodes(os, m, c)) == True{} : Bool}) ->
+  {Bool.or(Fl(m, c, 1024), Nat.is_lt(0n, Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, Rt.cells(os), c))) == True{} : Bool}:
+  ?TODO
+
+def node.part(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
+  +fi: U32, +im: U32, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>,
+  +c: U32, +y: U32,
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
+  hn: {Nodes(os, m, c) == True{} : Bool},
+  hy: {Mem(Fs(m, ps, c), y) == True{} : Bool}) ->
+  {Nodes(os, m, y) == True{} : Bool}:
+  ?TODO
+
+def store.post(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
+  +fi: U32, +im: U32, +us: List<&2, Rt>, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32,
+  +ps: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, List.append(&2, Rt, us, os), bs, fs, sp, pend, ps),
+  hb: Held(m, os, bs),
+  ho: {Own(fi, nx, z) == True{} : Bool}, hm: {Mem(ps, z) == False{} : Bool}, hzs: {Fl(m, z, 1024) == False{} : Bool},
+  hzt: {Bool.or(U32.is_lt(Tg(m, z), 32), U32.is_le(41, Tg(m, z))) == True{} : Bool},
+  hz0: {Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, Rt.cells(List.append(&2, Rt, us, os)), z) == 0n : Nat},
+  hzf: {Fs(m, ps, z) == Nil{} : List<&2, U32>},
+  ht: {U32.is_le(32, TgW(C.Cir.Cell.get(0n, x))) == True{} : Bool},
+  hf: {Fs(C.Cir.Cells.set(m, z, x), ps, z) == Rt.cells(us) : List<&2, U32>}) ->
+  HSK(dk, ds, ks, img, C.Cir.Cells.set(m, z, x), nx, fi, im, os, bs, fs, sp, pend, ps):
+  ?TODO
+
+def data.flag(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
+  +fi: U32, +im: U32, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>,
+  +c: U32,
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
+  hd: @t2: C.Term -> IsK(dk, ds, m, im, fi, nx, ks, img, c, t2) -> DataK(dk, 512, t2)) ->
+  HSK(dk, ds, ks, img, C.Cir.Cells.set(m, c, C.Cir.Cell.set(0n, C.Cir.Cells.get(m, c), U32.or(Fd(0n, m, c), 512))), nx, fi, im,
+    os, bs, fs, sp, pend, ps):
+  ?TODO
+
 # Rounds
 # ------
 
