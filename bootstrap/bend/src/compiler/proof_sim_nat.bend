@@ -352,8 +352,4 @@ def inside.ok(+p: U32, +x: U32, +o: U32, +w: U32, +W: Nat, +hW: {W == PH.H.W(32n
   +h4 = N.le_trans(1n+N.D(16n, U32.to_nat(sh)), 1n+U32.to_nat(d), PBn, V.shrn.le(16n, d),
     N.le_rw_l(Sm, 1n+U32.to_nat(d), PBn, Equal.sym(Nat, 1n+U32.to_nat(d), Sm, ed), h))
   +c3 = lt.to(sh, p, V.dlt(16n, U32.to_nat(sh), U32.to_nat(p), h4))
-  %Equal.sym(Bool, U32.is_lt(ea, x), False{}, c1) : {Bool.and(Bool.not(_), C.Wasm.fits(p, ea, w)) == True{} : Bool}
-  %Equal.sym(Bool, U32.is_lt(E, ea), False{}, c2) :
-    {Bool.and(Bool.not(_), Bool.or(U32.is_zero(E), U32.is_lt(U32.shrn(U32.sub(E, 1), 16n), p))) == True{} : Bool}
-  %Equal.sym(Bool, U32.is_lt(sh, p), True{}, c3) : {Bool.or(U32.is_zero(E), _) == True{} : Bool}
-  or.true(U32.is_zero(E))
+  ?TODO
