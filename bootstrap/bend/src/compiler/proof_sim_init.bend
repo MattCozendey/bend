@@ -359,3 +359,85 @@ def rc.wb(xs: List<&2, U32>, +x: U32, +m: C.Wasm.Bytes, +q: Nat, +c: U32, +Cn: N
         rc.wb(rest, U32.inc(x), m1, q, c, Cn, ec, 1n+Xn, ei, P, hP, W, hW, N.le_succ(PH.H.t20(Nat.add(q, Cn)), Xn, hs), hcq, hq),
         F.RC.w8(q, m, x, b, c, Cn, ec, P, hP, W, hW, hcq,
           {Inl{hs2} : Either<&2, &2, N.Le(PH.H.t20(Nat.add(q, Cn)), U32.to_nat(x)), N.Le(1n+U32.to_nat(x), PH.H.t20(Cn))>}))
+
+# The relation at the start
+# -------------------------
+
+def B0(+cells: List<&2, C.Cir.Cell>) -> C.Wasm.Bytes:
+  C.Wasm.write.bytes(C.Cir.bytes(cells), 20, C.Wasm.Bytes.zero{})
+
+def B2(+cells: List<&2, C.Cir.Cell>, +i: List<&2, U32>) -> C.Wasm.Bytes:
+  C.Wasm.write.bytes(i, C.Cir.input.at(C.Wasm.encode.len(C.Cir.Cell, cells)), B0(cells))
+
+def sub.self(+x: Nat) -> {Nat.sub(x, x) == 0n : Nat}:
+  match x:
+    case 0n:
+      {==}
+    case 1n+p:
+      sub.self(p)
+
+# the relation holds as the program starts, with next = first = fst
+def inv0(+cells: List<&2, C.Cir.Cell>, +i: List<&2, U32>, +len: U32, +p2: U32, +lim: U32, +fst: U32,
+  +P: Nat, +G: Nat, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat}, +W: Nat, +hW: {W == PH.H.W(32n) : Nat},
+  +eK: {U32.to_nat(C.Wasm.encode.len(C.Cir.Cell, cells)) == List.length(&2, C.Cir.Cell, cells) : Nat},
+  +hK: N.Le(2n+List.length(&2, C.Cir.Cell, cells), P),
+  +eLn: {len == C.Wasm.encode.len(U32, i) : U32},
+  +hEP: N.Le(Nat.add(U32.to_nat(C.Cir.input.at(C.Wasm.encode.len(C.Cir.Cell, cells))), List.length(&2, U32, i)), PH.H.t20(P)),
+  +hEB: N.Le(Nat.add(U32.to_nat(C.Cir.input.at(C.Wasm.encode.len(C.Cir.Cell, cells))), List.length(&2, U32, i)), Q.PB(p2)),
+  +hEF: N.Le(Nat.add(U32.to_nat(C.Cir.input.at(C.Wasm.encode.len(C.Cir.Cell, cells))), List.length(&2, U32, i)), PH.H.t20(U32.to_nat(fst))),
+  +hFP: N.Le(U32.to_nat(fst), P), +hlm: N.Le(1n+U32.to_nat(lim), G), +hpl: N.Le(U32.to_nat(p2), U32.to_nat(lim))) ->
+  Q.Inv(P, G, C.Cir.input.at(C.Wasm.encode.len(C.Cir.Cell, cells)), len, C.Cir.load(cells, 1, C.Cir.Cells.none{}), fst, fst,
+    C.Wasm.encode.len(C.Cir.Cell, cells), p2, lim, i, [], 0, B2(cells, i)):
+  +k = C.Wasm.encode.len(C.Cir.Cell, cells)
+  +a = C.Cir.input.at(k)
+  +A = U32.to_nat(a)
+  +Kc = List.length(&2, C.Cir.Cell, cells)
+  +L = List.length(&2, U32, i)
+  +cl = C.Cir.load(cells, 1, C.Cir.Cells.none{})
+  +m = B2(cells, i)
+  +hK1 = N.le_trans(1n+Kc, 2n+Kc, P, N.le_succ(1n+Kc, 1n+Kc, N.le_refl(1n+Kc)), hK)
+  # A = 20 (K + 1)
+  +ei = F.inc.eq(k, Kc, eK, W, hW, N.le_trans(2n+Kc, 3n+Kc, W, N.le_succ(2n+Kc, 2n+Kc, N.le_refl(2n+Kc)),
+    N.le_rw_r(3n+Kc, PH.H.W(32n), W, Equal.sym(Nat, W, PH.H.W(32n), hW), PH.H.small(32n, 1n+Kc, P, hP, hK))))
+  +eA = Equal.trans(Nat, A, PH.H.t20(U32.to_nat(U32.inc(k))), PH.H.t20(1n+Kc),
+    F.at.nat(U32.inc(k), P, hP, N.le_rw_l(1n+Kc, U32.to_nat(U32.inc(k)), P, Equal.sym(Nat, U32.to_nat(U32.inc(k)), 1n+Kc, ei), hK1)),
+    Equal.cong(Nat, Nat, z => PH.H.t20(z), U32.to_nat(U32.inc(k)), 1n+Kc, ei))
+  # the input's bytes do not wrap
+  +hx = N.le_rw_l(1n+Nat.add(A, L), 1n+Nat.add(L, A), W, Equal.cong(Nat, Nat, z => 1n+z, Nat.add(A, L), Nat.add(L, A), Z.add.comm(A, L)), N.le_trans(1n+Nat.add(A, L), 1n+PH.H.t20(P), W, hEP,
+    N.le_rw_r(1n+PH.H.t20(P), PH.H.W(32n), W, Equal.sym(Nat, W, PH.H.W(32n), hW),
+      N.le_rw_r(1n+PH.H.t20(P), Nat.add(PH.H.W(4n), PH.H.t20(P)), PH.H.W(32n), hP, N.le_add_l(15n, PH.H.t20(P))))))
+  +hx1 = {hx : N.Le(1n+Nat.add(L, A), W)}
+  # the book's cells
+  +hKP = N.le_rw_l(1n+Kc, Nat.add(Kc, 1n), P, Equal.trans(Nat, 1n+Kc, 1n+Nat.add(Kc, 0n), Nat.add(Kc, 1n),
+    Equal.cong(Nat, Nat, z => 1n+z, Kc, Nat.add(Kc, 0n), Equal.sym(Nat, Nat.add(Kc, 0n), Kc, N.add_zero(Kc))),
+    Equal.sym(Nat, Nat.add(Kc, 1n), 1n+Nat.add(Kc, 0n), N.add_succ_r(Kc, 0n))), hK1)
+  +hK2 = N.le_rw_l(2n+Kc, 1n+Nat.add(Kc, 1n), P, Equal.cong(Nat, Nat, z => 1n+z, 1n+Kc, Nat.add(Kc, 1n),
+    Equal.trans(Nat, 1n+Kc, 1n+Nat.add(Kc, 0n), Nat.add(Kc, 1n),
+      Equal.cong(Nat, Nat, z => 1n+z, Kc, Nat.add(Kc, 0n), Equal.sym(Nat, Nat.add(Kc, 0n), Kc, N.add_zero(Kc))),
+      Equal.sym(Nat, Nat.add(Kc, 1n), 1n+Nat.add(Kc, 0n), N.add_succ_r(Kc, 0n)))), hK)
+  +hs = N.le_rw_r(PH.H.t20(Nat.add(Kc, 1n)), PH.H.t20(1n+Kc), A,
+    Equal.sym(Nat, A, PH.H.t20(1n+Kc), eA),
+    N.le_rw_r(PH.H.t20(Nat.add(Kc, 1n)), PH.H.t20(Nat.add(Kc, 1n)), PH.H.t20(1n+Kc),
+      Equal.cong(Nat, Nat, z => PH.H.t20(z), Nat.add(Kc, 1n), 1n+Kc, Z.add.comm(Kc, 1n)), N.le_refl(PH.H.t20(Nat.add(Kc, 1n)))))
+  +eRC = Equal.trans(List<&2, C.Cir.Cell>, Q.RC(Kc, m, 1), Q.RC(Kc, B0(cells), 1), Q.GC(Kc, cl, 1),
+    rc.wb(i, a, B0(cells), Kc, 1, 1n, {==}, A, {==}, P, hP, W, hW, hs, hKP, hx1),
+    Equal.trans(List<&2, C.Cir.Cell>, Q.RC(Kc, B0(cells), 1), Q.RC(Kc, WC(cells, 1, C.Wasm.Bytes.zero{}), 1), Q.GC(Kc, cl, 1),
+      Equal.cong(C.Wasm.Bytes, List<&2, C.Cir.Cell>, z => Q.RC(Kc, z, 1), B0(cells), WC(cells, 1, C.Wasm.Bytes.zero{}),
+        wb.cells(cells, 1, C.Wasm.Bytes.zero{}, 1n, {==}, P, hP, W, hW, hK2)),
+      Equal.trans(List<&2, C.Cir.Cell>, Q.RC(Kc, WC(cells, 1, C.Wasm.Bytes.zero{}), 1), cells, Q.GC(Kc, cl, 1),
+        rc.wc(cells, 1, C.Wasm.Bytes.zero{}, 1n, {==}, P, hP, W, hW, hKP),
+        Equal.sym(List<&2, C.Cir.Cell>, Q.GC(Kc, cl, 1), cells, gc.load(cells, 1, C.Cir.Cells.none{}, 1n, {==}, P, hP, W, hW, hKP)))))
+  +eRC2 = {(%Equal.sym(Nat, U32.to_nat(k), Kc, eK) : {Q.RC(_, m, 1) == Q.GC(_, cl, 1) : List<&2, C.Cir.Cell>}; eRC) :
+    {Q.RC(U32.to_nat(k), m, 1) == Q.GC(U32.to_nat(k), cl, 1) : List<&2, C.Cir.Cell>}}
+  # the input
+  +eRB = rb.wb(i, a, B0(cells), A, {==}, W, hW, hx1)
+  # the machine's cells: none yet
+  +FI = U32.to_nat(fst)
+  +eM = {(%Equal.sym(Nat, Nat.sub(FI, FI), 0n, sub.self(FI)) : {Q.RC(_, m, fst) == Q.GC(_, cl, fst) : List<&2, C.Cir.Cell>}; {==}) :
+    {Q.RC(Nat.sub(FI, FI), m, fst) == Q.GC(Nat.sub(FI, FI), cl, fst) : List<&2, C.Cir.Cell>}}
+  +eCF = {(%Equal.sym(Nat, Nat.sub(FI, FI), 0n, sub.self(FI)) : Q.CF(_, FI, Q.PB(p2)); Unit{}) : Q.CF(Nat.sub(FI, FI), FI, Q.PB(p2))}
+  +eA2 = Equal.trans(Nat, A, PH.H.t20(1n+Kc), PH.H.t20(1n+U32.to_nat(k)), eA,
+    Equal.cong(Nat, Nat, z => PH.H.t20(1n+z), Kc, U32.to_nat(k), Equal.sym(Nat, U32.to_nat(k), Kc, eK)))
+  +hK3 = N.le_rw_l(1n+Kc, 1n+U32.to_nat(k), P, Equal.cong(Nat, Nat, z => 1n+z, Kc, U32.to_nat(k), Equal.sym(Nat, U32.to_nat(k), Kc, eK)), hK1)
+  +bnd = (((eA2, hK3), (hEP, hEB)), ((hEF, hFP), ((eCF, Unit{}), (hlm, hpl))))
+  ((({==}, eLn), (eRC2, eRB)), ((N.le_refl(FI), eM), ({==}, bnd)))
