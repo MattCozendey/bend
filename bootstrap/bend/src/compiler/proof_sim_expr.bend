@@ -252,7 +252,9 @@ def sim.expr(e: C.Cir.Expr, +rg: List<&2, U32>, +cl: C.Cir.Cells, +nx: U32, +fi:
   +R: Nat, +MX: U32, +ok: {V.ok.expr(e, R) == True{} : Bool}, +hR: N.Le(8n+R, U32.to_nat(MX)),
   +k: List<&2, C.Wasm.Instr>, +ls: List<&2, C.Wasm.Label>, +stk: List<&2, U32>,
   +P: Nat, +G: Nat, +a: U32, +n: U32, +s: U32, +t: U32, +nd: U32, +ad: U32, +m: C.Wasm.Bytes,
-  +hI: Q.Inv(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m)) ->
+  +hI: Q.Inv(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m),
+  +W: Nat, +hW: {W == PH.H.W(32n) : Nat}, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat},
+  +hG: {N.D(16n, G) == W : Nat}) ->
   {PH.H.steps(cost(e), Q.Cfg(C.Cir.code.expr(e, k), ls, stk, Q.Loc(a, n, s, nx, on, t, nd, ad, rg), C.Wasm.Memory{pg, lm, m})) ==
     Q.Cfg(k, ls, Con{v, stk}, Q.Loc(a, n, s, nx, on, tmpE(e, t, Q.St(rg, cl, nx, fi, im, pg, lm, inp, ou, on)), nd, ad, rg), C.Wasm.Memory{pg, lm, m}) : C.Wasm.Step}:
   match e:
@@ -284,9 +286,9 @@ def sim.expr(e: C.Cir.Expr, +rg: List<&2, U32>, +cl: C.Cir.Cells, +nx: U32, +fi:
       +K2 = {Con{C.Cir.i.op(o), k} : List<&2, C.Wasm.Instr>}
       +K1 = C.Cir.code.expr(b1, K2)
       +ha = sim.expr(a1, rg, cl, nx, fi, im, pg, lm, inp, ou, on, va, inv.op.a(o, ma, mb, v, ev), R, MX,
-        I.and.l(V.ok.expr(a1, R), V.ok.expr(b1, R), ok), hR, K1, ls, stk, P, G, a, n, s, t, nd, ad, m, hI)
+        I.and.l(V.ok.expr(a1, R), V.ok.expr(b1, R), ok), hR, K1, ls, stk, P, G, a, n, s, t, nd, ad, m, hI, W, hW, hP, hG)
       +hb = sim.expr(b1, rg, cl, nx, fi, im, pg, lm, inp, ou, on, vb, inv.op.b(o, ma, mb, v, ev), R, MX,
-        I.and.r(V.ok.expr(a1, R), V.ok.expr(b1, R), ok), hR, K2, ls, Con{va, stk}, P, G, a, n, s, ta, nd, ad, m, hI)
+        I.and.r(V.ok.expr(a1, R), V.ok.expr(b1, R), ok), hR, K2, ls, Con{va, stk}, P, G, a, n, s, ta, nd, ad, m, hI, W, hW, hP, hG)
       +X0 = Q.Cfg(C.Cir.code.expr(a1, K1), ls, stk, Q.Loc(a, n, s, nx, on, t, nd, ad, rg), MM)
       +X1 = Q.Cfg(K1, ls, Con{va, stk}, Q.Loc(a, n, s, nx, on, ta, nd, ad, rg), MM)
       +X2 = Q.Cfg(K2, ls, Con{vb, Con{va, stk}}, Q.Loc(a, n, s, nx, on, tb, nd, ad, rg), MM)
@@ -303,7 +305,7 @@ def sim.expr(e: C.Cir.Expr, +rg: List<&2, U32>, +cl: C.Cir.Cells, +nx: U32, +fi:
       +ta = tmpE(a1, t, st)
       +K1 = {Con{C.Wasm.Instr.eqz{}, k} : List<&2, C.Wasm.Instr>}
       +ha = sim.expr(a1, rg, cl, nx, fi, im, pg, lm, inp, ou, on, va, inv.eqz.a(ma, v, ev), R, MX, ok, hR, K1, ls, stk,
-        P, G, a, n, s, t, nd, ad, m, hI)
+        P, G, a, n, s, t, nd, ad, m, hI, W, hW, hP, hG)
       +X0 = Q.Cfg(C.Cir.code.expr(a1, K1), ls, stk, Q.Loc(a, n, s, nx, on, t, nd, ad, rg), MM)
       +X1 = Q.Cfg(K1, ls, Con{va, stk}, Q.Loc(a, n, s, nx, on, ta, nd, ad, rg), MM)
       +X2 = Q.Cfg(k, ls, Con{Bool.to_u32(U32.is_zero(va)), stk}, Q.Loc(a, n, s, nx, on, ta, nd, ad, rg), MM)
@@ -322,20 +324,20 @@ def sim.expr(e: C.Cir.Expr, +rg: List<&2, U32>, +cl: C.Cir.Cells, +nx: U32, +fi:
       +okc = I.and.r(Nat.is_le(kf, 4n), V.ok.expr(c1, R), ok)
       +cel = inv.field.ok(kf, mc, rg, cl, nx, fi, im, pg, lm, inp, ou, on, v, ev)
       +hc = sim.expr(c1, rg, cl, nx, fi, im, pg, lm, inp, ou, on, i, inv.field.c(kf, mc, rg, cl, nx, fi, im, pg, lm, inp, ou, on, v, ev),
-        R, MX, okc, hR, K1, ls, stk, P, G, a, n, s, t, nd, ad, m, hI)
+        R, MX, okc, hR, K1, ls, stk, P, G, a, n, s, t, nd, ad, m, hI, W, hW, hP, hG)
       +L1 = Q.Loc(a, n, s, nx, on, i, nd, ad, rg)
       +X0 = Q.Cfg(C.Cir.code.expr(c1, K1), ls, stk, Q.Loc(a, n, s, nx, on, t, nd, ad, rg), MM)
       +X1 = Q.Cfg(K1, ls, Con{i, stk}, Q.Loc(a, n, s, nx, on, tc, nd, ad, rg), MM)
       +X2 = Q.Cfg(K2, ls, Con{C.Cir.at(i), stk}, L1, MM)
-      +W = Y.V32(m, U32.add(C.Cir.at(i), o))
-      +X3 = Q.Cfg(k, ls, Con{W, stk}, L1, MM)
+      +VW = Y.V32(m, U32.add(C.Cir.at(i), o))
+      +X3 = Q.Cfg(k, ls, Con{VW, stk}, L1, MM)
       +hat = at.steps(i, K2, ls, stk, a, n, s, nx, on, tc, nd, ad, rg, MM)
       +hld = load.step(o, C.Cir.at(i), k, ls, stk, L1, pg, lm, m,
-        Q.q.field.in(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI, i, kf, cel, okk))
-      +val = Equal.trans(U32, W, C.Cir.Cell.get(kf, C.Cir.Cells.get(cl, i)), v,
+        Q.q.field.in(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI, W, hW, hP, hG, i, kf, cel, okk))
+      +val = Equal.trans(U32, VW, C.Cir.Cell.get(kf, C.Cir.Cells.get(cl, i)), v,
         Q.q.field.val(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI, i, kf, cel, okk),
         inv.field.v(kf, mc, rg, cl, nx, fi, im, pg, lm, inp, ou, on, v, ev))
-      fix.top(Nat.add(cost(c1), 8n), X0, k, ls, stk, L1, MM, W, v,
+      fix.top(Nat.add(cost(c1), 8n), X0, k, ls, stk, L1, MM, VW, v,
         S.steps.then(cost(c1), 8n, X0, X1, X3, hc, S.steps.then(7n, 1n, X1, X2, X3, hat, hld)), val)
     case C.Cir.Expr.byte{+i1}:
       +st = Q.St(rg, cl, nx, fi, im, pg, lm, inp, ou, on)
@@ -348,7 +350,7 @@ def sim.expr(e: C.Cir.Expr, +rg: List<&2, U32>, +cl: C.Cir.Cells, +nx: U32, +fi:
       +K3 = {Con{C.Wasm.Instr.load8_u{0}, K4} : List<&2, C.Wasm.Instr>}
       +K1 = {Con{C.Cir.i.get(0), Con{C.Cir.i.op(C.Wasm.Op.add{}), K3}} : List<&2, C.Wasm.Instr>}
       +hi = sim.expr(i1, rg, cl, nx, fi, im, pg, lm, inp, ou, on, x, inv.byte.i(mi, inp, v, ev), R, MX, ok, hR, K1, ls, stk,
-        P, G, a, n, s, t, nd, ad, m, hI)
+        P, G, a, n, s, t, nd, ad, m, hI, W, hW, hP, hG)
       +bv = D(BI(mi, inp))
       +ax = U32.add(x, a)
       +rb = Y.R8(m, U32.add(ax, 0))
@@ -357,7 +359,7 @@ def sim.expr(e: C.Cir.Expr, +rg: List<&2, U32>, +cl: C.Cir.Cells, +nx: U32, +fi:
       +X2 = Q.Cfg(K3, ls, Con{ax, stk}, L1, MM)
       +X3 = Q.Cfg(K4, ls, Con{rb, stk}, L1, MM)
       +X4 = Q.Cfg(k, ls, Con{U32.and(rb, 255), stk}, L1, MM)
-      +hld = load8.step(ax, K4, ls, stk, L1, pg, lm, m, Q.q.byte.in(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI, x, bv, inv.byte.b(mi, inp, v, ev)))
+      +hld = load8.step(ax, K4, ls, stk, L1, pg, lm, m, Q.q.byte.in(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI, W, hW, hP, hG, x, bv, inv.byte.b(mi, inp, v, ev)))
       +val = Equal.trans(U32, U32.and(rb, 255), U32.and(bv, 255), v,
         Equal.cong(U32, U32, z => U32.and(z, 255), rb, bv, Q.q.byte.val(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI, x, bv, inv.byte.b(mi, inp, v, ev))),
         inv.byte.v(mi, inp, v, ev))

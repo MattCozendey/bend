@@ -425,15 +425,119 @@ def qf.cell.if(b1: Bool, +P: Nat, +G: Nat, +a: U32, +n: U32, +cl: C.Cir.Cells, +
         Equal.trans(C.Cir.Cell, RCell(m, Z.incn(j, fi)), C.Cir.Cells.get(cl, Z.incn(j, fi)), C.Cir.Cells.get(cl, i), va,
           Equal.cong(U32, C.Cir.Cell, z => C.Cir.Cells.get(cl, z), Z.incn(j, fi), i, ei)))
 
+# The memory's accesses
+# ---------------------
+
+# the memory is below 2^32
+def pb.lt(-P: Nat, +G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, +pg: U32, +lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on), +W: Nat, hG: {N.D(16n, G) == W : Nat}) -> N.Le(1n+PB(pg), W):
+  +PG = U32.to_nat(pg)
+  +h1 = N.le_trans(1n+PG, 1n+U32.to_nat(lm), G, b.pg(P, G, a, nx, fi, im, pg, lm, inp, on, hB), b.lm(P, G, a, nx, fi, im, pg, lm, inp, on, hB))
+  N.le_trans(1n+N.D(16n, PG), N.D(16n, 1n+PG), W, Z.D.succ(16n, PG),
+    N.le_rw_r(N.D(16n, 1n+PG), N.D(16n, G), W, hG, M.D_mono(16n, 1n+PG, G, h1)))
+
+# no cell is left when q >= 1
+def cf.use(q: Nat, +NX: Nat, +B: Nat, h: CF(q, NX, B), hq: N.Le(1n, q)) -> N.Le(PH.H.t20(NX), B):
+  match q:
+    case 0n:
+      Empty.absurd(N.Le(PH.H.t20(NX), B), hq)
+    case 1n+r:
+      h
+
+# the offset of field k and its four bytes are within the cell
+def off.le(k: Nat, hk: {Nat.is_le(k, 4n) == True{} : Bool}) -> N.Le(Nat.add(U32.to_nat(U32.shln(U32.from_nat(k), 2n)), 4n), 20n):
+  match k:
+    case 0n:
+      Unit{}
+    case 1n+k1:
+      match k1:
+        case 0n:
+          Unit{}
+        case 1n+k2:
+          match k2:
+            case 0n:
+              Unit{}
+            case 1n+k3:
+              match k3:
+                case 0n:
+                  Unit{}
+                case 1n+k4:
+                  match k4:
+                    case 0n:
+                      Unit{}
+                    case 1n+k5:
+                      Empty.absurd(N.Le(Nat.add(U32.to_nat(U32.shln(U32.from_nat(5n+k5), 2n)), 4n), 20n), N.false_ne_true(hk))
+
+# a field of the cell i is inside the memory, when the cells up to NB fit
+def in.cell(+P: Nat, +pg: U32, +i: U32, +k: Nat, +hk: {Nat.is_le(k, 4n) == True{} : Bool}, +W: Nat, +hW: {W == PH.H.W(32n) : Nat},
+  +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat}, +NB: Nat, h1: N.Le(1n+U32.to_nat(i), NB),
+  h2: N.Le(PH.H.t20(NB), PB(pg)), hIP: N.Le(U32.to_nat(i), P), hb: N.Le(1n+PB(pg), W)) ->
+  {C.Wasm.inside(pg, C.Cir.at(i), U32.shln(U32.from_nat(k), 2n), 4) == True{} : Bool}:
+  match i:
+    case U32{+w}:
+      +I = U32.to_nat(U32{w})
+      +T = U32.to_nat(C.Cir.at(U32{w}))
+      +o = U32.shln(U32.from_nat(k), 2n)
+      +O = U32.to_nat(o)
+      +et = {PH.H.tex_w(32n, w, P, hP, hIP) : {T == PH.H.t20(I) : Nat}}
+      +s1 = Equal.trans(Nat, Nat.add(Nat.add(T, O), 4n), Nat.add(T, Nat.add(O, 4n)), Nat.add(PH.H.t20(I), Nat.add(O, 4n)),
+        Z.add.assoc(T, O, 4n), Equal.cong(Nat, Nat, z => Nat.add(z, Nat.add(O, 4n)), T, PH.H.t20(I), et))
+      +l1 = N.add_mono(PH.H.t20(I), PH.H.t20(I), Nat.add(O, 4n), 20n, N.le_refl(PH.H.t20(I)), off.le(k, hk))
+      +l2 = N.le_rw_r(Nat.add(PH.H.t20(I), Nat.add(O, 4n)), Nat.add(PH.H.t20(I), 20n), PH.H.t20(1n+I), Z.add.comm(PH.H.t20(I), 20n), l1)
+      +l3 = N.le_trans(Nat.add(PH.H.t20(I), Nat.add(O, 4n)), PH.H.t20(1n+I), PB(pg), l2,
+        N.le_trans(PH.H.t20(1n+I), PH.H.t20(NB), PB(pg), PH.H.t20_mono(1n+I, NB, h1), h2))
+      Z.inside.ok(pg, C.Cir.at(U32{w}), o, 4, W, hW, Unit{},
+        N.le_rw_l(Nat.add(PH.H.t20(I), Nat.add(O, 4n)), Nat.add(Nat.add(T, O), 4n), PB(pg),
+          Equal.sym(Nat, Nat.add(Nat.add(T, O), 4n), Nat.add(PH.H.t20(I), Nat.add(O, 4n)), s1), l3), hb)
+
+def qi.cell.if(b1: Bool, +P: Nat, +G: Nat, +a: U32, +n: U32, +cl: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lm: U32,
+  +inp: List<&2, U32>, +ou: List<&2, U32>, +on: U32, +m: C.Wasm.Bytes, +hI: Inv(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m),
+  +W: Nat, +hW: {W == PH.H.W(32n) : Nat}, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat},
+  +hG: {N.D(16n, G) == W : Nat},
+  +i: U32, +k: Nat, +hk: {Nat.is_le(k, 4n) == True{} : Bool},
+  +e1: {Bool.and(Bool.not(U32.is_zero(i)), U32.is_le(i, im)) == b1 : Bool},
+  +hc: {Bool.or(b1, Bool.and(U32.is_le(fi, i), U32.is_lt(i, nx))) == True{} : Bool}) ->
+  {C.Wasm.inside(pg, C.Cir.at(i), U32.shln(U32.from_nat(k), 2n), 4) == True{} : Bool}:
+  match b1:
+    case True{}:
+      +hB = inv.bounds(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI)
+      +hb = pb.lt(P, G, a, nx, fi, im, pg, lm, inp, on, hB, W, hG)
+      +hnz = I.and.l(Bool.not(U32.is_zero(i)), U32.is_le(i, im), e1)
+      +hle = I.and.r(Bool.not(U32.is_zero(i)), U32.is_le(i, im), e1)
+      +IK = Z.le.of(i, im, hle)
+      +K = U32.to_nat(im)
+      +A = U32.to_nat(a)
+      +E = Nat.add(A, List.length(&2, U32, inp))
+      +h2 = N.le_rw_l(A, PH.H.t20(1n+K), PB(pg), b.a(P, G, a, nx, fi, im, pg, lm, inp, on, hB),
+        N.le_trans(A, E, PB(pg), N.le_add_r(A, List.length(&2, U32, inp)), b.epb(P, G, a, nx, fi, im, pg, lm, inp, on, hB)))
+      +hIP = N.le_trans(U32.to_nat(i), 1n+K, P, N.le_succ(U32.to_nat(i), K, IK), b.k(P, G, a, nx, fi, im, pg, lm, inp, on, hB))
+      in.cell(P, pg, i, k, hk, W, hW, hP, 1n+K, IK, h2, hIP, hb)
+    case False{}:
+      +hB = inv.bounds(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI)
+      +hb = pb.lt(P, G, a, nx, fi, im, pg, lm, inp, on, hB, W, hG)
+      +hfi = Z.le.of(fi, i, I.and.l(U32.is_le(fi, i), U32.is_lt(i, nx), hc))
+      +hnx = Z.lt.of(i, nx, I.and.r(U32.is_le(fi, i), U32.is_lt(i, nx), hc))
+      +FI = U32.to_nat(fi)
+      +NX = U32.to_nat(nx)
+      +j = Nat.sub(U32.to_nat(i), FI)
+      +hj = sub.lt(FI, U32.to_nat(i), NX, hfi, hnx)
+      +hq = N.le_trans(1n, 1n+j, Nat.sub(NX, FI), N.le_zero(j), hj)
+      +h2 = cf.use(Nat.sub(NX, FI), NX, PB(pg), b.cf(P, G, a, nx, fi, im, pg, lm, inp, on, hB), hq)
+      +hIP = N.le_trans(U32.to_nat(i), NX, P, N.weaken(U32.to_nat(i), NX, hnx), b.nx(P, G, a, nx, fi, im, pg, lm, inp, on, hB))
+      in.cell(P, pg, i, k, hk, W, hW, hP, NX, hnx, h2, hIP, hb)
+
 # Queries
 # -------
 
 # a field of a cell that the machine may use is inside the memory
 def q.field.in(+P: Nat, +G: Nat, +a: U32, +n: U32, +cl: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lm: U32,
   +inp: List<&2, U32>, +ou: List<&2, U32>, +on: U32, +m: C.Wasm.Bytes, +hI: Inv(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m),
-  +i: U32, +k: Nat, hc: {C.Cir.is_cell(i, im, fi, nx) == True{} : Bool}, hk: {Nat.is_le(k, 4n) == True{} : Bool}) ->
+  +W: Nat, +hW: {W == PH.H.W(32n) : Nat}, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat},
+  +hG: {N.D(16n, G) == W : Nat},
+  +i: U32, +k: Nat, +hc: {C.Cir.is_cell(i, im, fi, nx) == True{} : Bool}, +hk: {Nat.is_le(k, 4n) == True{} : Bool}) ->
   {C.Wasm.inside(pg, C.Cir.at(i), U32.shln(U32.from_nat(k), 2n), 4) == True{} : Bool}:
-  ?TODO
+  qi.cell.if(Bool.and(Bool.not(U32.is_zero(i)), U32.is_le(i, im)), P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI,
+    W, hW, hP, hG, i, k, hk, {==}, hc)
 
 # a field of a cell that the machine may use holds what Cir says
 def q.field.val(+P: Nat, +G: Nat, +a: U32, +n: U32, +cl: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lm: U32,
@@ -449,9 +553,26 @@ def q.field.val(+P: Nat, +G: Nat, +a: U32, +n: U32, +cl: C.Cir.Cells, +nx: U32, 
 # a byte of the input is inside the memory
 def q.byte.in(+P: Nat, +G: Nat, +a: U32, +n: U32, +cl: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lm: U32,
   +inp: List<&2, U32>, +ou: List<&2, U32>, +on: U32, +m: C.Wasm.Bytes, +hI: Inv(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m),
+  +W: Nat, +hW: {W == PH.H.W(32n) : Nat}, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat},
+  +hG: {N.D(16n, G) == W : Nat},
   +x: U32, +b: U32, +hb: {List.get(&2, U32, inp, U32.to_nat(x)) == Some{b} : Maybe<&2, U32>}) ->
   {C.Wasm.inside(pg, U32.add(x, a), 0, 1) == True{} : Bool}:
-  ?TODO
+  +hB = inv.bounds(P, G, a, n, cl, nx, fi, im, pg, lm, inp, ou, on, m, hI)
+  +X = U32.to_nat(x)
+  +A = U32.to_nat(a)
+  +L = List.length(&2, U32, inp)
+  +XA = Nat.add(X, A)
+  +hL = get.lt(inp, X, b, hb)
+  +t1 = N.le_rw_r(1n+XA, Nat.add(L, A), Nat.add(A, L), Z.add.comm(L, A), Z.le.add_r(1n+X, L, A, hL))
+  +t3 = N.le_trans(1n+XA, Nat.add(A, L), PB(pg), t1, b.epb(P, G, a, nx, fi, im, pg, lm, inp, on, hB))
+  +hb2 = pb.lt(P, G, a, nx, fi, im, pg, lm, inp, on, hB, W, hG)
+  +ex = Z.u32.add_ex(x, a, W, hW, N.le_trans(1n+XA, PB(pg), W, t3, N.weaken(PB(pg), W, hb2)))
+  +Q = U32.to_nat(U32.add(x, a))
+  +eq = Equal.trans(Nat, Nat.add(Nat.add(Q, 0n), 1n), Nat.add(Q, 1n), 1n+XA,
+    Equal.cong(Nat, Nat, z => Nat.add(z, 1n), Nat.add(Q, 0n), Q, N.add_zero(Q)),
+    Equal.trans(Nat, Nat.add(Q, 1n), Nat.add(XA, 1n), 1n+XA, Equal.cong(Nat, Nat, z => Nat.add(z, 1n), Q, XA, ex), Z.add.comm(XA, 1n)))
+  Z.inside.ok(pg, U32.add(x, a), 0, 1, W, hW, Unit{},
+    N.le_rw_l(1n+XA, Nat.add(Nat.add(Q, 0n), 1n), PB(pg), Equal.sym(Nat, Nat.add(Nat.add(Q, 0n), 1n), 1n+XA, eq), t3), hb2)
 
 # a byte of the input holds what Cir says
 def q.byte.val(+P: Nat, +G: Nat, +a: U32, +n: U32, +cl: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lm: U32,
