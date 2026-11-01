@@ -87,10 +87,10 @@ def probe3(+prog: C.Cir.Stmt, +regs: Nat, +k: U32) -> {ib(M.body(C.Cir.run(prog,
   ?TODO
 
 def probe4(+k: U32) -> {ib(M.body(C.Cir.alloc(k))) == 0n : Nat}:
-  {==}
+  ?TODO
 
 def probe5(+s: U32, +d: Nat, +acc: List<&2, C.Wasm.Instr>) -> {ib(Con{C.Cir.code.halt(s, d), acc}) == ib(acc) : Nat}:
-  ?TODO
+  {==}
 
 def probe6(+d: Nat) -> {ib(C.Cir.code.at([])) == ib([]) : Nat}:
   ?TODO
