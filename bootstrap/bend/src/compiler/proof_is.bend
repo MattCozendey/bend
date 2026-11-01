@@ -389,15 +389,15 @@ def Rd(f: Nat, +m: C.Cir.Cells, +c: U32, +im: U32, +fi: U32, +nx: U32) -> Bool:
       C.Cir.is_cell(c, im, fi, nx) && Rd.cell(U32.to_nat(PM.Tg(m, c)), Rd(g, m, PM.Fd(2n, m, c), im, fi, nx),
         Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), Rd(g, m, PM.Fd(4n, m, c), im, fi, nx))
 
-# Rd one level down, at the cell's tag tg
-def rd.at(+g: Nat, +m: C.Cir.Cells, +c: U32, +im: U32, +fi: U32, +nx: U32, +tg: U32, e: {PM.Tg(m, c) == tg : U32},
-  hc: {C.Cir.is_cell(c, im, fi, nx) == True{} : Bool},
+# Rd one level down, at a cell of the term t and the tag tg
+def rd.at(+g: Nat, -ds: List<&2, C.Def>, +m: C.Cir.Cells, +c: U32, +im: U32, +fi: U32, +nx: U32, -t: C.Term, +tg: U32,
+  +nd: PM.Nd(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), t, tg),
   hp: {Rd.cell(U32.to_nat(tg), Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), Rd(g, m, PM.Fd(4n, m, c), im, fi, nx)) == True{} : Bool}) ->
   {Rd(1n+g, m, c, im, fi, nx) == True{} : Bool}:
-  %Equal.sym(U32, PM.Tg(m, c), tg, e) : {Bool.and(C.Cir.is_cell(c, im, fi, nx), Rd.cell(U32.to_nat(_), Rd(g, m, PM.Fd(2n, m, c), im, fi, nx),
+  %Equal.sym(U32, PM.Tg(m, c), tg, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), t, tg, nd)) : {Bool.and(C.Cir.is_cell(c, im, fi, nx), Rd.cell(U32.to_nat(_), Rd(g, m, PM.Fd(2n, m, c), im, fi, nx),
     Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), Rd(g, m, PM.Fd(4n, m, c), im, fi, nx))) == True{} : Bool}
   and.i(C.Cir.is_cell(c, im, fi, nx), Rd.cell(U32.to_nat(tg), Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx),
-    Rd(g, m, PM.Fd(4n, m, c), im, fi, nx)), hc, hp)
+    Rd(g, m, PM.Fd(4n, m, c), im, fi, nx)), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), t, tg, nd), hp)
 
 # the cell c stands for t: every cell that T.tm.of reads from it, with any
 # fuel f, is a cell (Nd)
@@ -411,18 +411,18 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
       match t:
         case C.Term.Var{+i}:
           (nd, ei) = h
-          rd.at(g, m, c, im, fi, nx, 0, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Var{i}, 0, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Var{i}, 0, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Var{i}, 0, nd,
             {==})
         case C.Term.Ref{+k}:
           (nd, r) = h
-          rd.at(g, m, c, im, fi, nx, 1, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Ref{k}, 1, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Ref{k}, 1, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Ref{k}, 1, nd,
             {==})
         case C.Term.Ann{+y, +z}:
           (nd, r) = h
           (py, pz) = r
           (sy, hy) = py
           (sz, hz) = pz
-          rd.at(g, m, c, im, fi, nx, 2, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Ann{y, z}, 2, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Ann{y, z}, 2, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Ann{y, z}, 2, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz)))
         case C.Term.Let{+q, +y, +z}:
           (nd, r) = h
@@ -430,19 +430,19 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          rd.at(g, m, c, im, fi, nx, 3, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Let{q, y, z}, 3, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Let{q, y, z}, 3, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Let{q, y, z}, 3, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz)))
         case C.Term.Typ{+y}:
           (nd, r) = h
           (sy, hy) = r
-          rd.at(g, m, c, im, fi, nx, 4, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Typ{y}, 4, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Typ{y}, 4, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Typ{y}, 4, nd,
             is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy))
         case C.Term.Min{+y, +z}:
           (nd, r) = h
           (py, pz) = r
           (sy, hy) = py
           (sz, hz) = pz
-          rd.at(g, m, c, im, fi, nx, 5, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Min{y, z}, 5, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Min{y, z}, 5, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Min{y, z}, 5, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz)))
         case C.Term.All{+q, +y, +z}:
           (nd, r) = h
@@ -450,13 +450,13 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          rd.at(g, m, c, im, fi, nx, 6, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.All{q, y, z}, 6, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.All{q, y, z}, 6, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.All{q, y, z}, 6, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz)))
         case C.Term.Lam{+q, +y}:
           (nd, r) = h
           (hq, r2) = r
           (sy, hy) = r2
-          rd.at(g, m, c, im, fi, nx, 7, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Lam{q, y}, 7, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Lam{q, y}, 7, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Lam{q, y}, 7, nd,
             is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy))
         case C.Term.App{+q, +y, +z}:
           (nd, r) = h
@@ -464,7 +464,7 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          rd.at(g, m, c, im, fi, nx, 8, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.App{q, y, z}, 8, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.App{q, y, z}, 8, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.App{q, y, z}, 8, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz)))
         case C.Term.Sig{+q, +y, +z}:
           (nd, r) = h
@@ -472,7 +472,7 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          rd.at(g, m, c, im, fi, nx, 9, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Sig{q, y, z}, 9, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Sig{q, y, z}, 9, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Sig{q, y, z}, 9, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz)))
         case C.Term.Tup{+q, +y, +z}:
           (nd, r) = h
@@ -480,20 +480,20 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          rd.at(g, m, c, im, fi, nx, 10, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Tup{q, y, z}, 10, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Tup{q, y, z}, 10, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Tup{q, y, z}, 10, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz)))
         case C.Term.Prj{+y}:
           (nd, r) = h
           (sy, hy) = r
-          rd.at(g, m, c, im, fi, nx, 11, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Prj{y}, 11, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Prj{y}, 11, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Prj{y}, 11, nd,
             is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy))
         case C.Term.Enu{+e}:
           (nd, r) = h
-          rd.at(g, m, c, im, fi, nx, 12, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Enu{e}, 12, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Enu{e}, 12, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Enu{e}, 12, nd,
             {==})
         case C.Term.Lab{+k}:
           (nd, r) = h
-          rd.at(g, m, c, im, fi, nx, 13, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Lab{k}, 13, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Lab{k}, 13, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Lab{k}, 13, nd,
             {==})
         case C.Term.Mat{+k, +y, +z}:
           (nd, r) = h
@@ -501,10 +501,10 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          rd.at(g, m, c, im, fi, nx, 14, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Mat{k, y, z}, 14, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Mat{k, y, z}, 14, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Mat{k, y, z}, 14, nd,
             and.i(Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), Rd(g, m, PM.Fd(4n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), y, hy), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(4n, m, c), z, hz)))
         case C.Term.Efq{}:
-          rd.at(g, m, c, im, fi, nx, 15, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Efq{}, 15, h), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Efq{}, 15, h),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Efq{}, 15, h,
             {==})
         case C.Term.Eql{+y, +z, +w}:
           (nd, r) = h
@@ -513,10 +513,10 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (pz, pw) = r2
           (sz, hz) = pz
           (sw, hw) = pw
-          rd.at(g, m, c, im, fi, nx, 16, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Eql{y, z, w}, 16, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Eql{y, z, w}, 16, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Eql{y, z, w}, 16, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Bool.and(Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), Rd(g, m, PM.Fd(4n, m, c), im, fi, nx)), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), and.i(Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), Rd(g, m, PM.Fd(4n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(4n, m, c), w, hw))))
         case C.Term.Rfl{}:
-          rd.at(g, m, c, im, fi, nx, 17, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rfl{}, 17, h), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rfl{}, 17, h),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Rfl{}, 17, h,
             {==})
         case C.Term.Rwt{+y, +z, +w}:
           (nd, r) = h
@@ -525,7 +525,7 @@ def is.rd.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (pz, pw) = r2
           (sz, hz) = pz
           (sw, hw) = pw
-          rd.at(g, m, c, im, fi, nx, 18, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rwt{y, z, w}, 18, nd), nd.cell(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rwt{y, z, w}, 18, nd),
+          rd.at(g, ds, m, c, im, fi, nx, C.Term.Rwt{y, z, w}, 18, nd,
             and.i(Rd(g, m, PM.Fd(2n, m, c), im, fi, nx), Bool.and(Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), Rd(g, m, PM.Fd(4n, m, c), im, fi, nx)), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, hy), and.i(Rd(g, m, PM.Fd(3n, m, c), im, fi, nx), Rd(g, m, PM.Fd(4n, m, c), im, fi, nx), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, hz), is.rd.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(4n, m, c), w, hw))))
 
 # the cell c stands for t: every cell that T.tm.of reads from it is a cell
