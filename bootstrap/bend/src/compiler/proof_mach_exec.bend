@@ -87,6 +87,262 @@ def X.chain(i: Nat) -> C.Cir.Stmt:
     case 1n+j:
       sel.e(X.chain(j))
 
+# Proof kit
+# ---------
+#
+# Bools (k.*), lists of registers (L.*: a set is there, keeps the others and
+# the length), the values of expressions (ev.*) and the runs of statements
+# (run.* as equations of their outcome; rw.* in the orientation that a
+# rewrite of the goal takes, the new statement first), for any fuel.
+
+def k.bt(b: Bool) -> Type:
+  match b:
+    case True{}:
+      Unit
+    case False{}:
+      Empty
+
+def k.bf(b: Bool) -> Type:
+  match b:
+    case True{}:
+      Empty
+    case False{}:
+      Unit
+
+def k.ft.e(h: {True{} == False{} : Bool}) -> Empty:
+  %h : k.bt(_)
+  Unit{}
+
+def k.tf.e(h: {False{} == True{} : Bool}) -> Empty:
+  %h : k.bf(_)
+  Unit{}
+
+def k.ft(-G: Type, h: {True{} == False{} : Bool}) -> G:
+  Empty.absurd(G, k.ft.e(h))
+
+def k.tf(-G: Type, h: {False{} == True{} : Bool}) -> G:
+  Empty.absurd(G, k.tf.e(h))
+
+# the register r set to v holds v
+def L.gs(xs: List<&2, U32>, r: Nat, +v: U32, h: {Nat.is_lt(r, List.length(&2, U32, xs)) == True{} : Bool}) ->
+  {List.get(&2, U32, List.set(&2, U32, xs, r, v), r) == Some{v} : Maybe<&2, U32>}:
+  match xs r:
+    case Nil{} 0n:
+      k.tf({None{} == Some{v} : Maybe<&2, U32>}, h)
+    case Nil{} 1n+p:
+      k.tf({None{} == Some{v} : Maybe<&2, U32>}, h)
+    case Con{x, t} 0n:
+      {==}
+    case Con{x, t} 1n+p:
+      L.gs(t, p, v, h)
+
+# a set of r keeps the register j
+def L.go(xs: List<&2, U32>, r: Nat, j: Nat, +v: U32, -w: U32, ne: {Nat.is_eq(r, j) == False{} : Bool},
+  h: {List.get(&2, U32, xs, j) == Some{w} : Maybe<&2, U32>}) ->
+  {List.get(&2, U32, List.set(&2, U32, xs, r, v), j) == Some{w} : Maybe<&2, U32>}:
+  match xs r j:
+    case Nil{} _ _:
+      h
+    case Con{x, t} 0n 0n:
+      k.ft({Some{v} == Some{w} : Maybe<&2, U32>}, ne)
+    case Con{x, t} 0n 1n+q:
+      h
+    case Con{x, t} 1n+p 0n:
+      h
+    case Con{x, t} 1n+p 1n+q:
+      L.go(t, p, q, v, w, ne, h)
+
+# a set keeps the length
+def L.len(xs: List<&2, U32>, r: Nat, +v: U32, -n: Nat, h: {List.length(&2, U32, xs) == n : Nat}) ->
+  {List.length(&2, U32, List.set(&2, U32, xs, r, v)) == n : Nat}:
+  match xs r:
+    case Nil{} _:
+      h
+    case Con{x, t} 0n:
+      h
+    case Con{x, t} 1n+p:
+      %Equal.sym(Nat, List.length(&2, U32, List.set(&2, U32, t, p, v)), List.length(&2, U32, t), L.len(t, p, v, List.length(&2, U32, t), {==})) :
+        {1n+_ == n : Nat}
+      h
+
+# a register below 64 is one of 64
+def L.lt(+xs: List<&2, U32>, +r: Nat, hl: {List.length(&2, U32, xs) == 64n : Nat}, hr: {Nat.is_lt(r, 64n) == True{} : Bool}) ->
+  {Nat.is_lt(r, List.length(&2, U32, xs)) == True{} : Bool}:
+  %Equal.sym(Nat, List.length(&2, U32, xs), 64n, hl) : {Nat.is_lt(r, _) == True{} : Bool}
+  hr
+
+# the cell i is one that st may access
+def X.cell(st: C.Cir.State, +i: U32) -> Bool:
+  match st:
+    case C.Cir.State{_, _, +nx, +fi, +im, _, _, _, _, _}:
+      C.Cir.is_cell(i, im, fi, nx)
+
+# the value of an operation, from its operands'
+def ev.op(o: C.Wasm.Op, a: C.Cir.Expr, b: C.Cir.Expr, +st: C.Cir.State, -x: U32, -y: U32,
+  ea: {C.Cir.eval(a, st) == Some{x} : Maybe<&2, U32>}, eb: {C.Cir.eval(b, st) == Some{y} : Maybe<&2, U32>}) ->
+  {C.Cir.eval(C.Cir.Expr.op{o, a, b}, st) == Some{C.Wasm.op(o, x, y)} : Maybe<&2, U32>}:
+  %Equal.sym(Maybe<&2, U32>, C.Cir.eval(a, st), Some{x}, ea) :
+    {C.Cir.eval.op(o, _, C.Cir.eval(b, st)) == Some{C.Wasm.op(o, x, y)} : Maybe<&2, U32>}
+  %Equal.sym(Maybe<&2, U32>, C.Cir.eval(b, st), Some{y}, eb) :
+    {C.Cir.eval.op(o, Some{x}, _) == Some{C.Wasm.op(o, x, y)} : Maybe<&2, U32>}
+  {==}
+
+# the same, with the operation's value w
+def ev.opw(+o: C.Wasm.Op, +a: C.Cir.Expr, +b: C.Cir.Expr, +st: C.Cir.State, +x: U32, +y: U32, +w: U32,
+  ea: {C.Cir.eval(a, st) == Some{x} : Maybe<&2, U32>}, eb: {C.Cir.eval(b, st) == Some{y} : Maybe<&2, U32>},
+  hw: {C.Wasm.op(o, x, y) == w : U32}) ->
+  {C.Cir.eval(C.Cir.Expr.op{o, a, b}, st) == Some{w} : Maybe<&2, U32>}:
+  %Equal.sym(U32, C.Wasm.op(o, x, y), w, hw) : {C.Cir.eval(C.Cir.Expr.op{o, a, b}, st) == Some{_} : Maybe<&2, U32>}
+  ev.op(o, a, b, st, x, y, ea, eb)
+
+def ev.fld.of(+k: Nat, st: C.Cir.State, +i: U32, hv: {X.cell(st, i) == True{} : Bool}) ->
+  {C.Cir.eval.field(k, Some{i}, st) == Some{C.Cir.Cell.get(k, C.Cir.Cells.get(X.cells(st), i))} : Maybe<&2, U32>}:
+  match st:
+    case C.Cir.State{regs, +m, +nx, +fi, +im, pg, lim, inp, out, outn}:
+      %Equal.sym(Bool, C.Cir.is_cell(i, im, fi, nx), True{}, hv) :
+        {C.Cir.eval.field.if(_, k, m, i) == Some{C.Cir.Cell.get(k, C.Cir.Cells.get(m, i))} : Maybe<&2, U32>}
+      {==}
+
+# the value of a field of a cell
+def ev.fld(+k: Nat, c: C.Cir.Expr, +st: C.Cir.State, +i: U32, ec: {C.Cir.eval(c, st) == Some{i} : Maybe<&2, U32>},
+  hv: {X.cell(st, i) == True{} : Bool}) ->
+  {C.Cir.eval(C.Cir.Expr.field{k, c}, st) == Some{C.Cir.Cell.get(k, C.Cir.Cells.get(X.cells(st), i))} : Maybe<&2, U32>}:
+  %Equal.sym(Maybe<&2, U32>, C.Cir.eval(c, st), Some{i}, ec) :
+    {C.Cir.eval.field(k, _, st) == Some{C.Cir.Cell.get(k, C.Cir.Cells.get(X.cells(st), i))} : Maybe<&2, U32>}
+  ev.fld.of(k, st, i, hv)
+
+def run.set.of(+r: Nat, +e: C.Cir.Expr, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32,
+  +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +v: U32,
+  ev: {C.Cir.eval(e, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}) == Some{v} : Maybe<&2, U32>},
+  hl: {List.length(&2, U32, regs) == 64n : Nat}, hr: {Nat.is_lt(r, 64n) == True{} : Bool}) ->
+  {C.Cir.exec.set(r, C.Cir.eval(e, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}) ==
+    C.Cir.Out.next{C.Cir.State{List.set(&2, U32, regs, r, v), m, nx, fi, im, pg, lim, inp, out, outn}} : C.Cir.Out}:
+  +st = C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}
+  +o = {C.Cir.Out.next{C.Cir.State{List.set(&2, U32, regs, r, v), m, nx, fi, im, pg, lim, inp, out, outn}} : C.Cir.Out}
+  %Equal.sym(Maybe<&2, U32>, C.Cir.eval(e, st), Some{v}, ev) : {C.Cir.exec.set(r, _, st) == o : C.Cir.Out}
+  %Equal.sym(Bool, Nat.is_lt(r, List.length(&2, U32, regs)), True{}, L.lt(regs, r, hl, hr)) :
+    {C.Cir.exec.set.of(C.Cir.regs.set.if(_, regs, r, v), st) == o : C.Cir.Out}
+  {==}
+
+# a set of the register r (below 64) to the value v of e
+def run.set(+f: Nat, +r: Nat, +e: C.Cir.Expr, +st: C.Cir.State, +v: U32, ev: {C.Cir.eval(e, st) == Some{v} : Maybe<&2, U32>},
+  hl: {List.length(&2, U32, X.regs(st)) == 64n : Nat}, hr: {Nat.is_lt(r, 64n) == True{} : Bool}) ->
+  {C.Cir.exec(f, C.Cir.Stmt.set{r, e}, st) == C.Cir.Out.next{X.setst(st, r, v)} : C.Cir.Out}:
+  match f st:
+    case 0n C.Cir.State{+regs, +m, +nx, +fi, +im, +pg, +lim, +inp, +out, +outn}:
+      run.set.of(r, e, regs, m, nx, fi, im, pg, lim, inp, out, outn, v, ev, hl, hr)
+    case 1n+g C.Cir.State{+regs, +m, +nx, +fi, +im, +pg, +lim, +inp, +out, +outn}:
+      run.set.of(r, e, regs, m, nx, fi, im, pg, lim, inp, out, outn, v, ev, hl, hr)
+
+def run.store.of(+k: Nat, +c: C.Cir.Expr, +v: C.Cir.Expr, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +i: U32, +x: U32,
+  ec: {C.Cir.eval(c, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}) == Some{i} : Maybe<&2, U32>},
+  ev: {C.Cir.eval(v, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}) == Some{x} : Maybe<&2, U32>},
+  hc: {C.Cir.is_cell(i, im, fi, nx) == True{} : Bool}) ->
+  {C.Cir.exec.store(k, C.Cir.eval(c, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}),
+    C.Cir.eval(v, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}) ==
+    C.Cir.Out.next{C.Cir.State{regs, X.put(m, k, i, x), nx, fi, im, pg, lim, inp, out, outn}} : C.Cir.Out}:
+  +st = C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}
+  +o = {C.Cir.Out.next{C.Cir.State{regs, X.put(m, k, i, x), nx, fi, im, pg, lim, inp, out, outn}} : C.Cir.Out}
+  %Equal.sym(Maybe<&2, U32>, C.Cir.eval(c, st), Some{i}, ec) : {C.Cir.exec.store(k, _, C.Cir.eval(v, st), st) == o : C.Cir.Out}
+  %Equal.sym(Maybe<&2, U32>, C.Cir.eval(v, st), Some{x}, ev) : {C.Cir.exec.store(k, Some{i}, _, st) == o : C.Cir.Out}
+  %Equal.sym(Bool, C.Cir.is_cell(i, im, fi, nx), True{}, hc) : {C.Cir.exec.store.if(_, k, i, x, st) == o : C.Cir.Out}
+  {==}
+
+# a store of the value x of v in field k of the cell i, the value of c
+def run.store(+f: Nat, +k: Nat, +c: C.Cir.Expr, +v: C.Cir.Expr, +st: C.Cir.State, +i: U32, +x: U32,
+  ec: {C.Cir.eval(c, st) == Some{i} : Maybe<&2, U32>}, ev: {C.Cir.eval(v, st) == Some{x} : Maybe<&2, U32>},
+  hc: {X.cell(st, i) == True{} : Bool}) ->
+  {C.Cir.exec(f, C.Cir.Stmt.store{k, c, v}, st) == C.Cir.Out.next{X.store(st, k, i, x)} : C.Cir.Out}:
+  match f st:
+    case 0n C.Cir.State{+regs, +m, +nx, +fi, +im, +pg, +lim, +inp, +out, +outn}:
+      run.store.of(k, c, v, regs, m, nx, fi, im, pg, lim, inp, out, outn, i, x, ec, ev, hc)
+    case 1n+g C.Cir.State{+regs, +m, +nx, +fi, +im, +pg, +lim, +inp, +out, +outn}:
+      run.store.of(k, c, v, regs, m, nx, fi, im, pg, lim, inp, out, outn, i, x, ec, ev, hc)
+
+def run.nop(+f: Nat, +st: C.Cir.State) -> {C.Cir.exec(f, C.Cir.Stmt.nop{}, st) == C.Cir.Out.next{st} : C.Cir.Out}:
+  match f:
+    case 0n:
+      {==}
+    case 1n+g:
+      {==}
+
+# a then b, after a ends with st1
+def rw.seq(+f: Nat, a: C.Cir.Stmt, +b: C.Cir.Stmt, +st: C.Cir.State, +st1: C.Cir.State,
+  e1: {C.Cir.exec(f, a, st) == C.Cir.Out.next{st1} : C.Cir.Out}) ->
+  {C.Cir.exec(f, b, st1) == C.Cir.exec(f, C.Cir.Stmt.seq{a, b}, st) : C.Cir.Out}:
+  match f:
+    case 0n:
+      %Equal.sym(C.Cir.Out, C.Cir.exec(0n, a, st), C.Cir.Out.next{st1}, e1) :
+        {C.Cir.exec(0n, b, st1) == C.Cir.exec.then(_, u => C.Cir.exec(0n, b, u)) : C.Cir.Out}
+      {==}
+    case 1n+g:
+      %Equal.sym(C.Cir.Out, C.Cir.exec(1n+g, a, st), C.Cir.Out.next{st1}, e1) :
+        {C.Cir.exec(1n+g, b, st1) == C.Cir.exec.then(_, u => C.Cir.exec(1n+g, b, u)) : C.Cir.Out}
+      {==}
+
+def k.then_nop(o: C.Cir.Out, +f: Nat) -> {o == C.Cir.exec.then(o, t => C.Cir.exec(f, C.Cir.Stmt.nop{}, t)) : C.Cir.Out}:
+  match o:
+    case C.Cir.Out.next{st}:
+      Equal.sym(C.Cir.Out, C.Cir.exec(f, C.Cir.Stmt.nop{}, st), C.Cir.Out.next{st}, run.nop(f, st))
+    case C.Cir.Out.halt{s, st}:
+      {==}
+    case C.Cir.Out.out_of_memory{}:
+      {==}
+    case C.Cir.Out.trap{}:
+      {==}
+    case C.Cir.Out.not_done{}:
+      {==}
+
+# a, then nothing
+def rw.seq_nop(+f: Nat, +a: C.Cir.Stmt, +st: C.Cir.State) ->
+  {C.Cir.exec(f, a, st) == C.Cir.exec(f, C.Cir.Stmt.seq{a, C.Cir.Stmt.nop{}}, st) : C.Cir.Out}:
+  match f:
+    case 0n:
+      k.then_nop(C.Cir.exec(0n, a, st), 0n)
+    case 1n+g:
+      k.then_nop(C.Cir.exec(1n+g, a, st), 1n+g)
+
+# an if whose condition is not 0, and one whose condition is 0
+def rw.if.t(+f: Nat, c: C.Cir.Expr, +t: C.Cir.Stmt, +e: C.Cir.Stmt, +st: C.Cir.State, -v: U32,
+  ev: {C.Cir.eval(c, st) == Some{v} : Maybe<&2, U32>}, nz: {U32.is_zero(v) == False{} : Bool}) ->
+  {C.Cir.exec(f, t, st) == C.Cir.exec(f, C.Cir.Stmt.if{c, t, e}, st) : C.Cir.Out}:
+  match f:
+    case 0n:
+      %Equal.sym(Maybe<&2, U32>, C.Cir.eval(c, st), Some{v}, ev) :
+        {C.Cir.exec(0n, t, st) == C.Cir.exec.if(_, u => C.Cir.exec(0n, t, st), u => C.Cir.exec(0n, e, st)) : C.Cir.Out}
+      %Equal.sym(Bool, U32.is_zero(v), False{}, nz) :
+        {C.Cir.exec(0n, t, st) == C.Cir.exec.if.of(_, u => C.Cir.exec(0n, t, st), u => C.Cir.exec(0n, e, st)) : C.Cir.Out}
+      {==}
+    case 1n+g:
+      %Equal.sym(Maybe<&2, U32>, C.Cir.eval(c, st), Some{v}, ev) :
+        {C.Cir.exec(1n+g, t, st) == C.Cir.exec.if(_, u => C.Cir.exec(1n+g, t, st), u => C.Cir.exec(1n+g, e, st)) : C.Cir.Out}
+      %Equal.sym(Bool, U32.is_zero(v), False{}, nz) :
+        {C.Cir.exec(1n+g, t, st) == C.Cir.exec.if.of(_, u => C.Cir.exec(1n+g, t, st), u => C.Cir.exec(1n+g, e, st)) : C.Cir.Out}
+      {==}
+
+def rw.if.e(+f: Nat, c: C.Cir.Expr, +t: C.Cir.Stmt, +e: C.Cir.Stmt, +st: C.Cir.State,
+  ev: {C.Cir.eval(c, st) == Some{0} : Maybe<&2, U32>}) ->
+  {C.Cir.exec(f, e, st) == C.Cir.exec(f, C.Cir.Stmt.if{c, t, e}, st) : C.Cir.Out}:
+  match f:
+    case 0n:
+      %Equal.sym(Maybe<&2, U32>, C.Cir.eval(c, st), Some{0}, ev) :
+        {C.Cir.exec(0n, e, st) == C.Cir.exec.if(_, u => C.Cir.exec(0n, t, st), u => C.Cir.exec(0n, e, st)) : C.Cir.Out}
+      {==}
+    case 1n+g:
+      %Equal.sym(Maybe<&2, U32>, C.Cir.eval(c, st), Some{0}, ev) :
+        {C.Cir.exec(1n+g, e, st) == C.Cir.exec.if(_, u => C.Cir.exec(1n+g, t, st), u => C.Cir.exec(1n+g, e, st)) : C.Cir.Out}
+      {==}
+
+# the test of the register r against 0, for the cell c in it: 0 for ==, 1 for !=
+def ev.eq0(+r: Nat, +st: C.Cir.State, +c: U32, h: {C.Cir.eval(C.M.g(r), st) == Some{c} : Maybe<&2, U32>},
+  hz: {U32.is_eq(c, 0) == False{} : Bool}) -> {C.Cir.eval(C.M.eq(C.M.g(r), C.M.c(0)), st) == Some{0} : Maybe<&2, U32>}:
+  ev.opw(C.Wasm.Op.eq{}, C.M.g(r), C.M.c(0), st, c, 0, 0, h, {==}, Equal.cong(Bool, U32, b => Bool.to_u32(b), U32.is_eq(c, 0), False{}, hz))
+
+def ev.ne0(+r: Nat, +st: C.Cir.State, +c: U32, h: {C.Cir.eval(C.M.g(r), st) == Some{c} : Maybe<&2, U32>},
+  hz: {U32.is_eq(c, 0) == False{} : Bool}) -> {C.Cir.eval(C.M.ne(C.M.g(r), C.M.c(0)), st) == Some{1} : Maybe<&2, U32>}:
+  ev.opw(C.Wasm.Op.ne{}, C.M.g(r), C.M.c(0), st, c, 0, 1, h, {==}, Equal.cong(Bool, U32, b => Bool.to_u32(Bool.not(b)), U32.is_eq(c, 0), False{}, hz))
+
 # a single store
 def eq.store(+f: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +k: Nat, c: C.Cir.Expr, v: C.Cir.Expr, +i: U32, +x: U32,
   ec: {C.Cir.eval(c, X.st(regs, m, nx, fi, im, pg, lim, inp)) == Some{i} : Maybe<&2, U32>},
@@ -94,7 +350,7 @@ def eq.store(+f: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32,
   hc: {C.Cir.is_cell(i, im, fi, nx) == True{} : Bool}) ->
   {C.Cir.exec(f, C.Cir.Stmt.store{k, c, v}, X.st(regs, m, nx, fi, im, pg, lim, inp)) ==
     C.Cir.Out.next{X.st(regs, X.put(m, k, i, x), nx, fi, im, pg, lim, inp)} : C.Cir.Out}:
-  ?TODO
+  run.store(f, k, c, v, X.st(regs, m, nx, fi, im, pg, lim, inp), i, x, ec, ev, hc)
 
 # M.ret's dispatch
 # ----------------
