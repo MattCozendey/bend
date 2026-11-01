@@ -1,5 +1,6 @@
-import Bootstrap.Laws
+import Bootstrap.OrLaw
 import Bootstrap.GivesRun
+import Bootstrap.NeedRun
 
 -- Compiler
 -- ========
@@ -11,7 +12,8 @@ import Bootstrap.GivesRun
 -- (Book.check B = .ok ()) and that holds trusted.bend's defs (Trusted B):
 -- the Bend copy of WASM, run on w, gives only what bk gives (no wrong
 -- result), and when bk gives something, it gives it or runs out of memory
--- (no other failure).
+-- (no other failure), and with the memory of INVARIANTS #4 it gives it
+-- (enough memory).
 
 open Quan Term
 
@@ -45,7 +47,7 @@ theorem unbytes_eq : unbytes v = some bs → v = bytes bs := by
 
 -- in trusted.bend's book, renamed back to impl.bend's names, the copies hold
 theorem Trusted.holds (hB : Trusted B) : Holds (Rename.book impl B) := by
-  have sub (ds : List Def) (hs : ∀ d ∈ ds, d ∈ evalCopy ++ reader ++ programCopy ++ trustedCopy) :
+  have sub (ds : List Def) (hs : ∀ d ∈ ds, d ∈ evalCopy ++ reader ++ programCopy ++ needCopy ++ trustedCopy) :
       Contains (Rename.book impl B) ds :=
     Rename.contains_book impl_ok fun d hd => by
       obtain ⟨d', hd', rfl⟩ := List.mem_map.1 hd
@@ -100,3 +102,63 @@ theorem no_wrong_result (hc : Book.check B = .ok ()) (hB : Trusted B)
     ∃ n, Gives bk i o n := by
   obtain ⟨n, r⟩ := law_no_wrong_result hc hB (hB.wasm (hB.compiles hw) hr)
   exact ⟨n, hB.gives.1 r⟩
+
+-- a run goes on through the steps that it takes
+theorem Runs.of_steps (s : Steps B n a b) (r : Runs B a v) : Runs B b v := by
+  induction s with
+  | refl => exact r
+  | step e _ ih =>
+    obtain ⟨k, s', hv⟩ := r
+    cases s' with
+    | refl => exact (eval_value e hv).elim
+    | step e' s'' => cases eval_det e e'; exact ih ⟨_, s'', hv⟩
+
+-- the run of WASM on Compiler.compile(p) steps to its run on the module that
+-- Compiler.compile(p) runs to
+theorem Trusted.wasm_steps (hB : Trusted B) (rc : Runs B c (bytes w))
+    (hr : Runs B (wasmOf f c i m) r) : Runs B (wasmRun f w i m) r := by
+  have hk := hB.get (d := «trustedCopy.Wasm.run») (by simp [trustedCopy])
+  obtain ⟨_, s, -⟩ := rc
+  have vf : Value B (App Q1 (Ref (impl "Wasm.run")) (Form.nat f)) :=
+    Kit.part (xs := [(Q1, _)]) hk (.cons (fun _ => value_nat) .nil)
+      (by simp [Rename.defn, Rename.term, «trustedCopy.Wasm.run», walk, bindsAt, Quan.live, takes])
+  exact Runs.of_steps (s.app_x vf rfl).app_f.app_f hr
+
+-- no other failure: when the book gives a result, the Bend copy of WASM, run
+-- on the module that our compiler writes, gives it, or runs out of memory
+theorem no_other_failure (hc : Book.check B = .ok ()) (hB : Trusted B)
+    (hw : interp B fuel (write bk) = some (w, k)) (hg : Gives bk i o n) :
+    ∃ f, Runs B (wasmRun f w i m) (resultOf o) ∨ Runs B (wasmRun f w i m) outOfMemory := by
+  obtain ⟨f, r | r⟩ := law_no_other_failure (m := m) hc hB (hB.gives.2 hg)
+  · exact ⟨f, .inl (hB.wasm_steps (hB.compiles hw) r)⟩
+  · exact ⟨f, .inr (hB.wasm_steps (hB.compiles hw) r)⟩
+
+-- in trusted.bend's book, renamed back to impl.bend's names, the copies that
+-- Program.need and Program.memory need hold
+theorem Trusted.needHolds (hB : Trusted B) : NeedHolds (Rename.book impl B) := by
+  have sub (ds : List Def) (hs : ∀ d ∈ ds, d ∈ evalCopy ++ reader ++ programCopy ++ needCopy ++ trustedCopy) :
+      Contains (Rename.book impl B) ds :=
+    Rename.contains_book impl_ok fun d hd => by
+      obtain ⟨d', hd', rfl⟩ := List.mem_map.1 hd
+      exact hB.defs _ (List.mem_map_of_mem (hs d' hd'))
+  exact ⟨hB.holds, sub _ (by simp +contextual),
+    sub [«trustedCopy.Nat.is_le»] (by simp [trustedCopy]) «trustedCopy.Nat.is_le» (by simp)⟩
+
+-- F fits in the memory of m pages exactly when Nat.is_le(Program.need(p, i, n),
+-- Program.memory(m)) runs to True in trusted.bend's book
+theorem Trusted.big (hB : Trusted B) (hm : need bk i n ≤ memory m) :
+    Runs B (bigOf (write bk) i n m) (Form.bool true) := by
+  have r := Gives.big_run (bk := bk) (i := i) (n := n) (m := m) hB.needHolds
+  rw [decide_eq_true hm] at r
+  have := (Rename.runs_iff' impl_ok).1 r
+  simpa [Rename.term_spine, Rename.arg, Rename.term, bigOf, Form.bool, impl_ctor] using this
+
+-- enough memory: with the memory that F of INVARIANTS #4 asks, the Bend copy
+-- of WASM, run on the module that our compiler writes, gives the result that
+-- the book gives
+theorem enough_memory (hc : Book.check B = .ok ()) (hB : Trusted B)
+    (hw : interp B fuel (write bk) = some (w, k)) (hg : Gives bk i o n)
+    (hm : need bk i n ≤ memory m) :
+    ∃ f, Runs B (wasmRun f w i m) (resultOf o) := by
+  obtain ⟨f, r⟩ := law_enough_memory hc hB (hB.gives.2 hg) (hB.big hm)
+  exact ⟨f, hB.wasm_steps (hB.compiles hw) r⟩

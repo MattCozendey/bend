@@ -26,6 +26,12 @@ def «trustedCopy.Compiler.compile» : Def :=
     (Term.Lam Quan.Q2 (Term.App Quan.Q1 (Term.App Quan.Q1 (Term.App Quan.Q1 (Term.Ref "Compiler.compile.of") (Term.Lam Quan.Q1 (Term.App Quan.Q1 (Term.Ref "Compiler.module") (Term.Var 0)))) (Term.App Quan.Q2 (Term.App Quan.Q1 (Term.Ref "Img.small") (Term.Var 0)) (Term.Ref "U32.lit0"))) (Term.App Quan.Q1 (Term.Ref "Book.read") (Term.Var 0)))),
     false⟩
 
+def «trustedCopy.Nat.is_le» : Def :=
+  ⟨"Nat.is_le",
+    (Term.All Quan.Q1 (Term.Ref "Nat") (Term.All Quan.Q1 (Term.Ref "Nat") (Term.Ref "Bool"))),
+    (Term.Lam Quan.Q1 (Term.Lam Quan.Q1 (Term.App Quan.Q1 (Term.Ref "Cmp.is_le") (Term.App Quan.Q1 (Term.App Quan.Q1 (Term.Ref "Nat.cmp") (Term.Var 1)) (Term.Var 0))))),
+    false⟩
+
 def «trustedCopy.Either.arms» : Def :=
   ⟨"Either.arms",
     (Term.All Quan.Q0 (Term.Enu ["Q0", "Q1", "Q2"]) (Term.All Quan.Q0 (Term.Enu ["Q0", "Q1", "Q2"]) (Term.All Quan.Q0 (Term.Typ (Term.Var 1)) (Term.All Quan.Q0 (Term.Typ (Term.Var 1)) (Term.All Quan.Q1 (Term.Enu ["Inl", "Inr"]) (Term.Typ (Term.Min (Term.Var 4) (Term.Var 3)))))))),
@@ -196,6 +202,7 @@ def trustedCopy : List Def :=
   [«trustedCopy.Wasm.Outcome»,
    «trustedCopy.Wasm.run»,
    «trustedCopy.Compiler.compile»,
+   «trustedCopy.Nat.is_le»,
    «trustedCopy.Either.arms»,
    «trustedCopy.Either»,
    «trustedCopy.Or»,

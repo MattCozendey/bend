@@ -2,6 +2,7 @@ import Bootstrap.Values
 import Bootstrap.Copy.Reader
 import Bootstrap.Copy.Exists
 import Bootstrap.Copy.Program
+import Bootstrap.Copy.Need
 
 -- Trusted
 -- =======
@@ -21,7 +22,7 @@ set_option linter.unusedSimpArgs false
 -- the copies of impl.bend's defs (from its own book), and of trusted.bend's
 -- main and Wasm.run (with impl.bend's names as in impl.bend's book), under
 -- the names that trusted.bend's book gives them
-def trustedDefs : List Def := (evalCopy ++ reader ++ programCopy ++ trustedCopy).map (Rename.defn impl)
+def trustedDefs : List Def := (evalCopy ++ reader ++ programCopy ++ needCopy ++ trustedCopy).map (Rename.defn impl)
 
 -- the laws of spec.bend, by name and type (with impl.bend's names as in
 -- impl.bend's book)
@@ -62,7 +63,7 @@ def outOfMemory : Term := ctor (impl "Wasm.Outcome.out_of_memory") []
 @[simp] theorem sub_u32 : Term.sub s (Form.u32 m) = Form.u32 m := plain_u32.sub
 
 -- a def of the copies, under its name in trusted.bend's book
-theorem Trusted.get (hB : Trusted B) (hd : d ∈ evalCopy ++ reader ++ programCopy ++ trustedCopy) :
+theorem Trusted.get (hB : Trusted B) (hd : d ∈ evalCopy ++ reader ++ programCopy ++ needCopy ++ trustedCopy) :
     Book.get B (impl d.k) = some (Rename.defn impl d) :=
   hB.defs _ (List.mem_map_of_mem hd)
 
@@ -77,7 +78,7 @@ theorem baseTypes_kept (hd : d ∈ baseTypes) : Rename.defn impl d = d := by
 
 theorem Trusted.types (hB : Trusted B) : Contains B baseTypes := by
   intro d hd
-  have h1 : d ∈ evalCopy ++ reader ++ programCopy ++ trustedCopy := by
+  have h1 : d ∈ evalCopy ++ reader ++ programCopy ++ needCopy ++ trustedCopy := by
     simp only [baseTypes, List.mem_cons, List.not_mem_nil, or_false] at hd
     rcases hd with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       simp [evalCopy]

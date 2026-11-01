@@ -14,6 +14,7 @@ import Bootstrap.Join
 import Bootstrap.Script
 import Bootstrap.Copy.Trusted
 import Bootstrap.Copy.Program
+import Bootstrap.Copy.Need
 import Bootstrap.Rename
 import Bootstrap.Impl
 import Bootstrap.Values
@@ -23,6 +24,8 @@ import Bootstrap.Kit
 import Bootstrap.Gives
 import Bootstrap.Unbytes
 import Bootstrap.GivesRun
+import Bootstrap.NeedRun
+import Bootstrap.OrLaw
 import Bootstrap.Compiler
 
 #guard_axioms
