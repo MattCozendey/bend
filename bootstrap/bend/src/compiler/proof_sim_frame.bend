@@ -664,11 +664,11 @@ def fits.ok(+p: U32, +x: U32, +w: U32, +W: Nat, +hW: {W == PH.H.W(32n) : Nat}, +
       Equal.sym(Bool, Bool.and(Bool.not(U32.is_lt(U32.add(x, 0), x)), C.Wasm.fits(p, U32.add(x, 0), w)),
         Bool.and(Bool.not(U32.is_lt(x, x)), C.Wasm.fits(p, x, w)), t2), e1))
 
-def fits0.go(+p: U32, +x: U32, +sh: U32, c1: {U32.is_lt(x, x) == False{} : Bool}, c2: {U32.is_zero(x) == False{} : Bool},
-  c3: {U32.is_lt(sh, p) == True{} : Bool}) -> {Bool.and(Bool.not(U32.is_lt(x, x)), Bool.or(U32.is_zero(x), U32.is_lt(sh, p))) == True{} : Bool}:
-  %Equal.sym(Bool, U32.is_lt(x, x), False{}, c1) : {Bool.and(Bool.not(_), Bool.or(U32.is_zero(x), U32.is_lt(sh, p))) == True{} : Bool}
-  %Equal.sym(Bool, U32.is_zero(x), False{}, c2) : {Bool.and(Bool.not(False{}), Bool.or(_, U32.is_lt(sh, p))) == True{} : Bool}
-  %Equal.sym(Bool, U32.is_lt(sh, p), True{}, c3) : {Bool.and(Bool.not(False{}), Bool.or(False{}, _)) == True{} : Bool}
+def fits0.go(+p: U32, +x: U32, c1: {U32.is_lt(x, x) == False{} : Bool}, c2: {U32.is_zero(x) == False{} : Bool},
+  c3: {U32.is_lt(U32.shrn(U32.sub(x, 1), 16n), p) == True{} : Bool}) -> {C.Wasm.fits.end(U32.is_lt(x, x), p, x) == True{} : Bool}:
+  %Equal.sym(Bool, U32.is_lt(x, x), False{}, c1) : {C.Wasm.fits.end(_, p, x) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_zero(x), False{}, c2) : {Bool.or(_, U32.is_lt(U32.shrn(U32.sub(x, 1), 16n), p)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_lt(U32.shrn(U32.sub(x, 1), 16n), p), True{}, c3) : {Bool.or(False{}, _) == True{} : Bool}
   {==}
 
 # no bytes from x fit in the memory of p pages, when x is not 0 and is
@@ -681,10 +681,9 @@ def fits0(+p: U32, +x: U32, +h1: N.Le(1n, U32.to_nat(x)), +h: N.Le(U32.to_nat(x)
   +h4 = N.le_trans(1n+N.D(16n, U32.to_nat(sh)), 1n+U32.to_nat(d), Q.PB(p), V.shrn.le(16n, d),
     N.le_rw_l(X, 1n+U32.to_nat(d), Q.PB(p), Equal.sym(Nat, 1n+U32.to_nat(d), X, ed), h))
   +c3 = Z.lt.to(sh, p, V.dlt(16n, U32.to_nat(sh), U32.to_nat(p), h4))
-  +t2 = Equal.cong(U32, Bool, z => Bool.and(Bool.not(U32.is_lt(z, x)), Bool.or(U32.is_zero(z), U32.is_lt(U32.shrn(U32.sub(z, 1), 16n), p))),
-    U32.add(x, 0), x, Y.U32.add_zero(x))
-  Equal.trans(Bool, C.Wasm.fits(p, x, 0), Bool.and(Bool.not(U32.is_lt(x, x)), Bool.or(U32.is_zero(x), U32.is_lt(sh, p))), True{},
-    t2, fits0.go(p, x, sh, Z.nlt.of(x, x, N.le_refl(X)), Z.nz.to(x, h1), c3))
+  +t2 = Equal.cong(U32, Bool, z => C.Wasm.fits.end(U32.is_lt(z, x), p, z), U32.add(x, 0), x, Y.U32.add_zero(x))
+  Equal.trans(Bool, C.Wasm.fits(p, x, 0), C.Wasm.fits.end(U32.is_lt(x, x), p, x), True{},
+    t2, fits0.go(p, x, Z.nlt.of(x, x, N.le_refl(X)), Z.nz.to(x, h1), c3))
 
 # Reading the output
 # ------------------

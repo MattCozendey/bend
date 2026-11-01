@@ -1,5 +1,5 @@
-# compiler: counterexamples to copy.post (proof_mach.bend), by runs
-# =================================================================
+# compiler: counterexamples to layer B's copy.post, by runs
+# ===========================================================
 #
 # Small states, run by the checker, that show what M.copy does on them.
 # Each state holds what HS, Ag and the other premises of copy.post read of

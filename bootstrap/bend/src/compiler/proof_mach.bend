@@ -56,6 +56,9 @@ import ./proof_term.bend as T
 import ./proof_need.bend as N
 import ./proof_mach_defs.bend as D
 import ./proof_mach_exec.bend as X
+import ./proof_mach_ev.bend as EV
+import ./proof_is.bend as PI
+import ./proof_out_is.bend as OI
 
 # Open: the premises (the phases' lemmas)
 # ---------------------------------------
@@ -154,19 +157,21 @@ def walk.done(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2,
 def out.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32,
   +pend: U32, +rest: D.R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>,
   +v: C.Term, +ks2: List<&2, List<&2, U32>>,
-  hv: D.Is(ds, m, im, fi, nx, ks, img, foc, v),
-  hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>}) ->
+  +hv: D.Is(ds, m, im, fi, nx, ks, img, foc, v),
+  +hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>}) ->
   D.OutPost(f, ds, ks, img, foc, pend, rest, m, nx, fi, im, pg, lim, inp, v, ks2, hv, hk):
-  ?TODO
+  OI.out.post(f, ds, ks, img, foc, pend, rest, m, nx, fi, im, pg, lim, inp, v, ks2, hv, hk,
+    PI.is.tm(ds, m, im, fi, nx, ks, img, foc, v, hv))
 
 
 def out.done(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32,
   +pend: U32, +rest: D.R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>,
   +v: C.Term, +ks2: List<&2, List<&2, U32>>,
-  hv: D.Is(ds, m, im, fi, nx, ks, img, foc, v),
-  hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>}) ->
+  +hv: D.Is(ds, m, im, fi, nx, ks, img, foc, v),
+  +hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>}) ->
   D.OutDone(ds, ks, img, foc, pend, rest, m, nx, fi, im, pg, lim, inp, v, ks2, hv, hk):
-  ?TODO
+  OI.out.done(ds, ks, img, foc, pend, rest, m, nx, fi, im, pg, lim, inp, v, ks2, hv, hk,
+    PI.is.tm(ds, m, im, fi, nx, ks, img, foc, v, hv))
 
 
 # Open: the start (proof_in.bend). From St0, with the image of a book that
@@ -200,7 +205,7 @@ def input.done(+p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m: U
 # Eval: a value has no step (Lean's eval_value)
 def ev.stops(+ds: List<&2, C.Def>, +t: C.Term, h: {C.Eval.vals(ds, t, False{}) == True{} : Bool}) ->
   {C.Eval.step(ds, t) == None{} : Maybe<C.Term>}:
-  ?TODO
+  EV.ev.stops(ds, t, h)
 
 # a term with a step is no value
 def vals.of(b: Bool, +ds: List<&2, C.Def>, +t: C.Term, -u: C.Term, eb: {C.Eval.vals(ds, t, False{}) == b : Bool},
@@ -594,7 +599,7 @@ def z.of(-m: C.Cir.Cells, -im: U32, -fi: U32, -nx: U32, +f0: U32, +focus: C.Term
 def ev.stuck(+ds: List<&2, C.Def>, fs: List<&2, D.AF>, +u: C.Term, hfs: D.AFs.ok(ds, fs),
   hs: {C.Eval.step(ds, u) == None{} : Maybe<C.Term>}, hv: {C.Eval.vals(ds, u, False{}) == False{} : Bool}) ->
   D.P2({C.Eval.step(ds, D.A.plugs(fs, u)) == None{} : Maybe<C.Term>}, {C.Eval.vals(ds, D.A.plugs(fs, u), False{}) == False{} : Bool}):
-  ?TODO
+  EV.ev.stuck(ds, fs, u, hfs, hs, hv)
 
 # a halt of a round, from a term equal to t
 def hr.eq(+ds: List<&2, C.Def>, -u: C.Term, -t: C.Term, -s: U32, -st: C.Cir.State, e: {u == t : C.Term},

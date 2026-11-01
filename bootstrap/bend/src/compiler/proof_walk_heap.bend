@@ -724,3 +724,690 @@ def Ptr.eq(+n: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +fi: U32, +ps: Lis
   ht: {TblR(n, m, fi, z) == True{} : Bool}) -> {PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, c) == PM.Ptr(n, m, fi, ps, rs, c) : Nat}:
   Equal.cong(Nat, Nat, w => Nat.add(w, PM.RcL(rs, c)), PM.Pc(n, C.Cir.Cells.set(m, z, x), ps, fi, c), PM.Pc(n, m, ps, fi, c),
     Pc.eq(n, m, z, x, ps, fi, c, hf0, hf1, ht))
+
+def and.i(a: Bool, -b: Bool, ha: {a == True{} : Bool}, hb: {b == True{} : Bool}) -> {Bool.and(a, b) == True{} : Bool}:
+  match a:
+    case True{}:
+      hb
+    case False{}:
+      PM.bool.ft({False{} == True{} : Bool}, ha)
+
+def or.l(a: Bool, -b: Bool, h: {a == True{} : Bool}) -> {Bool.or(a, b) == True{} : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      PM.bool.ft({b == True{} : Bool}, h)
+
+def or.f.l(a: Bool, -b: Bool, h: {Bool.or(a, b) == False{} : Bool}) -> {a == False{} : Bool}:
+  match a:
+    case True{}:
+      Empty.absurd({True{} == False{} : Bool}, N.true_ne_false(h))
+    case False{}:
+      {==}
+
+def or.f.r(a: Bool, -b: Bool, h: {Bool.or(a, b) == False{} : Bool}) -> {b == False{} : Bool}:
+  match a:
+    case True{}:
+      Empty.absurd({b == False{} : Bool}, N.true_ne_false(h))
+    case False{}:
+      h
+
+def Disc(n: Nat) -> Type:
+  match n:
+    case 0n:
+      Empty
+    case 1n+p:
+      Unit
+
+def add0.l(a: Nat, -b: Nat, h: {Nat.add(a, b) == 0n : Nat}) -> {a == 0n : Nat}:
+  match a:
+    case 0n:
+      {==}
+    case 1n+p:
+      Empty.absurd({1n+p == 0n : Nat}, (%h : Disc(_); Unit{}))
+
+def add0.r(a: Nat, -b: Nat, h: {Nat.add(a, b) == 0n : Nat}) -> {b == 0n : Nat}:
+  match a:
+    case 0n:
+      h
+    case 1n+p:
+      Empty.absurd({b == 0n : Nat}, (%h : Disc(_); Unit{}))
+
+# Nat.of(b) + r = 0 gives b false
+def of.z(b: Bool, -r: Nat, h: {Nat.add(PM.Nat.of(b), r) == 0n : Nat}) -> {b == False{} : Bool}:
+  match b:
+    case True{}:
+      Empty.absurd({True{} == False{} : Bool}, (%h : Disc(_); Unit{}))
+    case False{}:
+      {==}
+
+def ge.of(c: Cmp, h: {Cmp.is_lt(c) == False{} : Bool}) -> {Cmp.is_ge(c) == True{} : Bool}:
+  match c:
+    case LT{}:
+      Empty.absurd({False{} == True{} : Bool}, N.true_ne_false(h))
+    case EQ{}:
+      {==}
+    case GT{}:
+      {==}
+
+# Cnt at a cell, by its value y and its pointers P
+def CntC(+y: C.Cir.Cell, +P: Nat, +ps: List<&2, U32>, +o: U32) -> Bool:
+  Bool.or(U32.is_ge(PM.TgW(C.Cir.Cell.get(0n, y)), 32), Bool.or(PM.FlW(C.Cir.Cell.get(0n, y), 1024), Bool.or(PM.Mem(ps, o),
+    Nat.is_eq(U32.to_nat(C.Cir.Cell.get(1n, y)), P))))
+
+def cnt.at(b: Bool, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +o: U32, +n: Nat, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>,
+  eb: {U32.is_eq(o, z) == b : Bool}, hxt: {U32.is_lt(PM.TgW(C.Cir.Cell.get(0n, x)), 32) == False{} : Bool},
+  hP: {PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, o) == PM.Ptr(n, m, fi, ps, rs, o) : Nat},
+  h: {CntC(C.Cir.Cells.get(m, o), PM.Ptr(n, m, fi, ps, rs, o), ps, o) == True{} : Bool}) ->
+  {CntC(C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), o), PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, o), ps, o) == True{} : Bool}:
+  match b:
+    case True{}:
+      %Equal.sym(U32, o, z, PM.u32.eq(o, z, eb)) : {CntC(C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), _), PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, _), ps, _) == True{} : Bool}
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), z), x, PM.cl.gs(m, z, x)) : {CntC(_, PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, z), ps, z) == True{} : Bool}
+      or.l(U32.is_ge(PM.TgW(C.Cir.Cell.get(0n, x)), 32), Bool.or(PM.FlW(C.Cir.Cell.get(0n, x), 1024), Bool.or(PM.Mem(ps, z),
+        Nat.is_eq(U32.to_nat(C.Cir.Cell.get(1n, x)), PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, z)))), ge.of(U32.cmp(PM.TgW(C.Cir.Cell.get(0n, x)), 32), hxt))
+    case False{}:
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), o), C.Cir.Cells.get(m, o), PM.cl.go(m, o, z, x, eb)) : {CntC(_, PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, o), ps, o) == True{} : Bool}
+      %Equal.sym(Nat, PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, o), PM.Ptr(n, m, fi, ps, rs, o), hP) : {CntC(C.Cir.Cells.get(m, o), _, ps, o) == True{} : Bool}
+      h
+
+# a store to z, which gets a cell of the machine's own kinds (a tag of 32 or
+# more), keeps the counts
+def Cnt.fz(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +o: U32, +n: Nat, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>,
+  +hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
+  +htN: {TblR(n, m, fi, z) == True{} : Bool}, +hxt: {U32.is_lt(PM.TgW(C.Cir.Cell.get(0n, x)), 32) == False{} : Bool},
+  h: {PM.Cnt(k, m, o, n, fi, ps, rs) == True{} : Bool}) -> {PM.Cnt(k, C.Cir.Cells.set(m, z, x), o, n, fi, ps, rs) == True{} : Bool}:
+  match k:
+    case 0n:
+      {==}
+    case 1n+(+j):
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +h2 = h
+      and.i(CntC(C.Cir.Cells.get(M2, o), PM.Ptr(n, M2, fi, ps, rs, o), ps, o), PM.Cnt(j, M2, U32.inc(o), n, fi, ps, rs),
+        cnt.at(U32.is_eq(o, z), m, z, x, o, n, fi, ps, rs, {==}, hxt, Ptr.eq(n, m, z, x, fi, ps, rs, o, hf0, hf1, htN),
+          and.l(CntC(C.Cir.Cells.get(m, o), PM.Ptr(n, m, fi, ps, rs, o), ps, o), PM.Cnt(j, m, U32.inc(o), n, fi, ps, rs), h2)),
+        Cnt.fz(j, m, z, x, U32.inc(o), n, fi, ps, rs, hf0, hf1, htN, hxt,
+          and.r(CntC(C.Cir.Cells.get(m, o), PM.Ptr(n, m, fi, ps, rs, o), ps, o), PM.Cnt(j, m, U32.inc(o), n, fi, ps, rs), h2)))
+
+# the pointers xs, none of them z, point to term cells after a store to z
+def lt.fz(xs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +nx: U32, hr: {PM.RcL(xs, z) == 0n : Nat},
+  h: {PM.Lt.all(xs, m, nx) == True{} : Bool}) -> {PM.Lt.all(xs, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+y, +rest}:
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +hr2 = hr
+      +h2 = h
+      +ne = of.z(U32.is_eq(y, z), PM.RcL(rest, z), hr2)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, y), C.Cir.Cells.get(m, y), PM.cl.go(m, y, z, x, ne)) :
+        {Bool.and(Bool.and(U32.is_lt(y, nx), U32.is_lt(U32.and(C.Cir.Cell.get(0n, _), 63), 32)), PM.Lt.all(rest, M2, nx)) == True{} : Bool}
+      and.i(Bool.and(U32.is_lt(y, nx), U32.is_lt(PM.Tg(m, y), 32)), PM.Lt.all(rest, M2, nx),
+        and.l(Bool.and(U32.is_lt(y, nx), U32.is_lt(PM.Tg(m, y), 32)), PM.Lt.all(rest, m, nx), h2),
+        lt.fz(rest, m, z, x, nx, add0.r(PM.Nat.of(U32.is_eq(y, z)), PM.RcL(rest, z), hr2),
+          and.r(Bool.and(U32.is_lt(y, nx), U32.is_lt(PM.Tg(m, y), 32)), PM.Lt.all(rest, m, nx), h2)))
+
+def pts.at(b: Bool, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +nx: U32, eb: {U32.is_eq(o, z) == b : Bool},
+  hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>}, ht: {TblAt(m, o, z) == True{} : Bool},
+  hr: {PM.RcL(PM.Fs(m, ps, o), z) == 0n : Nat}, h: {PM.Lt.all(PM.Fs(m, ps, o), m, nx) == True{} : Bool}) ->
+  {PM.Lt.all(PM.Fs(C.Cir.Cells.set(m, z, x), ps, o), C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}:
+  match b:
+    case True{}:
+      %Equal.sym(U32, o, z, PM.u32.eq(o, z, eb)) : {PM.Lt.all(PM.Fs(C.Cir.Cells.set(m, z, x), ps, _), C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
+      %Equal.sym(List<&2, U32>, PM.Fs(C.Cir.Cells.set(m, z, x), ps, z), Nil{}, hf1) : {PM.Lt.all(_, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
+      {==}
+    case False{}:
+      %Equal.sym(List<&2, U32>, PM.Fs(C.Cir.Cells.set(m, z, x), ps, o), PM.Fs(m, ps, o), fs.eq(m, z, x, ps, o, eb, ht)) : {PM.Lt.all(_, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
+      lt.fz(PM.Fs(m, ps, o), m, z, x, nx, hr, h)
+
+# and keeps that every pointer points to a term cell
+def Pts.fz(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +nx: U32,
+  +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>}, hz: {PM.Pc(k, m, ps, o, z) == 0n : Nat},
+  ht: {TblR(k, m, o, z) == True{} : Bool}, h: {PM.Pts(k, m, ps, o, nx) == True{} : Bool}) ->
+  {PM.Pts(k, C.Cir.Cells.set(m, z, x), ps, o, nx) == True{} : Bool}:
+  match k:
+    case 0n:
+      {==}
+    case 1n+(+j):
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +hz2 = hz
+      +ht2 = ht
+      +h2 = h
+      and.i(PM.Lt.all(PM.Fs(M2, ps, o), M2, nx), PM.Pts(j, M2, ps, U32.inc(o), nx),
+        pts.at(U32.is_eq(o, z), m, z, x, ps, o, nx, {==}, hf1, and.l(TblAt(m, o, z), TblR(j, m, U32.inc(o), z), ht2),
+          add0.l(PM.RcL(PM.Fs(m, ps, o), z), PM.Pc(j, m, ps, U32.inc(o), z), hz2),
+          and.l(PM.Lt.all(PM.Fs(m, ps, o), m, nx), PM.Pts(j, m, ps, U32.inc(o), nx), h2)),
+        Pts.fz(j, m, z, x, ps, U32.inc(o), nx, hf1, add0.r(PM.RcL(PM.Fs(m, ps, o), z), PM.Pc(j, m, ps, U32.inc(o), z), hz2),
+          and.r(TblAt(m, o, z), TblR(j, m, U32.inc(o), z), ht2), and.r(PM.Lt.all(PM.Fs(m, ps, o), m, nx), PM.Pts(j, m, ps, U32.inc(o), nx), h2)))
+
+# the pend list's cells, none of them z
+def PendOK.fz(qs: List<&2, U32>, +ps: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +fi: U32, +nx: U32, +rs: List<&2, U32>,
+  +hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
+  +htN: {TblR(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, z) == True{} : Bool}, hq: {PM.Mem(qs, z) == False{} : Bool},
+  h: PM.PendOK(qs, ps, m, fi, nx, rs)) -> PM.PendOK(qs, ps, C.Cir.Cells.set(m, z, x), fi, nx, rs):
+  match qs:
+    case Nil{}:
+      Unit{}
+    case Con{+p, +rest}:
+      (ho, r1) = h
+      (hs, r2) = r1
+      (hp0, r3) = r2
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +hq2 = hq
+      +ne = or.f.l(U32.is_eq(p, z), PM.Mem(rest, z), hq2)
+      (ho, ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, p), C.Cir.Cells.get(m, p), PM.cl.go(m, p, z, x, ne)) :
+          {U32.is_ne(U32.and(C.Cir.Cell.get(0n, _), 1024), 0) == False{} : Bool}; hs),
+        ((%Equal.sym(Nat, PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), M2, fi, ps, rs, p), PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, p),
+            Ptr.eq(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, z, x, fi, ps, rs, p, hf0, hf1, htN)) : {_ == 0n : Nat}; hp0),
+          PendOK.fz(rest, ps, m, z, x, fi, nx, rs, hf0, hf1, htN, or.f.r(U32.is_eq(p, z), PM.Mem(rest, z), hq2), r3))))
+
+# the pend list's links, none of them at z
+def Chain.fz(qs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +p: U32, hq: {PM.Mem(qs, z) == False{} : Bool},
+  h: PM.Chain(qs, m, p)) -> PM.Chain(qs, C.Cir.Cells.set(m, z, x), p):
+  match qs:
+    case Nil{}:
+      h
+    case Con{+y, +rest}:
+      (e1, r1) = h
+      (e2, r2) = r1
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +hq2 = hq
+      +ne = or.f.l(U32.is_eq(y, z), PM.Mem(rest, z), hq2)
+      (e1, (e2, (%Equal.sym(U32, PM.Fd(1n, M2, y), PM.Fd(1n, m, y),
+          Equal.cong(C.Cir.Cell, U32, w => C.Cir.Cell.get(1n, w), C.Cir.Cells.get(M2, y), C.Cir.Cells.get(m, y), PM.cl.go(m, y, z, x, ne))) :
+          PM.Chain(rest, M2, _);
+        Chain.fz(rest, m, z, x, PM.Fd(1n, m, y), or.f.r(U32.is_eq(y, z), PM.Mem(rest, z), hq2), r2))))
+
+# a store to z, out of the pend list, with no pointer to it, which gets a
+# cell of the machine's own kinds with no pointer in it, keeps the heap
+def Heap.fz(+m: C.Cir.Cells, +nx: U32, +fi: U32, +rs: List<&2, U32>, +pend: U32, +ps: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
+  +hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
+  +htN: {TblR(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, z) == True{} : Bool}, +hzm: {PM.Mem(ps, z) == False{} : Bool},
+  hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat},
+  hxt: {U32.is_lt(PM.TgW(C.Cir.Cell.get(0n, x)), 32) == False{} : Bool},
+  h: PM.Heap(m, nx, fi, rs, pend, ps)) -> PM.Heap(C.Cir.Cells.set(m, z, x), nx, fi, rs, pend, ps):
+  (hc, r1) = h
+  (hp, r2) = r1
+  (hcn, r3) = r2
+  (hpt, hr) = r3
+  +n = Nat.sub(U32.to_nat(nx), U32.to_nat(fi))
+  (Chain.fz(ps, m, z, x, pend, hzm, hc), (PendOK.fz(ps, ps, m, z, x, fi, nx, rs, hf0, hf1, htN, hzm, hp),
+    (Cnt.fz(n, m, z, x, fi, n, fi, ps, rs, hf0, hf1, htN, hxt, hcn),
+    (Pts.fz(n, m, z, x, ps, fi, nx, hf1, add0.l(PM.Pc(n, m, ps, fi, z), PM.RcL(rs, z), hz0), htN, hpt), hr))))
+
+# A store to a cell that nothing points to: the terms
+# --------------------------------------------------
+
+# no cell of cs is z
+def NeAll(cs: List<&2, U32>, +z: U32) -> Bool:
+  match cs:
+    case Nil{}:
+      True{}
+    case Con{c, rest}:
+      Bool.not(U32.is_eq(c, z)) && NeAll(rest, z)
+
+def neall.hd(+c: U32, +z: U32, -rest: List<&2, U32>, h: {NeAll(Con{c, rest}, z) == True{} : Bool}) -> {U32.is_eq(c, z) == False{} : Bool}:
+  not.t(U32.is_eq(c, z), and.l(Bool.not(U32.is_eq(c, z)), NeAll(rest, z), h))
+
+def neall.tl(+c: U32, +z: U32, -rest: List<&2, U32>, h: {NeAll(Con{c, rest}, z) == True{} : Bool}) -> {NeAll(rest, z) == True{} : Bool}:
+  and.r(Bool.not(U32.is_eq(c, z)), NeAll(rest, z), h)
+
+def neall.cons(+c: U32, +z: U32, -rest: List<&2, U32>, ne: {U32.is_eq(c, z) == False{} : Bool}, h: {NeAll(rest, z) == True{} : Bool}) ->
+  {NeAll(Con{c, rest}, z) == True{} : Bool}:
+  %Equal.sym(Bool, U32.is_eq(c, z), False{}, ne) : {Bool.and(Bool.not(_), NeAll(rest, z)) == True{} : Bool}
+  h
+
+# no root is z, when no root points to z
+def neall.rcl(rs: List<&2, U32>, +z: U32, h: {PM.RcL(rs, z) == 0n : Nat}) -> {NeAll(rs, z) == True{} : Bool}:
+  match rs:
+    case Nil{}:
+      {==}
+    case Con{+r, +rest}:
+      +h2 = h
+      neall.cons(r, z, rest, of.z(U32.is_eq(r, z), PM.RcL(rest, z), h2),
+        neall.rcl(rest, z, add0.r(PM.Nat.of(U32.is_eq(r, z)), PM.RcL(rest, z), h2)))
+
+def lt0.le1(p: Nat, h: {Nat.is_lt(0n, p) == True{} : Bool}) -> N.Le(1n, p):
+  match p:
+    case 0n:
+      PM.bool.ft(N.Le(1n, 0n), h)
+    case 1n+q:
+      N.le_zero(q)
+
+def held.ne(f: Bool, +m: C.Cir.Cells, +c: U32, +z: U32, +n: Nat, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>,
+  ef: {PM.Fl(m, c, 1024) == f : Bool}, h: {Bool.or(f, Nat.is_lt(0n, PM.Ptr(n, m, fi, ps, rs, c))) == True{} : Bool},
+  hz0: {PM.Ptr(n, m, fi, ps, rs, z) == 0n : Nat}, hzs: {PM.Fl(m, z, 1024) == False{} : Bool}) -> {U32.is_eq(c, z) == False{} : Bool}:
+  match f:
+    case True{}:
+      ne.st(U32.is_eq(c, z), m, c, z, {==}, ef, hzs)
+    case False{}:
+      ne.ptr(U32.is_eq(c, z), c, z, n, m, fi, ps, rs, {==}, lt0.le1(PM.Ptr(n, m, fi, ps, rs, c), h), hz0)
+
+# no borrowed cell is z, which is not STATIC and has no pointer
+def neall.held(bs: List<&2, PM.Rt>, +m: C.Cir.Cells, +z: U32, +n: Nat, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>,
+  +hz0: {PM.Ptr(n, m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool}, h: PM.Held(m, n, fi, ps, rs, bs)) ->
+  {NeAll(PM.Rt.cells(bs), z) == True{} : Bool}:
+  match bs:
+    case Nil{}:
+      {==}
+    case Con{PM.Rt{+c, _}, +rest}:
+      (hh, hr) = h
+      neall.cons(c, z, PM.Rt.cells(rest), held.ne(PM.Fl(m, c, 1024), m, c, z, n, fi, ps, rs, {==}, hh, hz0, hzs),
+        neall.held(rest, m, z, n, fi, ps, rs, hz0, hzs, hr))
+
+# a store to z keeps the terms of cells that are not z
+def Rts.fz(xs: List<&2, PM.Rt>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hn: {NeAll(PM.Rt.cells(xs), z) == True{} : Bool}, h: PM.Rts(ds, m, im, fi, nx, ks, img, xs)) ->
+  PM.Rts(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, xs):
+  match xs:
+    case Nil{}:
+      Unit{}
+    case Con{PM.Rt{+c, +u}, +rest}:
+      (hc, hr) = h
+      +hn2 = hn
+      (is.fz(u, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, tbl, hz0, hzs, neall.hd(c, z, PM.Rt.cells(rest), hn2), hc),
+        Rts.fz(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, neall.tl(c, z, PM.Rt.cells(rest), hn2), hr))
+
+# a store to z keeps Held
+def Held.fz(bs: List<&2, PM.Rt>, +m: C.Cir.Cells, +n: Nat, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
+  +hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
+  +htN: {TblR(n, m, fi, z) == True{} : Bool}, hn: {NeAll(PM.Rt.cells(bs), z) == True{} : Bool}, h: PM.Held(m, n, fi, ps, rs, bs)) ->
+  PM.Held(C.Cir.Cells.set(m, z, x), n, fi, ps, rs, bs):
+  match bs:
+    case Nil{}:
+      Unit{}
+    case Con{PM.Rt{+c, _}, +rest}:
+      (hh, hr) = h
+      +hn2 = hn
+      +M2 = C.Cir.Cells.set(m, z, x)
+      ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, c), C.Cir.Cells.get(m, c), PM.cl.go(m, c, z, x, neall.hd(c, z, PM.Rt.cells(rest), hn2))) :
+          {Bool.or(U32.is_ne(U32.and(C.Cir.Cell.get(0n, _), 1024), 0), Nat.is_lt(0n, PM.Ptr(n, M2, fi, ps, rs, c))) == True{} : Bool};
+        %Equal.sym(Nat, PM.Ptr(n, M2, fi, ps, rs, c), PM.Ptr(n, m, fi, ps, rs, c), Ptr.eq(n, m, z, x, fi, ps, rs, c, hf0, hf1, htN)) :
+          {Bool.or(PM.Fl(m, c, 1024), Nat.is_lt(0n, _)) == True{} : Bool};
+        hh),
+        Held.fz(rest, m, n, fi, ps, rs, z, x, hf0, hf1, htN, neall.tl(c, z, PM.Rt.cells(rest), hn2), hr))
+
+# Fs of a frame, past the test of its tag
+def FsR(c: Bool, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +tg: U32) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, c, Con{PM.Fd(2n, m, o), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, o), Nil{})},
+    Bool.pick(List<&2, U32>, Bool.and(Bool.and(U32.is_eq(tg, 41), PM.FlW(PM.Fd(0n, m, o), 4096)), Bool.not(PM.Mem(ps, o))),
+      [PM.Fd(2n, m, o)], Nil{}))
+
+# the pointers of a frame out of the pend list: its field 2, and 3 for Rwt
+def fs.frame(+m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +tg: U32, etag: {PM.TgW(PM.Fd(0n, m, o)) == tg : U32},
+  hlt: {U32.is_lt(tg, 32) == False{} : Bool}, hle: {U32.is_le(tg, 40) == True{} : Bool}, hm: {PM.Mem(ps, o) == False{} : Bool}) ->
+  {PM.Fs(m, ps, o) == Con{PM.Fd(2n, m, o), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, o), Nil{})} : List<&2, U32>}:
+  +R = {Con{PM.Fd(2n, m, o), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, o), Nil{})} : List<&2, U32>}
+  %Equal.sym(U32, PM.TgW(PM.Fd(0n, m, o)), tg, etag) : {FsP(U32.is_lt(_, 32), m, ps, o, _) == R : List<&2, U32>}
+  %Equal.sym(Bool, U32.is_lt(tg, 32), False{}, hlt) : {FsP(_, m, ps, o, tg) == R : List<&2, U32>}
+  %Equal.sym(Bool, U32.is_le(tg, 40), True{}, hle) : {FsR(Bool.and(_, Bool.not(PM.Mem(ps, o))), m, ps, o, tg) == R : List<&2, U32>}
+  %Equal.sym(Bool, PM.Mem(ps, o), False{}, hm) : {FsR(Bool.and(True{}, Bool.not(_)), m, ps, o, tg) == R : List<&2, U32>}
+  {==}
+
+def fk.lt(kind: PM.FK) -> {U32.is_lt(PM.FK.tag(kind), 32) == False{} : Bool}:
+  match kind:
+    case PM.FK.arg{}:
+      {==}
+    case PM.FK.val{}:
+      {==}
+    case PM.FK.fun{}:
+      {==}
+    case PM.FK.let{}:
+      {==}
+    case PM.FK.tupb{}:
+      {==}
+    case PM.FK.tupa{}:
+      {==}
+    case PM.FK.rwt{}:
+      {==}
+    case PM.FK.minb{}:
+      {==}
+    case PM.FK.mina{}:
+      {==}
+
+def fk.le(kind: PM.FK) -> {U32.is_le(PM.FK.tag(kind), 40) == True{} : Bool}:
+  match kind:
+    case PM.FK.arg{}:
+      {==}
+    case PM.FK.val{}:
+      {==}
+    case PM.FK.fun{}:
+      {==}
+    case PM.FK.let{}:
+      {==}
+    case PM.FK.tupb{}:
+      {==}
+    case PM.FK.tupa{}:
+      {==}
+    case PM.FK.rwt{}:
+      {==}
+    case PM.FK.minb{}:
+      {==}
+    case PM.FK.mina{}:
+      {==}
+
+# a part y of a frame fr is not z, which has no pointer
+def fr.ne(+m: C.Cir.Cells, +nx: U32, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +fr: U32, +y: U32, +z: U32, +tg: U32,
+  etag: {PM.TgW(PM.Fd(0n, m, fr)) == tg : U32}, hlt: {U32.is_lt(tg, 32) == False{} : Bool}, hle: {U32.is_le(tg, 40) == True{} : Bool},
+  em: {PM.Mem(ps, fr) == False{} : Bool}, own: {PM.Own(fi, nx, fr) == True{} : Bool},
+  hy: {PM.Mem(Con{PM.Fd(2n, m, fr), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, fr), Nil{})}, y) == True{} : Bool},
+  hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}) -> {U32.is_eq(y, z) == False{} : Bool}:
+  +L = {Con{PM.Fd(2n, m, fr), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, fr), Nil{})} : List<&2, U32>}
+  +e = fs.frame(m, ps, fr, tg, etag, hlt, hle, em)
+  ne.ptr(U32.is_eq(y, z), y, z, Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, {==},
+    N.le_trans(1n, PM.RcL(PM.Fs(m, ps, fr), y), PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, y),
+      (%Equal.sym(List<&2, U32>, PM.Fs(m, ps, fr), L, e) : N.Le(1n, PM.RcL(_, y)); rcl.mem(L, y, hy)),
+      Ptr.at(m, nx, fi, ps, rs, fr, y, own)), hz0)
+
+# the part b of a frame, after a store to z
+def Frs.b.fz(kind: PM.FK, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +fr: U32, +b: C.Term,
+  +tbl: PM.Tbl(m, im, fi, nx), +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat},
+  +hzs: {PM.Fl(m, z, 1024) == False{} : Bool}, etag: {PM.TgW(PM.Fd(0n, m, fr)) == PM.FK.tag(kind) : U32},
+  em: {PM.Mem(ps, fr) == False{} : Bool}, own: {PM.Own(fi, nx, fr) == True{} : Bool},
+  h: PM.Frs.b(ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, fr), kind, b)) ->
+  PM.Frs.b(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, PM.Fd(3n, m, fr), kind, b):
+  match kind:
+    case PM.FK.rwt{}:
+      is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, fr), tbl, hz0, hzs,
+        fr.ne(m, nx, fi, ps, rs, fr, PM.Fd(3n, m, fr), z, 38, etag, {==}, {==}, em, own,
+          mem.tl(PM.Fd(2n, m, fr), PM.Fd(3n, m, fr), Con{PM.Fd(3n, m, fr), Nil{}}, mem.hd(PM.Fd(3n, m, fr), Nil{})), hz0), h)
+    case PM.FK.arg{}:
+      Unit{}
+    case PM.FK.val{}:
+      Unit{}
+    case PM.FK.fun{}:
+      Unit{}
+    case PM.FK.let{}:
+      Unit{}
+    case PM.FK.tupb{}:
+      Unit{}
+    case PM.FK.tupa{}:
+      Unit{}
+    case PM.FK.minb{}:
+      Unit{}
+    case PM.FK.mina{}:
+      Unit{}
+
+# a store to z, a cell of a tag below 32 with no pointer, keeps the frames
+def Frs.fz(fs: List<&2, PM.AF>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +fr: U32,
+  +tbl: PM.Tbl(m, im, fi, nx), +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat},
+  +hzs: {PM.Fl(m, z, 1024) == False{} : Bool}, +hzt: {U32.is_lt(PM.TgW(PM.Fd(0n, m, z)), 32) == True{} : Bool},
+  h: PM.Frs(ds, m, im, fi, nx, ks, img, ps, fr, fs)) -> PM.Frs(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, ps, fr, fs):
+  match fs:
+    case Nil{}:
+      h
+    case Con{PM.AF{+kind, +q, +k, +a, +b}, +rest}:
+      match h:
+        case Tuple{e0, Tuple{ev, Tuple{+eo, Tuple{es, Tuple{+em, Tuple{+etg, Tuple{eq, Tuple{ek, Tuple{ia, Tuple{ib, ir}}}}}}}}}}:
+          +M2 = C.Cir.Cells.set(m, z, x)
+          +ne = PM.ne.fr(U32.is_eq(fr, z), m, fr, z, kind, {==}, etg, hzt)
+          PM.frs.uc(ds, M2, im, fi, nx, ks, img, ps, fr, Con{PM.AF{kind, q, k, a, b}, rest},
+            PM.frsc.at(ds, M2, im, fi, nx, ks, img, ps, fr, C.Cir.Cells.get(M2, fr), C.Cir.Cells.get(m, fr), Con{PM.AF{kind, q, k, a, b}, rest},
+              PM.cl.go(m, fr, z, x, ne),
+              (e0, (ev, (eo, (es, (em, (etg, (eq, (ek,
+                (is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, fr), tbl, hz0, hzs,
+                  fr.ne(m, nx, fi, ps, rs, fr, PM.Fd(2n, m, fr), z, PM.FK.tag(kind), etg, fk.lt(kind), fk.le(kind), em, eo,
+                    mem.hd(PM.Fd(2n, m, fr), PM.Fs.opt(U32.is_eq(PM.FK.tag(kind), 38), PM.Fd(3n, m, fr), Nil{})), hz0), ia),
+                (Frs.b.fz(kind, ds, m, im, fi, nx, ks, img, ps, rs, z, x, fr, b, tbl, hz0, hzs, etg, em, eo, ib),
+                  Frs.fz(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(1n, m, fr), tbl, hz0, hzs, hzt, ir)))))))))))))
+
+# The image, after a store to a cell of the machine's own
+# -------------------------------------------------------
+
+# the table's cells from at, for the rows rs, are at most 363
+def TblB(rs: List<&2, PM.Row>, +at: U32) -> Bool:
+  match rs:
+    case Nil{}:
+      True{}
+    case Con{_, rest}:
+      Bool.and(U32.is_le(at, 363), TblB(rest, U32.inc(at)))
+
+# a cell at most 363 is not z, past 363
+def lit.ne(b: Bool, +l: U32, +z: U32, eb: {U32.is_eq(l, z) == b : Bool}, hl: {U32.is_le(l, 363) == True{} : Bool},
+  hz: N.Le(1n+U32.to_nat(363), U32.to_nat(z))) -> {U32.is_eq(l, z) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +e = PM.u32.eq(l, z, eb)
+      Empty.absurd({U32.is_eq(l, z) == False{} : Bool}, N.not_succ_le(U32.to_nat(363), N.le_trans(1n+U32.to_nat(363), U32.to_nat(z), U32.to_nat(363), hz,
+        N.le_rw_l(U32.to_nat(l), U32.to_nat(z), U32.to_nat(363), Equal.cong(U32, Nat, w => U32.to_nat(w), l, z, e), u.le(l, 363, hl)))))
+
+def Tbl.fz(rs: List<&2, PM.Row>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +z: U32, +x: C.Cir.Cell, +at: U32,
+  +hz: N.Le(1n+U32.to_nat(363), U32.to_nat(z)), hb: {TblB(rs, at) == True{} : Bool}, h: PM.Tbl.go(rs, m, im, fi, nx, at)) ->
+  PM.Tbl.go(rs, C.Cir.Cells.set(m, z, x), im, fi, nx, at):
+  match rs:
+    case Nil{}:
+      Unit{}
+    case Con{PM.Row{+a, +b, +c}, +rest}:
+      (ec, r1) = h
+      (e2, r2) = r1
+      (e3, r3) = r2
+      (e4, r4) = r3
+      +hb2 = hb
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +ne = lit.ne(U32.is_eq(at, z), at, z, {==}, and.l(U32.is_le(at, 363), TblB(rest, U32.inc(at)), hb2), hz)
+      +ea = PM.cl.go(m, at, z, x, ne)
+      (ec, ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, at), C.Cir.Cells.get(m, at), ea) : {C.Cir.Cell.get(2n, _) == a : U32}; e2),
+        ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, at), C.Cir.Cells.get(m, at), ea) : {C.Cir.Cell.get(3n, _) == b : U32}; e3),
+        ((%Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, at), C.Cir.Cells.get(m, at), ea) : {C.Cir.Cell.get(4n, _) == c : U32}; e4),
+          Tbl.fz(rest, m, im, fi, nx, z, x, U32.inc(at), hz, and.r(U32.is_le(at, 363), TblB(rest, U32.inc(at)), hb2), r4)))))
+
+# no root of the defs dl, from at, is z
+def Roots.ne(dl: List<&2, C.Def>, +at: U32, +z: U32) -> Bool:
+  match dl:
+    case Nil{}:
+      True{}
+    case Con{C.Def{_, _, +v, _}, rest}:
+      Bool.and(Bool.not(U32.is_eq(at, z)), Roots.ne(rest, U32.add(at, C.Img.size(v)), z))
+
+def Defs.fz(dl: List<&2, C.Def>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +at: U32, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hr: {Roots.ne(dl, at, z) == True{} : Bool}, h: PM.Defs(dl, ds, m, im, fi, nx, ks, img, at)) ->
+  PM.Defs(dl, ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, at):
+  match dl:
+    case Nil{}:
+      Unit{}
+    case Con{C.Def{_, _, +v, _}, +rest}:
+      (e0, r1) = h
+      (hv, r2) = r1
+      +hr2 = hr
+      (e0, (is.fz(v, ds, m, im, fi, nx, ks, img, ps, rs, z, x, at, tbl, hz0, hzs,
+          not.t(U32.is_eq(at, z), and.l(Bool.not(U32.is_eq(at, z)), Roots.ne(rest, U32.add(at, C.Img.size(v)), z), hr2)), hv),
+        Defs.fz(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, x, U32.add(at, C.Img.size(v)), tbl, hz0, hzs,
+          and.r(Bool.not(U32.is_eq(at, z)), Roots.ne(rest, U32.add(at, C.Img.size(v)), z), hr2), r2)))
+
+# a store to z, one of the machine's own cells, keeps the image
+def ImgOK.fz(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32,
+  +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hzo: {PM.Own(fi, nx, z) == True{} : Bool}, hr: {Roots.ne(ds, C.I.book(), z) == True{} : Bool},
+  h: PM.ImgOK(ds, ks, img, m, im, fi, nx)) -> PM.ImgOK(ds, ks, img, C.Cir.Cells.set(m, z, x), im, fi, nx):
+  (+tbl, r1) = h
+  (hd, r2) = r1
+  (h9, r3) = r2
+  (h10, r4) = r3
+  (h11, r5) = r4
+  (hks, r6) = r5
+  (e363a, eima) = r6
+  +e363 = {e363a : {U32.is_le(363, im) == True{} : Bool}}
+  +eim = {eima : {U32.is_lt(im, fi) == True{} : Bool}}
+  +hz = N.le_trans(1n+U32.to_nat(363), U32.to_nat(fi), U32.to_nat(z),
+    N.le_trans(1n+U32.to_nat(363), 1n+U32.to_nat(im), U32.to_nat(fi), u.le(363, im, e363), u.lt(im, fi, eim)),
+    u.le(fi, z, and.l(U32.is_le(fi, z), U32.is_lt(z, nx), hzo)))
+  (Tbl.fz(PM.Tbl.rows(), m, im, fi, nx, z, x, 345, hz, {==}, tbl),
+    (Defs.fz(ds, ds, m, im, fi, nx, ks, img, ps, rs, z, x, C.I.book(), tbl, hz0, hzs, hr, hd),
+    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q0{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 9, tbl, hz0, hzs, lit.ne(U32.is_eq(9, z), 9, z, {==}, {==}, hz), h9),
+    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q1{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 10, tbl, hz0, hzs, lit.ne(U32.is_eq(10, z), 10, z, {==}, {==}, hz), h10),
+    (is.fz(C.Term.Lab{C.Quan.name(C.Quan.Q2{})}, ds, m, im, fi, nx, ks, img, ps, rs, z, x, 11, tbl, hz0, hzs, lit.ne(U32.is_eq(11, z), 11, z, {==}, {==}, hz), h11),
+    (hks, (e363, eim)))))))
+
+# the table, of the image
+def img.tbl(-ds: List<&2, C.Def>, -ks: List<&2, List<&2, U32>>, -img: List<&2, C.Term>, -m: C.Cir.Cells, -im: U32,
+  -fi: U32, -nx: U32, io: PM.ImgOK(ds, ks, img, m, im, fi, nx)) -> PM.Tbl(m, im, fi, nx):
+  (tb, r) = io
+  tb
+
+# A store to a cell that nothing points to: HS
+# -------------------------------------------
+#
+# M.make's stores, after M.alloc: the cell z is one of the machine's own, out
+# of the pend list, not STATIC, of a tag below 32, holds no pointer and has
+# none; it gets a cell x of the machine's own kinds (a tag of 32 or more) that
+# holds no pointer. Then HS holds with the same terms. TblR (no term cell
+# reads its mask at z) and Roots.ne (no def's body is at z) are what HS does
+# not say yet.
+
+def hs.fz(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32,
+  +os: List<&2, PM.Rt>, +bs: List<&2, PM.Rt>, +fs: List<&2, PM.AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
+  hs: PM.HS(ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
+  hzo: {PM.Own(fi, nx, z) == True{} : Bool}, +hzm: {PM.Mem(ps, z) == False{} : Bool},
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, PM.Rt.cells(os), z) == 0n : Nat},
+  +hzs: {PM.Fl(m, z, 1024) == False{} : Bool}, hzt: {U32.is_lt(PM.TgW(PM.Fd(0n, m, z)), 32) == True{} : Bool},
+  +hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
+  hxt: {U32.is_lt(PM.TgW(C.Cir.Cell.get(0n, x)), 32) == False{} : Bool},
+  +htN: {TblR(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, z) == True{} : Bool},
+  hr: {Roots.ne(ds, C.I.book(), z) == True{} : Bool}) ->
+  PM.HS(ds, ks, img, C.Cir.Cells.set(m, z, x), nx, fi, im, os, bs, fs, sp, pend, ps):
+  (ho, r1) = hs
+  (hb, r2) = r1
+  (hh0, r3) = r2
+  (hf, r4) = r3
+  (hp, hi0) = r4
+  +n = Nat.sub(U32.to_nat(nx), U32.to_nat(fi))
+  +rs = PM.Rt.cells(os)
+  +hh = {hh0 : PM.Held(m, Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), fi, ps, PM.Rt.cells(os), bs)}
+  +hi = {hi0 : PM.ImgOK(ds, ks, img, m, im, fi, nx)}
+  +tbl = img.tbl(ds, ks, img, m, im, fi, nx, hi)
+  +hnb = neall.held(bs, m, z, n, fi, ps, rs, hz0, hzs, hh)
+  (Rts.fz(os, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, neall.rcl(rs, z, add0.r(PM.Pc(n, m, ps, fi, z), PM.RcL(rs, z), hz0)), ho),
+    (Rts.fz(bs, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, hnb, hb),
+    (Held.fz(bs, m, n, fi, ps, rs, z, x, hf0, hf1, htN, hnb, hh),
+    (Frs.fz(fs, ds, m, im, fi, nx, ks, img, ps, rs, z, x, sp, tbl, hz0, hzs, hzt, hf),
+    (Heap.fz(m, nx, fi, rs, pend, ps, z, x, hf0, hf1, htN, hzm, hz0, hxt, hp),
+      ImgOK.fz(ds, ks, img, m, im, fi, nx, ps, rs, z, x, hz0, hzs, hzo, hr, hi))))))
+
+# Cells set twice
+# ---------------
+
+# a cell set twice holds the second value (M.make's stores, one by one)
+def cl.ss.at(n: Nat, +w: Word(n), +m: C.Cir.Cells, +c: C.Cir.Cell, +d: C.Cir.Cell) ->
+  {C.Cir.Cells.set.at(n, w, C.Cir.Cells.set.at(n, w, m, c), d) == C.Cir.Cells.set.at(n, w, m, d) : C.Cir.Cells}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+p:
+      match w:
+        case WCon{False{}, +t}:
+          match m:
+            case C.Cir.Cells.node{+lo, +hi}:
+              %cl.ss.at(p, t, lo, c, d) : {C.Cir.Cells.node{_, hi} == C.Cir.Cells.node{C.Cir.Cells.set.at(p, t, lo, d), hi} : C.Cir.Cells}
+              {==}
+            case C.Cir.Cells.none{}:
+              %cl.ss.at(p, t, C.Cir.Cells.none{}, c, d) : {C.Cir.Cells.node{_, C.Cir.Cells.none{}} == C.Cir.Cells.node{C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, d), C.Cir.Cells.none{}} : C.Cir.Cells}
+              {==}
+            case C.Cir.Cells.one{+e}:
+              %cl.ss.at(p, t, C.Cir.Cells.none{}, c, d) : {C.Cir.Cells.node{_, C.Cir.Cells.none{}} == C.Cir.Cells.node{C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, d), C.Cir.Cells.none{}} : C.Cir.Cells}
+              {==}
+        case WCon{True{}, +t}:
+          match m:
+            case C.Cir.Cells.node{+lo, +hi}:
+              %cl.ss.at(p, t, hi, c, d) : {C.Cir.Cells.node{lo, _} == C.Cir.Cells.node{lo, C.Cir.Cells.set.at(p, t, hi, d)} : C.Cir.Cells}
+              {==}
+            case C.Cir.Cells.none{}:
+              %cl.ss.at(p, t, C.Cir.Cells.none{}, c, d) : {C.Cir.Cells.node{C.Cir.Cells.none{}, _} == C.Cir.Cells.node{C.Cir.Cells.none{}, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, d)} : C.Cir.Cells}
+              {==}
+            case C.Cir.Cells.one{+e}:
+              %cl.ss.at(p, t, C.Cir.Cells.none{}, c, d) : {C.Cir.Cells.node{C.Cir.Cells.none{}, _} == C.Cir.Cells.node{C.Cir.Cells.none{}, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, d)} : C.Cir.Cells}
+              {==}
+
+def cl.ss(+m: C.Cir.Cells, +i: U32, +c: C.Cir.Cell, +d: C.Cir.Cell) ->
+  {C.Cir.Cells.set(C.Cir.Cells.set(m, i, c), i, d) == C.Cir.Cells.set(m, i, d) : C.Cir.Cells}:
+  match i:
+    case U32{+w}:
+      cl.ss.at(32n, w, m, c, d)
+
+# a store of field k of z, set before to y, sets it to y with field k
+def cl.st(+m: C.Cir.Cells, +z: U32, +y: C.Cir.Cell, +k: Nat, +v: U32) ->
+  {C.Cir.Cells.set(C.Cir.Cells.set(m, z, y), z, C.Cir.Cell.set(k, C.Cir.Cells.get(C.Cir.Cells.set(m, z, y), z), v)) ==
+    C.Cir.Cells.set(m, z, C.Cir.Cell.set(k, y, v)) : C.Cir.Cells}:
+  %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, y), z), y, PM.cl.gs(m, z, y)) :
+    {C.Cir.Cells.set(C.Cir.Cells.set(m, z, y), z, C.Cir.Cell.set(k, _, v)) == C.Cir.Cells.set(m, z, C.Cir.Cell.set(k, y, v)) : C.Cir.Cells}
+  cl.ss(m, z, y, C.Cir.Cell.set(k, y, v))
+
+# The registers
+# -------------
+
+# a set keeps the length
+def rg.len(xs: List<&2, U32>, +i: Nat, +v: U32) -> {List.length(&2, U32, List.set(&2, U32, xs, i, v)) == List.length(&2, U32, xs) : Nat}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+h, +t}:
+      match i:
+        case 0n:
+          {==}
+        case 1n+j:
+          %rg.len(t, j, v) : {1n+_ == 1n+List.length(&2, U32, t) : Nat}
+          {==}
+
+# a set register holds its value
+def rg.same(xs: List<&2, U32>, +i: Nat, +v: U32, h: {Nat.is_lt(i, List.length(&2, U32, xs)) == True{} : Bool}) ->
+  {List.get(&2, U32, List.set(&2, U32, xs, i, v), i) == Some{v} : Maybe<&2, U32>}:
+  match xs:
+    case Nil{}:
+      PM.bool.ft({List.get(&2, U32, Nil{}, i) == Some{v} : Maybe<&2, U32>}, (%Equal.sym(Bool, Nat.is_lt(i, 0n), True{}, h) : {_ == True{} : Bool}; h))
+    case Con{+hd, +t}:
+      match i:
+        case 0n:
+          {==}
+        case 1n+j:
+          rg.same(t, j, v, h)
+
+# and keeps the others
+def rg.other(xs: List<&2, U32>, +i: Nat, +j: Nat, +v: U32, h: {Nat.is_eq(i, j) == False{} : Bool}) ->
+  {List.get(&2, U32, List.set(&2, U32, xs, i, v), j) == List.get(&2, U32, xs, j) : Maybe<&2, U32>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+hd, +t}:
+      match i j:
+        case 0n 0n:
+          PM.bool.ft({Some{v} == Some{hd} : Maybe<&2, U32>}, h)
+        case 0n 1n+q:
+          {==}
+        case 1n+p 0n:
+          {==}
+        case 1n+p 1n+q:
+          rg.other(t, p, q, v, h)
+
+# Nat.is_eq is symmetric, on False
+def ne.sym(a: Nat, b: Nat, h: {Nat.is_eq(a, b) == False{} : Bool}) -> {Nat.is_eq(b, a) == False{} : Bool}:
+  match a b:
+    case 0n 0n:
+      h
+    case 0n 1n+q:
+      {==}
+    case 1n+p 0n:
+      {==}
+    case 1n+p 1n+q:
+      ne.sym(p, q, h)
+
+# a register that keep has not: a set to it keeps the registers of keep
+def kept.set(+regs: List<&2, U32>, +regs2: List<&2, U32>, keep: List<&2, Nat>, +i: Nat, +v: U32,
+  hi: {PM.Nat.mem(keep, i) == False{} : Bool}, h: PM.Kept(regs, regs2, keep)) -> PM.Kept(regs, List.set(&2, U32, regs2, i, v), keep):
+  match keep:
+    case Nil{}:
+      Unit{}
+    case Con{+j, +rest}:
+      (e, r) = h
+      +hi2 = hi
+      (Equal.trans(Maybe<&2, U32>, List.get(&2, U32, List.set(&2, U32, regs2, i, v), j), List.get(&2, U32, regs2, j), List.get(&2, U32, regs, j),
+          rg.other(regs2, i, j, v, ne.sym(j, i, or.f.l(Nat.is_eq(j, i), PM.Nat.mem(rest, i), hi2))), e),
+        kept.set(regs, regs2, rest, i, v, or.f.r(Nat.is_eq(j, i), PM.Nat.mem(rest, i), hi2), r))
