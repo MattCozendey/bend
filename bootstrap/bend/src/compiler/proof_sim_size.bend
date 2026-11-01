@@ -13,6 +13,7 @@ import ./proof_need.bend as N
 import ./proof_halt.bend as PH
 import ./proof_module.bend as M
 import ./proof_sim_nat.bend as Z
+import ./proof_img.bend as G
 
 # the units of code of an expression and of a statement: about one for each
 # node, in the order that the code chains them (see cb.expr and cb.stmt)
@@ -378,3 +379,114 @@ def cb.stmt(s: C.Cir.Stmt, +d: Nat, +acc: List<&2, C.Wasm.Instr>) -> B(ib(C.Cir.
 
 def mach.nodes() -> N.Le(NS(C.Mach.code()), N.D(16n, 1n)):
   Unit{}
+
+# The code section
+# ----------------
+
+# x <= 2^k x
+def D.ge(+k: Nat, +x: Nat) -> N.Le(x, N.D(k, x)):
+  match k:
+    case 0n:
+      N.le_refl(x)
+    case 1n+q:
+      N.le_trans(x, N.D(q, x), Nat.double(N.D(q, x)), D.ge(q, x), PH.H.le_double(N.D(q, x)))
+
+def add.self(+x: Nat) -> {Nat.add(x, x) == Nat.double(x) : Nat}:
+  match x:
+    case 0n:
+      {==}
+    case 1n+p:
+      Equal.trans(Nat, 1n+Nat.add(p, 1n+p), 2n+Nat.add(p, p), Nat.double(1n+p),
+        Equal.cong(Nat, Nat, z => 1n+z, Nat.add(p, 1n+p), 1n+Nat.add(p, p), N.add_succ_r(p, p)),
+        Equal.cong(Nat, Nat, z => 2n+z, Nat.add(p, p), Nat.double(p), add.self(p)))
+
+# the locals of a function: at most 7 bytes
+def loc.len(+n: Nat) -> N.Le(List.length(&2, U32, C.Wasm.encode.locals(n)), 7n):
+  match n:
+    case 0n:
+      Unit{}
+    case 1n+q:
+      +u = C.Wasm.encode.uleb(U32.from_nat(1n+q))
+      N.le_rw_l(Nat.add(List.length(&2, U32, u), 1n), List.length(&2, U32, List.append(&2, U32, u, [127])), 6n,
+        Equal.sym(Nat, List.length(&2, U32, List.append(&2, U32, u, [127])), Nat.add(List.length(&2, U32, u), 1n), M.len.app(u, [127])),
+        N.add_mono(List.length(&2, U32, u), 5n, 1n, 1n, len.u(U32.from_nat(1n+q)), N.le_refl(1n)))
+
+# a function's code: at most 13 bytes more than the bound of its body
+def code.len(f: C.Wasm.Func) -> N.Le(List.length(&2, U32, C.Wasm.encode.code(f)), 12n+Nat.add(ib(M.body(f)), 1n)):
+  match f:
+    case C.Wasm.Func{+a, +b, +n, +body}:
+      +lo = C.Wasm.encode.locals(n)
+      +bs = C.Wasm.encode.instrs(body, [11])
+      +c = List.append(&2, U32, lo, bs)
+      +u = C.Wasm.encode.uleb(C.Wasm.encode.len(U32, c))
+      +hc = N.le_rw_l(Nat.add(List.length(&2, U32, lo), List.length(&2, U32, bs)), List.length(&2, U32, c), 7n+Nat.add(ib(body), 1n),
+        Equal.sym(Nat, List.length(&2, U32, c), Nat.add(List.length(&2, U32, lo), List.length(&2, U32, bs)), M.len.app(lo, bs)),
+        N.add_mono(List.length(&2, U32, lo), 7n, List.length(&2, U32, bs), Nat.add(ib(body), 1n), loc.len(n), ib.len(body, [11])))
+      N.le_rw_l(Nat.add(List.length(&2, U32, u), List.length(&2, U32, c)), List.length(&2, U32, List.append(&2, U32, u, c)), 12n+Nat.add(ib(body), 1n),
+        Equal.sym(Nat, List.length(&2, U32, List.append(&2, U32, u, c)), Nat.add(List.length(&2, U32, u), List.length(&2, U32, c)), M.len.app(u, c)),
+        N.add_mono(List.length(&2, U32, u), 5n, List.length(&2, U32, c), 7n+Nat.add(ib(body), 1n), len.u(C.Wasm.encode.len(U32, c)), hc))
+
+# the codes of two functions
+def codes.len(+f1: C.Wasm.Func, +f2: C.Wasm.Func) -> N.Le(List.length(&2, U32, C.Wasm.encode.codes([f1, f2])),
+  Nat.add(12n+Nat.add(ib(M.body(f1)), 1n), Nat.add(12n+Nat.add(ib(M.body(f2)), 1n), 0n))):
+  +c1 = C.Wasm.encode.code(f1)
+  +c2 = C.Wasm.encode.code(f2)
+  +b1 = {12n+Nat.add(ib(M.body(f1)), 1n) : Nat}
+  +b2 = {12n+Nat.add(ib(M.body(f2)), 1n) : Nat}
+  +t = List.append(&2, U32, c2, [])
+  N.le_rw_l(Nat.add(List.length(&2, U32, c1), List.length(&2, U32, t)), List.length(&2, U32, List.append(&2, U32, c1, t)), Nat.add(b1, Nat.add(b2, 0n)),
+    Equal.sym(Nat, List.length(&2, U32, List.append(&2, U32, c1, t)), Nat.add(List.length(&2, U32, c1), List.length(&2, U32, t)), M.len.app(c1, t)),
+    N.add_mono(List.length(&2, U32, c1), b1, List.length(&2, U32, t), Nat.add(b2, 0n), code.len(f1),
+      N.le_rw_l(Nat.add(List.length(&2, U32, c2), 0n), List.length(&2, U32, t), Nat.add(b2, 0n),
+        Equal.sym(Nat, List.length(&2, U32, t), Nat.add(List.length(&2, U32, c2), 0n), M.len.app(c2, [])),
+        N.add_mono(List.length(&2, U32, c2), b2, 0n, 0n, code.len(f2), N.le_refl(0n)))))
+
+# the bounds of the bodies of alloc and run add up to 468 more than I
+def tot(+I: Nat) -> N.Le(Nat.add(12n+Nat.add(258n, 1n), Nat.add(12n+Nat.add(177n+Nat.add(I, 7n), 1n), 0n)), 468n+I):
+  +X = Nat.add(Nat.add(Nat.add(I, 7n), 1n), 0n)
+  +e = Equal.trans(Nat, X, Nat.add(Nat.add(I, 7n), 1n), Nat.add(8n, I), N.add_zero(Nat.add(Nat.add(I, 7n), 1n)),
+    Equal.trans(Nat, Nat.add(Nat.add(I, 7n), 1n), Nat.add(I, 8n), Nat.add(8n, I), Z.add.assoc(I, 7n, 1n), Z.add.comm(I, 8n)))
+  N.le_rw_l(Nat.add(8n, I), X, 8n+I, Equal.sym(Nat, X, Nat.add(8n, I), e), N.le_refl(8n+I))
+
+# 470 + I <= 2^7 X, for I <= X and 470 <= X
+def fin.le(+I: Nat, +X: Nat, hI: N.Le(I, X), hc: N.Le(470n, X)) -> N.Le(470n+I, N.D(7n, X)):
+  N.le_trans(470n+I, N.D(1n, X), N.D(7n, X),
+    N.le_rw_r(Nat.add(470n, I), Nat.add(X, X), N.D(1n, X), add.self(X), N.add_mono(470n, X, I, X, hc, hI)),
+    N.le_rw_r(N.D(1n, X), N.D(6n, N.D(1n, X)), N.D(7n, X), N.D_add(6n, 1n, 7n, X, {==}), D.ge(6n, N.D(1n, X))))
+
+# the bytes of the code section of a program of at most 2^16 units, before
+# the word M = 2^32 - 1
+def prog.size(+prog: C.Cir.Stmt, +regs: Nat, +k: U32, +M: U32, vM: {1n+U32.to_nat(M) == N.D(32n, 1n) : Nat},
+  hN: N.Le(NS(prog), N.D(16n, 1n))) ->
+  N.Le(1n+List.length(&2, U32, C.Wasm.encode.codes([C.Cir.alloc(k), C.Cir.run(prog, regs, k)])), U32.to_nat(M)):
+  +I = ib(C.Cir.code.stmt(prog, 0n, []))
+  +S = List.length(&2, U32, C.Wasm.encode.codes([C.Cir.alloc(k), C.Cir.run(prog, regs, k)]))
+  +hS = N.le_trans(S, Nat.add(12n+Nat.add(258n, 1n), Nat.add(12n+Nat.add(177n+Nat.add(I, 7n), 1n), 0n)), 468n+I,
+    codes.len(C.Cir.alloc(k), C.Cir.run(prog, regs, k)), tot(I))
+  +X = N.D(25n, 1n)
+  +eX = Equal.trans(Nat, N.D(16n, L(1n)), N.D(16n, N.D(9n, 1n)), X,
+    Equal.cong(Nat, Nat, z => N.D(16n, z), L(1n), N.D(9n, 1n), {==}), N.D_add(16n, 9n, 25n, 1n, {==}))
+  +hL = N.le_rw_r(I, Nat.add(L(NS(prog)), 0n), L(NS(prog)), N.add_zero(L(NS(prog))), cb.stmt(prog, 0n, []))
+  +hI = N.le_rw_r(I, N.D(16n, L(1n)), X, eX,
+    N.le_rw_r(I, L(N.D(16n, 1n)), N.D(16n, L(1n)), L.D(16n, 1n),
+      N.le_trans(I, L(NS(prog)), L(N.D(16n, 1n)), hL, L.mono(NS(prog), N.D(16n, 1n), hN))))
+  +hc = N.le_trans(470n, N.D(9n, 1n), X, Unit{},
+    N.le_rw_r(N.D(9n, 1n), N.D(16n, N.D(9n, 1n)), X, N.D_add(16n, 9n, 25n, 1n, {==}), D.ge(16n, N.D(9n, 1n))))
+  +h32 = N.le_rw_r(470n+I, N.D(7n, X), N.D(32n, 1n), N.D_add(7n, 25n, 32n, 1n, {==}), fin.le(I, X, hI, hc))
+  N.le_rw_r(2n+S, N.D(32n, 1n), 1n+U32.to_nat(M), Equal.sym(Nat, 1n+U32.to_nat(M), N.D(32n, 1n), vM),
+    N.le_trans(2n+S, 470n+I, N.D(32n, 1n), hS, h32))
+
+# the code section of the machine's module, for any cells
+def mach.size(+cells: List<&2, C.Cir.Cell>) ->
+  N.Le(1n+List.length(&2, U32, C.Wasm.encode.codes([C.Cir.alloc(C.Wasm.encode.len(C.Cir.Cell, cells)),
+    C.Cir.run(C.Mach.code(), C.Mach.regs(), C.Wasm.encode.len(C.Cir.Cell, cells))])), U32.to_nat(4294967295)):
+  prog.size(C.Mach.code(), C.Mach.regs(), C.Wasm.encode.len(C.Cir.Cell, cells), 4294967295, M.val_MAX(), mach.nodes())
+
+# the machine's module decodes to itself, for fewer than 2^26 cells
+def mach.round(+cells: List<&2, C.Cir.Cell>,
+  small: {Nat.is_lt(List.length(&2, C.Cir.Cell, cells), U32.to_nat(67108864)) == True{} : Bool}) ->
+  {C.Wasm.decode.module(C.Wasm.encode(C.Cir.module(C.Mach.code(), C.Mach.regs(), cells))) ==
+    Some{C.Cir.module(C.Mach.code(), C.Mach.regs(), cells)} : Maybe<&2, C.Wasm.Module>}:
+  M.round.sized(C.Mach.code(), C.Mach.regs(), cells, 67108864, 4294967295, 50000, G.val_M2(), M.val_MAX(), {==},
+    M.lt_le(List.length(&2, C.Cir.Cell, cells), U32.to_nat(67108864), small),
+    N.toLe(6n+C.Mach.regs(), U32.to_nat(50000), {==}), mach.size(cells))
