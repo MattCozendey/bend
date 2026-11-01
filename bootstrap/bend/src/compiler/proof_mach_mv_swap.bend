@@ -145,13 +145,13 @@ def Pc.mv.b(bb: Bool, +j: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: Li
       Nat.add(D.Pc(j, m, ps, U32.inc(o), c), D.RcL(D.Fs(C.Cir.Cells.set(m, z, x), ps, z), c)) : Nat}) ->
   {Nat.add(D.Pc(1n+j, C.Cir.Cells.set(m, z, x), ps, o, c), D.RcL(D.Fs(m, ps, z), c)) ==
     Nat.add(D.Pc(1n+j, m, ps, o, c), D.RcL(D.Fs(C.Cir.Cells.set(m, z, x), ps, z), c)) : Nat}:
-  +M2 = C.Cir.Cells.set(m, z, x)
-  +R0 = D.RcL(D.Fs(m, ps, z), c)
-  +R1 = D.RcL(D.Fs(M2, ps, z), c)
-  +eadd = Equal.trans(Nat, Nat.add(U32.to_nat(o), 1n+j), 1n+Nat.add(U32.to_nat(o), j), Nat.add(1n+U32.to_nat(o), j),
-    N.add_succ_r(U32.to_nat(o), j), {==})
   match bb:
     case True{}:
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +R0 = D.RcL(D.Fs(m, ps, z), c)
+      +R1 = D.RcL(D.Fs(M2, ps, z), c)
+      +eadd = Equal.trans(Nat, Nat.add(U32.to_nat(o), 1n+j), 1n+Nat.add(U32.to_nat(o), j), Nat.add(1n+U32.to_nat(o), j),
+        N.add_succ_r(U32.to_nat(o), j), {==})
       +eo = D.u32.eq(o, z, eb)
       +lt1 = N.le_trans(1n+U32.to_nat(o), Nat.add(U32.to_nat(o), 1n+j), U32.to_nat(nx), N.lt_add(U32.to_nat(o), j), hb)
       +ei = D.u.inc(o, nx, lt1)
@@ -170,6 +170,11 @@ def Pc.mv.b(bb: Bool, +j: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: Li
         {Nat.add(Nat.add(R1, _), R0) == Nat.add(Nat.add(R0, D.Pc(j, m, ps, U32.inc(o), c)), R1) : Nat}
       add.swap3(R1, D.Pc(j, m, ps, U32.inc(o), c), R0)
     case False{}:
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +R0 = D.RcL(D.Fs(m, ps, z), c)
+      +R1 = D.RcL(D.Fs(M2, ps, z), c)
+      +eadd = Equal.trans(Nat, Nat.add(U32.to_nat(o), 1n+j), 1n+Nat.add(U32.to_nat(o), j), Nat.add(1n+U32.to_nat(o), j),
+        N.add_succ_r(U32.to_nat(o), j), {==})
       +lt = D.lt.ne(U32.cmp(o, z), U32.to_nat(o), U32.to_nat(z), N.U32.rel(o, z), eb, h1)
       +ei = D.u.inc(o, z, lt)
       +ej = Equal.trans(Nat, Nat.add(U32.to_nat(o), 1n+j), Nat.add(1n+U32.to_nat(o), j), Nat.add(U32.to_nat(U32.inc(o)), j), eadd,

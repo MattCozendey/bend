@@ -5283,6 +5283,32 @@ def dec.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U3
     s => st2 => Empty):
   ?TODO
 
+# the parts of the pend list's first cell, which M.alloc takes
+def Taken(ps: List<&2, U32>, +m: C.Cir.Cells, +q: U32) -> Bool:
+  match ps:
+    case Nil{}:
+      False{}
+    case Con{+p, +rest}:
+      Mem(Fs(m, Con{p, rest}, p), q)
+
+# what M.alloc keeps, from the cells m with the pend list ps and next nx, in
+# the state st2: next grows; each cell q out of ps, other than nx, keeps its
+# fields but field 1, and field 1 too unless q is a term cell and a part of
+# the cell taken
+def AlFr(+m: C.Cir.Cells, +ps: List<&2, U32>, +nx: U32, st2: C.Cir.State) -> Type:
+  {U32.is_le(nx, St.next(st2)) == True{} : Bool} &
+  (@q: U32 -> {Mem(ps, q) == False{} : Bool} -> {U32.is_eq(q, nx) == False{} : Bool} ->
+    P2({C.Cir.Cells.get(St.cells(st2), q) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, q), Fd(1n, St.cells(st2), q)) : C.Cir.Cell},
+      {Bool.or(Bool.and(U32.is_lt(Tg(m, q), 19), Taken(ps, m, q)), U32.is_eq(Fd(1n, St.cells(st2), q), Fd(1n, m, q))) == True{} : Bool}))
+
+# each cell of qs is of the pend list ps, or a term cell
+def PsSub(qs: List<&2, U32>, +ps: List<&2, U32>, +m: C.Cir.Cells) -> Bool:
+  match qs:
+    case Nil{}:
+      True{}
+    case Con{+q, rest}:
+      Bool.and(Bool.or(Mem(ps, q), U32.is_lt(Tg(m, q), 19)), PsSub(rest, ps, m))
+
 # M.alloc(r), for a register r below 64 and not pend: register r gets a cell
 # z, all zeros, out of the pend list, that nothing points to (a new cell, or
 # the pend list's first, whose parts lose a pointer); HS holds with the same
@@ -5302,8 +5328,9 @@ def alloc.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, 
         P2(Reg(st2, r, z), P2(Reg(st2, 3n, pend2),
         P2({C.Cir.Cells.get(St.cells(st2), z) == C.Cir.Cell.zero() : C.Cir.Cell},
         P2({Own(fi, St.next(st2), z) == True{} : Bool}, P2({Mem(ps2, z) == False{} : Bool},
+        P2({PsSub(ps2, ps, m) == True{} : Bool},
         P2({Ptr(Nat.sub(U32.to_nat(St.next(st2)), U32.to_nat(fi)), St.cells(st2), fi, ps2, Rt.cells(os), z) == 0n : Nat},
-          HSK(dk, ds, ks, img, St.cells(st2), St.next(st2), fi, im, os, bs, fs, sp, pend2, ps2))))))))))),
+          HSK(dk, ds, ks, img, St.cells(st2), St.next(st2), fi, im, os, bs, fs, sp, pend2, ps2)))))))))))) & AlFr(m, ps, nx, st2),
     s => st2 => Empty):
   ?TODO
 
