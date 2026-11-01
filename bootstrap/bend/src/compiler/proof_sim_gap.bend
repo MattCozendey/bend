@@ -1,16 +1,16 @@
-# compiler: where Cir and the module disagree
-# ===========================================
+# compiler: where Cir and the module could disagree
+# =================================================
 #
-# Facts, by evaluation, behind two runs where Cir.result says more than the
-# model of WASM does (see the report of layer A):
+# Facts, by evaluation, at the two edges of the simulation:
 #
 # 1. A byte of output at address 2^32 - 1 (a limit of 65536 pages, next = P =
-#    214748364 and outn = 15, or any next and outn with 20 next + outn =
-#    2^32 - 1): Cir.exec.emit takes it (its check and Cir.room pass), but the
-#    model's store8 traps, as Wasm.fits wraps the end 2^32 to 0.
+#    214748364 and outn = 15): Cir.exec.emit takes it (its check and
+#    Cir.room pass), and so does the model's store8 since Wasm.fits takes an
+#    end of exactly 2^32 in 65536 pages: the two agree.
 # 2. A halt 0 with no output while the cells end past the memory (no cell
 #    taken yet, the input's end just below a page's end): Cir gives
-#    result{[]}, but the host's check of the output's place fails (trap).
+#    result{[]}, but the host's check of the output's place fails (trap). A
+#    run of Mach.code never halts so (see the report of layer A).
 
 import Base
 import ./impl.bend as C
@@ -25,8 +25,8 @@ def gap.emit.room() -> {C.Cir.room(U32.add(C.Cir.at(214748364), 15), 65536, 6553
 def gap.emit.at() -> {U32.add(C.Cir.at(214748364), 15) == 4294967295 : U32}:
   {==}
 
-# 1: the model's store8 there traps, in a memory of 65536 pages
-def gap.emit.wasm() -> {C.Wasm.inside(65536, 4294967295, 0, 1) == False{} : Bool}:
+# 1: the model's store8 there is inside a memory of 65536 pages
+def gap.emit.wasm() -> {C.Wasm.inside(65536, 4294967295, 0, 1) == True{} : Bool}:
   {==}
 
 # 2: no book's cells, an input of 65516 bytes from byte 20: alloc gives one

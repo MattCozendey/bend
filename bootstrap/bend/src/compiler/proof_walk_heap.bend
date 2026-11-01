@@ -1039,16 +1039,39 @@ def FsR(c: Bool, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +tg: U32) -> List
 
 # the pointers of a frame out of the pend list: its field 2, and 3 for Rwt
 def fs.frame(+m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +tg: U32, etag: {PM.TgW(PM.Fd(0n, m, o)) == tg : U32},
-  hlt: {U32.is_lt(tg, 32) == False{} : Bool}, hle: {U32.is_le(tg, 40) == True{} : Bool}, hm: {PM.Mem(ps, o) == False{} : Bool}) ->
+  hlt: {U32.is_lt(tg, 19) == False{} : Bool}, hge: {U32.is_le(32, tg) == True{} : Bool}, hle: {U32.is_le(tg, 40) == True{} : Bool},
+  hm: {PM.Mem(ps, o) == False{} : Bool}) ->
   {PM.Fs(m, ps, o) == Con{PM.Fd(2n, m, o), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, o), Nil{})} : List<&2, U32>}:
   +R = {Con{PM.Fd(2n, m, o), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, o), Nil{})} : List<&2, U32>}
   %Equal.sym(U32, PM.TgW(PM.Fd(0n, m, o)), tg, etag) : {FsP(U32.is_lt(_, 19), m, ps, o, _) == R : List<&2, U32>}
-  %Equal.sym(Bool, U32.is_lt(tg, 32), False{}, hlt) : {FsP(_, m, ps, o, tg) == R : List<&2, U32>}
-  %Equal.sym(Bool, U32.is_le(tg, 40), True{}, hle) : {FsR(Bool.and(_, Bool.not(PM.Mem(ps, o))), m, ps, o, tg) == R : List<&2, U32>}
-  %Equal.sym(Bool, PM.Mem(ps, o), False{}, hm) : {FsR(Bool.and(True{}, Bool.not(_)), m, ps, o, tg) == R : List<&2, U32>}
+  %Equal.sym(Bool, U32.is_lt(tg, 19), False{}, hlt) : {FsP(_, m, ps, o, tg) == R : List<&2, U32>}
+  %Equal.sym(Bool, U32.is_le(32, tg), True{}, hge) : {FsR(Bool.and(Bool.and(_, U32.is_le(tg, 40)), Bool.not(PM.Mem(ps, o))), m, ps, o, tg) == R : List<&2, U32>}
+  %Equal.sym(Bool, U32.is_le(tg, 40), True{}, hle) : {FsR(Bool.and(Bool.and(True{}, _), Bool.not(PM.Mem(ps, o))), m, ps, o, tg) == R : List<&2, U32>}
+  %Equal.sym(Bool, PM.Mem(ps, o), False{}, hm) : {FsR(Bool.not(_), m, ps, o, tg) == R : List<&2, U32>}
   {==}
 
-def fk.lt(kind: PM.FK) -> {U32.is_lt(PM.FK.tag(kind), 32) == False{} : Bool}:
+def fk.lt(kind: PM.FK) -> {U32.is_lt(PM.FK.tag(kind), 19) == False{} : Bool}:
+  match kind:
+    case PM.FK.arg{}:
+      {==}
+    case PM.FK.val{}:
+      {==}
+    case PM.FK.fun{}:
+      {==}
+    case PM.FK.let{}:
+      {==}
+    case PM.FK.tupb{}:
+      {==}
+    case PM.FK.tupa{}:
+      {==}
+    case PM.FK.rwt{}:
+      {==}
+    case PM.FK.minb{}:
+      {==}
+    case PM.FK.mina{}:
+      {==}
+
+def fk.ge(kind: PM.FK) -> {U32.is_le(32, PM.FK.tag(kind)) == True{} : Bool}:
   match kind:
     case PM.FK.arg{}:
       {==}
@@ -1092,12 +1115,12 @@ def fk.le(kind: PM.FK) -> {U32.is_le(PM.FK.tag(kind), 40) == True{} : Bool}:
 
 # a part y of a frame fr is not z, which has no pointer
 def fr.ne(+m: C.Cir.Cells, +nx: U32, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +fr: U32, +y: U32, +z: U32, +tg: U32,
-  etag: {PM.TgW(PM.Fd(0n, m, fr)) == tg : U32}, hlt: {U32.is_lt(tg, 32) == False{} : Bool}, hle: {U32.is_le(tg, 40) == True{} : Bool},
-  em: {PM.Mem(ps, fr) == False{} : Bool}, own: {PM.Own(fi, nx, fr) == True{} : Bool},
+  etag: {PM.TgW(PM.Fd(0n, m, fr)) == tg : U32}, hlt: {U32.is_lt(tg, 19) == False{} : Bool}, hge: {U32.is_le(32, tg) == True{} : Bool},
+  hle: {U32.is_le(tg, 40) == True{} : Bool}, em: {PM.Mem(ps, fr) == False{} : Bool}, own: {PM.Own(fi, nx, fr) == True{} : Bool},
   hy: {PM.Mem(Con{PM.Fd(2n, m, fr), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, fr), Nil{})}, y) == True{} : Bool},
   hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}) -> {U32.is_eq(y, z) == False{} : Bool}:
   +L = {Con{PM.Fd(2n, m, fr), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, fr), Nil{})} : List<&2, U32>}
-  +e = fs.frame(m, ps, fr, tg, etag, hlt, hle, em)
+  +e = fs.frame(m, ps, fr, tg, etag, hlt, hge, hle, em)
   ne.ptr(U32.is_eq(y, z), y, z, Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, {==},
     N.le_trans(1n, PM.RcL(PM.Fs(m, ps, fr), y), PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, y),
       (%Equal.sym(List<&2, U32>, PM.Fs(m, ps, fr), L, e) : N.Le(1n, PM.RcL(_, y)); rcl.mem(L, y, hy)),
@@ -1114,7 +1137,7 @@ def Frs.b.fz(kind: PM.FK, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: 
   match kind:
     case PM.FK.rwt{}:
       is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, fr), tbl, hz0, hzs,
-        fr.ne(m, nx, fi, ps, rs, fr, PM.Fd(3n, m, fr), z, 38, etag, {==}, {==}, em, own,
+        fr.ne(m, nx, fi, ps, rs, fr, PM.Fd(3n, m, fr), z, 38, etag, {==}, {==}, {==}, em, own,
           mem.tl(PM.Fd(2n, m, fr), PM.Fd(3n, m, fr), Con{PM.Fd(3n, m, fr), Nil{}}, mem.hd(PM.Fd(3n, m, fr), Nil{})), hz0), h)
     case PM.FK.arg{}:
       Unit{}
@@ -1152,7 +1175,7 @@ def Frs.fz(fs: List<&2, PM.AF>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32,
               PM.cl.go(m, fr, z, x, ne),
               (e0, (ev, (eo, (es, (em, (etg, (eq, (ek,
                 (is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, fr), tbl, hz0, hzs,
-                  fr.ne(m, nx, fi, ps, rs, fr, PM.Fd(2n, m, fr), z, PM.FK.tag(kind), etg, fk.lt(kind), fk.le(kind), em, eo,
+                  fr.ne(m, nx, fi, ps, rs, fr, PM.Fd(2n, m, fr), z, PM.FK.tag(kind), etg, fk.lt(kind), fk.ge(kind), fk.le(kind), em, eo,
                     mem.hd(PM.Fd(2n, m, fr), PM.Fs.opt(U32.is_eq(PM.FK.tag(kind), 38), PM.Fd(3n, m, fr), Nil{})), hz0), ia),
                 (Frs.b.fz(kind, ds, m, im, fi, nx, ks, img, ps, rs, z, x, fr, b, tbl, hz0, hzs, etg, em, eo, ib),
                   Frs.fz(rest, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(1n, m, fr), tbl, hz0, hzs, hzt, ir)))))))))))))

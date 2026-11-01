@@ -1148,59 +1148,65 @@ def Reg(st: C.Cir.State, +r: Nat, +v: U32) -> Data:
 # Open: the heap's operations (this file)
 # ---------------------------------------
 #
-# The statements that every phase uses for its cells, with the shared Heap:
-# M.inc of a held cell makes it an owned root; M.dec of an owned root drops
-# it (to the pend list at 0); M.alloc gives a cell, all zeros, that nothing
-# points to, out of the pend list (its old parts lose a pointer); M.release
-# of a cell of the machine's own kinds (tag 32 and up: a frame, an argument,
-# a check, a root) puts it in the pend list. Each keeps HS's terms, and the
-# registers but its own. A count never wraps (ptr.bound, with Room).
+# The statements that every phase uses for its cells, with the shared Heap,
+# for either meaning of DATA (dk; HS is dk True): M.inc of a held cell makes
+# it an owned root; M.dec of an owned root drops it (to the pend list at 0);
+# M.alloc gives a cell, all zeros, that nothing points to, out of the pend
+# list (its old parts lose a pointer); M.release of a cell of the machine's
+# own kinds (tag 32 and up) that holds no pointer (a check, a root, an
+# argument that owns nothing) puts it in the pend list. Each keeps HS's terms,
+# and the registers but its own. A count never wraps (ptr.bound, with Room
+# and at most 64 roots).
 
 # a count is at most 3 × the machine's cells and the roots
 def ptr.bound(+n: Nat, +m: C.Cir.Cells, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +c: U32) ->
   N.Le(Ptr(n, m, fi, ps, rs, c), Nat.add(Nat.mul(3n, n), List.length(&2, U32, rs))):
   ?TODO
 
-# M.inc(r), with the held cell c of u in register r: c is an owned root too
-def inc.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +regs: List<&2, U32>,
+# M.inc(r), with the held cell c of u in register r, and at most 64 owned
+# roots: c is an owned root too
+def inc.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +regs: List<&2, U32>,
   +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +r: Nat,
   +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>, +c: U32, +u: C.Term,
-  hs: HS(ds, ks, img, m, nx, fi, im, os, Con{Rt{c, u}, bs}, fs, sp, pend, ps),
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, os, Con{Rt{c, u}, bs}, fs, sp, pend, ps),
+  hn: N.Le(List.length(&2, Rt, os), 64n),
   hc: {List.get(&2, U32, regs, r) == Some{c} : Maybe<&2, U32>}) ->
   Post(False{}, C.Cir.exec(f, C.M.inc(r), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, Nil{}, 0}),
     st2 => Ex(C.Cir.Cells, m2 => P2({st2 == C.Cir.State{regs, m2, nx, fi, im, pg, lim, inp, Nil{}, 0} : C.Cir.State},
-      HS(ds, ks, img, m2, nx, fi, im, Con{Rt{c, u}, os}, Con{Rt{c, u}, bs}, fs, sp, pend, ps))),
+      HSK(dk, ds, ks, img, m2, nx, fi, im, Con{Rt{c, u}, os}, Con{Rt{c, u}, bs}, fs, sp, pend, ps))),
     s => st2 => Empty):
   ?TODO
 
 # M.dec(r), with the owned root c of u in register r, when each borrowed term
 # is held without that root: c is no root, and goes to the pend list at 0;
 # only registers dr and pend change
-def dec.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +regs: List<&2, U32>,
+def dec.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +regs: List<&2, U32>,
   +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +r: Nat,
   +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>, +c: U32, +u: C.Term,
-  hs: HS(ds, ks, img, m, nx, fi, im, Con{Rt{c, u}, os}, bs, fs, sp, pend, ps),
-  hb: Held(m, Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), fi, ps, Rt.cells(os), bs),
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, Con{Rt{c, u}, os}, bs, fs, sp, pend, ps),
+  hb: Held(m, os, bs),
   hl: {List.length(&2, U32, regs) == 64n : Nat},
   hc: {List.get(&2, U32, regs, r) == Some{c} : Maybe<&2, U32>},
   hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>}) ->
   Post(False{}, C.Cir.exec(f, C.M.dec(r), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, Nil{}, 0}),
     st2 => Ex(C.Cir.Cells, m2 => Ex(U32, d => Ex(U32, pend2 => Ex(List<&2, U32>, ps2 =>
       P2({st2 == C.Cir.State{List.set(&2, U32, List.set(&2, U32, regs, 5n, d), 3n, pend2), m2, nx, fi, im, pg, lim, inp, Nil{}, 0} : C.Cir.State},
-        HS(ds, ks, img, m2, nx, fi, im, os, bs, fs, sp, pend2, ps2)))))),
+        HSK(dk, ds, ks, img, m2, nx, fi, im, os, bs, fs, sp, pend2, ps2)))))),
     s => st2 => Empty):
   ?TODO
 
-# M.alloc(r): register r gets a cell z, all zeros, out of the pend list, that
-# nothing points to (a new cell, or the pend list's first, whose parts lose a
-# pointer); HS holds with the same terms; only Copy.scr's alloc registers
-# (aq, am, dx, dr), pend and r change. Out of memory only when it is new.
-def alloc.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +regs: List<&2, U32>,
+# M.alloc(r), for a register r below 64 and not pend: register r gets a cell
+# z, all zeros, out of the pend list, that nothing points to (a new cell, or
+# the pend list's first, whose parts lose a pointer); HS holds with the same
+# terms; only Copy.scr's alloc registers (aq, am, dx, dr), pend and r change.
+# Out of memory only when it is new.
+def alloc.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +regs: List<&2, U32>,
   +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +r: Nat,
   +keep: List<&2, Nat>, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>,
-  hs: HS(ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
   hl: {List.length(&2, U32, regs) == 64n : Nat},
   hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
+  hr: {Bool.and(Nat.is_lt(r, 64n), Bool.not(Nat.is_eq(r, 3n))) == True{} : Bool},
   hk: {Disj(keep, [r, 3n, 4n, 5n, 6n, 7n]) == True{} : Bool}) ->
   Post(False{}, C.Cir.exec(f, C.M.alloc(r), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, Nil{}, 0}),
     st2 => P2(Same(regs, fi, im, lim, inp, keep, st2),
@@ -1209,24 +1215,27 @@ def alloc.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img
         P2({C.Cir.Cells.get(St.cells(st2), z) == C.Cir.Cell.zero() : C.Cir.Cell},
         P2({Own(fi, St.next(st2), z) == True{} : Bool}, P2({Mem(ps2, z) == False{} : Bool},
         P2({Ptr(Nat.sub(U32.to_nat(St.next(st2)), U32.to_nat(fi)), St.cells(st2), fi, ps2, Rt.cells(os), z) == 0n : Nat},
-          HS(ds, ks, img, St.cells(st2), St.next(st2), fi, im, os, bs, fs, sp, pend2, ps2))))))))))),
+          HSK(dk, ds, ks, img, St.cells(st2), St.next(st2), fi, im, os, bs, fs, sp, pend2, ps2))))))))))),
     s => st2 => Empty):
   ?TODO
 
 # M.release(r), of the cell z of the machine's own kinds (tag 32 or more) in
-# register r, out of the pend list: z goes to the pend list
-def release.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+# register r, out of the pend list, that holds no pointer (Fs): z goes to the
+# pend list. (A frame, or an argument that owns its term, holds one: its
+# pointer must go to a root first.)
+def release.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
   +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +r: Nat,
   +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>, +z: U32,
-  hs: HS(ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
   hz: {Own(fi, nx, z) == True{} : Bool}, ht: {U32.is_lt(Tg(m, z), 32) == False{} : Bool},
   hf: {Fl(m, z, 1024) == False{} : Bool}, hm: {Mem(ps, z) == False{} : Bool},
+  hfs: {Fs(m, ps, z) == Nil{} : List<&2, U32>},
   hl: {List.length(&2, U32, regs) == 64n : Nat},
   hc: {List.get(&2, U32, regs, r) == Some{z} : Maybe<&2, U32>},
   hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>}) ->
   Post(False{}, C.Cir.exec(f, C.M.release(r), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, Nil{}, 0}),
     st2 => Ex(C.Cir.Cells, m2 => P2({st2 == C.Cir.State{List.set(&2, U32, regs, 3n, z), m2, nx, fi, im, pg, lim, inp, Nil{}, 0} : C.Cir.State},
-      HS(ds, ks, img, m2, nx, fi, im, os, bs, fs, sp, z, Con{z, ps}))),
+      HSK(dk, ds, ks, img, m2, nx, fi, im, os, bs, fs, sp, z, Con{z, ps}))),
     s => st2 => Empty):
   ?TODO
 
@@ -1453,21 +1462,21 @@ def OutDone(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C
 # its part's cell (Pc) or of a root (Rc); a new cell is no cell yet. So
 # setting either keeps every held term.
 
-def is.pend(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
+def is.pend(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
   +fi: U32, +im: U32, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>,
   +x: C.Cir.Cell,
-  hs: HS(ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
   hp: {Mem(ps, pend) == True{} : Bool}) ->
-  P2(Rts(ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, os), P2(Rts(ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, bs),
-    Frs(ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, ps, sp, fs))):
+  P2(RtsK(dk, ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, os), P2(RtsK(dk, ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, bs),
+    FrsK(dk, ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, ps, sp, fs))):
   ?TODO
 
-def is.fresh(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
+def is.fresh(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
   +fi: U32, +im: U32, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>,
   +x: C.Cir.Cell,
-  hs: HS(ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps)) ->
-  P2(Rts(ds, C.Cir.Cells.set(m, nx, x), im, fi, U32.inc(nx), ks, img, os), P2(Rts(ds, C.Cir.Cells.set(m, nx, x), im, fi, U32.inc(nx), ks, img, bs),
-    Frs(ds, C.Cir.Cells.set(m, nx, x), im, fi, U32.inc(nx), ks, img, ps, sp, fs))):
+  hs: HSK(dk, ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps)) ->
+  P2(RtsK(dk, ds, C.Cir.Cells.set(m, nx, x), im, fi, U32.inc(nx), ks, img, os), P2(RtsK(dk, ds, C.Cir.Cells.set(m, nx, x), im, fi, U32.inc(nx), ks, img, bs),
+    FrsK(dk, ds, C.Cir.Cells.set(m, nx, x), im, fi, U32.inc(nx), ks, img, ps, sp, fs))):
   ?TODO
 
 # Rounds
