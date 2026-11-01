@@ -12,5 +12,17 @@ import Bootstrap.Read
 import Bootstrap.EvalSteps
 import Bootstrap.Join
 import Bootstrap.Script
+import Bootstrap.Copy.Trusted
+import Bootstrap.Copy.Program
+import Bootstrap.Rename
+import Bootstrap.Impl
+import Bootstrap.Values
+import Bootstrap.Trusted
+import Bootstrap.Laws
+import Bootstrap.Kit
+import Bootstrap.Gives
+import Bootstrap.Unbytes
+import Bootstrap.GivesRun
+import Bootstrap.Compiler
 
 #guard_axioms
