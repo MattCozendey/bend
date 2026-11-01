@@ -1,16 +1,16 @@
 import Base
 import ./impl.bend as C
 
-def Mb.ok(m: Maybe<List<&2, C.Item>>) -> Bool:
-  match m:
-    case None{}:
+def isApp(t: C.Term) -> Bool:
+  match t:
+    case C.Term.App{_, _, _}:
       True{}
-    case Some{_}:
+    case _:
       False{}
 
-def t.lam(st: List<&2, C.Item>) -> {Mb.ok(C.Book.read.lam(st)) == True{} : Bool}:
-  match st:
-    case Con{C.Item.term{+f}, Con{C.Item.quan{+q}, +rest}}:
-      ?h
+def t.args(t: C.Term, xs: List<&2, C.Arg>) -> {Bool.or(isApp(t), Nat.is_eq(List.length(&2, C.Arg, C.Term.args(t, xs)), List.length(&2, C.Arg, xs))) == True{} : Bool}:
+  match t:
+    case C.Term.App{q, f, x}:
+      {==}
     case _:
       {==}

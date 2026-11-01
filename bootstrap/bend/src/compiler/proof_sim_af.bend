@@ -266,6 +266,23 @@ def af.p5(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1: {U32.is_
 # The cases
 # ---------
 
+# what alloc's tests passed, when it gives the pages p2
+def AFF(+k: U32, +len: U32, +p2: U32, +lim: U32) -> Data:
+  S.P2({U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool}, S.P2({U32.is_gt(af.E(k, len), 4294967280) == False{} : Bool},
+    S.P2({U32.is_le(af.need(k, len), p2) == True{} : Bool}, {U32.is_le(p2, lim) == True{} : Bool})))
+
+def le.self.rel(c: Cmp, +x: Nat, r: N.Rel(c, x, x)) -> {Cmp.is_le(c) == True{} : Bool}:
+  match c:
+    case LT{}:
+      Empty.absurd({True{} == True{} : Bool}, N.not_succ_le(x, r))
+    case EQ{}:
+      {==}
+    case GT{}:
+      Empty.absurd({False{} == True{} : Bool}, N.not_succ_le(x, r))
+
+def le.self(+x: U32) -> {U32.is_le(x, x) == True{} : Bool}:
+  le.self.rel(U32.cmp(x, x), U32.to_nat(x), N.U32.rel(x, x))
+
 # the run of alloc's body, by what Cir.alloc.pages gives
 def AFS(r: Maybe<&2, U32>, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes) -> Data:
   match r:
@@ -273,31 +290,32 @@ def AFS(r: Maybe<&2, U32>, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.By
       S.EX(N2 => S.P2({PH.H.steps(N2, C.Wasm.Step.next{af.fr0(k, len), C.Wasm.Memory{p, lim, B}}) ==
         C.Wasm.Step.done{[4294967295], C.Wasm.Memory{p, lim, B}} : C.Wasm.Step}, N.Le(N2, 41n)))
     case Some{+p2}:
-      S.EX(N2 => S.P2({PH.H.steps(N2, C.Wasm.Step.next{af.fr0(k, len), C.Wasm.Memory{p, lim, B}}) ==
-        C.Wasm.Step.done{[af.a(k)], C.Wasm.Memory{p2, lim, B}} : C.Wasm.Step}, N.Le(N2, 41n)))
+      S.EX(N2 => S.P2(S.P2({PH.H.steps(N2, C.Wasm.Step.next{af.fr0(k, len), C.Wasm.Memory{p, lim, B}}) ==
+        C.Wasm.Step.done{[af.a(k)], C.Wasm.Memory{p2, lim, B}} : C.Wasm.Step}, N.Le(N2, 41n)), AFF(k, len, p2, lim)))
 
-def af.k4(b4: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
-  e2: {U32.is_gt(af.E(k, len), 4294967280) == False{} : Bool}, +e3: {U32.is_le(af.need(k, len), p) == False{} : Bool},
+def af.k4(b4: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
+  +e2: {U32.is_gt(af.E(k, len), 4294967280) == False{} : Bool}, +e3: {U32.is_le(af.need(k, len), p) == False{} : Bool},
   +e4: {U32.is_le(af.need(k, len), lim) == b4 : Bool}, +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}) ->
   AFS(C.Cir.alloc.grow(False{}, b4, p, af.need(k, len)), k, len, p, lim, B):
   match b4:
     case True{}:
-      (41n, (af.p4(k, len, p, lim, B, e1, e2, e3, e4, hp), Unit{}))
+      (41n, ((af.p4(k, len, p, lim, B, e1, e2, e3, e4, hp), Unit{}), (e1, (e2, (le.self(af.need(k, len)), e4)))))
     case False{}:
       (37n, (af.p5(k, len, p, lim, B, e1, e2, e3, e4), Unit{}))
 
-def af.k3(b3: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
-  e2: {U32.is_gt(af.E(k, len), 4294967280) == False{} : Bool}, +e3: {U32.is_le(af.need(k, len), p) == b3 : Bool},
-  +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}) ->
+def af.k3(b3: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
+  +e2: {U32.is_gt(af.E(k, len), 4294967280) == False{} : Bool}, +e3: {U32.is_le(af.need(k, len), p) == b3 : Bool},
+  +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}, +hpl: {U32.is_le(p, lim) == True{} : Bool}) ->
   AFS(C.Cir.alloc.grow(b3, U32.is_le(af.need(k, len), lim), p, af.need(k, len)), k, len, p, lim, B):
   match b3:
     case True{}:
-      (33n, (af.p3(k, len, p, lim, B, e1, e2, e3), Unit{}))
+      (33n, ((af.p3(k, len, p, lim, B, e1, e2, e3), Unit{}), (e1, (e2, (e3, hpl)))))
     case False{}:
       af.k4(U32.is_le(af.need(k, len), lim), k, len, p, lim, B, e1, e2, e3, {==}, hp)
 
-def af.k2(b2: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
-  e2: {U32.is_gt(af.E(k, len), 4294967280) == b2 : Bool}, +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}) ->
+def af.k2(b2: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +e1: {U32.is_lt(af.E(k, len), af.a(k)) == False{} : Bool},
+  +e2: {U32.is_gt(af.E(k, len), 4294967280) == b2 : Bool}, +hp: {U32.is_eq(p, 4294967295) == False{} : Bool},
+  +hpl: {U32.is_le(p, lim) == True{} : Bool}) ->
   AFS(C.Cir.alloc.end(Bool.or(False{}, b2), af.E(k, len), p, lim), k, len, p, lim, B):
   match b2:
     case True{}:
@@ -305,31 +323,32 @@ def af.k2(b2: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1
     case False{}:
       %F.inc.add1(U32.shrn(U32.sub(af.E(k, len), 1), 16n)) :
         AFS(C.Cir.alloc.grow(U32.is_le(_, p), U32.is_le(_, lim), p, _), k, len, p, lim, B)
-      af.k3(U32.is_le(af.need(k, len), p), k, len, p, lim, B, e1, e2, {==}, hp)
+      af.k3(U32.is_le(af.need(k, len), p), k, len, p, lim, B, e1, e2, {==}, hp, hpl)
 
-def af.k1(b1: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, e1: {U32.is_lt(af.E(k, len), af.a(k)) == b1 : Bool},
-  +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}) ->
+def af.k1(b1: Bool, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +e1: {U32.is_lt(af.E(k, len), af.a(k)) == b1 : Bool},
+  +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}, +hpl: {U32.is_le(p, lim) == True{} : Bool}) ->
   AFS(C.Cir.alloc.end(Bool.or(b1, U32.is_gt(af.E(k, len), 4294967280)), af.E(k, len), p, lim), k, len, p, lim, B):
   match b1:
     case True{}:
       (13n, (af.p1(k, len, C.Wasm.Memory{p, lim, B}, e1), Unit{}))
     case False{}:
-      af.k2(U32.is_gt(af.E(k, len), 4294967280), k, len, p, lim, B, e1, {==}, hp)
+      af.k2(U32.is_gt(af.E(k, len), 4294967280), k, len, p, lim, B, e1, {==}, hp, hpl)
 
-def af.steps(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}) ->
+def af.steps(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +hp: {U32.is_eq(p, 4294967295) == False{} : Bool},
+  +hpl: {U32.is_le(p, lim) == True{} : Bool}) ->
   AFS(C.Cir.alloc.pages(k, len, p, lim), k, len, p, lim, B):
-  af.k1(U32.is_lt(af.E(k, len), af.a(k)), k, len, p, lim, B, {==}, hp)
+  af.k1(U32.is_lt(af.E(k, len), af.a(k)), k, len, p, lim, B, {==}, hp, hpl)
 
 # The call
 # --------
 
 # what the call of alloc gives, by what Cir.alloc.pages gives
-def AFC(c: C.Wasm.Call, r: Maybe<&2, U32>, +k: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes) -> Data:
+def AFC(c: C.Wasm.Call, r: Maybe<&2, U32>, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes) -> Data:
   match r:
     case None{}:
       S.EX(j => S.P2({c == C.Wasm.Call.done{[4294967295], C.Wasm.Memory{p, lim, B}, j} : C.Wasm.Call}, N.Le(j, 41n)))
     case Some{+p2}:
-      S.EX(j => S.P2({c == C.Wasm.Call.done{[af.a(k)], C.Wasm.Memory{p2, lim, B}, j} : C.Wasm.Call}, N.Le(j, 41n)))
+      S.P2(S.EX(j => S.P2({c == C.Wasm.Call.done{[af.a(k)], C.Wasm.Memory{p2, lim, B}, j} : C.Wasm.Call}, N.Le(j, 41n))), AFF(k, len, p2, lim))
 
 def af.bnd(c: C.Wasm.Call, -rs: List<&2, U32>, -mm: C.Wasm.Memory, +N2: Nat, hN: N.Le(N2, 41n),
   q: S.EX(j => S.P2({c == C.Wasm.Call.done{rs, mm, j} : C.Wasm.Call}, N.Le(j, N2)))) ->
@@ -338,8 +357,16 @@ def af.bnd(c: C.Wasm.Call, -rs: List<&2, U32>, -mm: C.Wasm.Memory, +N2: Nat, hN:
   (ec, hj) = r1
   (j, (ec, N.le_trans(j, N2, 41n, hj, hN)))
 
+def af.some(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +F: Nat, hF: N.Le(41n, F), +p2: U32, +N2: Nat,
+  h2: S.P2({PH.H.steps(N2, C.Wasm.Step.next{af.fr0(k, len), C.Wasm.Memory{p, lim, B}}) ==
+    C.Wasm.Step.done{[af.a(k)], C.Wasm.Memory{p2, lim, B}} : C.Wasm.Step}, N.Le(N2, 41n))) ->
+  S.EX(j => S.P2({C.Wasm.call(F, C.Cir.alloc(k), [len], C.Wasm.Memory{p, lim, B}) == C.Wasm.Call.done{[af.a(k)], C.Wasm.Memory{p2, lim, B}, j} : C.Wasm.Call}, N.Le(j, 41n))):
+  (e, +hN) = h2
+  af.bnd(C.Wasm.call(F, C.Cir.alloc(k), [len], C.Wasm.Memory{p, lim, B}), [af.a(k)], C.Wasm.Memory{p2, lim, B}, N2, hN,
+    S.run.call(N2, F, af.fr0(k, len), C.Wasm.Memory{p, lim, B}, [af.a(k)], C.Wasm.Memory{p2, lim, B}, e, N.le_trans(N2, 41n, F, hN, hF)))
+
 def af.call.go(r: Maybe<&2, U32>, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +F: Nat, hF: N.Le(41n, F),
-  h: AFS(r, k, len, p, lim, B)) -> AFC(C.Wasm.call(F, C.Cir.alloc(k), [len], C.Wasm.Memory{p, lim, B}), r, k, p, lim, B):
+  h: AFS(r, k, len, p, lim, B)) -> AFC(C.Wasm.call(F, C.Cir.alloc(k), [len], C.Wasm.Memory{p, lim, B}), r, k, len, p, lim, B):
   match r:
     case None{}:
       (+N2, h1) = h
@@ -348,12 +375,11 @@ def af.call.go(r: Maybe<&2, U32>, +k: U32, +len: U32, +p: U32, +lim: U32, +B: C.
         S.run.call(N2, F, af.fr0(k, len), C.Wasm.Memory{p, lim, B}, [4294967295], C.Wasm.Memory{p, lim, B}, e, N.le_trans(N2, 41n, F, hN, hF)))
     case Some{+p2}:
       (+N2, h1) = h
-      (e, +hN) = h1
-      af.bnd(C.Wasm.call(F, C.Cir.alloc(k), [len], C.Wasm.Memory{p, lim, B}), [af.a(k)], C.Wasm.Memory{p2, lim, B}, N2, hN,
-        S.run.call(N2, F, af.fr0(k, len), C.Wasm.Memory{p, lim, B}, [af.a(k)], C.Wasm.Memory{p2, lim, B}, e, N.le_trans(N2, 41n, F, hN, hF)))
+      (h2, ff) = h1
+      (af.some(k, len, p, lim, B, F, hF, p2, N2, h2), ff)
 
 # alloc(len), with the fuel F >= 41, in a memory of p pages, p not -1
 def af.call(+k: U32, +len: U32, +p: U32, +lim: U32, +B: C.Wasm.Bytes, +F: Nat, hF: N.Le(41n, F),
-  +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}) ->
-  AFC(C.Wasm.call(F, C.Cir.alloc(k), [len], C.Wasm.Memory{p, lim, B}), C.Cir.alloc.pages(k, len, p, lim), k, p, lim, B):
-  af.call.go(C.Cir.alloc.pages(k, len, p, lim), k, len, p, lim, B, F, hF, af.steps(k, len, p, lim, B, hp))
+  +hp: {U32.is_eq(p, 4294967295) == False{} : Bool}, +hpl: {U32.is_le(p, lim) == True{} : Bool}) ->
+  AFC(C.Wasm.call(F, C.Cir.alloc(k), [len], C.Wasm.Memory{p, lim, B}), C.Cir.alloc.pages(k, len, p, lim), k, len, p, lim, B):
+  af.call.go(C.Cir.alloc.pages(k, len, p, lim), k, len, p, lim, B, F, hF, af.steps(k, len, p, lim, B, hp, hpl))

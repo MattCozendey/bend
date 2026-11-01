@@ -59,6 +59,7 @@ import ./proof_mach_exec.bend as X
 import ./proof_mach_ev.bend as EV
 import ./proof_is.bend as PI
 import ./proof_out_is.bend as OI
+import ./proof_mach_mv_swap.bend as SW
 
 # Open: the premises (the phases' lemmas)
 # ---------------------------------------
@@ -1039,7 +1040,25 @@ def mv.out(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.
 def mv.ret.swap(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: D.R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, D.AF>, +ps: List<&2, U32>, +focus: C.Term, +kind: D.FK, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
   +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{D.AF{kind, q, k, a, b}, fs}, ps), +hk: {FK.isapp(kind) == True{} : Bool}, +hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == True{} : Bool}) ->
   MV(ds, ks, img, D.S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
-  ?TODO
+  match kind:
+    case D.FK.arg{}:
+      SW.sw.app.mv(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, pg, lim, inp, t, w, fs, ps, focus, D.FK.arg{}, q, k, a, b, iv, {==}, hs)
+    case D.FK.val{}:
+      SW.sw.app.mv(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, pg, lim, inp, t, w, fs, ps, focus, D.FK.val{}, q, k, a, b, iv, {==}, hs)
+    case D.FK.fun{}:
+      D.bool.ft(MV(ds, ks, img, D.S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w), hk)
+    case D.FK.let{}:
+      D.bool.ft(MV(ds, ks, img, D.S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w), hk)
+    case D.FK.tupb{}:
+      D.bool.ft(MV(ds, ks, img, D.S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w), hk)
+    case D.FK.tupa{}:
+      D.bool.ft(MV(ds, ks, img, D.S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w), hk)
+    case D.FK.rwt{}:
+      D.bool.ft(MV(ds, ks, img, D.S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w), hk)
+    case D.FK.minb{}:
+      D.bool.ft(MV(ds, ks, img, D.S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w), hk)
+    case D.FK.mina{}:
+      D.bool.ft(MV(ds, ks, img, D.S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w), hk)
 
 # mode 1, App q v □ a (app_arg, app_val), when q is dead or a known: the redex of a λ (Eval.redex): its body with the argument put in (M.data, M.copy), a step; halt 2 when the λ does not bind it
 def mv.ret.app.lam(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: D.R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, D.AF>, +ps: List<&2, U32>, +r: C.Quan, +h: C.Term, +kind: D.FK, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,

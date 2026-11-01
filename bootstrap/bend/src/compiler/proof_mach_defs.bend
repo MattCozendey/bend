@@ -5283,7 +5283,8 @@ def dec.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U3
   hb: Held(m, os, bs),
   hl: {List.length(&2, U32, regs) == 64n : Nat},
   hc: {List.get(&2, U32, regs, r) == Some{c} : Maybe<&2, U32>},
-  hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>}) ->
+  hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
+  h5: {Nat.is_eq(5n, r) == False{} : Bool}) ->
   Post(False{}, C.Cir.exec(f, C.M.dec(r), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, Nil{}, 0}),
     st2 => Ex(C.Cir.Cells, m2 => Ex(U32, d => Ex(U32, pend2 => Ex(List<&2, U32>, ps2 =>
       P2({st2 == C.Cir.State{List.set(&2, U32, List.set(&2, U32, regs, 5n, d), 3n, pend2), m2, nx, fi, im, pg, lim, inp, Nil{}, 0} : C.Cir.State},
@@ -5308,6 +5309,25 @@ def AlFr(+m: C.Cir.Cells, +ps: List<&2, U32>, +nx: U32, st2: C.Cir.State) -> Typ
   (@q: U32 -> {Mem(ps, q) == False{} : Bool} -> {U32.is_eq(q, nx) == False{} : Bool} ->
     P2({C.Cir.Cells.get(St.cells(st2), q) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, q), Fd(1n, St.cells(st2), q)) : C.Cir.Cell},
       {Bool.or(Bool.and(U32.is_lt(Tg(m, q), 19), Taken(ps, m, q)), U32.is_eq(Fd(1n, St.cells(st2), q), Fd(1n, m, q))) == True{} : Bool}))
+
+type W1 is Data:
+  W1{c: U32, v: U32}
+
+# the cells m with field 1 of each cell of ws set, the first of ws last
+def Put1(ws: List<&2, W1>, +m: C.Cir.Cells) -> C.Cir.Cells:
+  match ws:
+    case Nil{}:
+      m
+    case Con{W1{+c, v}, +rest}:
+      C.Cir.Cells.set(Put1(rest, m), c, C.Cir.Cell.set(1n, C.Cir.Cells.get(Put1(rest, m), c), v))
+
+# each cell of ws is a term cell, a part of the cell taken
+def Took(ws: List<&2, W1>, +ps: List<&2, U32>, +m: C.Cir.Cells) -> Bool:
+  match ws:
+    case Nil{}:
+      True{}
+    case Con{W1{+c, _}, rest}:
+      Bool.and(Bool.and(U32.is_lt(Tg(m, c), 19), Taken(ps, m, c)), Took(rest, ps, m))
 
 # each cell of qs is of the pend list ps, or a term cell
 def PsSub(qs: List<&2, U32>, +ps: List<&2, U32>, +m: C.Cir.Cells) -> Bool:
@@ -5336,9 +5356,12 @@ def alloc.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, 
         P2(Reg(st2, r, z), P2(Reg(st2, 3n, pend2),
         P2({C.Cir.Cells.get(St.cells(st2), z) == C.Cir.Cell.zero() : C.Cir.Cell},
         P2({Own(fi, St.next(st2), z) == True{} : Bool}, P2({Mem(ps2, z) == False{} : Bool},
+        P2({Bool.or(Mem(ps, z), U32.is_eq(z, nx)) == True{} : Bool},
+        P2(Ex(List<&2, W1>, ws => P2({St.cells(st2) == C.Cir.Cells.set(Put1(ws, m), z, C.Cir.Cell.zero()) : C.Cir.Cells},
+          {Took(ws, ps, m) == True{} : Bool})),
         P2({PsSub(ps2, ps, m) == True{} : Bool},
         P2({Ptr(Nat.sub(U32.to_nat(St.next(st2)), U32.to_nat(fi)), St.cells(st2), fi, ps2, Rt.cells(os), z) == 0n : Nat},
-          HSK(dk, ds, ks, img, St.cells(st2), St.next(st2), fi, im, os, bs, fs, sp, pend2, ps2)))))))))))) & AlFr(m, ps, nx, st2),
+          HSK(dk, ds, ks, img, St.cells(st2), St.next(st2), fi, im, os, bs, fs, sp, pend2, ps2)))))))))))))) & AlFr(m, ps, nx, st2),
     s => st2 => Empty):
   ?TODO
 
