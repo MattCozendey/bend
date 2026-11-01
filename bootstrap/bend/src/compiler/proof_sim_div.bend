@@ -33,7 +33,7 @@ def out.put(+n: Nat, +c: Bool, +w: Word(n)) -> {Word.shl.out(n, c, w) == (PH.H.p
     case 1n+p:
       match w:
         case WCon{+b, +t}:
-          %out.put(p, b, t) : {Word.shl.out.con(p, c, _) == (PH.H.pout(p, b, t), WCon{c, Word.shl.put(p, b, t)}) : Bool & Word(1n+p)}
+          %Equal.sym(Bool & Word(p), Word.shl.out(p, b, t), (PH.H.pout(p, b, t), Word.shl.put(p, b, t)), out.put(p, b, t)) : {Word.shl.out.con(p, c, _) == (PH.H.pout(p, b, t), WCon{c, Word.shl.put(p, b, t)}) : Bool & Word(1n+p)}
           {==}
 
 # the number of a word, by its low bit
