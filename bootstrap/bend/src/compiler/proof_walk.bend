@@ -30,7 +30,7 @@ import Base
 import ./impl.bend as C
 import ./proof_term.bend as T
 import ./proof_need.bend as N
-import ./proof_mach.bend as PM
+import ./proof_mach_defs.bend as PM
 
 # Kit
 # ---

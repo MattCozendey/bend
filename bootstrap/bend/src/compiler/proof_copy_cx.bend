@@ -25,7 +25,6 @@
 # C. r = 39 (croot): M.copy.end writes K.root (45) into field 0 of the
 #    result. r = 3 (pend): register r ends with the root, tag 45. r = 64: a
 #    trap. src = 39: the root's part is the root itself.
-
 import Base
 import ./impl.bend as C
 
@@ -38,10 +37,15 @@ def Cx.z(n: Nat) -> List<&2, U32>:
 
 # the table's rows that the runs read: Var 0, Typ 4, Prj 11, Rfl 17
 def Cx.tbl() -> C.Cir.Cells:
-  C.Cir.Cells.set(C.Cir.Cells.set(C.Cir.Cells.set(C.Cir.Cells.none{},
-    349, C.Cir.Cell{0, 0, 1, 0, 1}),
-    356, C.Cir.Cell{0, 0, 1, 0, 1}),
-    362, C.Cir.Cell{0, 0, 0, 0, 1})
+  C.Cir.Cells.set(
+    C.Cir.Cells.set(
+      C.Cir.Cells.set(C.Cir.Cells.none{}, 349, C.Cir.Cell{0, 0, 1, 0, 1}),
+      356,
+      C.Cir.Cell{0, 0, 1, 0, 1}
+    ),
+    362,
+    C.Cir.Cell{0, 0, 0, 0, 1}
+  )
 
 def Cx.st(regs: List<&2, U32>, m: C.Cir.Cells, nx: U32) -> C.Cir.State:
   C.Cir.State{regs, m, nx, 400, 363, 1, 1, Nil{}, Nil{}, 0}
@@ -73,7 +77,11 @@ def Cx.trap(o: C.Cir.Out) -> Bool:
 # p = 400: Typ (4), in the pend list (link 0), its part c; c = 401: Rfl
 # (17), fv 0, count 1
 def A.m() -> C.Cir.Cells:
-  C.Cir.Cells.set(C.Cir.Cells.set(Cx.tbl(), 400, C.Cir.Cell{4, 0, 401, 0, 0}), 401, C.Cir.Cell{17, 1, 0, 0, 0})
+  C.Cir.Cells.set(
+    C.Cir.Cells.set(Cx.tbl(), 400, C.Cir.Cell{4, 0, 401, 0, 0}),
+    401,
+    C.Cir.Cell{17, 1, 0, 0, 0}
+  )
 
 # src = 13 holds c, pend = p, cenv = 0, clen = 0
 def A.regs() -> List<&2, U32>:
@@ -83,29 +91,29 @@ def A.copy() -> C.Cir.Out:
   C.Cir.exec(4n, C.M.copy(15n, 13n), Cx.st(A.regs(), A.m(), 402))
 
 # the result is c; pend is the root p, then c, then cell 1
-def A.r15() -> {Cx.reg(A.copy(), 15n) == Some{401} : Maybe<&2, U32>}:
+def A.r15() -> {Cx.reg(A.copy(), 15n) == Some{401}: Maybe<&2, U32>}:
   {==}
 
-def A.r3() -> {Cx.reg(A.copy(), 3n) == Some{400} : Maybe<&2, U32>}:
+def A.r3() -> {Cx.reg(A.copy(), 3n) == Some{400}: Maybe<&2, U32>}:
   {==}
 
-def A.link_p() -> {Cx.fd(A.copy(), 1n, 400) == 401 : U32}:
+def A.link_p() -> {Cx.fd(A.copy(), 1n, 400) == 401: U32}:
   {==}
 
-def A.link_c() -> {Cx.fd(A.copy(), 1n, 401) == 1 : U32}:
+def A.link_c() -> {Cx.fd(A.copy(), 1n, 401) == 1: U32}:
   {==}
 
 # M.alloc alone: c is pended (pend = c, its link 0), p is taken
 def A.alloc() -> C.Cir.Out:
   C.Cir.exec(1n, C.M.alloc(15n), Cx.st(A.regs(), A.m(), 402))
 
-def A.alloc_r3() -> {Cx.reg(A.alloc(), 3n) == Some{401} : Maybe<&2, U32>}:
+def A.alloc_r3() -> {Cx.reg(A.alloc(), 3n) == Some{401}: Maybe<&2, U32>}:
   {==}
 
-def A.alloc_r15() -> {Cx.reg(A.alloc(), 15n) == Some{400} : Maybe<&2, U32>}:
+def A.alloc_r15() -> {Cx.reg(A.alloc(), 15n) == Some{400}: Maybe<&2, U32>}:
   {==}
 
-def A.alloc_cnt() -> {Cx.fd(A.alloc(), 1n, 401) == 0 : U32}:
+def A.alloc_cnt() -> {Cx.fd(A.alloc(), 1n, 401) == 0: U32}:
   {==}
 
 # B
@@ -115,29 +123,54 @@ def A.alloc_cnt() -> {Cx.fd(A.alloc(), 1n, 401) == 0 : U32}:
 # K.arg (41), not OWNED, quantity 0, term x, last; c = 403: Var 0, fv 1,
 # count 1 (register 0 owns it)
 def B.m() -> C.Cir.Cells:
-  C.Cir.Cells.set(C.Cir.Cells.set(C.Cir.Cells.set(C.Cir.Cells.set(Cx.tbl(),
-    400, C.Cir.Cell{4, 0, 401, 0, 0}),
-    401, C.Cir.Cell{17, 1, 0, 0, 0}),
-    402, C.Cir.Cell{41, 0, 401, 0, 0}),
-    403, C.Cir.Cell{8192, 1, 0, 0, 0})
+  C.Cir.Cells.set(
+    C.Cir.Cells.set(
+      C.Cir.Cells.set(
+        C.Cir.Cells.set(Cx.tbl(), 400, C.Cir.Cell{4, 0, 401, 0, 0}),
+        401,
+        C.Cir.Cell{17, 1, 0, 0, 0}
+      ),
+      402,
+      C.Cir.Cell{41, 0, 401, 0, 0}
+    ),
+    403,
+    C.Cir.Cell{8192, 1, 0, 0, 0}
+  )
 
 def B.regs() -> List<&2, U32>:
-  List.set(&2, U32, List.set(&2, U32, List.set(&2, U32, List.set(&2, U32, List.set(&2, U32, Cx.z(64n),
-    0n, 403), 13n, 403), 3n, 400), 36n, 402), 37n, 1)
+  List.set(
+    &2,
+    U32,
+    List.set(
+      &2,
+      U32,
+      List.set(
+        &2,
+        U32,
+        List.set(&2, U32, List.set(&2, U32, Cx.z(64n), 0n, 403), 13n, 403),
+        3n,
+        400
+      ),
+      36n,
+      402
+    ),
+    37n,
+    1
+  )
 
 def B.copy() -> C.Cir.Out:
   C.Cir.exec(4n, C.M.copy(15n, 13n), Cx.st(B.regs(), B.m(), 404))
 
-def B.r15() -> {Cx.reg(B.copy(), 15n) == Some{401} : Maybe<&2, U32>}:
+def B.r15() -> {Cx.reg(B.copy(), 15n) == Some{401}: Maybe<&2, U32>}:
   {==}
 
-def B.r3() -> {Cx.reg(B.copy(), 3n) == Some{400} : Maybe<&2, U32>}:
+def B.r3() -> {Cx.reg(B.copy(), 3n) == Some{400}: Maybe<&2, U32>}:
   {==}
 
-def B.link_p() -> {Cx.fd(B.copy(), 1n, 400) == 401 : U32}:
+def B.link_p() -> {Cx.fd(B.copy(), 1n, 400) == 401: U32}:
   {==}
 
-def B.link_x() -> {Cx.fd(B.copy(), 1n, 401) == 1 : U32}:
+def B.link_x() -> {Cx.fd(B.copy(), 1n, 401) == 1: U32}:
   {==}
 
 # C
@@ -154,26 +187,26 @@ def C2.copy(r: Nat, +src: Nat) -> C.Cir.Out:
   C.Cir.exec(4n, C.M.copy(r, src), Cx.st(C2.regs(src), C2.m(), 401))
 
 # r = 39: the result is c, whose field 0 is now K.root
-def C2.r39_reg() -> {Cx.reg(C2.copy(39n, 13n), 39n) == Some{400} : Maybe<&2, U32>}:
+def C2.r39_reg() -> {Cx.reg(C2.copy(39n, 13n), 39n) == Some{400}: Maybe<&2, U32>}:
   {==}
 
-def C2.r39_tag() -> {Cx.fd(C2.copy(39n, 13n), 0n, 400) == 45 : U32}:
+def C2.r39_tag() -> {Cx.fd(C2.copy(39n, 13n), 0n, 400) == 45: U32}:
   {==}
 
 # r = 3: register 3 ends with the root, 401, of tag K.root
-def C2.r3_reg() -> {Cx.reg(C2.copy(3n, 13n), 3n) == Some{401} : Maybe<&2, U32>}:
+def C2.r3_reg() -> {Cx.reg(C2.copy(3n, 13n), 3n) == Some{401}: Maybe<&2, U32>}:
   {==}
 
-def C2.r3_tag() -> {Cx.fd(C2.copy(3n, 13n), 0n, 401) == 45 : U32}:
+def C2.r3_tag() -> {Cx.fd(C2.copy(3n, 13n), 0n, 401) == 45: U32}:
   {==}
 
 # r = 64: a trap
-def C2.r64() -> {Cx.trap(C2.copy(64n, 13n)) == True{} : Bool}:
+def C2.r64() -> {Cx.trap(C2.copy(64n, 13n)) == True{}: Bool}:
   {==}
 
 # src = 39: the result is the root itself, of tag K.root
-def C2.s39_reg() -> {Cx.reg(C2.copy(15n, 39n), 15n) == Some{401} : Maybe<&2, U32>}:
+def C2.s39_reg() -> {Cx.reg(C2.copy(15n, 39n), 15n) == Some{401}: Maybe<&2, U32>}:
   {==}
 
-def C2.s39_tag() -> {Cx.fd(C2.copy(15n, 39n), 0n, 401) == 45 : U32}:
+def C2.s39_tag() -> {Cx.fd(C2.copy(15n, 39n), 0n, 401) == 45: U32}:
   {==}

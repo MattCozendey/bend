@@ -3003,3 +3003,366 @@ def In.inp(+d: Nat, +F: U32, +K: U32, +pg: U32, +L: U32, +I: List<&2, U32>, +f0:
           In.inp.end(9n+Nat.add(List.length(&2, U32, I), d), ib2, il2, iu2, iw2, ij2, t12, t22, m2, nx2, N2, F, K, pg2, L, I, f0, fc, ks, img, m,
             In.f3(List.length(&2, U32, I), fc), In.cap(List.length(&2, U32, I), U32.to_nat(F)), hF,
             N.le_trans(f0, fc, In.f3(List.length(&2, U32, I), fc), hf, In.f3.ge(List.length(&2, U32, I), fc)), hN, fa2, sl2, fr2))))))))
+
+# Numbers, once more
+# ------------------
+
+# 0 is no successor
+def Na.dz(n: Nat) -> Type:
+  match n:
+    case 0n:
+      Unit
+    case 1n+p:
+      Empty
+
+def Na.zs(-x: Nat, e: {0n == 1n+x : Nat}) -> Empty:
+  %e : Na.dz(_)
+  Unit{}
+
+def Na.pr(n: Nat) -> Nat:
+  match n:
+    case 0n:
+      0n
+    case 1n+p:
+      p
+
+def Na.dbl_inj(a: Nat, b: Nat, e: {Nat.double(a) == Nat.double(b) : Nat}) -> {a == b : Nat}:
+  match a b:
+    case 0n 0n:
+      {==}
+    case 0n 1n+y:
+      Empty.absurd({0n == 1n+y : Nat}, Na.zs(1n+Nat.double(y), e))
+    case 1n+x 0n:
+      Empty.absurd({1n+x == 0n : Nat}, Na.zs(1n+Nat.double(x), Equal.sym(Nat, 2n+Nat.double(x), 0n, e)))
+    case 1n+(+x) 1n+(+y):
+      Equal.cong(Nat, Nat, z => 1n+z, x, y, Na.dbl_inj(x, y, Equal.cong(Nat, Nat, z => Na.pr(Na.pr(z)), 2n+Nat.double(x), 2n+Nat.double(y), e)))
+
+def Na.dbl_odd(a: Nat, b: Nat, e: {Nat.double(a) == 1n+Nat.double(b) : Nat}) -> Empty:
+  match a b:
+    case 0n _:
+      Na.zs(Nat.double(b), e)
+    case 1n+x 0n:
+      Na.zs(Nat.double(x), Equal.sym(Nat, 1n+Nat.double(x), 0n, Equal.cong(Nat, Nat, z => Na.pr(z), 2n+Nat.double(x), 1n, e)))
+    case 1n+(+x) 1n+(+y):
+      Na.dbl_odd(x, y, Equal.cong(Nat, Nat, z => Na.pr(Na.pr(z)), 2n+Nat.double(x), 3n+Nat.double(y), e))
+
+# two words of the same number are one
+def Wd.inj(n: Nat, a: Word(n), b: Word(n), e: {Word.to_nat(n, a) == Word.to_nat(n, b) : Nat}) -> {a == b : Word(n)}:
+  match n:
+    case 0n:
+      match a b:
+        case WNil{} WNil{}:
+          {==}
+    case 1n+(+p):
+      match a b:
+        case WCon{False{}, +s} WCon{False{}, +t}:
+          Equal.cong(Word(p), Word(1n+p), z => WCon{False{}, z}, s, t,
+            Wd.inj(p, s, t, Na.dbl_inj(Word.to_nat(p, s), Word.to_nat(p, t), e)))
+        case WCon{True{}, +s} WCon{True{}, +t}:
+          Equal.cong(Word(p), Word(1n+p), z => WCon{True{}, z}, s, t,
+            Wd.inj(p, s, t, Na.dbl_inj(Word.to_nat(p, s), Word.to_nat(p, t),
+              Equal.cong(Nat, Nat, z => Na.pr(z), 1n+Nat.double(Word.to_nat(p, s)), 1n+Nat.double(Word.to_nat(p, t)), e))))
+        case WCon{False{}, +s} WCon{True{}, +t}:
+          Empty.absurd({WCon{False{}, s} == WCon{True{}, t} : Word(1n+p)}, Na.dbl_odd(Word.to_nat(p, s), Word.to_nat(p, t), e))
+        case WCon{True{}, +s} WCon{False{}, +t}:
+          Empty.absurd({WCon{True{}, s} == WCon{False{}, t} : Word(1n+p)},
+            Na.dbl_odd(Word.to_nat(p, t), Word.to_nat(p, s), Equal.sym(Nat, 1n+Nat.double(Word.to_nat(p, s)), Nat.double(Word.to_nat(p, t)), e)))
+
+def U.inj(a: U32, b: U32, e: {U32.to_nat(a) == U32.to_nat(b) : Nat}) -> {a == b : U32}:
+  match a b:
+    case U32{+x} U32{+y}:
+      Equal.cong(Word(32n), U32, z => U32{z}, x, y, Wd.inj(32n, x, y, e))
+
+def Na.le_split.of(+x: Nat, +y: Nat, r: In.Or<{x == y : Nat}, N.Le(1n+x, y)>) -> In.Or<{1n+x == 1n+y : Nat}, N.Le(2n+x, 1n+y)>:
+  match r:
+    case In.Or.l{e}:
+      In.Or.l{Equal.cong(Nat, Nat, z => 1n+z, x, y, e)}
+    case In.Or.r{h}:
+      In.Or.r{h}
+
+# a <= b: a is b, or below it
+def Na.le_split(a: Nat, b: Nat, h: N.Le(a, b)) -> In.Or<{a == b : Nat}, N.Le(1n+a, b)>:
+  match a b:
+    case 0n 0n:
+      In.Or.l{{==}}
+    case 0n 1n+y:
+      In.Or.r{N.le_zero(y)}
+    case 1n+x 0n:
+      Empty.absurd(In.Or<{1n+x == 0n : Nat}, N.Le(2n+x, 0n)>, h)
+    case 1n+(+x) 1n+(+y):
+      Na.le_split.of(x, y, Na.le_split(x, y, h))
+
+
+# The start's cells
+# -----------------
+
+# the image's cells 1 to 88, with main's body at the cell main
+def In.p88(+main: U32) -> List<&2, C.Cir.Cell>:
+  C.Img.labels(11n, 0,
+    C.Img.pair(C.I.lab(C.N.nil()), C.I.lab(C.N.unit()), C.Img.pair(C.I.lab(C.N.true()), C.I.lab(C.N.unit()),
+    C.Img.pair(C.I.lab(C.N.false()), C.I.lab(C.N.unit()), C.Img.pair(C.I.lab(C.N.wnil()), C.I.lab(C.N.unit()),
+    C.Img.zeros24(24n, 24, C.I.z24(), C.Img.cell(1025, main, C.N.main(), 0, [])))))))
+
+# and to 344, the cache's
+def In.p344(+main: U32) -> List<&2, C.Cir.Cell>:
+  List.append(&2, C.Cir.Cell, In.p88(main), C.Img.blank(256n, []))
+
+def In.m88(+main: U32) -> C.Cir.Cells:
+  C.Cir.load(In.p88(main), 1, C.Cir.Cells.none{})
+
+def In.m344(+main: U32) -> C.Cir.Cells:
+  C.Cir.load(In.p344(main), 1, C.Cir.Cells.none{})
+
+
+# the image's cells that the machine points to, with the fuel 80
+def Im.m88(+main: U32, +F: U32, +N: Nat, +ds: List<&2, C.Def>) -> In.Im(80n, In.m88(main), F, N, T.tm.names(ds), T.tm.img(ds)):
+  (({==}, {==}), (({==}, {==}), (({==}, {==}), (({==}, {==}), (({==}, {==}), (({==}, {==}), (({==}, {==}), (({==}, {==}), ({==}, {==})))))))))
+
+# Loads
+# -----
+
+# the cell after i, when the cells from i on stay below M
+def Ld.einc(+i: U32, +n: Nat, +M: U32, hov: N.Le(Nat.add(U32.to_nat(i), 1n+n), U32.to_nat(M))) -> {U32.to_nat(U32.inc(i)) == 1n+U32.to_nat(i) : Nat}:
+  +ti = U32.to_nat(i)
+  +h1 = N.le_rw_l(Nat.add(ti, 1n+n), 1n+Nat.add(ti, n), U32.to_nat(M), N.add_succ_r(ti, n), hov)
+  +h2 = N.le_trans(1n+ti, 1n+Nat.add(ti, n), U32.to_nat(M), N.le_add_r(ti, n), h1)
+  PI.U32.inc_nat(i, Equal.sym(Bool, U32.is_zero(U32.inc(i)), False{}, PM.nz(i, M, h2)))
+
+def Ld.hov(+i: U32, +n: Nat, +M: U32, +hov: N.Le(Nat.add(U32.to_nat(i), 1n+n), U32.to_nat(M))) -> N.Le(Nat.add(U32.to_nat(U32.inc(i)), n), U32.to_nat(M)):
+  +ti = U32.to_nat(i)
+  %Equal.sym(Nat, U32.to_nat(U32.inc(i)), 1n+ti, Ld.einc(i, n, M, hov)) : N.Le(Nat.add(_, n), U32.to_nat(M))
+  N.le_rw_l(Nat.add(ti, 1n+n), 1n+Nat.add(ti, n), U32.to_nat(M), N.add_succ_r(ti, n), hov)
+
+# a load from i on keeps the cells below i
+def Ld.keep(cs: List<&2, C.Cir.Cell>, +i: U32, +m: C.Cir.Cells, +j: U32, +M: U32, hj: N.Le(1n+U32.to_nat(j), U32.to_nat(i)),
+  +hov: N.Le(Nat.add(U32.to_nat(i), List.length(&2, C.Cir.Cell, cs)), U32.to_nat(M))) ->
+  {C.Cir.Cells.get(m, j) == C.Cir.Cells.get(C.Cir.load(cs, i, m), j) : C.Cir.Cell}:
+  match cs:
+    case Nil{}:
+      {==}
+    case Con{+c, +rest}:
+      +tj = U32.to_nat(j)
+      +ti = U32.to_nat(i)
+      +hj1 = hj
+      +hj2 = N.le_rw_r(1n+tj, 1n+ti, U32.to_nat(U32.inc(i)), Equal.sym(Nat, U32.to_nat(U32.inc(i)), 1n+ti, Ld.einc(i, List.length(&2, C.Cir.Cell, rest), M, hov)),
+        N.le_succ(1n+tj, ti, hj1))
+      Equal.trans(C.Cir.Cell, C.Cir.Cells.get(m, j), C.Cir.Cells.get(C.Cir.Cells.set(m, i, c), j),
+        C.Cir.Cells.get(C.Cir.load(rest, U32.inc(i), C.Cir.Cells.set(m, i, c)), j),
+        Cl.get_other(m, j, i, c, e => N.not_succ_le(ti, N.le_rw_l(1n+tj, 1n+ti, ti, Equal.cong(U32, Nat, z => 1n+U32.to_nat(z), j, i, e), hj1))),
+        Ld.keep(rest, U32.inc(i), C.Cir.Cells.set(m, i, c), j, M, hj2, Ld.hov(i, List.length(&2, C.Cir.Cell, rest), M, hov)))
+
+def Ld.blen(q: Nat) -> {List.length(&2, C.Cir.Cell, C.Img.blank(q, [])) == q : Nat}:
+  match q:
+    case 0n:
+      {==}
+    case 1n+p:
+      Equal.cong(Nat, Nat, z => 1n+z, List.length(&2, C.Cir.Cell, C.Img.blank(p, [])), p, Ld.blen(p))
+
+# field 2 of the zero cell set at i, read at j = i
+def Ld.z.at(+m: C.Cir.Cells, +i: U32, +j: U32, eij: {i == j : U32}) ->
+  {0 == C.Cir.Cell.get(2n, C.Cir.Cells.get(C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0}), j)) : U32}:
+  %eij : {0 == C.Cir.Cell.get(2n, C.Cir.Cells.get(C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0}), _)) : U32}
+  %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0}), i), C.Cir.Cell{0, 0, 0, 0, 0}, Cl.get_set(m, i, C.Cir.Cell{0, 0, 0, 0, 0})) :
+    {0 == C.Cir.Cell.get(2n, _) : U32}
+  {==}
+
+def Ld.zero.go(+q: Nat, +i: U32, +m: C.Cir.Cells, +j: U32, +M: U32, r: In.Or<{U32.to_nat(i) == U32.to_nat(j) : Nat}, N.Le(1n+U32.to_nat(i), U32.to_nat(j))>,
+  +hov: N.Le(Nat.add(U32.to_nat(i), 1n+q), U32.to_nat(M)),
+  ih: N.Le(U32.to_nat(U32.inc(i)), U32.to_nat(j)) -> {0 == C.Cir.Cell.get(2n, C.Cir.Cells.get(C.Cir.load(C.Img.blank(q, []), U32.inc(i), C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0})), j)) : U32}) ->
+  {0 == C.Cir.Cell.get(2n, C.Cir.Cells.get(C.Cir.load(C.Img.blank(q, []), U32.inc(i), C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0})), j)) : U32}:
+  match r:
+    case In.Or.l{+e}:
+      +ei = Ld.einc(i, q, M, hov)
+      +ms = C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0})
+      +hj = N.le_rw_r(1n+U32.to_nat(j), 1n+U32.to_nat(i), U32.to_nat(U32.inc(i)), Equal.sym(Nat, U32.to_nat(U32.inc(i)), 1n+U32.to_nat(i), ei),
+        N.le_rw_l(1n+U32.to_nat(i), 1n+U32.to_nat(j), 1n+U32.to_nat(i), Equal.cong(Nat, Nat, z => 1n+z, U32.to_nat(i), U32.to_nat(j), e), N.le_refl(1n+U32.to_nat(i))))
+      +hv = N.le_rw_l(Nat.add(U32.to_nat(U32.inc(i)), q), Nat.add(U32.to_nat(U32.inc(i)), List.length(&2, C.Cir.Cell, C.Img.blank(q, []))), U32.to_nat(M),
+        Equal.cong(Nat, Nat, z => Nat.add(U32.to_nat(U32.inc(i)), z), q, List.length(&2, C.Cir.Cell, C.Img.blank(q, [])),
+          Equal.sym(Nat, List.length(&2, C.Cir.Cell, C.Img.blank(q, [])), q, Ld.blen(q))), Ld.hov(i, q, M, hov))
+      Equal.trans(U32, 0, C.Cir.Cell.get(2n, C.Cir.Cells.get(C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0}), j)),
+        C.Cir.Cell.get(2n, C.Cir.Cells.get(C.Cir.load(C.Img.blank(q, []), U32.inc(i), C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0})), j)),
+        Ld.z.at(m, i, j, U.inj(i, j, e)),
+        Equal.cong(C.Cir.Cell, U32, y => C.Cir.Cell.get(2n, y), C.Cir.Cells.get(C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0}), j),
+          C.Cir.Cells.get(C.Cir.load(C.Img.blank(q, []), U32.inc(i), C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0})), j),
+          Ld.keep(C.Img.blank(q, []), U32.inc(i), C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0}), j, M, hj, hv)))
+    case In.Or.r{h}:
+      +ei = Ld.einc(i, q, M, hov)
+      ih(N.le_rw_l(1n+U32.to_nat(i), U32.to_nat(U32.inc(i)), U32.to_nat(j), Equal.sym(Nat, U32.to_nat(U32.inc(i)), 1n+U32.to_nat(i), ei), h))
+
+# a load of n zero cells from i: field 2 of each of them is 0
+def Ld.zero(n: Nat, +i: U32, +m: C.Cir.Cells, +j: U32, +M: U32, +h1: N.Le(U32.to_nat(i), U32.to_nat(j)),
+  +h2: N.Le(1n+U32.to_nat(j), Nat.add(U32.to_nat(i), n)), +hov: N.Le(Nat.add(U32.to_nat(i), n), U32.to_nat(M))) ->
+  {0 == C.Cir.Cell.get(2n, C.Cir.Cells.get(C.Cir.load(C.Img.blank(n, []), i, m), j)) : U32}:
+  match n:
+    case 0n:
+      Empty.absurd({0 == C.Cir.Cell.get(2n, C.Cir.Cells.get(C.Cir.load(C.Img.blank(0n, []), i, m), j)) : U32},
+        N.not_succ_le(U32.to_nat(j), N.le_trans(1n+U32.to_nat(j), U32.to_nat(i), U32.to_nat(j),
+          N.le_rw_r(1n+U32.to_nat(j), Nat.add(U32.to_nat(i), 0n), U32.to_nat(i), N.add_zero(U32.to_nat(i)), h2), h1)))
+    case 1n+(+q):
+      +ei = Ld.einc(i, q, M, hov)
+      Ld.zero.go(q, i, m, j, M, Na.le_split(U32.to_nat(i), U32.to_nat(j), h1), hov,
+        h => Ld.zero(q, U32.inc(i), C.Cir.Cells.set(m, i, C.Cir.Cell{0, 0, 0, 0, 0}), j, M, h,
+          N.le_rw_r(1n+U32.to_nat(j), 1n+Nat.add(U32.to_nat(i), q), Nat.add(U32.to_nat(U32.inc(i)), q),
+            Equal.cong(Nat, Nat, z => Nat.add(z, q), 1n+U32.to_nat(i), U32.to_nat(U32.inc(i)), Equal.sym(Nat, U32.to_nat(U32.inc(i)), 1n+U32.to_nat(i), ei)),
+            N.le_rw_r(1n+U32.to_nat(j), Nat.add(U32.to_nat(i), 1n+q), 1n+Nat.add(U32.to_nat(i), q), N.add_succ_r(U32.to_nat(i), q), h2)),
+          Ld.hov(i, q, M, hov)))
+
+# the cells xs then ys, loaded from i
+def In.adv(xs: List<&2, C.Cir.Cell>, +i: U32) -> U32:
+  match xs:
+    case Nil{}:
+      i
+    case Con{_, r}:
+      In.adv(r, U32.inc(i))
+
+def Ld.app(xs: List<&2, C.Cir.Cell>, +ys: List<&2, C.Cir.Cell>, +i: U32, +m: C.Cir.Cells) ->
+  {C.Cir.load(List.append(&2, C.Cir.Cell, xs, ys), i, m) == C.Cir.load(ys, In.adv(xs, i), C.Cir.load(xs, i, m)) : C.Cir.Cells}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+c, r}:
+      Ld.app(r, ys, U32.inc(i), C.Cir.Cells.set(m, i, c))
+
+# The start's facts
+# -----------------
+
+def Na.and_le_lt(a: Nat, b: Nat) -> {False{} == Bool.and(Nat.is_le(a, b), Nat.is_lt(b, a)) : Bool}:
+  match a b:
+    case 0n 0n:
+      {==}
+    case 0n 1n+y:
+      {==}
+    case 1n+x 0n:
+      {==}
+    case 1n+x 1n+y:
+      Na.and_le_lt(x, y)
+
+# at the start (N is F), a cell from 89 on may not be read
+def In.rd0(+j: U32, +F: U32, h89: N.Le(89n, U32.to_nat(j))) -> {False{} == In.rd(j, F, U32.to_nat(F)) : Bool}:
+  +tj = U32.to_nat(j)
+  +tF = U32.to_nat(F)
+  %Na.lt_f(tj, 89n, h89) : {False{} == Bool.or(_, Bool.and(Nat.is_le(tF, tj), Nat.is_lt(tj, tF))) : Bool}
+  Na.and_le_lt(tF, tj)
+
+# a load from 89 on keeps what the image's cells that the machine points to
+# stand for
+def Im.load(cs: List<&2, C.Cir.Cell>, +i: U32, +m: C.Cir.Cells, +F: U32, +f0: Nat, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +M: U32,
+  h89: N.Le(89n, U32.to_nat(i)), +hov: N.Le(Nat.add(U32.to_nat(i), List.length(&2, C.Cir.Cell, cs)), U32.to_nat(M)),
+  im: In.Im(f0, m, F, U32.to_nat(F), ks, img)) -> In.Im(f0, C.Cir.load(cs, i, m), F, U32.to_nat(F), ks, img):
+  match cs:
+    case Nil{}:
+      im
+    case Con{+c, +rest}:
+      +h89b = h89
+      +ei = Ld.einc(i, List.length(&2, C.Cir.Cell, rest), M, hov)
+      Im.load(rest, U32.inc(i), C.Cir.Cells.set(m, i, c), F, f0, ks, img, M,
+        N.le_rw_r(89n, 1n+U32.to_nat(i), U32.to_nat(U32.inc(i)), Equal.sym(Nat, U32.to_nat(U32.inc(i)), 1n+U32.to_nat(i), ei), N.le_succ(89n, U32.to_nat(i), h89b)),
+        Ld.hov(i, List.length(&2, C.Cir.Cell, rest), M, hov),
+        Im.fr(f0, m, F, U32.to_nat(F), ks, img, i, c, In.rd0(i, F, h89b), im))
+
+# a load from 345 on keeps the cache's entries
+def CI.load(cs: List<&2, C.Cir.Cell>, +i: U32, +m: C.Cir.Cells, +F: U32, +fc: Nat, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +M: U32,
+  h345: N.Le(345n, U32.to_nat(i)), +hov: N.Le(Nat.add(U32.to_nat(i), List.length(&2, C.Cir.Cell, cs)), U32.to_nat(M)),
+  ci: In.CI(8n, [], fc, m, F, U32.to_nat(F), ks, img)) -> In.CI(8n, [], fc, C.Cir.load(cs, i, m), F, U32.to_nat(F), ks, img):
+  match cs:
+    case Nil{}:
+      ci
+    case Con{+c, +rest}:
+      +hb = h345
+      +ei = Ld.einc(i, List.length(&2, C.Cir.Cell, rest), M, hov)
+      CI.load(rest, U32.inc(i), C.Cir.Cells.set(m, i, c), F, fc, ks, img, M,
+        N.le_rw_r(345n, 1n+U32.to_nat(i), U32.to_nat(U32.inc(i)), Equal.sym(Nat, U32.to_nat(U32.inc(i)), 1n+U32.to_nat(i), ei), N.le_succ(345n, U32.to_nat(i), hb)),
+        Ld.hov(i, List.length(&2, C.Cir.Cell, rest), M, hov),
+        CI.fr(8n, [], fc, m, F, U32.to_nat(F), ks, img, i, c, In.rd0(i, F, N.le_trans(89n, 345n, U32.to_nat(i), Unit{}, hb)), hb, ci))
+
+# the cache of the image is empty
+def In.cz(+main: U32, +w: Word(8n)) -> {0 == C.Cir.Cell.get(2n, C.Cir.Cells.get(In.m344(main), In.J(w))) : U32}:
+  %Equal.sym(C.Cir.Cells, C.Cir.load(In.p344(main), 1, C.Cir.Cells.none{}), C.Cir.load(C.Img.blank(256n, []), In.adv(In.p88(main), 1), In.m88(main)),
+    Ld.app(In.p88(main), C.Img.blank(256n, []), 1, C.Cir.Cells.none{})) :
+    {0 == C.Cir.Cell.get(2n, C.Cir.Cells.get(_, In.J(w))) : U32}
+  Ld.zero(256n, In.adv(In.p88(main), 1), In.m88(main), In.J(w), 345, In.Jlo(w), In.Jhi(w), Unit{})
+
+def CI.z(n: Nat, +bs: List<&2, Bool>, +fc: Nat, +main: U32, +F: U32, +N: Nat, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>) ->
+  In.CI(n, bs, fc, In.m344(main), F, N, ks, img):
+  match n:
+    case 0n:
+      In.Or.l{In.cz(main, In.wl(bs))}
+    case 1n+(+p):
+      (CI.z(p, Con{False{}, bs}, fc, main, F, N, ks, img), CI.z(p, Con{True{}, bs}, fc, main, F, N, ks, img))
+
+# the image's cells, cut after cell 88 and after cell 344
+def In.pre88.eq(+main: U32, +acc: List<&2, C.Cir.Cell>) ->
+  {C.Img.prefix(main, acc) == List.append(&2, C.Cir.Cell, In.p88(main), C.Img.blank(256n, C.Img.table(acc))) : List<&2, C.Cir.Cell>}:
+  {==}
+
+def In.pre344.eq(+main: U32, +acc: List<&2, C.Cir.Cell>) ->
+  {C.Img.prefix(main, acc) == List.append(&2, C.Cir.Cell, In.p344(main), C.Img.table(acc)) : List<&2, C.Cir.Cell>}:
+  {==}
+
+# the main def's body, and the cells of the book's bodies
+def In.main(+ds: List<&2, C.Def>) -> U32:
+  C.Img.ref(C.Img.defs(ds, C.I.book()), C.Program.name.main())
+
+def In.bodies(+ds: List<&2, C.Def>) -> List<&2, C.Cir.Cell>:
+  C.Img.bodies(ds, C.Img.known(C.Img.names.defs(ds)), C.Img.defs(ds, C.I.book()), C.I.book())
+
+def In.cells.eq(+ds: List<&2, C.Def>) -> {C.Img.cells(ds) == C.Img.prefix(In.main(ds), In.bodies(ds)) : List<&2, C.Cir.Cell>}:
+  {==}
+
+# the start's cells, from cell 89 on and from cell 345 on
+def In.e88(+ds: List<&2, C.Def>) ->
+  {C.Cir.load(C.Img.blank(256n, C.Img.table(In.bodies(ds))), In.adv(In.p88(In.main(ds)), 1), In.m88(In.main(ds))) ==
+    C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}) : C.Cir.Cells}:
+  %Equal.sym(List<&2, C.Cir.Cell>, C.Img.cells(ds), C.Img.prefix(In.main(ds), In.bodies(ds)), In.cells.eq(ds)) :
+    {C.Cir.load(C.Img.blank(256n, C.Img.table(In.bodies(ds))), In.adv(In.p88(In.main(ds)), 1), In.m88(In.main(ds))) == C.Cir.load(_, 1, C.Cir.Cells.none{}) : C.Cir.Cells}
+  %Equal.sym(List<&2, C.Cir.Cell>, C.Img.prefix(In.main(ds), In.bodies(ds)),
+    List.append(&2, C.Cir.Cell, In.p88(In.main(ds)), C.Img.blank(256n, C.Img.table(In.bodies(ds)))), In.pre88.eq(In.main(ds), In.bodies(ds))) :
+    {C.Cir.load(C.Img.blank(256n, C.Img.table(In.bodies(ds))), In.adv(In.p88(In.main(ds)), 1), In.m88(In.main(ds))) == C.Cir.load(_, 1, C.Cir.Cells.none{}) : C.Cir.Cells}
+  Equal.sym(C.Cir.Cells, C.Cir.load(List.append(&2, C.Cir.Cell, In.p88(In.main(ds)), C.Img.blank(256n, C.Img.table(In.bodies(ds)))), 1, C.Cir.Cells.none{}), C.Cir.load(C.Img.blank(256n, C.Img.table(In.bodies(ds))), In.adv(In.p88(In.main(ds)), 1), In.m88(In.main(ds))),
+    Ld.app(In.p88(In.main(ds)), C.Img.blank(256n, C.Img.table(In.bodies(ds))), 1, C.Cir.Cells.none{}))
+
+def In.e344(+ds: List<&2, C.Def>) ->
+  {C.Cir.load(C.Img.table(In.bodies(ds)), In.adv(In.p344(In.main(ds)), 1), In.m344(In.main(ds))) ==
+    C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}) : C.Cir.Cells}:
+  %Equal.sym(List<&2, C.Cir.Cell>, C.Img.cells(ds), C.Img.prefix(In.main(ds), In.bodies(ds)), In.cells.eq(ds)) :
+    {C.Cir.load(C.Img.table(In.bodies(ds)), In.adv(In.p344(In.main(ds)), 1), In.m344(In.main(ds))) == C.Cir.load(_, 1, C.Cir.Cells.none{}) : C.Cir.Cells}
+  %Equal.sym(List<&2, C.Cir.Cell>, C.Img.prefix(In.main(ds), In.bodies(ds)),
+    List.append(&2, C.Cir.Cell, In.p344(In.main(ds)), C.Img.table(In.bodies(ds))), In.pre344.eq(In.main(ds), In.bodies(ds))) :
+    {C.Cir.load(C.Img.table(In.bodies(ds)), In.adv(In.p344(In.main(ds)), 1), In.m344(In.main(ds))) == C.Cir.load(_, 1, C.Cir.Cells.none{}) : C.Cir.Cells}
+  Equal.sym(C.Cir.Cells, C.Cir.load(List.append(&2, C.Cir.Cell, In.p344(In.main(ds)), C.Img.table(In.bodies(ds))), 1, C.Cir.Cells.none{}), C.Cir.load(C.Img.table(In.bodies(ds)), In.adv(In.p344(In.main(ds)), 1), In.m344(In.main(ds))),
+    Ld.app(In.p344(In.main(ds)), C.Img.table(In.bodies(ds)), 1, C.Cir.Cells.none{}))
+
+
+# the facts of other cells, by an equation
+def Im.cast(-f0: Nat, -m: C.Cir.Cells, -m2: C.Cir.Cells, -F: U32, -N: Nat, -ks: List<&2, List<&2, U32>>, -img: List<&2, C.Term>,
+  e: {m == m2 : C.Cir.Cells}, im: In.Im(f0, m, F, N, ks, img)) -> In.Im(f0, m2, F, N, ks, img):
+  %e : In.Im(f0, _, F, N, ks, img)
+  im
+
+def CI.cast(-fc: Nat, -m: C.Cir.Cells, -m2: C.Cir.Cells, -F: U32, -N: Nat, -ks: List<&2, List<&2, U32>>, -img: List<&2, C.Term>,
+  e: {m == m2 : C.Cir.Cells}, ci: In.CI(8n, [], fc, m, F, N, ks, img)) -> In.CI(8n, [], fc, m2, F, N, ks, img):
+  %e : In.CI(8n, [], fc, _, F, N, ks, img)
+  ci
+
+# the image's cells that the machine points to stand for their terms at the start
+def In.start.im(+ds: List<&2, C.Def>, +F: U32, +M: U32, +hsm: N.Le(1n+List.length(&2, C.Cir.Cell, C.Img.cells(ds)), U32.to_nat(M))) ->
+  In.Im(80n, C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}), F, U32.to_nat(F), T.tm.names(ds), T.tm.img(ds)):
+  Im.cast(80n, C.Cir.load(C.Img.blank(256n, C.Img.table(In.bodies(ds))), In.adv(In.p88(In.main(ds)), 1), In.m88(In.main(ds))),
+   C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}), F, U32.to_nat(F), T.tm.names(ds), T.tm.img(ds), In.e88(ds),
+   Im.load(C.Img.blank(256n, C.Img.table(In.bodies(ds))), In.adv(In.p88(In.main(ds)), 1), In.m88(In.main(ds)), F, 80n, T.tm.names(ds), T.tm.img(ds), M,
+    Unit{}, hsm, Im.m88(In.main(ds), F, U32.to_nat(F), ds)))
+
+# the cache is empty at the start
+def In.start.ci(+ds: List<&2, C.Def>, +F: U32, +M: U32, +fc: Nat, +hsm: N.Le(1n+List.length(&2, C.Cir.Cell, C.Img.cells(ds)), U32.to_nat(M))) ->
+  In.CI(8n, [], fc, C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}), F, U32.to_nat(F), T.tm.names(ds), T.tm.img(ds)):
+  CI.cast(fc, C.Cir.load(C.Img.table(In.bodies(ds)), In.adv(In.p344(In.main(ds)), 1), In.m344(In.main(ds))),
+   C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}), F, U32.to_nat(F), T.tm.names(ds), T.tm.img(ds), In.e344(ds),
+   CI.load(C.Img.table(In.bodies(ds)), In.adv(In.p344(In.main(ds)), 1), In.m344(In.main(ds)), F, fc, T.tm.names(ds), T.tm.img(ds), M,
+    Unit{}, hsm, CI.z(8n, [], fc, In.main(ds), F, U32.to_nat(F), T.tm.names(ds), T.tm.img(ds))))
+
+# the facts of the start state: next and first are F, numbered as F; the
+# image's cells that the machine points to stand for their terms with the
+# fuel 80; the cache is empty
+def In.start(+ds: List<&2, C.Def>, +F: U32, +M: U32, +fc: Nat, +hsm: N.Le(1n+List.length(&2, C.Cir.Cell, C.Img.cells(ds)), U32.to_nat(M))) ->
+  In.Fa(C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}), F, U32.to_nat(F), F, 80n, fc, T.tm.names(ds), T.tm.img(ds)):
+  ({==}, (N.le_refl(U32.to_nat(F)), (In.start.im(ds, F, M, hsm), In.start.ci(ds, F, M, fc, hsm))))

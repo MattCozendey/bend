@@ -10,7 +10,7 @@ import Base
 import ./impl.bend as C
 import ./proof_term.bend as T
 import ./proof_need.bend as PN
-import ./proof_mach.bend as MA
+import ./proof_mach_defs.bend as MA
 import ./proof_out.bend as O
 
 def add_comm(+a: Nat, +b: Nat) -> {Nat.add(a, b) == Nat.add(b, a) : Nat}:
