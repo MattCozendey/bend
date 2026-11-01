@@ -5991,3 +5991,316 @@ def out.known(+n: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32
       Equal.sym(List<&2, List<&2, U32>>, ks, C.Img.known(ks2), hk),
       okn.ok(n, m, ks2, img, c, im, fs, nx,
         Tr(List<&2, List<&2, U32>>, x => {okn(n, m, x, img, c, im, fs, nx) == True{} : Bool}, ks, C.Img.known(ks2), hk, hok))))
+
+# More fuel keeps an ended run
+# ----------------------------
+
+# a ends, and b is a; or a runs out of fuel
+def OMc(a: C.Cir.Out, b: C.Cir.Out) -> Type:
+  match a:
+    case C.Cir.Out.next{st}:
+      {C.Cir.Out.next{st} == b : C.Cir.Out}
+    case C.Cir.Out.halt{s, st}:
+      {C.Cir.Out.halt{s, st} == b : C.Cir.Out}
+    case C.Cir.Out.out_of_memory{}:
+      {C.Cir.Out.out_of_memory{} == b : C.Cir.Out}
+    case C.Cir.Out.trap{}:
+      {C.Cir.Out.trap{} == b : C.Cir.Out}
+    case C.Cir.Out.not_done{}:
+      Unit
+
+def OMc.refl(x: C.Cir.Out) -> OMc(x, x):
+  match x:
+    case C.Cir.Out.next{st}:
+      {==}
+    case C.Cir.Out.halt{s, st}:
+      {==}
+    case C.Cir.Out.out_of_memory{}:
+      {==}
+    case C.Cir.Out.trap{}:
+      {==}
+    case C.Cir.Out.not_done{}:
+      Unit{}
+
+def OMc.then(a: C.Cir.Out, -b: C.Cir.Out, -k1: C.Cir.State -> C.Cir.Out, -k2: C.Cir.State -> C.Cir.Out, hab: OMc(a, b),
+  hk: @t: C.Cir.State -> OMc(k1(t), k2(t))) -> OMc(C.Cir.exec.then(a, k1), C.Cir.exec.then(b, k2)):
+  match a:
+    case C.Cir.Out.next{st}:
+      %hab : OMc(k1(st), C.Cir.exec.then(_, k2))
+      hk(st)
+    case C.Cir.Out.halt{s, st}:
+      %hab : {C.Cir.Out.halt{s, st} == C.Cir.exec.then(_, k2) : C.Cir.Out}
+      {==}
+    case C.Cir.Out.out_of_memory{}:
+      %hab : {C.Cir.Out.out_of_memory{} == C.Cir.exec.then(_, k2) : C.Cir.Out}
+      {==}
+    case C.Cir.Out.trap{}:
+      %hab : {C.Cir.Out.trap{} == C.Cir.exec.then(_, k2) : C.Cir.Out}
+      {==}
+    case C.Cir.Out.not_done{}:
+      Unit{}
+
+def OMc.ifof(z: Bool, -y1: Unit -> C.Cir.Out, -n1: Unit -> C.Cir.Out, -y2: Unit -> C.Cir.Out, -n2: Unit -> C.Cir.Out,
+  hy: OMc(y1(Unit{}), y2(Unit{})), hn: OMc(n1(Unit{}), n2(Unit{}))) -> OMc(C.Cir.exec.if.of(z, y1, n1), C.Cir.exec.if.of(z, y2, n2)):
+  match z:
+    case False{}:
+      hy
+    case True{}:
+      hn
+
+def OMc.if(v: Maybe<&2, U32>, -y1: Unit -> C.Cir.Out, -n1: Unit -> C.Cir.Out, -y2: Unit -> C.Cir.Out, -n2: Unit -> C.Cir.Out,
+  hy: OMc(y1(Unit{}), y2(Unit{})), hn: OMc(n1(Unit{}), n2(Unit{}))) -> OMc(C.Cir.exec.if(v, y1, n1), C.Cir.exec.if(v, y2, n2)):
+  match v:
+    case Some{+x}:
+      OMc.ifof(U32.is_zero(x), y1, n1, y2, n2, hy, hn)
+    case None{}:
+      {==}
+
+# a run with no fuel, and with some
+def EM0(s: C.Cir.Stmt, +g: Nat, +st: C.Cir.State) -> OMc(C.Cir.exec(0n, s, st), C.Cir.exec(1n+g, s, st)):
+  match s:
+    case C.Cir.Stmt.nop{}:
+      {==}
+    case C.Cir.Stmt.set{+r, +e}:
+      OMc.refl(C.Cir.exec(0n, C.Cir.Stmt.set{r, e}, st))
+    case C.Cir.Stmt.store{+k, +a, +v}:
+      OMc.refl(C.Cir.exec(0n, C.Cir.Stmt.store{k, a, v}, st))
+    case C.Cir.Stmt.alloc{+r}:
+      OMc.refl(C.Cir.exec(0n, C.Cir.Stmt.alloc{r}, st))
+    case C.Cir.Stmt.emit{+v}:
+      OMc.refl(C.Cir.exec(0n, C.Cir.Stmt.emit{v}, st))
+    case C.Cir.Stmt.seq{+a, +b}:
+      OMc.then(C.Cir.exec(0n, a, st), C.Cir.exec(1n+g, a, st), u => C.Cir.exec(0n, b, u), u => C.Cir.exec(1n+g, b, u),
+        EM0(a, g, st), u => EM0(b, g, u))
+    case C.Cir.Stmt.if{+c, +x, +y}:
+      OMc.if(C.Cir.eval(c, st), u => C.Cir.exec(0n, x, st), u => C.Cir.exec(0n, y, st), u => C.Cir.exec(1n+g, x, st), u => C.Cir.exec(1n+g, y, st),
+        EM0(x, g, st), EM0(y, g, st))
+    case C.Cir.Stmt.while{_, _}:
+      Unit{}
+    case C.Cir.Stmt.halt{+h}:
+      {==}
+
+# a run that ends with the fuel f ends the same with f + g
+def EM(+f: Nat, +g: Nat, s: C.Cir.Stmt, +st: C.Cir.State) -> OMc(C.Cir.exec(f, s, st), C.Cir.exec(Nat.add(f, g), s, st)):
+  match f:
+    case 0n:
+      match g:
+        case 0n:
+          OMc.refl(C.Cir.exec(0n, s, st))
+        case 1n+h:
+          EM0(s, h, st)
+    case 1n+p:
+      match s:
+        case C.Cir.Stmt.nop{}:
+          {==}
+        case C.Cir.Stmt.set{+r, +e}:
+          OMc.refl(C.Cir.exec(1n+p, C.Cir.Stmt.set{r, e}, st))
+        case C.Cir.Stmt.store{+k, +a, +v}:
+          OMc.refl(C.Cir.exec(1n+p, C.Cir.Stmt.store{k, a, v}, st))
+        case C.Cir.Stmt.alloc{+r}:
+          OMc.refl(C.Cir.exec(1n+p, C.Cir.Stmt.alloc{r}, st))
+        case C.Cir.Stmt.emit{+v}:
+          OMc.refl(C.Cir.exec(1n+p, C.Cir.Stmt.emit{v}, st))
+        case C.Cir.Stmt.seq{+a, +b}:
+          OMc.then(C.Cir.exec(1n+p, a, st), C.Cir.exec(1n+Nat.add(p, g), a, st), u => C.Cir.exec(1n+p, b, u), u => C.Cir.exec(1n+Nat.add(p, g), b, u),
+            EM(1n+p, g, a, st), u => EM(1n+p, g, b, u))
+        case C.Cir.Stmt.if{+c, +x, +y}:
+          OMc.if(C.Cir.eval(c, st), u => C.Cir.exec(1n+p, x, st), u => C.Cir.exec(1n+p, y, st), u => C.Cir.exec(1n+Nat.add(p, g), x, st),
+            u => C.Cir.exec(1n+Nat.add(p, g), y, st), EM(1n+p, g, x, st), EM(1n+p, g, y, st))
+        case C.Cir.Stmt.while{+c, +body}:
+          OMc.if(C.Cir.eval(c, st), u => C.Cir.exec.then(C.Cir.exec(p, body, st), t => C.Cir.exec(p, C.Cir.Stmt.while{c, body}, t)), u => C.Cir.Out.next{st},
+            u => C.Cir.exec.then(C.Cir.exec(Nat.add(p, g), body, st), t => C.Cir.exec(Nat.add(p, g), C.Cir.Stmt.while{c, body}, t)), u => C.Cir.Out.next{st},
+            OMc.then(C.Cir.exec(p, body, st), C.Cir.exec(Nat.add(p, g), body, st), t => C.Cir.exec(p, C.Cir.Stmt.while{c, body}, t),
+              t => C.Cir.exec(Nat.add(p, g), C.Cir.Stmt.while{c, body}, t), EM(p, g, body, st), t => EM(p, g, C.Cir.Stmt.while{c, body}, t)),
+            {==})
+        case C.Cir.Stmt.halt{+h}:
+          {==}
+
+# Gives, or out of fuel
+def GivesF(o: C.Cir.Out, r: Maybe<&2, List<&2, U32>>, out0: List<&2, U32>, outn0: U32) -> Type:
+  match o:
+    case C.Cir.Out.next{_}:
+      Empty
+    case C.Cir.Out.halt{s, st}:
+      Gives.halt(r, out0, outn0, s, st)
+    case C.Cir.Out.out_of_memory{}:
+      Unit
+    case C.Cir.Out.trap{}:
+      Empty
+    case C.Cir.Out.not_done{}:
+      Unit
+
+def GivesF.of(a: C.Cir.Out, -b: C.Cir.Out, -r: Maybe<&2, List<&2, U32>>, -out0: List<&2, U32>, -outn0: U32,
+  hab: OMc(a, b), g: Gives(b, r, out0, outn0)) -> GivesF(a, r, out0, outn0):
+  match a:
+    case C.Cir.Out.next{st}:
+      Empty.absurd(GivesF(C.Cir.Out.next{st}, r, out0, outn0),
+        Tr(C.Cir.Out, x => Gives(x, r, out0, outn0), b, C.Cir.Out.next{st}, Equal.sym(C.Cir.Out, C.Cir.Out.next{st}, b, hab), g))
+    case C.Cir.Out.halt{s, st}:
+      Tr(C.Cir.Out, x => Gives(x, r, out0, outn0), b, C.Cir.Out.halt{s, st}, Equal.sym(C.Cir.Out, C.Cir.Out.halt{s, st}, b, hab), g)
+    case C.Cir.Out.out_of_memory{}:
+      Unit{}
+    case C.Cir.Out.trap{}:
+      Empty.absurd(GivesF(C.Cir.Out.trap{}, r, out0, outn0),
+        Tr(C.Cir.Out, x => Gives(x, r, out0, outn0), b, C.Cir.Out.trap{}, Equal.sym(C.Cir.Out, C.Cir.Out.trap{}, b, hab), g))
+    case C.Cir.Out.not_done{}:
+      Unit{}
+
+# THE LEMMA, for any fuel F: M.out gives Program.unbytes(v), or runs out of
+# fuel
+def out.any(+n: Nat, +F: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +v: C.Term,
+  +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
+  +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
+  +htm: {T.tm.of(n, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>},
+  +hok: {ok(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  GivesF(C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), C.Program.unbytes(v), out, outn):
+  +X = Nat.add(n, 34n)
+  +st = {C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn} : C.Cir.State}
+  GivesF.of(C.Cir.exec(F, C.M.out(), st), C.Cir.exec(Nat.add(F, 1n+X), C.M.out(), st), C.Program.unbytes(v), out, outn,
+    EM(F, 1n+X, C.M.out(), st),
+    Tr(Nat, k => Gives(C.Cir.exec(k, C.M.out(), st), C.Program.unbytes(v), out, outn), 1n+Nat.add(F, X), Nat.add(F, 1n+X),
+      Equal.sym(Nat, Nat.add(F, 1n+X), 1n+Nat.add(F, X), PN.add_succ_r(F, X)),
+      out.run(n, Nat.add(F, X), PN.le_succ(X, Nat.add(F, X), PN.le_add_l(F, X)), regs, m, nx, fs, im, pg, lim, inp, out, outn, c, ks, img, v,
+        hreg, hlen, htm, hok)))
+
+# The halts of out.post
+# ---------------------
+
+def app_nil(xs: List<&2, U32>) -> {List.append(&2, U32, xs, Nil{}) == xs : List<&2, U32>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+h, +t}:
+      %Equal.sym(List<&2, U32>, List.append(&2, U32, t, Nil{}), t, app_nil(t)) : {Con{h, _} == Con{h, t} : List<&2, U32>}
+      {==}
+
+def rev_rev.go(xs: List<&2, U32>, +ys: List<&2, U32>) ->
+  {List.reverse.go(&2, U32, List.reverse.go(&2, U32, xs, ys), Nil{}) == List.reverse.go(&2, U32, ys, xs) : List<&2, U32>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+h, +t}:
+      rev_rev.go(t, Con{h, ys})
+
+def rev_rev(+xs: List<&2, U32>) -> {List.reverse(&2, U32, List.reverse(&2, U32, xs)) == xs : List<&2, U32>}:
+  rev_rev.go(xs, Nil{})
+
+# a halt with the status s in the state st2: with 0 and the bytes of v out (the
+# last first), or with 2 when v has none (OutH of proof_mach.bend)
+def OutH(+v: C.Term, +s: U32, st2: C.Cir.State) -> Data:
+  Either<&2, &2, PD({s == 0 : U32}, {C.Program.unbytes(v) == Some{List.reverse(&2, U32, St.out(st2))} : Maybe<&2, List<&2, U32>>}),
+    PD({s == 2 : U32}, {C.Program.unbytes(v) == None{} : Maybe<&2, List<&2, U32>>})>
+
+def OutH.of(r: Maybe<&2, List<&2, U32>>, +v: C.Term, +s: U32, +st: C.Cir.State, +er: {C.Program.unbytes(v) == r : Maybe<&2, List<&2, U32>>},
+  h: Gives.halt(r, Nil{}, 0, s, st)) -> OutH(v, s, st):
+  match r:
+    case Some{+bs}:
+      (e0, rest) = h
+      (eo, en) = rest
+      +e1 = Equal.trans(List<&2, U32>, List.reverse(&2, U32, St.out(st)), List.reverse(&2, U32, List.append(&2, U32, List.reverse(&2, U32, bs), Nil{})), bs,
+        Equal.cong(List<&2, U32>, List<&2, U32>, xs => List.reverse(&2, U32, xs), St.out(st), List.append(&2, U32, List.reverse(&2, U32, bs), Nil{}), eo),
+        Equal.trans(List<&2, U32>, List.reverse(&2, U32, List.append(&2, U32, List.reverse(&2, U32, bs), Nil{})), List.reverse(&2, U32, List.reverse(&2, U32, bs)), bs,
+          Equal.cong(List<&2, U32>, List<&2, U32>, xs => List.reverse(&2, U32, xs), List.append(&2, U32, List.reverse(&2, U32, bs), Nil{}), List.reverse(&2, U32, bs),
+            app_nil(List.reverse(&2, U32, bs))),
+          rev_rev(bs)))
+      Inl{(e0, Equal.trans(Maybe<&2, List<&2, U32>>, C.Program.unbytes(v), Some{bs}, Some{List.reverse(&2, U32, St.out(st))}, er,
+        Equal.cong(List<&2, U32>, Maybe<&2, List<&2, U32>>, xs => Some{xs}, bs, List.reverse(&2, U32, St.out(st)),
+          Equal.sym(List<&2, U32>, List.reverse(&2, U32, St.out(st)), bs, e1))))}
+    case None{}:
+      Inr{(h, er)}
+
+# what the outcome o of M.out may be (Post(False, o, st => Empty, s => st2 =>
+# OutH(v, s, st2)) of proof_mach.bend): a halt as OutH says, out of memory,
+# or out of fuel
+def PostO(o: C.Cir.Out, +v: C.Term) -> Type:
+  match o:
+    case C.Cir.Out.next{st}:
+      Empty
+    case C.Cir.Out.halt{s, st}:
+      OutH(v, s, st)
+    case C.Cir.Out.out_of_memory{}:
+      Unit
+    case C.Cir.Out.trap{}:
+      Empty
+    case C.Cir.Out.not_done{}:
+      Unit
+
+def PostO.of(o: C.Cir.Out, +v: C.Term, g: GivesF(o, C.Program.unbytes(v), Nil{}, 0)) -> PostO(o, v):
+  match o:
+    case C.Cir.Out.next{st}:
+      match g:
+    case C.Cir.Out.halt{+s, +st}:
+      OutH.of(C.Program.unbytes(v), v, s, st, {==}, g)
+    case C.Cir.Out.out_of_memory{}:
+      Unit{}
+    case C.Cir.Out.trap{}:
+      match g:
+    case C.Cir.Out.not_done{}:
+      Unit{}
+
+# the run ends: anything but out of fuel (Ends of proof_mach.bend)
+def EndsO(o: C.Cir.Out) -> Data:
+  match o:
+    case C.Cir.Out.next{_}:
+      Unit
+    case C.Cir.Out.halt{_, _}:
+      Unit
+    case C.Cir.Out.out_of_memory{}:
+      Unit
+    case C.Cir.Out.trap{}:
+      Unit
+    case C.Cir.Out.not_done{}:
+      Empty
+
+def EndsO.of(o: C.Cir.Out, -r: Maybe<&2, List<&2, U32>>, -out0: List<&2, U32>, -outn0: U32, g: Gives(o, r, out0, outn0)) -> EndsO(o):
+  match o:
+    case C.Cir.Out.next{st}:
+      Unit{}
+    case C.Cir.Out.halt{s, st}:
+      Unit{}
+    case C.Cir.Out.out_of_memory{}:
+      Unit{}
+    case C.Cir.Out.trap{}:
+      Unit{}
+    case C.Cir.Out.not_done{}:
+      match g:
+
+# ok, from okn and the image's names
+def ok.known(+n: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +ks2: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32,
+  +im: U32, +fs: U32, +nx: U32, +hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>},
+  +hok: {okn(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) -> {ok(n, m, ks, img, c, im, fs, nx) == True{} : Bool}:
+  Tr(List<&2, List<&2, U32>>, x => {ok(n, m, x, img, c, im, fs, nx) == True{} : Bool}, C.Img.known(ks2), ks,
+    Equal.sym(List<&2, List<&2, U32>>, ks, C.Img.known(ks2), hk),
+    okn.ok(n, m, ks2, img, c, im, fs, nx,
+      Tr(List<&2, List<&2, U32>>, x => {okn(n, m, x, img, c, im, fs, nx) == True{} : Bool}, ks, C.Img.known(ks2), hk, hok)))
+
+# out.post of proof_mach.bend, from a state with no output yet: for any fuel
+# F, M.out halts as OutH says, runs out of memory, or runs out of fuel
+def out.post.of(+n: Nat, +F: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +c: U32, +ks: List<&2, List<&2, U32>>, +ks2: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +v: C.Term,
+  +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
+  +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
+  +htm: {T.tm.of(n, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>},
+  +hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>},
+  +hok: {okn(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  PostO(C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, Nil{}, 0}), v):
+  PostO.of(C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, Nil{}, 0}), v,
+    out.any(n, F, regs, m, nx, fs, im, pg, lim, inp, Nil{}, 0, c, ks, img, v, hreg, hlen, htm, ok.known(n, m, ks, ks2, img, c, im, fs, nx, hk, hok)))
+
+# out.done of proof_mach.bend: with some fuel, M.out ends
+def out.done.of(+n: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>,
+  +ks2: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +v: C.Term,
+  +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
+  +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
+  +htm: {T.tm.of(n, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>},
+  +hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>},
+  +hok: {okn(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  Sigma<&2, &2, Nat, F => EndsO(C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}))>:
+  +F = {1n+Nat.add(n, 34n) : Nat}
+  (F, EndsO.of(C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), C.Program.unbytes(v), out, outn,
+    out.run(n, Nat.add(n, 34n), PN.le_succ(Nat.add(n, 34n), Nat.add(n, 34n), PN.le_refl(Nat.add(n, 34n))),
+      regs, m, nx, fs, im, pg, lim, inp, out, outn, c, ks, img, v, hreg, hlen, htm, ok.known(n, m, ks, ks2, img, c, im, fs, nx, hk, hok))))
