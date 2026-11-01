@@ -344,3 +344,97 @@ def tbl.mask(-m: C.Cir.Cells, -im: U32, -fi: U32, -nx: U32, t: C.Term, h: PM.Tbl
       match h:
         case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
           e
+
+# The parts of a node
+# -------------------
+
+# Fs, with the test of the tag b and the tag tg apart
+def FsP(b: Bool, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +tg: U32) -> List<&2, U32>:
+  Bool.pick(List<&2, U32>, b, PM.Fs.term(PM.Fd(2n, m, U32.add(345, tg)), PM.Fd(2n, m, o), PM.Fd(3n, m, o), PM.Fd(4n, m, o)),
+    Bool.pick(List<&2, U32>, Bool.and(U32.is_le(tg, 40), Bool.not(PM.Mem(ps, o))),
+      Con{PM.Fd(2n, m, o), PM.Fs.opt(U32.is_eq(tg, 38), PM.Fd(3n, m, o), Nil{})},
+      Bool.pick(List<&2, U32>, Bool.and(Bool.and(U32.is_eq(tg, 41), PM.FlW(PM.Fd(0n, m, o), 4096)), Bool.not(PM.Mem(ps, o))),
+        [PM.Fd(2n, m, o)], Nil{})))
+
+# the pointers of a term cell of the tag tg, whose mask is mask, are its parts
+# by the mask
+def fs.term(+m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +tg: U32, +mask: U32, etag: {PM.TgW(PM.Fd(0n, m, o)) == tg : U32},
+  hlt: {U32.is_lt(tg, 32) == True{} : Bool}, emask: {PM.Fd(2n, m, U32.add(345, tg)) == mask : U32}) ->
+  {PM.Fs(m, ps, o) == PM.Fs.term(mask, PM.Fd(2n, m, o), PM.Fd(3n, m, o), PM.Fd(4n, m, o)) : List<&2, U32>}:
+  %Equal.sym(U32, PM.TgW(PM.Fd(0n, m, o)), tg, etag) :
+    {FsP(U32.is_lt(_, 32), m, ps, o, _) == PM.Fs.term(mask, PM.Fd(2n, m, o), PM.Fd(3n, m, o), PM.Fd(4n, m, o)) : List<&2, U32>}
+  %Equal.sym(Bool, U32.is_lt(tg, 32), True{}, hlt) :
+    {FsP(_, m, ps, o, tg) == PM.Fs.term(mask, PM.Fd(2n, m, o), PM.Fd(3n, m, o), PM.Fd(4n, m, o)) : List<&2, U32>}
+  %Equal.sym(U32, PM.Fd(2n, m, U32.add(345, tg)), mask, emask) :
+    {PM.Fs.term(_, PM.Fd(2n, m, o), PM.Fd(3n, m, o), PM.Fd(4n, m, o)) == PM.Fs.term(mask, PM.Fd(2n, m, o), PM.Fd(3n, m, o), PM.Fd(4n, m, o)) : List<&2, U32>}
+  {==}
+
+# a part y, by the mask, of a term cell c of the machine's own has a pointer
+def ptr.part(+m: C.Cir.Cells, +nx: U32, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +c: U32, +y: U32, +tg: U32, +mask: U32,
+  etag: {PM.TgW(PM.Fd(0n, m, c)) == tg : U32}, hlt: {U32.is_lt(tg, 32) == True{} : Bool},
+  emask: {PM.Fd(2n, m, U32.add(345, tg)) == mask : U32}, own: {PM.Own(fi, nx, c) == True{} : Bool},
+  hm: {PM.Mem(PM.Fs.term(mask, PM.Fd(2n, m, c), PM.Fd(3n, m, c), PM.Fd(4n, m, c)), y) == True{} : Bool}) ->
+  N.Le(1n, PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, y)):
+  +e = fs.term(m, ps, c, tg, mask, etag, hlt, emask)
+  N.le_trans(1n, PM.RcL(PM.Fs(m, ps, c), y), PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, y),
+    (%Equal.sym(List<&2, U32>, PM.Fs(m, ps, c), PM.Fs.term(mask, PM.Fd(2n, m, c), PM.Fd(3n, m, c), PM.Fd(4n, m, c)), e) : N.Le(1n, PM.RcL(_, y));
+      rcl.mem(PM.Fs.term(mask, PM.Fd(2n, m, c), PM.Fd(3n, m, c), PM.Fd(4n, m, c)), y, hm)),
+    Ptr.at(m, nx, fi, ps, rs, c, y, own))
+
+# a cell with a pointer is not one with none
+def ne.ptr(b: Bool, +y: U32, +z: U32, +n: Nat, +m: C.Cir.Cells, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>,
+  eb: {U32.is_eq(y, z) == b : Bool}, hy: N.Le(1n, PM.Ptr(n, m, fi, ps, rs, y)), hz: {PM.Ptr(n, m, fi, ps, rs, z) == 0n : Nat}) ->
+  {U32.is_eq(y, z) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +e = PM.u32.eq(y, z, eb)
+      Empty.absurd({U32.is_eq(y, z) == False{} : Bool},
+        N.le_rw_r(1n, PM.Ptr(n, m, fi, ps, rs, z), 0n, hz,
+          N.le_rw_r(1n, PM.Ptr(n, m, fi, ps, rs, y), PM.Ptr(n, m, fi, ps, rs, z), Equal.cong(U32, Nat, w => PM.Ptr(n, m, fi, ps, rs, w), y, z, e), hy)))
+
+# a STATIC cell is not one that is not STATIC
+def ne.st(b: Bool, +m: C.Cir.Cells, +y: U32, +z: U32, eb: {U32.is_eq(y, z) == b : Bool},
+  hy: {PM.Fl(m, y, 1024) == True{} : Bool}, hz: {PM.Fl(m, z, 1024) == False{} : Bool}) -> {U32.is_eq(y, z) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +e = PM.u32.eq(y, z, eb)
+      PM.bool.ft({U32.is_eq(y, z) == False{} : Bool}, Equal.trans(Bool, False{}, PM.Fl(m, z, 1024), True{}, Equal.sym(Bool, PM.Fl(m, z, 1024), False{}, hz),
+        (%e : {PM.Fl(m, _, 1024) == True{} : Bool}; hy)))
+
+def part.ne.b(o: Bool, +m: C.Cir.Cells, +nx: U32, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +c: U32, +y: U32, +z: U32,
+  +tg: U32, +mask: U32, eo: {PM.Own(fi, nx, c) == o : Bool},
+  sp: {Bool.or(o, PM.FlW(C.Cir.Cell.get(0n, C.Cir.Cells.get(m, y)), 1024)) == True{} : Bool},
+  etag: {PM.TgW(PM.Fd(0n, m, c)) == tg : U32}, hlt: {U32.is_lt(tg, 32) == True{} : Bool},
+  emask: {PM.Fd(2n, m, U32.add(345, tg)) == mask : U32},
+  hm: {PM.Mem(PM.Fs.term(mask, PM.Fd(2n, m, c), PM.Fd(3n, m, c), PM.Fd(4n, m, c)), y) == True{} : Bool},
+  hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat},
+  hzs: {PM.Fl(m, z, 1024) == False{} : Bool}) -> {U32.is_eq(y, z) == False{} : Bool}:
+  match o:
+    case True{}:
+      ne.ptr(U32.is_eq(y, z), y, z, Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, {==},
+        ptr.part(m, nx, fi, ps, rs, c, y, tg, mask, etag, hlt, emask, eo, hm), hz0)
+    case False{}:
+      ne.st(U32.is_eq(y, z), m, y, z, {==}, sp, hzs)
+
+# a part y of a node c (by the mask of c's tag tg) is not the cell z, which
+# nothing points to and is not STATIC
+def part.ne(+m: C.Cir.Cells, +nx: U32, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +c: U32, +y: U32, +z: U32,
+  +tg: U32, +mask: U32, sp: PM.Sp(fi, nx, c, C.Cir.Cells.get(m, y)),
+  etag: {PM.TgW(PM.Fd(0n, m, c)) == tg : U32}, hlt: {U32.is_lt(tg, 32) == True{} : Bool},
+  emask: {PM.Fd(2n, m, U32.add(345, tg)) == mask : U32},
+  hm: {PM.Mem(PM.Fs.term(mask, PM.Fd(2n, m, c), PM.Fd(3n, m, c), PM.Fd(4n, m, c)), y) == True{} : Bool},
+  hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat},
+  hzs: {PM.Fl(m, z, 1024) == False{} : Bool}) -> {U32.is_eq(y, z) == False{} : Bool}:
+  part.ne.b(PM.Own(fi, nx, c), m, nx, fi, ps, rs, c, y, z, tg, mask, {==}, sp, etag, hlt, emask, hm, hz0, hzs)
+
+# the tag that a node says
+def nd.tg(-ds: List<&2, C.Def>, -im: U32, -fi: U32, -nx: U32, -c: U32, -x: C.Cir.Cell, -t: C.Term, -tag: U32,
+  h: PM.Nd(ds, im, fi, nx, c, x, t, tag)) -> {PM.TgW(C.Cir.Cell.get(0n, x)) == tag : U32}:
+  (e0, r0) = h
+  (e1, r1) = r0
+  (e, r) = r1
+  e

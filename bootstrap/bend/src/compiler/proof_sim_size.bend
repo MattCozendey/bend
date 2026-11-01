@@ -2,10 +2,13 @@
 # ========================================
 #
 # The bytes of the code section of Cir.module(Mach.code(), ...) are fewer
-# than 2^32 - 1, the premise of M.module.round: each instruction encodes to
-# at most 7 bytes, and a block to 3 more than its body (ib.len); the code of
-# each node of a Cir program has at most 2^8 such bytes (cb.stmt); and
-# Mach.code has at most 2^16 nodes (by evaluation).
+# than 2^32 - 1, the premise of M.round.sized (mach.size), so that the
+# machine's module decodes to itself (mach.round): each instruction encodes
+# to at most 7 bytes, a block to 3 more than its body, a br_table to 12 more
+# than 5 per label (ib.len); the code of each unit of a Cir program (NE, NS:
+# about one per node) has at most 512 such bytes (cb.expr, cb.stmt); and
+# Mach.code has at most 2^16 units (mach.nodes, by evaluation). The code of
+# Mach.code itself is never encoded here.
 
 import Base
 import ./impl.bend as C
