@@ -80,8 +80,10 @@ def copy.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img:
   env: D.Ag(ds, m, im, fi, nx, ks, img, ps, os, ce, es),
   hr: {Bool.and(Nat.is_lt(r, 64n), Bool.not(D.Nat.mem([3n, 39n], r))) == True{} : Bool},
   hsrc: {D.Nat.mem([4n, 5n, 6n, 7n, 39n], src) == False{} : Bool},
+  ho: N.Le(List.length(&2, D.Rt, os), 64n),
+  hv: {D.Terms.below(D.Arg.terms(es), U32.to_nat(2147483648)) == True{} : Bool},
   hk: {D.Disj(keep, D.Copy.scr(r)) == True{} : Bool}) ->
-  D.CopyPost(f, ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, src, keep, os, bs, fs, sp, pend, ps, c, t, ce, es, hs, hl, hc, hp, he, hn, env, hr, hsrc, hk):
+  D.CopyPost(f, ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, src, keep, os, bs, fs, sp, pend, ps, c, t, ce, es, hs, hl, hc, hp, he, hn, env, hr, hsrc, ho, hv, hk):
   ?TODO
 
 
@@ -97,8 +99,9 @@ def copy.done(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2,
   hn: {List.get(&2, U32, regs, 37n) == Some{U32.from_nat(List.length(&2, C.Arg, es))} : Maybe<&2, U32>},
   env: D.Ag(ds, m, im, fi, nx, ks, img, ps, os, ce, es),
   hr: {Bool.and(Nat.is_lt(r, 64n), Bool.not(D.Nat.mem([3n, 39n], r))) == True{} : Bool},
-  hsrc: {D.Nat.mem([4n, 5n, 6n, 7n, 39n], src) == False{} : Bool}) ->
-  D.CopyDone(ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, src, os, bs, fs, sp, pend, ps, c, t, ce, es, hs, hl, hc, hp, he, hn, env, hr, hsrc):
+  hsrc: {D.Nat.mem([4n, 5n, 6n, 7n, 39n], src) == False{} : Bool},
+  ho: N.Le(List.length(&2, D.Rt, os), 64n)) ->
+  D.CopyDone(ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, src, os, bs, fs, sp, pend, ps, c, t, ce, es, hs, hl, hc, hp, he, hn, env, hr, hsrc, ho):
   ?TODO
 
 

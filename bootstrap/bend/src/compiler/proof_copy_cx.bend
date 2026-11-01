@@ -40,6 +40,15 @@
 #    (cell 407, field 2 = 0), and CopyQ cannot hold. The run makes no other
 #    mistake: a premise that bounds the locals' variables (each local's term
 #    below 2^25, the book's own bound) makes the sum fit.
+#
+# E. An owned root list os of any length (CopyPost bounds it nowhere). The
+#    source c = 400 is a Rfl, fv 0, count 4294967295, and os is
+#    4294967295 copies of Rt{c, Rfl}: Cnt holds (Ptr(c) = RcL = 4294967295).
+#    The copy shares c (fv 0), and M.inc wraps its count to 0, while CopyQ's
+#    HS, with the root n = c added, asks count(c) == Ptr(c) = 4294967296.
+#    (os cannot be built in a run; the run shows the wrap.) A bound on os,
+#    as inc.post's hn (at most 64), makes the counts fit: 3 x 214748364 + 65
+#    is far below 2^32.
 import Base
 import ./impl.bend as C
 
@@ -292,4 +301,24 @@ def D.var_f2() -> {Cx.fd(D.copy(), 2n, 407) == 0: U32}:
 # i = 4294967295, Var 4294967296, of which no cell stands
 def D.subst(+p: Nat) -> {C.Term.subst(C.Term.Lam{C.Quan.Q0{}, C.Term.Var{1n}}, [C.Term.Var{1n+p}], 0n) ==
   C.Term.Lam{C.Quan.Q0{}, C.Term.Var{Nat.add(1n+p, 1n)}} : C.Term}:
+  {==}
+
+# E
+# -
+
+# c = 400: Rfl (17), fv 0, count 4294967295
+def E.m() -> C.Cir.Cells:
+  C.Cir.Cells.set(Cx.tbl(), 400, C.Cir.Cell{17, 4294967295, 0, 0, 0})
+
+def E.regs() -> List<&2, U32>:
+  List.set(&2, U32, List.set(&2, U32, Cx.z(64n), 0n, 400), 13n, 400)
+
+def E.copy() -> C.Cir.Out:
+  C.Cir.exec(4n, C.M.copy(15n, 13n), Cx.st(E.regs(), E.m(), 401))
+
+# the result is c, whose count wrapped to 0
+def E.r15() -> {Cx.reg(E.copy(), 15n) == Some{400}: Maybe<&2, U32>}:
+  {==}
+
+def E.cnt() -> {Cx.fd(E.copy(), 1n, 400) == 0: U32}:
   {==}

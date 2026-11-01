@@ -1087,6 +1087,14 @@ def Arg.terms(xs: List<&2, C.Arg>) -> List<&2, C.Term>:
     case Con{C.Arg{_, x}, rest}:
       Con{x, Arg.terms(rest)}
 
+# every free variable of each of the terms xs is below n
+def Terms.below(xs: List<&2, C.Term>, +n: Nat) -> Bool:
+  match xs:
+    case Nil{}:
+      True{}
+    case Con{x, rest}:
+      Bool.and(Term.below(x, n), Terms.below(rest, n))
+
 # the registers of keep have the same values in regs2 as in regs
 def Kept(+regs: List<&2, U32>, +regs2: List<&2, U32>, keep: List<&2, Nat>) -> Data:
   match keep:
@@ -1181,6 +1189,8 @@ def CopyPost(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: 
   env: Ag(ds, m, im, fi, nx, ks, img, ps, os, ce, es),
   hr: {Bool.and(Nat.is_lt(r, 64n), Bool.not(Nat.mem([3n, 39n], r))) == True{} : Bool},
   hsrc: {Nat.mem([4n, 5n, 6n, 7n, 39n], src) == False{} : Bool},
+  ho: N.Le(List.length(&2, Rt, os), 64n),
+  hv: {Terms.below(Arg.terms(es), U32.to_nat(2147483648)) == True{} : Bool},
   hk: {Disj(keep, Copy.scr(r)) == True{} : Bool}) ->
   Type:
   Post(False{}, C.Cir.exec(f, C.M.copy(r, src), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, Nil{}, 0}),
@@ -1200,7 +1210,8 @@ def CopyDone(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, 
   hn: {List.get(&2, U32, regs, 37n) == Some{U32.from_nat(List.length(&2, C.Arg, es))} : Maybe<&2, U32>},
   env: Ag(ds, m, im, fi, nx, ks, img, ps, os, ce, es),
   hr: {Bool.and(Nat.is_lt(r, 64n), Bool.not(Nat.mem([3n, 39n], r))) == True{} : Bool},
-  hsrc: {Nat.mem([4n, 5n, 6n, 7n, 39n], src) == False{} : Bool}) ->
+  hsrc: {Nat.mem([4n, 5n, 6n, 7n, 39n], src) == False{} : Bool},
+  ho: N.Le(List.length(&2, Rt, os), 64n)) ->
   Data:
   Ex(Nat, f => Ends(C.Cir.exec(f, C.M.copy(r, src), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, Nil{}, 0})))
 
