@@ -230,7 +230,7 @@ def dec.eq.s(+f: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32,
 
 def dec.eq.n(+f: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +r: Nat, +c: U32, hl: {List.length(&2, U32, regs) == 64n : Nat}, hr: {List.get(&2, U32, regs, r) == Some{c} : Maybe<&2, U32>}, hz: {U32.is_eq(c, 0) == False{} : Bool},
   hc: {C.Cir.is_cell(c, im, fi, nx) == True{} : Bool}, hs: {U32.is_ne(U32.and(C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), 1024), 0) == False{} : Bool},
-  hd: {U32.is_eq(U32.sub(C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)), 1), 0) == False{} : Bool}) ->
+  hd: {U32.is_eq(U32.sub(C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)), 1), 0) == False{} : Bool}, h5: {Nat.is_eq(5n, r) == False{} : Bool}) ->
   {C.Cir.exec(f, C.M.dec(r), X.st(regs, m, nx, fi, im, pg, lim, inp)) ==
     C.Cir.Out.next{X.st(X.set(regs, 5n, U32.sub(C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)), 1)), X.put(m, 1n, c, U32.sub(C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)), 1)), nx, fi, im, pg, lim, inp)} : C.Cir.Out}:
   ?TODO
@@ -238,7 +238,7 @@ def dec.eq.n(+f: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32,
 def dec.eq.p(+f: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +r: Nat, +c: U32, +pend: U32, hl: {List.length(&2, U32, regs) == 64n : Nat}, hr: {List.get(&2, U32, regs, r) == Some{c} : Maybe<&2, U32>}, h3: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
   hz: {U32.is_eq(c, 0) == False{} : Bool}, hc: {C.Cir.is_cell(c, im, fi, nx) == True{} : Bool},
   hs: {U32.is_ne(U32.and(C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), 1024), 0) == False{} : Bool},
-  hd: {U32.is_eq(U32.sub(C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)), 1), 0) == True{} : Bool}) ->
+  hd: {U32.is_eq(U32.sub(C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)), 1), 0) == True{} : Bool}, h5: {Nat.is_eq(5n, r) == False{} : Bool}) ->
   {C.Cir.exec(f, C.M.dec(r), X.st(regs, m, nx, fi, im, pg, lim, inp)) ==
     C.Cir.Out.next{X.st(X.set(X.set(regs, 5n, U32.sub(C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)), 1)), 3n, c), X.put(X.put(m, 1n, c, U32.sub(C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)), 1)), 1n, c, pend), nx, fi, im, pg, lim, inp)} : C.Cir.Out}:
   ?TODO
@@ -283,7 +283,7 @@ def dec.part.on(+f: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U
 # M.alloc's end: the cell aq is set to zeros and r gets it
 def alloc.eq.end(+f: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +r: Nat, +aq: U32, hl: {List.length(&2, U32, regs) == 64n : Nat}, h6: {List.get(&2, U32, regs, 6n) == Some{aq} : Maybe<&2, U32>}, hc: {C.Cir.is_cell(aq, im, fi, nx) == True{} : Bool},
   hr: {Nat.is_lt(r, 64n) == True{} : Bool}) ->
-  {C.Cir.exec(f, sel.b(sel.b(sel.b(sel.b(sel.b(sel.b(sel.b(sel.b(sel.b(sel.t(C.M.alloc(r))))))))))), X.st(regs, m, nx, fi, im, pg, lim, inp)) ==
+  {C.Cir.exec(f, sel.b(sel.b(sel.b(sel.b(sel.b(sel.b(sel.t(C.M.alloc(r)))))))), X.st(regs, m, nx, fi, im, pg, lim, inp)) ==
     C.Cir.Out.next{X.st(X.set(regs, r, aq), C.Cir.Cells.set(m, aq, C.Cir.Cell.zero()), nx, fi, im, pg, lim, inp)} : C.Cir.Out}:
   ?TODO
 

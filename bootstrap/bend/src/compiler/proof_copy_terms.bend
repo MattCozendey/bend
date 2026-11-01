@@ -72,14 +72,18 @@ def Tz.lt_le(i: Nat, n: Nat, m: Nat, h1: {Nat.is_lt(i, n) == True{} : Bool}, h2:
 
 # not i < l gives l <= i
 def Tz.nlt_le(i: Nat, l: Nat, h: {Nat.is_lt(i, l) == False{} : Bool}) -> {Nat.is_le(l, i) == True{} : Bool}:
-  match l:
+  match i:
     case 0n:
-      K.Na.le0(i)
-    case 1n+lp:
-      match i:
+      match l:
         case 0n:
+          {==}
+        case 1n+lp:
           K.Bo.ft({Nat.is_le(1n+lp, 0n) == True{} : Bool}, h)
-        case 1n+ip:
+    case 1n+ip:
+      match l:
+        case 0n:
+          {==}
+        case 1n+lp:
           Tz.nlt_le(ip, lp, h)
 
 # a - b <= a
@@ -113,30 +117,35 @@ def Tz.le_trans(l: Nat, x: Nat, y: Nat, h1: {Nat.is_le(l, x) == True{} : Bool}, 
 
 # l <= a: (1 + a) - l is 1 + (a - l)
 def Tz.sub_succ(a: Nat, l: Nat, h: {Nat.is_le(l, a) == True{} : Bool}) -> {Nat.sub(1n+a, l) == 1n+Nat.sub(a, l) : Nat}:
-  match l:
+  match a:
     case 0n:
-      %Equal.sym(Nat, Nat.sub(a, 0n), a, Tz.sub0(a)) : {1n+a == 1n+_ : Nat}
-      {==}
-    case 1n+lp:
-      match a:
+      match l:
         case 0n:
+          {==}
+        case 1n+lp:
           K.Bo.tf({Nat.sub(1n, 1n+lp) == 1n+Nat.sub(0n, 1n+lp) : Nat}, h)
-        case 1n+ap:
+    case 1n+ap:
+      match l:
+        case 0n:
+          {==}
+        case 1n+lp:
           Tz.sub_succ(ap, lp, h)
 
 # i - d - l + d is i - l, when d <= i and l <= i - d
 def Tz.subsub(i: Nat, d: Nat, +l: Nat, h1: {Nat.is_lt(i, d) == False{} : Bool},
   +h2: {Nat.is_lt(Nat.sub(i, d), l) == False{} : Bool}) -> {Nat.add(Nat.sub(Nat.sub(i, d), l), d) == Nat.sub(i, l) : Nat}:
-  match d:
+  match i:
     case 0n:
-      %Equal.sym(Nat, Nat.add(Nat.sub(Nat.sub(i, 0n), l), 0n), Nat.sub(Nat.sub(i, 0n), l), N.add_zero(Nat.sub(Nat.sub(i, 0n), l))) : {_ == Nat.sub(i, l) : Nat}
-      %Equal.sym(Nat, Nat.sub(i, 0n), i, Tz.sub0(i)) : {Nat.sub(_, l) == Nat.sub(i, l) : Nat}
-      {==}
-    case 1n++dp:
-      match i:
+      match d:
         case 0n:
+          {==}
+        case 1n+dp:
           K.Bo.ft({Nat.add(Nat.sub(Nat.sub(0n, 1n+dp), l), 1n+dp) == Nat.sub(0n, l) : Nat}, h1)
-        case 1n++ip:
+    case 1n++ip:
+      match d:
+        case 0n:
+          N.add_zero(Nat.sub(1n+ip, l))
+        case 1n++dp:
           +le = Tz.le_trans(l, Nat.sub(ip, dp), ip, Tz.nlt_le(Nat.sub(ip, dp), l, h2), Tz.sub_le(ip, dp))
           %Equal.sym(Nat, Nat.sub(1n+ip, l), 1n+Nat.sub(ip, l), Tz.sub_succ(ip, l, le)) : {Nat.add(Nat.sub(Nat.sub(ip, dp), l), 1n+dp) == _ : Nat}
           %Equal.sym(Nat, Nat.add(Nat.sub(Nat.sub(ip, dp), l), 1n+dp), 1n+Nat.add(Nat.sub(Nat.sub(ip, dp), l), dp), N.add_succ_r(Nat.sub(Nat.sub(ip, dp), l), dp)) : {_ == 1n+Nat.sub(ip, l) : Nat}
@@ -146,15 +155,14 @@ def Tz.subsub(i: Nat, d: Nat, +l: Nat, h1: {Nat.is_lt(i, d) == False{} : Bool},
 # v - b <= cm gives v <= b + cm
 def Tz.sub_add(v: Nat, b: Nat, +cm: Nat, h: {Nat.is_le(Nat.sub(v, b), cm) == True{} : Bool}) ->
   {Nat.is_le(v, Nat.add(b, cm)) == True{} : Bool}:
-  match b:
+  match v:
     case 0n:
-      %Tz.sub0(v) : {Nat.is_le(_, cm) == True{} : Bool}
-      h
-    case 1n+bp:
-      match v:
+      K.Na.le0(Nat.add(b, cm))
+    case 1n+vp:
+      match b:
         case 0n:
-          {==}
-        case 1n+vp:
+          h
+        case 1n+bp:
           Tz.sub_add(vp, bp, cm, h)
 
 # congruences of the formers
