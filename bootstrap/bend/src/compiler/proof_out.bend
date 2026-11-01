@@ -4,9 +4,13 @@
 # When the stack is empty and the focus is a value, the machine runs M.out:
 # it walks the value as a list of bytes, emits each byte and halts with 0, or
 # halts with 2 when the value is no list of bytes. out.run (and out.gives,
-# out.some, out.none) proves that it gives Program.unbytes(v), for the term v
-# of the focus' cell c (T.tm.of): a halt with 0 and the bytes out, a halt with
-# 2 when there are none, or out of memory (Gives).
+# out.some, out.none, out.known) proves that it gives Program.unbytes(v), for
+# the term v of the focus' cell c (T.tm.of): a halt with 0 and the bytes out,
+# a halt with 2 when there are none, or out of memory (Gives). out.any holds
+# for any fuel (EM: more fuel keeps an ended run); out.post.of and
+# out.done.of are out.post and out.done of proof_mach.bend, over T.tm.of and
+# okn in place of Is; tm.more, okn.mono, okn.node, oimg.*, olab.*, okids.*
+# and tm.at are the parts of the bridge from Is that do not need Is.
 #
 # The proof has three layers, joined by readers of the same shape:
 #   - terms: U and Wd read a term as the machine does (V1, VL), one cell at a
@@ -6304,3 +6308,266 @@ def out.done.of(+n: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U
   (F, EndsO.of(C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), C.Program.unbytes(v), out, outn,
     out.run(n, Nat.add(n, 34n), PN.le_succ(Nat.add(n, 34n), Nat.add(n, 34n), PN.le_refl(Nat.add(n, 34n))),
       regs, m, nx, fs, im, pg, lim, inp, out, outn, c, ks, img, v, hreg, hlen, htm, ok.known(n, m, ks, ks2, img, c, im, fs, nx, hk, hok))))
+
+# The terms of the cells, with more fuel
+# --------------------------------------
+#
+# What the bridge from proof_mach's Is needs that does not need Is: a cell's
+# term with the fuel f is its term with more fuel (tm.mono), and okn from the
+# facts of each node (okn.node and the lemmas after it), with more fuel too.
+
+# r is none, or r2 is r
+def MO(r: Maybe<&2, C.Term>, r2: Maybe<&2, C.Term>) -> Type:
+  match r:
+    case None{}:
+      Unit
+    case Some{x}:
+      {Some{x} == r2 : Maybe<&2, C.Term>}
+
+def MO.refl(r: Maybe<&2, C.Term>) -> MO(r, r):
+  match r:
+    case None{}:
+      Unit{}
+    case Some{x}:
+      {==}
+
+def MO.one(-k: C.Term -> C.Term, r: Maybe<&2, C.Term>, -r2: Maybe<&2, C.Term>, h: MO(r, r2)) -> MO(T.tm.one(k, r), T.tm.one(k, r2)):
+  match r:
+    case None{}:
+      Unit{}
+    case Some{a}:
+      %h : {Some{k(a)} == T.tm.one(k, _) : Maybe<&2, C.Term>}
+      {==}
+
+def MO.two(-k: C.Term -> C.Term -> C.Term, r: Maybe<&2, C.Term>, -r2: Maybe<&2, C.Term>, s: Maybe<&2, C.Term>, -s2: Maybe<&2, C.Term>,
+  hr: MO(r, r2), hs: MO(s, s2)) -> MO(T.tm.two(k, r, s), T.tm.two(k, r2, s2)):
+  match r s:
+    case Some{a} Some{b}:
+      %hr : {Some{k(a, b)} == T.tm.two(k, _, s2) : Maybe<&2, C.Term>}
+      %hs : {Some{k(a, b)} == T.tm.two(k, Some{a}, _) : Maybe<&2, C.Term>}
+      {==}
+    case Some{a} None{}:
+      Unit{}
+    case None{} _:
+      Unit{}
+
+def MO.three(-k: C.Term -> C.Term -> C.Term -> C.Term, r: Maybe<&2, C.Term>, -r2: Maybe<&2, C.Term>, s: Maybe<&2, C.Term>, -s2: Maybe<&2, C.Term>,
+  t: Maybe<&2, C.Term>, -t2: Maybe<&2, C.Term>, hr: MO(r, r2), hs: MO(s, s2), ht: MO(t, t2)) -> MO(T.tm.three(k, r, s, t), T.tm.three(k, r2, s2, t2)):
+  match r s t:
+    case Some{a} Some{b} Some{d}:
+      %hr : {Some{k(a, b, d)} == T.tm.three(k, _, s2, t2) : Maybe<&2, C.Term>}
+      %hs : {Some{k(a, b, d)} == T.tm.three(k, Some{a}, _, t2) : Maybe<&2, C.Term>}
+      %ht : {Some{k(a, b, d)} == T.tm.three(k, Some{a}, Some{b}, _) : Maybe<&2, C.Term>}
+      {==}
+    case Some{a} Some{b} None{}:
+      Unit{}
+    case Some{a} None{} _:
+      Unit{}
+    case None{} _ _:
+      Unit{}
+
+def MO.mat(n: Maybe<&2, List<&2, U32>>, r: Maybe<&2, C.Term>, -r2: Maybe<&2, C.Term>, s: Maybe<&2, C.Term>, -s2: Maybe<&2, C.Term>,
+  hr: MO(r, r2), hs: MO(s, s2)) -> MO(T.tm.mat(n, r, s), T.tm.mat(n, r2, s2)):
+  match n r s:
+    case Some{+x} Some{a} Some{b}:
+      %hr : {Some{C.Term.Mat{x, a, b}} == T.tm.mat(Some{x}, _, s2) : Maybe<&2, C.Term>}
+      %hs : {Some{C.Term.Mat{x, a, b}} == T.tm.mat(Some{x}, Some{a}, _) : Maybe<&2, C.Term>}
+      {==}
+    case Some{x} Some{a} None{}:
+      Unit{}
+    case Some{x} None{} _:
+      Unit{}
+    case None{} _ _:
+      Unit{}
+
+def MO.cell(tag: Nat, +q: C.Quan, +c: U32, +f2: U32, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+  p2: Unit -> Maybe<&2, C.Term>, p3: Unit -> Maybe<&2, C.Term>, p4: Unit -> Maybe<&2, C.Term>,
+  -q2: Unit -> Maybe<&2, C.Term>, -q3: Unit -> Maybe<&2, C.Term>, -q4: Unit -> Maybe<&2, C.Term>,
+  h2: MO(p2(Unit{}), q2(Unit{})), h3: MO(p3(Unit{}), q3(Unit{})), h4: MO(p4(Unit{}), q4(Unit{}))) ->
+  MO(T.tm.cell(tag, q, c, f2, ks, img, p2, p3, p4), T.tm.cell(tag, q, c, f2, ks, img, q2, q3, q4)):
+  match tag:
+    case 0n:
+      MO.refl(Some{C.Term.Var{U32.to_nat(f2)}})
+    case 1n+t1:
+      match t1:
+        case 0n:
+          MO.refl(T.tm.image(img, c))
+        case 1n+t2:
+          match t2:
+            case 0n:
+              MO.two(a => b => C.Term.Ann{a, b}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), h2, h3)
+            case 1n+t3:
+              match t3:
+                case 0n:
+                  MO.two(a => b => C.Term.Let{q, a, b}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), h2, h3)
+                case 1n+t4:
+                  match t4:
+                    case 0n:
+                      MO.one(a => C.Term.Typ{a}, p2(Unit{}), q2(Unit{}), h2)
+                    case 1n+t5:
+                      match t5:
+                        case 0n:
+                          MO.two(a => b => C.Term.Min{a, b}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), h2, h3)
+                        case 1n+t6:
+                          match t6:
+                            case 0n:
+                              MO.two(a => b => C.Term.All{q, a, b}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), h2, h3)
+                            case 1n+t7:
+                              match t7:
+                                case 0n:
+                                  MO.one(a => C.Term.Lam{q, a}, p2(Unit{}), q2(Unit{}), h2)
+                                case 1n+t8:
+                                  match t8:
+                                    case 0n:
+                                      MO.two(a => b => C.Term.App{q, a, b}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), h2, h3)
+                                    case 1n+t9:
+                                      match t9:
+                                        case 0n:
+                                          MO.two(a => b => C.Term.Sig{q, a, b}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), h2, h3)
+                                        case 1n+t10:
+                                          match t10:
+                                            case 0n:
+                                              MO.two(a => b => C.Term.Tup{q, a, b}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), h2, h3)
+                                            case 1n+t11:
+                                              match t11:
+                                                case 0n:
+                                                  MO.one(a => C.Term.Prj{a}, p2(Unit{}), q2(Unit{}), h2)
+                                                case 1n+t12:
+                                                  match t12:
+                                                    case 0n:
+                                                      MO.refl(T.tm.image(img, c))
+                                                    case 1n+t13:
+                                                      match t13:
+                                                        case 0n:
+                                                          MO.refl(T.tm.named(T.tm.name(ks, f2), k => C.Term.Lab{k}))
+                                                        case 1n+t14:
+                                                          match t14:
+                                                            case 0n:
+                                                              MO.mat(T.tm.name(ks, f2), p3(Unit{}), q3(Unit{}), p4(Unit{}), q4(Unit{}), h3, h4)
+                                                            case 1n+t15:
+                                                              match t15:
+                                                                case 0n:
+                                                                  MO.refl(Some{C.Term.Efq{}})
+                                                                case 1n+t16:
+                                                                  match t16:
+                                                                    case 0n:
+                                                                      MO.three(a => b => d => C.Term.Eql{a, b, d}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), p4(Unit{}), q4(Unit{}), h2, h3, h4)
+                                                                    case 1n+t17:
+                                                                      match t17:
+                                                                        case 0n:
+                                                                          MO.refl(Some{C.Term.Rfl{}})
+                                                                        case 1n+t18:
+                                                                          match t18:
+                                                                            case 0n:
+                                                                              MO.three(a => b => d => C.Term.Rwt{a, b, d}, p2(Unit{}), q2(Unit{}), p3(Unit{}), q3(Unit{}), p4(Unit{}), q4(Unit{}), h2, h3, h4)
+                                                                            case 1n+t19:
+                                                                              Unit{}
+
+# a cell's term with the fuel f is its term with the fuel f + g
+def tm.mono(+f: Nat, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32) ->
+  MO(T.tm.of(f, m, ks, img, c), T.tm.of(Nat.add(f, g), m, ks, img, c)):
+  match f:
+    case 0n:
+      Unit{}
+    case 1n+p:
+      MO.cell(U32.to_nat(U32.and(Fd(0n, m, c), 63)), T.tm.quan(U32.and(U32.shrn(Fd(0n, m, c), 6n), 3)), c, Fd(2n, m, c), ks, img,
+        u => T.tm.of(p, m, ks, img, Fd(2n, m, c)), u => T.tm.of(p, m, ks, img, Fd(3n, m, c)), u => T.tm.of(p, m, ks, img, Fd(4n, m, c)),
+        u => T.tm.of(Nat.add(p, g), m, ks, img, Fd(2n, m, c)), u => T.tm.of(Nat.add(p, g), m, ks, img, Fd(3n, m, c)),
+        u => T.tm.of(Nat.add(p, g), m, ks, img, Fd(4n, m, c)),
+        tm.mono(p, g, m, ks, img, Fd(2n, m, c)), tm.mono(p, g, m, ks, img, Fd(3n, m, c)), tm.mono(p, g, m, ks, img, Fd(4n, m, c)))
+
+# Unit for none, Empty for some
+def MT.none(x: Maybe<&2, C.Term>) -> Type:
+  match x:
+    case None{}:
+      Unit
+    case Some{_}:
+      Empty
+
+# with more fuel, a term that is there is the same
+def MO.use(r: Maybe<&2, C.Term>, -r2: Maybe<&2, C.Term>, -v: C.Term, +e: {r == Some{v} : Maybe<&2, C.Term>}, h: MO(r, r2)) ->
+  {r2 == Some{v} : Maybe<&2, C.Term>}:
+  match r:
+    case None{}:
+      Empty.absurd({r2 == Some{v} : Maybe<&2, C.Term>}, Tr(Maybe<&2, C.Term>, x => MT.none(x), None{}, Some{v}, e, Unit{}))
+    case Some{x}:
+      Equal.trans(Maybe<&2, C.Term>, r2, Some{x}, Some{v}, Equal.sym(Maybe<&2, C.Term>, Some{x}, r2, h), e)
+
+# T.tm.of(f) == Some{v} gives T.tm.of(f + g) == Some{v}
+def tm.more(+f: Nat, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, -v: C.Term,
+  +e: {T.tm.of(f, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>}) -> {T.tm.of(Nat.add(f, g), m, ks, img, c) == Some{v} : Maybe<&2, C.Term>}:
+  MO.use(T.tm.of(f, m, ks, img, c), T.tm.of(Nat.add(f, g), m, ks, img, c), v, e, tm.mono(f, g, m, ks, img, c))
+
+# okn with more fuel
+def okn.mono(+f: Nat, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +h: {okn(f, m, ks, img, c, im, fs, nx) == True{} : Bool}) -> {okn(Nat.add(f, g), m, ks, img, c, im, fs, nx) == True{} : Bool}:
+  match f:
+    case 0n:
+      Empty.absurd({okn(g, m, ks, img, c, im, fs, nx) == True{} : Bool}, PN.false_ne_true(h))
+    case 1n+p:
+      +t = Tg(m, c)
+      +A = Bool.and(Bool.and(C.Cir.is_cell(c, im, fs, nx), ok.img(t, T.tm.image(img, c))), okn.lab(t, ks, Fd(2n, m, c)))
+      +K2 = Bool.or(Bool.not(U32.is_eq(t, 10)), Bool.and(okn(p, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(p, m, ks, img, Fd(3n, m, c), im, fs, nx)))
+      and_i(A, Bool.or(Bool.not(U32.is_eq(t, 10)), Bool.and(okn(Nat.add(p, g), m, ks, img, Fd(2n, m, c), im, fs, nx), okn(Nat.add(p, g), m, ks, img, Fd(3n, m, c), im, fs, nx))),
+        and_l(A, K2, h),
+        or_imp(U32.is_eq(t, 10), Bool.and(okn(p, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(p, m, ks, img, Fd(3n, m, c), im, fs, nx)),
+          Bool.and(okn(Nat.add(p, g), m, ks, img, Fd(2n, m, c), im, fs, nx), okn(Nat.add(p, g), m, ks, img, Fd(3n, m, c), im, fs, nx)), and_r(A, K2, h),
+          +e => and_i(okn(Nat.add(p, g), m, ks, img, Fd(2n, m, c), im, fs, nx), okn(Nat.add(p, g), m, ks, img, Fd(3n, m, c), im, fs, nx),
+            okn.mono(p, g, m, ks, img, Fd(2n, m, c), im, fs, nx, and_l(okn(p, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(p, m, ks, img, Fd(3n, m, c), im, fs, nx), e)),
+            okn.mono(p, g, m, ks, img, Fd(3n, m, c), im, fs, nx, and_r(okn(p, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(p, m, ks, img, Fd(3n, m, c), im, fs, nx), e)))))
+
+# okn at the cell c, from the facts of its node: it is a cell, its image's
+# term (for a Ref or an Enu), its label's number, and its parts (for a pair)
+def okn.node(+f: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +hc: {C.Cir.is_cell(c, im, fs, nx) == True{} : Bool},
+  +hi: {ok.img(Tg(m, c), T.tm.image(img, c)) == True{} : Bool},
+  +hl: {okn.lab(Tg(m, c), ks, Fd(2n, m, c)) == True{} : Bool},
+  +hp: {Bool.or(Bool.not(U32.is_eq(Tg(m, c), 10)), Bool.and(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx))) == True{} : Bool}) ->
+  {okn(1n+f, m, ks, img, c, im, fs, nx) == True{} : Bool}:
+  +t = Tg(m, c)
+  and_i(Bool.and(Bool.and(C.Cir.is_cell(c, im, fs, nx), ok.img(t, T.tm.image(img, c))), okn.lab(t, ks, Fd(2n, m, c))),
+    Bool.or(Bool.not(U32.is_eq(t, 10)), Bool.and(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx))),
+    and_i(Bool.and(C.Cir.is_cell(c, im, fs, nx), ok.img(t, T.tm.image(img, c))), okn.lab(t, ks, Fd(2n, m, c)),
+      and_i(C.Cir.is_cell(c, im, fs, nx), ok.img(t, T.tm.image(img, c)), hc, hi), hl), hp)
+
+# the image's term, for a node of the tag tg: none asked unless tg is 1
+# (Ref) or 12 (Enu), whose image's term is the node's
+def oimg.eq(+t: U32, +tg: U32, +r: Maybe<&2, C.Term>, +e: {t == tg : U32}, +h: {ok.img(tg, r) == True{} : Bool}) -> {ok.img(t, r) == True{} : Bool}:
+  Tr(U32, x => {ok.img(x, r) == True{} : Bool}, tg, t, Equal.sym(U32, t, tg, e), h)
+
+def oimg.ref(+r: Maybe<&2, C.Term>, +k: List<&2, U32>, +e: {r == Some{C.Term.Ref{k}} : Maybe<&2, C.Term>}) -> {ok.img(1, r) == True{} : Bool}:
+  Tr(Maybe<&2, C.Term>, x => {ok.img(1, x) == True{} : Bool}, Some{C.Term.Ref{k}}, r, Equal.sym(Maybe<&2, C.Term>, r, Some{C.Term.Ref{k}}, e), {==})
+
+def oimg.enu(+r: Maybe<&2, C.Term>, +ns: List<&2, List<&2, U32>>, +e: {r == Some{C.Term.Enu{ns}} : Maybe<&2, C.Term>}) -> {ok.img(12, r) == True{} : Bool}:
+  Tr(Maybe<&2, C.Term>, x => {ok.img(12, x) == True{} : Bool}, Some{C.Term.Enu{ns}}, r, Equal.sym(Maybe<&2, C.Term>, r, Some{C.Term.Enu{ns}}, e), {==})
+
+# the label's number, for a node of the tag tg: none asked unless tg is 13,
+# whose number j is that of its name k (Nm of proof_mach.bend)
+def olab.eq(+t: U32, +tg: U32, +ks: List<&2, List<&2, U32>>, +j: U32, +e: {t == tg : U32}, +h: {okn.lab(tg, ks, j) == True{} : Bool}) ->
+  {okn.lab(t, ks, j) == True{} : Bool}:
+  Tr(U32, x => {okn.lab(x, ks, j) == True{} : Bool}, tg, t, Equal.sym(U32, t, tg, e), h)
+
+def olab.lab(+ks: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +en: {T.tm.name(ks, j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {j == C.Img.id(ks, k, 0) : U32}) -> {okn.lab(13, ks, j) == True{} : Bool}:
+  %Equal.sym(Maybe<&2, List<&2, U32>>, T.tm.name(ks, j), Some{k}, en) : {labid.of(_, j, ks) == True{} : Bool}
+  Tr(U32, x => {U32.is_eq(j, x) == True{} : Bool}, j, C.Img.id(ks, k, 0), ej, nat_eq(j, j, {==}))
+
+# the parts, for a node of the tag tg: none asked unless tg is 10 (Tup)
+def okids.eq(+t: U32, +tg: U32, -X: Bool, +e: {t == tg : U32}, +h: {Bool.or(Bool.not(U32.is_eq(tg, 10)), X) == True{} : Bool}) ->
+  {Bool.or(Bool.not(U32.is_eq(t, 10)), X) == True{} : Bool}:
+  Tr(U32, x => {Bool.or(Bool.not(U32.is_eq(x, 10)), X) == True{} : Bool}, tg, t, Equal.sym(U32, t, tg, e), h)
+
+def okids.tup(+t: U32, +f: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +h2: {okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx) == True{} : Bool}, +h3: {okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}) ->
+  {Bool.or(Bool.not(U32.is_eq(t, 10)), Bool.and(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx))) == True{} : Bool}:
+  or_r_true(Bool.not(U32.is_eq(t, 10)), Bool.and(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx)),
+    and_i(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx), h2, h3))
+
+# the term of a node of the tag tg: T.tm.cell of the tag, with its parts'
+# terms one level less deep
+def tm.at(+f: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +tg: U32, +e: {Tg(m, c) == tg : U32}) ->
+  {T.tm.of(1n+f, m, ks, img, c) == T.tm.cell(U32.to_nat(tg), T.tm.quan(U32.and(U32.shrn(Fd(0n, m, c), 6n), 3)), c, Fd(2n, m, c), ks, img,
+    u => T.tm.of(f, m, ks, img, Fd(2n, m, c)), u => T.tm.of(f, m, ks, img, Fd(3n, m, c)), u => T.tm.of(f, m, ks, img, Fd(4n, m, c))) : Maybe<&2, C.Term>}:
+  Tr(U32, x => {T.tm.of(1n+f, m, ks, img, c) == T.tm.cell(U32.to_nat(x), T.tm.quan(U32.and(U32.shrn(Fd(0n, m, c), 6n), 3)), c, Fd(2n, m, c), ks, img,
+      u => T.tm.of(f, m, ks, img, Fd(2n, m, c)), u => T.tm.of(f, m, ks, img, Fd(3n, m, c)), u => T.tm.of(f, m, ks, img, Fd(4n, m, c))) : Maybe<&2, C.Term>},
+    Tg(m, c), tg, e, {==})

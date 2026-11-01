@@ -1,175 +1,87 @@
-# compiler: the cells that the machine takes, and the output's bytes
-# ==================================================================
+# compiler: the division of the first cell
+# ========================================
 #
-# The numbers of alloc's and emit's code: (x - p) + p = x on words
-# (U32.subadd), so memory.grow by need - pages gives need pages; the literal
-# 214748364 is P (lit.P), and a byte b needs (b >> 16) + 1 pages
-# (shrn.up). A new cell is five words of 0 (z5): it reads as Cir's new cell
-# (rcell.z5), and keeps every other cell and byte (RC.z5, RB.z5); the
-# relation holds after a new cell (inv.alloc) and after a byte of output
-# (inv.emit).
+# U32.div by b <= 2^31: the quotient q and the remainder r of Base's long
+# division (U32.divmod.go) satisfy q b + r = a and r < b (dm), as the shift of
+# a remainder below 2^31 never overflows; so q is the only number with
+# q b <= a < q b + b (div.of), which gives Cir.first.
 
 import Base
 import ./impl.bend as C
 import ./proof_need.bend as N
-import ./proof_instrs.bend as I
 import ./proof_halt.bend as PH
-import ./proof_module.bend as M
-import ./proof_valid.bend as V
-import ./proof_sim_step.bend as S
 import ./proof_sim_mem.bend as Y
 import ./proof_sim_nat.bend as Z
-import ./proof_sim_inv.bend as Q
-import ./proof_sim_frame.bend as F
+import ./proof_valid.bend as V
+import ./proof_sim_alloc.bend as A
 
-# Words
-# -----
+def dq(-p: Nat, x: Word(p) & U32) -> Word(p):
+  (q, r) = x
+  q
 
-# (x - p) + p = x, with the carries of the subtraction c and of the addition
-# not c
-def W.subadd(+n: Nat, +x: Word(n), +p: Word(n), c: Bool) ->
-  {Word.adc(n, Word.adc(n, x, p, True{}, c), p, False{}, Bool.not(c)) == x : Word(n)}:
-  match n:
-    case 0n:
-      match x p:
-        case WNil{} WNil{}:
-          {==}
-    case 1n+q:
-      match x p c:
-        case WCon{False{}, +xt} WCon{False{}, +pt} False{}:
-          Equal.cong(Word(q), Word(1n+q), z => WCon{False{}, z}, Word.adc(q, Word.adc(q, xt, pt, True{}, False{}), pt, False{}, True{}), xt, W.subadd(q, xt, pt, False{}))
-        case WCon{False{}, +xt} WCon{False{}, +pt} True{}:
-          Equal.cong(Word(q), Word(1n+q), z => WCon{False{}, z}, Word.adc(q, Word.adc(q, xt, pt, True{}, True{}), pt, False{}, False{}), xt, W.subadd(q, xt, pt, True{}))
-        case WCon{False{}, +xt} WCon{True{}, +pt} False{}:
-          Equal.cong(Word(q), Word(1n+q), z => WCon{False{}, z}, Word.adc(q, Word.adc(q, xt, pt, True{}, False{}), pt, False{}, True{}), xt, W.subadd(q, xt, pt, False{}))
-        case WCon{False{}, +xt} WCon{True{}, +pt} True{}:
-          Equal.cong(Word(q), Word(1n+q), z => WCon{False{}, z}, Word.adc(q, Word.adc(q, xt, pt, True{}, False{}), pt, False{}, True{}), xt, W.subadd(q, xt, pt, False{}))
-        case WCon{True{}, +xt} WCon{False{}, +pt} False{}:
-          Equal.cong(Word(q), Word(1n+q), z => WCon{True{}, z}, Word.adc(q, Word.adc(q, xt, pt, True{}, True{}), pt, False{}, False{}), xt, W.subadd(q, xt, pt, True{}))
-        case WCon{True{}, +xt} WCon{False{}, +pt} True{}:
-          Equal.cong(Word(q), Word(1n+q), z => WCon{True{}, z}, Word.adc(q, Word.adc(q, xt, pt, True{}, True{}), pt, False{}, False{}), xt, W.subadd(q, xt, pt, True{}))
-        case WCon{True{}, +xt} WCon{True{}, +pt} False{}:
-          Equal.cong(Word(q), Word(1n+q), z => WCon{True{}, z}, Word.adc(q, Word.adc(q, xt, pt, True{}, False{}), pt, False{}, True{}), xt, W.subadd(q, xt, pt, False{}))
-        case WCon{True{}, +xt} WCon{True{}, +pt} True{}:
-          Equal.cong(Word(q), Word(1n+q), z => WCon{True{}, z}, Word.adc(q, Word.adc(q, xt, pt, True{}, True{}), pt, False{}, False{}), xt, W.subadd(q, xt, pt, True{}))
+def dr(-p: Nat, x: Word(p) & U32) -> U32:
+  (q, r) = x
+  r
 
-# (x - p) + p = x
-def U32.subadd(+x: U32, +p: U32) -> {U32.add(U32.sub(x, p), p) == x : U32}:
-  match x p:
-    case U32{+xw} U32{+pw}:
-      Equal.cong(Word(32n), U32, z => U32{z}, Word.adc(32n, Word.adc(32n, xw, pw, True{}, True{}), pw, False{}, False{}), xw, W.subadd(32n, xw, pw, True{}))
-
-# p + (x - p) = x
-def U32.addsub(+p: U32, +x: U32) -> {U32.add(p, U32.sub(x, p)) == x : U32}:
-  Equal.trans(U32, U32.add(p, U32.sub(x, p)), U32.add(U32.sub(x, p), p), x, U32.add_comm(p, U32.sub(x, p)), U32.subadd(x, p))
-
-# The literal 214748364
-# ---------------------
-
-def q4(j: Nat) -> Nat:
-  match j:
-    case 0n:
-      0n
-    case 1n+q:
-      4n+q4(q)
-
-# 0x0CCC...C as a word, its lowest nibble first
-def cwz(j: Nat) -> Word(4n+q4(j)):
-  match j:
-    case 0n:
-      WCon{False{}, WCon{False{}, WCon{False{}, WCon{False{}, WNil{}}}}}
-    case 1n+q:
-      WCon{False{}, WCon{False{}, WCon{True{}, WCon{True{}, cwz(q)}}}}
-
-def cwz.val(+j: Nat) -> {Word.to_nat(4n+q4(j), cwz(j)) == PH.H.pat(j) : Nat}:
-  match j:
-    case 0n:
-      {==}
-    case 1n+q:
-      %Equal.sym(Nat, Word.to_nat(4n+q4(q), cwz(q)), PH.H.pat(q), cwz.val(q)) :
-        {Nat.double(Nat.double(1n+Nat.double(1n+Nat.double(_)))) == Nat.add(12n, N.D(4n, PH.H.pat(q))) : Nat}
-      {==}
-
-def lit.cw() -> {214748364 == U32{cwz(7n)} : U32}:
-  {==}
-
-def lit.pat() -> {U32.to_nat(214748364) == PH.H.pat(7n) : Nat}:
-  %Equal.sym(U32, 214748364, U32{cwz(7n)}, lit.cw()) : {U32.to_nat(_) == PH.H.pat(7n) : Nat}
-  Equal.trans(Nat, U32.to_nat(U32{cwz(7n)}), Word.to_nat(32n, cwz(7n)), PH.H.pat(7n), N.u32_to_nat(cwz(7n)), cwz.val(7n))
-
-def succ.ne0(+y: Nat, e: {0n == 1n+y : Nat}) -> Empty:
-  N.le_rw_r(1n+y, 1n+y, 0n, Equal.sym(Nat, 0n, 1n+y, e), N.le_refl(1n+y))
-
-# 20x = 20y gives x = y
-def t20.inj(+x: Nat, +y: Nat, e: {PH.H.t20(x) == PH.H.t20(y) : Nat}) -> {x == y : Nat}:
+# the shift with its bit out is the shift and the bit
+def out.put(+n: Nat, +c: Bool, +w: Word(n)) -> {Word.shl.out(n, c, w) == (PH.H.pout(n, c, w), Word.shl.put(n, c, w)) : Bool & Word(n)}:
   ?TODO
 
-# 20x <= 20y gives x <= y
-def t20.le.inv(+x: Nat, +y: Nat, h: N.Le(PH.H.t20(x), PH.H.t20(y))) -> N.Le(x, y):
-  match x y:
-    case 0n _:
-      N.le_zero(y)
-    case 1n+p 0n:
-      Empty.absurd(N.Le(1n+p, 0n), h)
-    case 1n+p 1n+q:
-      t20.le.inv(p, q, h)
-
-# P, of 2^4 + 20P = 2^32, is 214748364
-def P.pat(+P: Nat, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat}) -> {P == PH.H.pat(7n) : Nat}:
-  t20.inj(P, PH.H.pat(7n), PH.H.lcancel(PH.H.W(4n), PH.H.t20(P), PH.H.t20(PH.H.pat(7n)),
-    Equal.trans(Nat, Nat.add(PH.H.W(4n), PH.H.t20(P)), PH.H.W(32n), Nat.add(PH.H.W(4n), PH.H.t20(PH.H.pat(7n))), hP,
-      Equal.sym(Nat, Nat.add(PH.H.W(4n), PH.H.t20(PH.H.pat(7n))), PH.H.W(32n), PH.H.hP()))))
-
-def lit.P(+P: Nat, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat}) -> {U32.to_nat(214748364) == P : Nat}:
-  Equal.trans(Nat, U32.to_nat(214748364), PH.H.pat(7n), P, lit.pat(), Equal.sym(Nat, P, PH.H.pat(7n), P.pat(P, hP)))
-
-# Shifts
-# ------
-
-# x <= 2 (x >> 1) + 1
-def shr.up(x: U32) -> N.Le(U32.to_nat(x), 1n+Nat.double(U32.to_nat(U32.shr(x)))):
-  match x:
-    case U32{w}:
-      match w:
-        case WCon{False{}, +t}:
-          +a = Nat.double(Word.to_nat(31n, t))
-          N.le_rw_r(a, 1n+a, 1n+Nat.double(Word.to_nat(32n, Word.shr.pad(31n, t))),
-            Equal.cong(Nat, Nat, v => 1n+Nat.double(v), Word.to_nat(31n, t), Word.to_nat(32n, Word.shr.pad(31n, t)),
-              Equal.sym(Nat, Word.to_nat(32n, Word.shr.pad(31n, t)), Word.to_nat(31n, t), V.pad.val(31n, t))),
-            N.le_succ(a, a, N.le_refl(a)))
-        case WCon{True{}, +t}:
-          +a = Nat.double(Word.to_nat(31n, t))
-          N.le_rw_r(1n+a, 1n+a, 1n+Nat.double(Word.to_nat(32n, Word.shr.pad(31n, t))),
-            Equal.cong(Nat, Nat, v => 1n+Nat.double(v), Word.to_nat(31n, t), Word.to_nat(32n, Word.shr.pad(31n, t)),
-              Equal.sym(Nat, Word.to_nat(32n, Word.shr.pad(31n, t)), Word.to_nat(31n, t), V.pad.val(31n, t))),
-            N.le_refl(1n+a))
-
-# x < 2^k ((x >> k) + 1)
-def shrn.up(+k: Nat, +x: U32) -> N.Le(1n+U32.to_nat(x), N.D(k, 1n+U32.to_nat(U32.shrn(x, k)))):
-  match k:
-    case 0n:
-      N.le_refl(1n+U32.to_nat(x))
-    case 1n+q:
-      +y = U32.shr(x)
-      +Sq = U32.to_nat(U32.shrn(y, q))
-      +h = N.le_trans(1n+U32.to_nat(x), Nat.double(1n+U32.to_nat(y)), Nat.double(N.D(q, 1n+Sq)), shr.up(x),
-        N.double_mono(1n+U32.to_nat(y), N.D(q, 1n+Sq), shrn.up(q, y)))
-      N.le_rw_r(1n+U32.to_nat(x), Nat.double(N.D(q, 1n+Sq)), Nat.double(N.D(q, 1n+U32.to_nat(U32.shrn(x, 1n+q)))),
-        Equal.cong(U32, Nat, z => Nat.double(N.D(q, 1n+U32.to_nat(z))), U32.shrn(y, q), U32.shrn(x, 1n+q),
-          Equal.sym(U32, U32.shrn(x, 1n+q), U32.shrn(y, q), V.shrn.succ(x, q))), h)
-
-# Lists
-# -----
-
-# a list, after a set of its element r, has it there
-def get.set(+rg: List<&2, U32>, +r: Nat, +v: U32, h: {Nat.is_lt(r, List.length(&2, U32, rg)) == True{} : Bool}) ->
-  {List.get(&2, U32, List.set(&2, U32, rg, r, v), r) == Some{v} : Maybe<&2, U32>}:
-  match rg r:
-    case Nil{} 0n:
-      Empty.absurd({List.get(&2, U32, List.set(&2, U32, Nil{}, 0n, v), 0n) == Some{v} : Maybe<&2, U32>}, N.false_ne_true(h))
-    case Nil{} 1n+q:
-      Empty.absurd({List.get(&2, U32, List.set(&2, U32, Nil{}, 1n+q, v), 1n+q) == Some{v} : Maybe<&2, U32>}, N.false_ne_true(h))
-    case Con{x, t} 0n:
+# the number of a word, by its low bit
+def wt(+q: Nat, a0: Bool, +hi: Word(q)) -> {Word.to_nat(1n+q, WCon{a0, hi}) == Nat.add(PH.H.bn(a0), Nat.double(Word.to_nat(q, hi))) : Nat}:
+  match a0:
+    case False{}:
       {==}
-    case Con{x, +t} 1n+q:
-      get.set(t, q, v, h)
+    case True{}:
+      {==}
+
+# x - x = 0
+def sub.self(x: Nat) -> {Nat.sub(x, x) == 0n : Nat}:
+  match x:
+    case 0n:
+      {==}
+    case 1n+p:
+      sub.self(p)
+
+# (a + b) - b = a
+def add.sub.r(a: Nat, +b: Nat) -> {Nat.sub(Nat.add(a, b), b) == a : Nat}:
+  match a:
+    case 0n:
+      sub.self(b)
+    case 1n+(+p):
+      Equal.trans(Nat, Nat.sub(1n+Nat.add(p, b), b), 1n+Nat.sub(Nat.add(p, b), b), 1n+p,
+        A.sub.succ.l(Nat.add(p, b), b, N.le_add_l(p, b)), Equal.cong(Nat, Nat, z => 1n+z, Nat.sub(Nat.add(p, b), b), p, add.sub.r(p, b)))
+
+def sub.nat.go(c: Bool, +X: Nat, +Y0: Nat, +D0: Nat, h: N.Le(Y0, X), hd: N.Le(1n+D0, N.D(32n, 1n)),
+  e: {Nat.add(X, N.D(32n, PH.H.bn(c))) == Nat.add(D0, Y0) : Nat}) -> {D0 == Nat.sub(X, Y0) : Nat}:
+  match c:
+    case False{}:
+      +e0 = Equal.trans(Nat, X, Nat.add(X, 0n), Nat.add(D0, Y0), Equal.sym(Nat, Nat.add(X, 0n), X, N.add_zero(X)), e)
+      Equal.sym(Nat, Nat.sub(X, Y0), D0, Equal.trans(Nat, Nat.sub(X, Y0), Nat.sub(Nat.add(D0, Y0), Y0), D0,
+        Equal.cong(Nat, Nat, z => Nat.sub(z, Y0), X, Nat.add(D0, Y0), e0), add.sub.r(D0, Y0)))
+    case True{}:
+      +T = N.D(32n, 1n)
+      +e1 = {(%{{==} : {PH.H.bn(True{}) == 1n : Nat}} : {Nat.add(X, N.D(32n, _)) == Nat.add(D0, Y0) : Nat}; e) : {Nat.add(X, T) == Nat.add(D0, Y0) : Nat}}
+      +l1 = N.le_rw_l(Nat.add(D0, Y0), Nat.add(X, T), Nat.add(D0, Y0), Equal.sym(Nat, Nat.add(X, T), Nat.add(D0, Y0), e1), N.le_refl(Nat.add(D0, Y0)))
+      +l2 = N.add_mono(D0, D0, Y0, X, N.le_refl(D0), h)
+      +l3 = N.le_rw_r(1n+Nat.add(D0, X), Nat.add(T, X), Nat.add(X, T), Z.add.comm(T, X), Z.le.add_r(1n+D0, T, X, hd))
+      Empty.absurd({D0 == Nat.sub(X, Y0) : Nat}, N.not_succ_le(Nat.add(D0, X),
+        N.le_trans(1n+Nat.add(D0, X), Nat.add(X, T), Nat.add(D0, X), l3, N.le_trans(Nat.add(X, T), Nat.add(D0, Y0), Nat.add(D0, X), l1, l2))))
+
+# x - y is exact for y <= x
+def sub.nat(+x: U32, +y: U32, h: N.Le(U32.to_nat(y), U32.to_nat(x))) -> {U32.to_nat(U32.sub(x, y)) == Nat.sub(U32.to_nat(x), U32.to_nat(y)) : Nat}:
+  match x y:
+    case U32{+xw} U32{+yw}:
+      +d = Word.sub(32n, xw, yw)
+      +X = Word.to_nat(32n, xw)
+      +Y0 = Word.to_nat(32n, yw)
+      +D0 = Word.to_nat(32n, d)
+      +c = PH.H.cout(32n, d, yw, False{})
+      +ea = PH.H.adc(32n, d, yw, False{})
+      +es = Equal.cong(U32, Nat, z => U32.to_nat(z), U32.add(U32.sub(U32{xw}, U32{yw}), U32{yw}), U32{xw}, A.U32.subadd(U32{xw}, U32{yw}))
+      +es2 = {es : {Word.to_nat(32n, Word.adc(32n, d, yw, False{}, False{})) == X : Nat}}
+      sub.nat.go(c, X, Y0, D0, h, V.word.lt(32n, d),
+        Equal.trans(Nat, Nat.add(X, N.D(32n, PH.H.bn(c))), Nat.add(Word.to_nat(32n, Word.adc(32n, d, yw, False{}, False{})), N.D(32n, PH.H.bn(c))),
+          Nat.add(D0, Y0),
+          Equal.cong(Nat, Nat, z => Nat.add(z, N.D(32n, PH.H.bn(c))), X, Word.to_nat(32n, Word.adc(32n, d, yw, False{}, False{})),
+            Equal.sym(Nat, Word.to_nat(32n, Word.adc(32n, d, yw, False{}, False{})), X, es2)), ea))
