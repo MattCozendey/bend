@@ -340,7 +340,7 @@ def rb.wb(xs: List<&2, U32>, +x: U32, +m: C.Wasm.Bytes, +Xn: Nat, +ex: {U32.to_n
         rb.wb(rest, U32.inc(x), m1, 1n+Xn, ei, W, hW, hq))
 
 # the bytes written from x on keep the cells c to c + q - 1 before them
-def rc.wb(xs: List<&2, U32>, +x: U32, +m: C.Wasm.Bytes, q: Nat, +c: U32, +Cn: Nat, +ec: {U32.to_nat(c) == Cn : Nat},
+def rc.wb(xs: List<&2, U32>, +x: U32, +m: C.Wasm.Bytes, +q: Nat, +c: U32, +Cn: Nat, +ec: {U32.to_nat(c) == Cn : Nat},
   +Xn: Nat, +ex: {U32.to_nat(x) == Xn : Nat},
   +P: Nat, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat}, +W: Nat, +hW: {W == PH.H.W(32n) : Nat},
   +hs: N.Le(PH.H.t20(Nat.add(q, Cn)), Xn), +hcq: N.Le(Nat.add(q, Cn), P), +hx: N.Le(1n+Nat.add(List.length(&2, U32, xs), Xn), W)) ->

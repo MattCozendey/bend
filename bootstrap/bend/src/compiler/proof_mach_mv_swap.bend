@@ -497,10 +497,11 @@ def frsb.st(kind: D.FK, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U3
       Unit{}
 
 # a store to sx, of a tag of 32 or more and with a longer chain than fr's,
-# keeps the frames from fr
-def frs.st(fs: List<&2, D.AF>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+# keeps the frames from fr (hf: the chain from fr)
+def frs.st.c(fs: List<&2, D.AF>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
   +img: List<&2, C.Term>, +ps: List<&2, U32>, +sx: U32, +sv: C.Cir.Cell, +fr: U32, +n: Nat,
   +ht: {U32.is_lt(D.TgW(D.Fd(0n, m, sx)), 32) == False{} : Bool}, +hn: {Hops(n, m, sx) == True{} : Bool},
+  +hf: {Hops(List.length(&2, D.AF, fs), m, fr) == True{} : Bool},
   hl: N.Le(1n+List.length(&2, D.AF, fs), n), h: D.Frs(ds, m, im, fi, nx, ks, img, ps, fr, fs)) ->
   D.Frs(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, ps, fr, fs):
   match fs:
@@ -508,18 +509,23 @@ def frs.st(fs: List<&2, D.AF>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, 
       h
     case Con{D.AF{+kind, +q, +k, +a, +b}, +rest}:
       match h:
-        case Tuple{+e0, Tuple{ev, Tuple{eo, Tuple{es, Tuple{em, Tuple{etg, Tuple{eq, Tuple{ek, Tuple{ia, Tuple{ib, +ir}}}}}}}}}}:
+        case Tuple{e0, Tuple{ev, Tuple{eo, Tuple{es, Tuple{em, Tuple{etg, Tuple{eq, Tuple{ek, Tuple{ia, Tuple{ib, ir}}}}}}}}}}:
           +M2 = C.Cir.Cells.set(m, sx, sv)
           +hl2 = hl
-          +hh = D.and.i(Bool.not(U32.is_eq(fr, 0)), Hops(List.length(&2, D.AF, rest), m, D.Fd(1n, m, fr)),
-            (%Equal.sym(Bool, U32.is_eq(fr, 0), False{}, e0) : {Bool.not(_) == True{} : Bool}; {==}),
-            frs.hops(rest, ds, m, im, fi, nx, ks, img, ps, D.Fd(1n, m, fr), ir))
-          +ne = hops.ne(1n+List.length(&2, D.AF, rest), n, m, fr, sx, hh, hn, hl2)
+          +ne = hops.ne(1n+List.length(&2, D.AF, rest), n, m, fr, sx, hf, hn, hl2)
           +ec = D.cl.go(m, fr, sx, sv, ne)
           D.frs.uc(ds, M2, im, fi, nx, ks, img, ps, fr, Con{D.AF{kind, q, k, a, b}, rest},
             D.frsc.at(ds, M2, im, fi, nx, ks, img, ps, fr, C.Cir.Cells.get(M2, fr), C.Cir.Cells.get(m, fr), Con{D.AF{kind, q, k, a, b}, rest}, ec,
               (e0, (ev, (eo, (es, (em, (etg, (eq, (ek,
                 (is.keep(a, ds, m, im, fi, nx, ks, img, sx, sv, D.Fd(2n, m, fr), ht, ia),
                 (frsb.st(kind, ds, m, im, fi, nx, ks, img, sx, sv, D.Fd(3n, m, fr), b, ht, ib),
-                 frs.st(rest, ds, m, im, fi, nx, ks, img, ps, sx, sv, D.Fd(1n, m, fr), n, ht, hn,
+                 frs.st.c(rest, ds, m, im, fi, nx, ks, img, ps, sx, sv, D.Fd(1n, m, fr), n, ht, hn,
+                   D.and.r(Bool.not(U32.is_eq(fr, 0)), Hops(List.length(&2, D.AF, rest), m, D.Fd(1n, m, fr)), hf),
                    N.weaken(1n+List.length(&2, D.AF, rest), n, hl2), ir)))))))))))))
+
+def frs.st(+fs: List<&2, D.AF>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +sx: U32, +sv: C.Cir.Cell, +fr: U32, +n: Nat,
+  +ht: {U32.is_lt(D.TgW(D.Fd(0n, m, sx)), 32) == False{} : Bool}, +hn: {Hops(n, m, sx) == True{} : Bool},
+  hl: N.Le(1n+List.length(&2, D.AF, fs), n), +h: D.Frs(ds, m, im, fi, nx, ks, img, ps, fr, fs)) ->
+  D.Frs(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, ps, fr, fs):
+  frs.st.c(fs, ds, m, im, fi, nx, ks, img, ps, sx, sv, fr, n, ht, hn, frs.hops(fs, ds, m, im, fi, nx, ks, img, ps, fr, h), hl, h)

@@ -754,21 +754,29 @@ def Cnt(n: Nat, +m: C.Cir.Cells, +c: U32, +N: Nat, +fi: U32, +ps: List<&2, U32>,
           Nat.is_eq(U32.to_nat(Fd(1n, m, c)), Ptr(N, m, fi, ps, rs, c))))),
         Cnt(p, m, U32.inc(c), N, fi, ps, rs))
 
-# each pointer of xs is below nx, to a term cell (a tag below 19)
-def Lt.all(xs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32) -> Bool:
+# a pointer y, to the cell of the value c: below nx, to a term cell (a tag
+# below 19), a cell, one of the machine's own or STATIC (as NdK says of a node)
+def LtC(+y: U32, +c: C.Cir.Cell, +im: U32, +fi: U32, +nx: U32) -> Bool:
+  +f0 = C.Cir.Cell.get(0n, c)
+  Bool.and(Bool.and(U32.is_lt(y, nx), U32.is_lt(TgW(f0), 19)),
+    Bool.and(C.Cir.is_cell(y, im, fi, nx), Bool.or(Own(fi, nx, y), FlW(f0, 1024))))
+
+# each pointer of xs is below nx, to a term cell, a cell, one of the
+# machine's own or STATIC
+def Lt.all(xs: List<&2, U32>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32) -> Bool:
   match xs:
     case Nil{}:
       True{}
     case Con{+x, rest}:
-      Bool.and(Bool.and(U32.is_lt(x, nx), U32.is_lt(Tg(m, x), 19)), Lt.all(rest, m, nx))
+      Bool.and(LtC(x, C.Cir.Cells.get(m, x), im, fi, nx), Lt.all(rest, m, im, fi, nx))
 
-# the pointers of each of the n cells from o are below nx, to term cells
-def Pts(n: Nat, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +nx: U32) -> Bool:
+# the pointers of each of the n cells from o, as Lt.all says
+def Pts(n: Nat, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +im: U32, +fi: U32, +nx: U32) -> Bool:
   match n:
     case 0n:
       True{}
     case 1n+p:
-      Bool.and(Lt.all(Fs(m, ps, o), m, nx), Pts(p, m, ps, U32.inc(o), nx))
+      Bool.and(Lt.all(Fs(m, ps, o), m, im, fi, nx), Pts(p, m, ps, U32.inc(o), im, fi, nx))
 
 # the pend list from the cell p: the cells ps, linked by field 1, then 0
 def Chain(ps: List<&2, U32>, +m: C.Cir.Cells, +p: U32) -> Data:
@@ -794,12 +802,12 @@ def PendOK(qs: List<&2, U32>, +ps: List<&2, U32>, +m: C.Cir.Cells, +fi: U32, +nx
 
 # the heap of the cells m, the machine's from fi to nx, with the roots rs and
 # the pend list ps from pend
-def Heap(+m: C.Cir.Cells, +nx: U32, +fi: U32, +rs: List<&2, U32>, +pend: U32, +ps: List<&2, U32>) -> Data:
+def Heap(+m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +rs: List<&2, U32>, +pend: U32, +ps: List<&2, U32>) -> Data:
   +n = Nat.sub(U32.to_nat(nx), U32.to_nat(fi))
   P2(Chain(ps, m, pend),
   P2(PendOK(ps, ps, m, fi, nx, rs),
   P2({Cnt(n, m, fi, n, fi, ps, rs) == True{} : Bool},
-  P2({Pts(n, m, ps, fi, nx) == True{} : Bool},
+  P2({Pts(n, m, ps, fi, im, fi, nx) == True{} : Bool},
     {U32.is_le(nx, 214748364) == True{} : Bool}))))
 
 # The image
@@ -912,7 +920,7 @@ def InvOf(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.T
   P2({regs == RG(foc, Bool.to_u32(ret), sp, pend, R60.list(rest)) : List<&2, U32>},
   P2(Is(ds, m, im, fi, nx, ks, img, foc, focus),
   P2(Frs(ds, m, im, fi, nx, ks, img, ps, sp, fs),
-  P2(Heap(m, nx, fi, [foc], pend, ps),
+  P2(Heap(m, nx, fi, im, [foc], pend, ps),
   P2(ImgOK(ds, ks, img, m, im, fi, nx),
   P2({out == Nil{} : List<&2, U32>}, {outn == 0 : U32}))))))))))
 
@@ -1039,7 +1047,7 @@ def HSK(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: Lis
   P2(RtsK(dk, ds, m, im, fi, nx, ks, img, bs),
   P2(Held(m, os, bs),
   P2(FrsK(dk, ds, m, im, fi, nx, ks, img, ps, sp, fs),
-  P2(Heap(m, nx, fi, Rt.cells(os), pend, ps),
+  P2(Heap(m, nx, fi, im, Rt.cells(os), pend, ps),
     ImgOKK(dk, ds, ks, img, m, im, fi, nx))))))
 
 def HS(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
@@ -3931,8 +3939,8 @@ def Cnt.fz(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +o: U32, +n: Nat, +
 
 # the pointers xs, none of them z, point to term cells after a store to z
 
-def lt.fz(xs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +nx: U32, hr: {RcL(xs, z) == 0n : Nat},
-  h: {Lt.all(xs, m, nx) == True{} : Bool}) -> {Lt.all(xs, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}:
+def lt.fz(xs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +im: U32, +fi: U32, +nx: U32, hr: {RcL(xs, z) == 0n : Nat},
+  h: {Lt.all(xs, m, im, fi, nx) == True{} : Bool}) -> {Lt.all(xs, C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}:
   match xs:
     case Nil{}:
       {==}
@@ -3942,31 +3950,31 @@ def lt.fz(xs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +nx: U32,
       +h2 = h
       +ne = of.z(U32.is_eq(y, z), RcL(rest, z), hr2)
       %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, y), C.Cir.Cells.get(m, y), cl.go(m, y, z, x, ne)) :
-        {Bool.and(Bool.and(U32.is_lt(y, nx), U32.is_lt(U32.and(C.Cir.Cell.get(0n, _), 63), 19)), Lt.all(rest, M2, nx)) == True{} : Bool}
-      and.i(Bool.and(U32.is_lt(y, nx), U32.is_lt(Tg(m, y), 19)), Lt.all(rest, M2, nx),
-        and.l(Bool.and(U32.is_lt(y, nx), U32.is_lt(Tg(m, y), 19)), Lt.all(rest, m, nx), h2),
-        lt.fz(rest, m, z, x, nx, add0.r(Nat.of(U32.is_eq(y, z)), RcL(rest, z), hr2),
-          and.r(Bool.and(U32.is_lt(y, nx), U32.is_lt(Tg(m, y), 19)), Lt.all(rest, m, nx), h2)))
+        {Bool.and(LtC(y, _, im, fi, nx), Lt.all(rest, M2, im, fi, nx)) == True{} : Bool}
+      and.i(LtC(y, C.Cir.Cells.get(m, y), im, fi, nx), Lt.all(rest, M2, im, fi, nx),
+        and.l(LtC(y, C.Cir.Cells.get(m, y), im, fi, nx), Lt.all(rest, m, im, fi, nx), h2),
+        lt.fz(rest, m, z, x, im, fi, nx, add0.r(Nat.of(U32.is_eq(y, z)), RcL(rest, z), hr2),
+          and.r(LtC(y, C.Cir.Cells.get(m, y), im, fi, nx), Lt.all(rest, m, im, fi, nx), h2)))
 
-def pts.at(b: Bool, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +nx: U32, eb: {U32.is_eq(o, z) == b : Bool},
+def pts.at(b: Bool, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +im: U32, +fi: U32, +nx: U32, eb: {U32.is_eq(o, z) == b : Bool},
   hf1: {Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>}, ht: {TblAt(m, o, z) == True{} : Bool},
-  hr: {RcL(Fs(m, ps, o), z) == 0n : Nat}, h: {Lt.all(Fs(m, ps, o), m, nx) == True{} : Bool}) ->
-  {Lt.all(Fs(C.Cir.Cells.set(m, z, x), ps, o), C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}:
+  hr: {RcL(Fs(m, ps, o), z) == 0n : Nat}, h: {Lt.all(Fs(m, ps, o), m, im, fi, nx) == True{} : Bool}) ->
+  {Lt.all(Fs(C.Cir.Cells.set(m, z, x), ps, o), C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}:
   match b:
     case True{}:
-      %Equal.sym(U32, o, z, u32.eq(o, z, eb)) : {Lt.all(Fs(C.Cir.Cells.set(m, z, x), ps, _), C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
-      %Equal.sym(List<&2, U32>, Fs(C.Cir.Cells.set(m, z, x), ps, z), Nil{}, hf1) : {Lt.all(_, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
+      %Equal.sym(U32, o, z, u32.eq(o, z, eb)) : {Lt.all(Fs(C.Cir.Cells.set(m, z, x), ps, _), C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}
+      %Equal.sym(List<&2, U32>, Fs(C.Cir.Cells.set(m, z, x), ps, z), Nil{}, hf1) : {Lt.all(_, C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}
       {==}
     case False{}:
-      %Equal.sym(List<&2, U32>, Fs(C.Cir.Cells.set(m, z, x), ps, o), Fs(m, ps, o), fs.eq(m, z, x, ps, o, eb, ht)) : {Lt.all(_, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
-      lt.fz(Fs(m, ps, o), m, z, x, nx, hr, h)
+      %Equal.sym(List<&2, U32>, Fs(C.Cir.Cells.set(m, z, x), ps, o), Fs(m, ps, o), fs.eq(m, z, x, ps, o, eb, ht)) : {Lt.all(_, C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}
+      lt.fz(Fs(m, ps, o), m, z, x, im, fi, nx, hr, h)
 
 # and keeps that every pointer points to a term cell
 
-def Pts.fz(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +nx: U32,
+def Pts.fz(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +im: U32, +fi: U32, +nx: U32,
   +hf1: {Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>}, hz: {Pc(k, m, ps, o, z) == 0n : Nat},
-  ht: {TblR(k, m, o, z) == True{} : Bool}, h: {Pts(k, m, ps, o, nx) == True{} : Bool}) ->
-  {Pts(k, C.Cir.Cells.set(m, z, x), ps, o, nx) == True{} : Bool}:
+  ht: {TblR(k, m, o, z) == True{} : Bool}, h: {Pts(k, m, ps, o, im, fi, nx) == True{} : Bool}) ->
+  {Pts(k, C.Cir.Cells.set(m, z, x), ps, o, im, fi, nx) == True{} : Bool}:
   match k:
     case 0n:
       {==}
@@ -3975,12 +3983,12 @@ def Pts.fz(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>,
       +hz2 = hz
       +ht2 = ht
       +h2 = h
-      and.i(Lt.all(Fs(M2, ps, o), M2, nx), Pts(j, M2, ps, U32.inc(o), nx),
-        pts.at(U32.is_eq(o, z), m, z, x, ps, o, nx, {==}, hf1, and.l(TblAt(m, o, z), TblR(j, m, U32.inc(o), z), ht2),
+      and.i(Lt.all(Fs(M2, ps, o), M2, im, fi, nx), Pts(j, M2, ps, U32.inc(o), im, fi, nx),
+        pts.at(U32.is_eq(o, z), m, z, x, ps, o, im, fi, nx, {==}, hf1, and.l(TblAt(m, o, z), TblR(j, m, U32.inc(o), z), ht2),
           add0.l(RcL(Fs(m, ps, o), z), Pc(j, m, ps, U32.inc(o), z), hz2),
-          and.l(Lt.all(Fs(m, ps, o), m, nx), Pts(j, m, ps, U32.inc(o), nx), h2)),
-        Pts.fz(j, m, z, x, ps, U32.inc(o), nx, hf1, add0.r(RcL(Fs(m, ps, o), z), Pc(j, m, ps, U32.inc(o), z), hz2),
-          and.r(TblAt(m, o, z), TblR(j, m, U32.inc(o), z), ht2), and.r(Lt.all(Fs(m, ps, o), m, nx), Pts(j, m, ps, U32.inc(o), nx), h2)))
+          and.l(Lt.all(Fs(m, ps, o), m, im, fi, nx), Pts(j, m, ps, U32.inc(o), im, fi, nx), h2)),
+        Pts.fz(j, m, z, x, ps, U32.inc(o), im, fi, nx, hf1, add0.r(RcL(Fs(m, ps, o), z), Pc(j, m, ps, U32.inc(o), z), hz2),
+          and.r(TblAt(m, o, z), TblR(j, m, U32.inc(o), z), ht2), and.r(Lt.all(Fs(m, ps, o), m, im, fi, nx), Pts(j, m, ps, U32.inc(o), im, fi, nx), h2)))
 
 # the pend list's cells, none of them z
 
@@ -4030,12 +4038,12 @@ def Chain.fz(qs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +p: U3
 
 # cell of the machine's own kinds with no pointer in it, keeps the heap
 
-def Heap.fz(+m: C.Cir.Cells, +nx: U32, +fi: U32, +rs: List<&2, U32>, +pend: U32, +ps: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
+def Heap.fz(+m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +rs: List<&2, U32>, +pend: U32, +ps: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
   +hf0: {Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
   +htN: {TblR(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, z) == True{} : Bool}, +hzm: {Mem(ps, z) == False{} : Bool},
   hz0: {Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat},
   hxt: {U32.is_lt(TgW(C.Cir.Cell.get(0n, x)), 19) == False{} : Bool},
-  h: Heap(m, nx, fi, rs, pend, ps)) -> Heap(C.Cir.Cells.set(m, z, x), nx, fi, rs, pend, ps):
+  h: Heap(m, nx, fi, im, rs, pend, ps)) -> Heap(C.Cir.Cells.set(m, z, x), nx, fi, im, rs, pend, ps):
   (hc, r1) = h
   (hp, r2) = r1
   (hcn, r3) = r2
@@ -4043,7 +4051,7 @@ def Heap.fz(+m: C.Cir.Cells, +nx: U32, +fi: U32, +rs: List<&2, U32>, +pend: U32,
   +n = Nat.sub(U32.to_nat(nx), U32.to_nat(fi))
   (Chain.fz(ps, m, z, x, pend, hzm, hc), (PendOK.fz(ps, ps, m, z, x, fi, nx, rs, hf0, hf1, htN, hzm, hp),
     (Cnt.fz(n, m, z, x, fi, n, fi, ps, rs, hf0, hf1, htN, hxt, hcn),
-    (Pts.fz(n, m, z, x, ps, fi, nx, hf1, add0.l(Pc(n, m, ps, fi, z), RcL(rs, z), hz0), htN, hpt), hr))))
+    (Pts.fz(n, m, z, x, ps, fi, im, fi, nx, hf1, add0.l(Pc(n, m, ps, fi, z), RcL(rs, z), hz0), htN, hpt), hr))))
 
 # The nodes of the held terms
 # ---------------------------
@@ -5155,7 +5163,7 @@ def hs.fz(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: L
     (Rts.fz(dk, bs, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, hnb, hb),
     (Held.fz(dk, bs, os, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, hno, ho, hnb, hh),
     (Frs.fz(dk, fs, ds, m, im, fi, nx, ks, img, ps, rs, z, x, sp, tbl, hz0, hzs, hzt, hf),
-    (Heap.fz(m, nx, fi, rs, pend, ps, z, x, hf0, hf1, htN, hzm, hz0, hxt, hp),
+    (Heap.fz(m, nx, fi, im, rs, pend, ps, z, x, hf0, hf1, htN, hzm, hz0, hxt, hp),
       ImgOK.fz(dk, ds, ks, img, m, im, fi, nx, ps, rs, z, x, hz0, hzs, hzo, hi))))))
 
 # Open: the heap's operations (this file)
@@ -5364,7 +5372,7 @@ def release.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2
 # setting either keeps every held term.
 
 # the pend list's cells of a heap
-def heap.pend(-m: C.Cir.Cells, -nx: U32, -fi: U32, -rs: List<&2, U32>, -pend: U32, -ps: List<&2, U32>, h: Heap(m, nx, fi, rs, pend, ps)) ->
+def heap.pend(-m: C.Cir.Cells, -nx: U32, -fi: U32, -im: U32, -rs: List<&2, U32>, -pend: U32, -ps: List<&2, U32>, h: Heap(m, nx, fi, im, rs, pend, ps)) ->
   PendOK(ps, ps, m, fi, nx, rs):
   match h:
     case Tuple{_, Tuple{p, _}}:
@@ -5404,7 +5412,7 @@ def is.pend(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img:
   +hh = {hh0 : Held(m, os, bs)}
   +ho = {ho0 : RtsK(dk, ds, m, im, fi, nx, ks, img, os)}
   +tbl = img.tbl(dk, ds, ks, img, m, im, fi, nx, hi0)
-  +hpk = heap.pend(m, nx, fi, rs, pend, ps, hp0)
+  +hpk = heap.pend(m, nx, fi, im, rs, pend, ps, hp0)
   +pm = pendok.mem(ps, ps, m, fi, nx, rs, pend, hpk, hp)
   +hzs = Ex.fst({Fl(m, pend, 1024) == False{} : Bool}, _ => {Ptr(n, m, fi, ps, rs, pend) == 0n : Nat}, pm)
   +hz0 = Ex.snd({Fl(m, pend, 1024) == False{} : Bool}, _ => {Ptr(n, m, fi, ps, rs, pend) == 0n : Nat}, pm)
