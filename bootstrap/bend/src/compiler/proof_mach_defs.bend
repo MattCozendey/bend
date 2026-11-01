@@ -5238,15 +5238,18 @@ def put1.at.b(b: Bool, +m: C.Cir.Cells, +rest: List<&2, W1>, +z: U32, +v: U32, +
   ihc: {C.Cir.Cells.get(Put1(rest, m), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(rest, m), c)) : C.Cir.Cell},
   ihz: {C.Cir.Cells.get(Put1(rest, m), z) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, z), Fd(1n, Put1(rest, m), z)) : C.Cir.Cell}) ->
   {C.Cir.Cells.get(Put1(Con{W1{z, v}, rest}, m), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(Con{W1{z, v}, rest}, m), c)) : C.Cir.Cell}:
-  +M = Put1(rest, m)
-  +x = C.Cir.Cell.set(1n, C.Cir.Cells.get(M, z), v)
-  +M2 = C.Cir.Cells.set(M, z, x)
   match b:
     case False{}:
+      +M = Put1(rest, m)
+      +x = C.Cir.Cell.set(1n, C.Cir.Cells.get(M, z), v)
+      +M2 = C.Cir.Cells.set(M, z, x)
       %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, c), C.Cir.Cells.get(M, c), cl.go(M, c, z, x, eb)) :
         {_ == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), C.Cir.Cell.get(1n, _)) : C.Cir.Cell}
       ihc
     case True{}:
+      +M = Put1(rest, m)
+      +x = C.Cir.Cell.set(1n, C.Cir.Cells.get(M, z), v)
+      +M2 = C.Cir.Cells.set(M, z, x)
       %Equal.sym(U32, c, z, u32.eq(c, z, eb)) :
         {C.Cir.Cells.get(M2, _) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, _), Fd(1n, M2, _)) : C.Cir.Cell}
       %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, z), x, cl.gs(M, z, x)) :
