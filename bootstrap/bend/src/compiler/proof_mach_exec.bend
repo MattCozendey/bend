@@ -217,7 +217,7 @@ def run.set.of(+r: Nat, +e: C.Cir.Expr, +regs: List<&2, U32>, +m: C.Cir.Cells, +
   hl: {List.length(&2, U32, regs) == 64n : Nat}, hr: {Nat.is_lt(r, 64n) == True{} : Bool}) ->
   {C.Cir.exec.set(r, C.Cir.eval(e, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}) ==
     C.Cir.Out.next{C.Cir.State{List.set(&2, U32, regs, r, v), m, nx, fi, im, pg, lim, inp, out, outn}} : C.Cir.Out}:
-  +st = C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}
+  +st = {C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn} : C.Cir.State}
   +o = {C.Cir.Out.next{C.Cir.State{List.set(&2, U32, regs, r, v), m, nx, fi, im, pg, lim, inp, out, outn}} : C.Cir.Out}
   %Equal.sym(Maybe<&2, U32>, C.Cir.eval(e, st), Some{v}, ev) : {C.Cir.exec.set(r, _, st) == o : C.Cir.Out}
   %Equal.sym(Bool, Nat.is_lt(r, List.length(&2, U32, regs)), True{}, L.lt(regs, r, hl, hr)) :
@@ -242,7 +242,7 @@ def run.store.of(+k: Nat, +c: C.Cir.Expr, +v: C.Cir.Expr, +regs: List<&2, U32>, 
   {C.Cir.exec.store(k, C.Cir.eval(c, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}),
     C.Cir.eval(v, C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}) ==
     C.Cir.Out.next{C.Cir.State{regs, X.put(m, k, i, x), nx, fi, im, pg, lim, inp, out, outn}} : C.Cir.Out}:
-  +st = C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn}
+  +st = {C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, out, outn} : C.Cir.State}
   +o = {C.Cir.Out.next{C.Cir.State{regs, X.put(m, k, i, x), nx, fi, im, pg, lim, inp, out, outn}} : C.Cir.Out}
   %Equal.sym(Maybe<&2, U32>, C.Cir.eval(c, st), Some{i}, ec) : {C.Cir.exec.store(k, _, C.Cir.eval(v, st), st) == o : C.Cir.Out}
   %Equal.sym(Maybe<&2, U32>, C.Cir.eval(v, st), Some{x}, ev) : {C.Cir.exec.store(k, Some{i}, _, st) == o : C.Cir.Out}
