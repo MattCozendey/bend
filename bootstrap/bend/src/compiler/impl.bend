@@ -4090,9 +4090,10 @@ def Cir.ended(r: Cir.Out) -> Wasm.Outcome:
       Wasm.Outcome.not_done{}
 
 # the first cell after the image's k cells whose first byte is past end, as
-# run's first loop finds it
+# run's first loop finds it: (end - 1) / 20 + 1 is end / 20 rounded up, with no
+# wrap, since end is at least 20
 def Cir.first(+k: U32, +end: U32) -> U32:
-  Bool.pick(U32, U32.is_ge(Cir.at(U32.inc(k)), end), U32.inc(k), U32.div(U32.add(end, 19), 20))
+  Bool.pick(U32, U32.is_ge(Cir.at(U32.inc(k)), end), U32.inc(k), U32.inc(U32.div(U32.sub(end, 1), 20)))
 
 def Cir.alloc.grow(enough: Bool, can: Bool, p: U32, need: U32) -> Maybe<&2, U32>:
   match enough can:
