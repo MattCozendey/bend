@@ -299,22 +299,31 @@ def PendOK.sw(qs: List<&2, U32>, +ps: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, 
             {_ == 0n : Nat}; hp0),
           PendOK.sw(rest, ps, m, nx, fi, z, x, a, b, hf0, hf1, hzo, ht, D.or.f.r(U32.is_eq(p, z), D.Mem(rest, z), hq2), r4)))))
 
+# the tag of a pointer, as LtC says it
+def ltc.tg(+y: U32, +c: C.Cir.Cell, +im: U32, +fi: U32, +nx: U32, h: {D.LtC(y, c, im, fi, nx) == True{} : Bool}) ->
+  {U32.is_lt(D.TgW(C.Cir.Cell.get(0n, c)), 19) == True{} : Bool}:
+  +f0 = C.Cir.Cell.get(0n, c)
+  D.and.r(U32.is_lt(y, nx), U32.is_lt(D.TgW(f0), 19),
+    D.and.l(Bool.and(U32.is_lt(y, nx), U32.is_lt(D.TgW(f0), 19)),
+      Bool.and(C.Cir.is_cell(y, im, fi, nx), Bool.or(D.Own(fi, nx, y), D.FlW(f0, 1024))), h))
+
 # no pointer of xs, to a term cell, is z, whose tag is 19 or more
-def rcl.none(xs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +z: U32, +hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool},
-  h: {D.Lt.all(xs, m, nx) == True{} : Bool}) -> {D.RcL(xs, z) == 0n : Nat}:
+def rcl.none(xs: List<&2, U32>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +z: U32,
+  +hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool},
+  h: {D.Lt.all(xs, m, im, fi, nx) == True{} : Bool}) -> {D.RcL(xs, z) == 0n : Nat}:
   match xs:
     case Nil{}:
       {==}
     case Con{+y, +rest}:
       +h2 = h
-      +hy = D.and.l(Bool.and(U32.is_lt(y, nx), U32.is_lt(D.Tg(m, y), 19)), D.Lt.all(rest, m, nx), h2)
-      +ne = tg.ne(m, y, z, D.and.r(U32.is_lt(y, nx), U32.is_lt(D.Tg(m, y), 19), hy), hz)
+      +hy = D.and.l(D.LtC(y, C.Cir.Cells.get(m, y), im, fi, nx), D.Lt.all(rest, m, im, fi, nx), h2)
+      +ne = tg.ne(m, y, z, ltc.tg(y, C.Cir.Cells.get(m, y), im, fi, nx, hy), hz)
       %Equal.sym(Bool, U32.is_eq(y, z), False{}, ne) : {Nat.add(D.Nat.of(_), D.RcL(rest, z)) == 0n : Nat}
-      rcl.none(rest, m, nx, z, hz, D.and.r(Bool.and(U32.is_lt(y, nx), U32.is_lt(D.Tg(m, y), 19)), D.Lt.all(rest, m, nx), h2))
+      rcl.none(rest, m, im, fi, nx, z, hz, D.and.r(D.LtC(y, C.Cir.Cells.get(m, y), im, fi, nx), D.Lt.all(rest, m, im, fi, nx), h2))
 
 # no cell points to z, whose tag is 19 or more
-def pc.none(k: Nat, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +nx: U32, +z: U32,
-  +hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool}, h: {D.Pts(k, m, ps, o, nx) == True{} : Bool}) ->
+def pc.none(k: Nat, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +im: U32, +fi: U32, +nx: U32, +z: U32,
+  +hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool}, h: {D.Pts(k, m, ps, o, im, fi, nx) == True{} : Bool}) ->
   {D.Pc(k, m, ps, o, z) == 0n : Nat}:
   match k:
     case 0n:
@@ -322,47 +331,52 @@ def pc.none(k: Nat, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +nx: U32, +z: 
     case 1n+(+j):
       +h2 = h
       %Equal.sym(Nat, D.RcL(D.Fs(m, ps, o), z), 0n,
-        rcl.none(D.Fs(m, ps, o), m, nx, z, hz, D.and.l(D.Lt.all(D.Fs(m, ps, o), m, nx), D.Pts(j, m, ps, U32.inc(o), nx), h2))) :
+        rcl.none(D.Fs(m, ps, o), m, im, fi, nx, z, hz,
+          D.and.l(D.Lt.all(D.Fs(m, ps, o), m, im, fi, nx), D.Pts(j, m, ps, U32.inc(o), im, fi, nx), h2))) :
         {Nat.add(_, D.Pc(j, m, ps, U32.inc(o), z)) == 0n : Nat}
-      pc.none(j, m, ps, U32.inc(o), nx, z, hz, D.and.r(D.Lt.all(D.Fs(m, ps, o), m, nx), D.Pts(j, m, ps, U32.inc(o), nx), h2))
+      pc.none(j, m, ps, U32.inc(o), im, fi, nx, z, hz, D.and.r(D.Lt.all(D.Fs(m, ps, o), m, im, fi, nx), D.Pts(j, m, ps, U32.inc(o), im, fi, nx), h2))
 
 # the pointers xs, to term cells, after a store to z, whose tag is 19 or more
-def lt.tg(xs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +nx: U32, +hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool},
-  h: {D.Lt.all(xs, m, nx) == True{} : Bool}) -> {D.Lt.all(xs, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}:
+def lt.tg(xs: List<&2, U32>, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +im: U32, +fi: U32, +nx: U32,
+  +hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool},
+  h: {D.Lt.all(xs, m, im, fi, nx) == True{} : Bool}) -> {D.Lt.all(xs, C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}:
   match xs:
     case Nil{}:
       {==}
     case Con{+y, +rest}:
       +M2 = C.Cir.Cells.set(m, z, x)
       +h2 = h
-      +hy = D.and.l(Bool.and(U32.is_lt(y, nx), U32.is_lt(D.Tg(m, y), 19)), D.Lt.all(rest, m, nx), h2)
-      +ne = tg.ne(m, y, z, D.and.r(U32.is_lt(y, nx), U32.is_lt(D.Tg(m, y), 19), hy), hz)
+      +hy = D.and.l(D.LtC(y, C.Cir.Cells.get(m, y), im, fi, nx), D.Lt.all(rest, m, im, fi, nx), h2)
+      +ne = tg.ne(m, y, z, ltc.tg(y, C.Cir.Cells.get(m, y), im, fi, nx, hy), hz)
       %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, y), C.Cir.Cells.get(m, y), D.cl.go(m, y, z, x, ne)) :
-        {Bool.and(Bool.and(U32.is_lt(y, nx), U32.is_lt(U32.and(C.Cir.Cell.get(0n, _), 63), 19)), D.Lt.all(rest, M2, nx)) == True{} : Bool}
-      D.and.i(Bool.and(U32.is_lt(y, nx), U32.is_lt(D.Tg(m, y), 19)), D.Lt.all(rest, M2, nx), hy,
-        lt.tg(rest, m, z, x, nx, hz, D.and.r(Bool.and(U32.is_lt(y, nx), U32.is_lt(D.Tg(m, y), 19)), D.Lt.all(rest, m, nx), h2)))
+        {Bool.and(D.LtC(y, _, im, fi, nx), D.Lt.all(rest, M2, im, fi, nx)) == True{} : Bool}
+      D.and.i(D.LtC(y, C.Cir.Cells.get(m, y), im, fi, nx), D.Lt.all(rest, M2, im, fi, nx), hy,
+        lt.tg(rest, m, z, x, im, fi, nx, hz, D.and.r(D.LtC(y, C.Cir.Cells.get(m, y), im, fi, nx), D.Lt.all(rest, m, im, fi, nx), h2)))
 
 # the pointers of the cell o after the store: z's are [a]
-def pts.sw.at(b: Bool, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +nx: U32, +a: U32,
+def pts.sw.at(b: Bool, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +im: U32, +fi: U32, +nx: U32, +a: U32,
   eb: {U32.is_eq(o, z) == b : Bool}, hf1: {D.Fs(C.Cir.Cells.set(m, z, x), ps, z) == [a] : List<&2, U32>},
-  hal: {D.Lt.all([a], C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}, ht: {D.TblAt(m, o, z) == True{} : Bool},
-  hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool}, h: {D.Lt.all(D.Fs(m, ps, o), m, nx) == True{} : Bool}) ->
-  {D.Lt.all(D.Fs(C.Cir.Cells.set(m, z, x), ps, o), C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}:
+  hal: {D.Lt.all([a], C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}, ht: {D.TblAt(m, o, z) == True{} : Bool},
+  hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool}, h: {D.Lt.all(D.Fs(m, ps, o), m, im, fi, nx) == True{} : Bool}) ->
+  {D.Lt.all(D.Fs(C.Cir.Cells.set(m, z, x), ps, o), C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}:
   match b:
     case True{}:
-      %Equal.sym(U32, o, z, D.u32.eq(o, z, eb)) : {D.Lt.all(D.Fs(C.Cir.Cells.set(m, z, x), ps, _), C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
-      %Equal.sym(List<&2, U32>, D.Fs(C.Cir.Cells.set(m, z, x), ps, z), [a], hf1) : {D.Lt.all(_, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
+      %Equal.sym(U32, o, z, D.u32.eq(o, z, eb)) :
+        {D.Lt.all(D.Fs(C.Cir.Cells.set(m, z, x), ps, _), C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}
+      %Equal.sym(List<&2, U32>, D.Fs(C.Cir.Cells.set(m, z, x), ps, z), [a], hf1) :
+        {D.Lt.all(_, C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}
       hal
     case False{}:
       %Equal.sym(List<&2, U32>, D.Fs(C.Cir.Cells.set(m, z, x), ps, o), D.Fs(m, ps, o), D.fs.eq(m, z, x, ps, o, eb, ht)) :
-        {D.Lt.all(_, C.Cir.Cells.set(m, z, x), nx) == True{} : Bool}
-      lt.tg(D.Fs(m, ps, o), m, z, x, nx, hz, h)
+        {D.Lt.all(_, C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool}
+      lt.tg(D.Fs(m, ps, o), m, z, x, im, fi, nx, hz, h)
 
 # every pointer points to a term cell, after the store
-def Pts.sw(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +nx: U32, +a: U32,
-  +hf1: {D.Fs(C.Cir.Cells.set(m, z, x), ps, z) == [a] : List<&2, U32>}, +hal: {D.Lt.all([a], C.Cir.Cells.set(m, z, x), nx) == True{} : Bool},
+def Pts.sw(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +im: U32, +fi: U32, +nx: U32, +a: U32,
+  +hf1: {D.Fs(C.Cir.Cells.set(m, z, x), ps, z) == [a] : List<&2, U32>},
+  +hal: {D.Lt.all([a], C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool},
   +hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool}, ht: {D.TblR(k, m, o, z) == True{} : Bool},
-  h: {D.Pts(k, m, ps, o, nx) == True{} : Bool}) -> {D.Pts(k, C.Cir.Cells.set(m, z, x), ps, o, nx) == True{} : Bool}:
+  h: {D.Pts(k, m, ps, o, im, fi, nx) == True{} : Bool}) -> {D.Pts(k, C.Cir.Cells.set(m, z, x), ps, o, im, fi, nx) == True{} : Bool}:
   match k:
     case 0n:
       {==}
@@ -370,19 +384,19 @@ def Pts.sw(k: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>,
       +M2 = C.Cir.Cells.set(m, z, x)
       +ht2 = ht
       +h2 = h
-      D.and.i(D.Lt.all(D.Fs(M2, ps, o), M2, nx), D.Pts(j, M2, ps, U32.inc(o), nx),
-        pts.sw.at(U32.is_eq(o, z), m, z, x, ps, o, nx, a, {==}, hf1, hal, D.and.l(D.TblAt(m, o, z), D.TblR(j, m, U32.inc(o), z), ht2), hz,
-          D.and.l(D.Lt.all(D.Fs(m, ps, o), m, nx), D.Pts(j, m, ps, U32.inc(o), nx), h2)),
-        Pts.sw(j, m, z, x, ps, U32.inc(o), nx, a, hf1, hal, hz, D.and.r(D.TblAt(m, o, z), D.TblR(j, m, U32.inc(o), z), ht2),
-          D.and.r(D.Lt.all(D.Fs(m, ps, o), m, nx), D.Pts(j, m, ps, U32.inc(o), nx), h2)))
+      D.and.i(D.Lt.all(D.Fs(M2, ps, o), M2, im, fi, nx), D.Pts(j, M2, ps, U32.inc(o), im, fi, nx),
+        pts.sw.at(U32.is_eq(o, z), m, z, x, ps, o, im, fi, nx, a, {==}, hf1, hal, D.and.l(D.TblAt(m, o, z), D.TblR(j, m, U32.inc(o), z), ht2), hz,
+          D.and.l(D.Lt.all(D.Fs(m, ps, o), m, im, fi, nx), D.Pts(j, m, ps, U32.inc(o), im, fi, nx), h2)),
+        Pts.sw(j, m, z, x, ps, U32.inc(o), im, fi, nx, a, hf1, hal, hz, D.and.r(D.TblAt(m, o, z), D.TblR(j, m, U32.inc(o), z), ht2),
+          D.and.r(D.Lt.all(D.Fs(m, ps, o), m, im, fi, nx), D.Pts(j, m, ps, U32.inc(o), im, fi, nx), h2)))
 
 # the heap after the store: the pointer [b] of z and the root [a] trade places
-def Heap.sw(+m: C.Cir.Cells, +nx: U32, +fi: U32, +pend: U32, +ps: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +a: U32, +b: U32,
+def Heap.sw(+m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pend: U32, +ps: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +a: U32, +b: U32,
   +hf0: {D.Fs(m, ps, z) == [b] : List<&2, U32>}, +hf1: {D.Fs(C.Cir.Cells.set(m, z, x), ps, z) == [a] : List<&2, U32>},
   +hzo: {D.Own(fi, nx, z) == True{} : Bool}, +hz363: N.Le(1n+U32.to_nat(363), U32.to_nat(z)), +hzm: {D.Mem(ps, z) == False{} : Bool},
   +hzt: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool}, +hxt: {U32.is_lt(D.TgW(C.Cir.Cell.get(0n, x)), 19) == False{} : Bool},
-  +hal: {D.Lt.all([a], C.Cir.Cells.set(m, z, x), nx) == True{} : Bool},
-  h: D.Heap(m, nx, fi, [a], pend, ps)) -> D.Heap(C.Cir.Cells.set(m, z, x), nx, fi, [b], pend, ps):
+  +hal: {D.Lt.all([a], C.Cir.Cells.set(m, z, x), im, fi, nx) == True{} : Bool},
+  h: D.Heap(m, nx, fi, im, [a], pend, ps)) -> D.Heap(C.Cir.Cells.set(m, z, x), nx, fi, im, [b], pend, ps):
   (hc, r1) = h
   (hp, r2) = r1
   (hcn, r3) = r2
@@ -391,18 +405,18 @@ def Heap.sw(+m: C.Cir.Cells, +nx: U32, +fi: U32, +pend: U32, +ps: List<&2, U32>,
   +ht = D.TblR.of(n, m, fi, z, hz363)
   (D.Chain.fz(ps, m, z, x, pend, hzm, hc), (PendOK.sw(ps, ps, m, nx, fi, z, x, a, b, hf0, hf1, hzo, ht, hzm, hp),
     (Cnt.sw(n, m, nx, fi, ps, z, x, a, b, fi, hf0, hf1, hzo, ht, hxt, hcn),
-    (Pts.sw(n, m, z, x, ps, fi, nx, a, hf1, hal, hzt, ht, hpt), hr))))
+    (Pts.sw(n, m, z, x, ps, fi, im, fi, nx, a, hf1, hal, hzt, ht, hpt), hr))))
 
 # no pointer to z, of a tag of 19 or more, from the cells or the root [a]
-def ptr.none(+m: C.Cir.Cells, +nx: U32, +fi: U32, +ps: List<&2, U32>, +pend: U32, +a: U32, +z: U32,
+def ptr.none(+m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +ps: List<&2, U32>, +pend: U32, +a: U32, +z: U32,
   +hz: {U32.is_lt(D.Tg(m, z), 19) == False{} : Bool}, ha: {U32.is_lt(D.Tg(m, a), 19) == True{} : Bool},
-  h: D.Heap(m, nx, fi, [a], pend, ps)) -> {D.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, [a], z) == 0n : Nat}:
+  h: D.Heap(m, nx, fi, im, [a], pend, ps)) -> {D.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, [a], z) == 0n : Nat}:
   (hc, r1) = h
   (hp, r2) = r1
   (hcn, r3) = r2
   (hpt, hr) = r3
   +n = Nat.sub(U32.to_nat(nx), U32.to_nat(fi))
-  %Equal.sym(Nat, D.Pc(n, m, ps, fi, z), 0n, pc.none(n, m, ps, fi, nx, z, hz, hpt)) : {Nat.add(_, D.RcL([a], z)) == 0n : Nat}
+  %Equal.sym(Nat, D.Pc(n, m, ps, fi, z), 0n, pc.none(n, m, ps, fi, im, fi, nx, z, hz, hpt)) : {Nat.add(_, D.RcL([a], z)) == 0n : Nat}
   %Equal.sym(Bool, U32.is_eq(a, z), False{}, tg.ne(m, a, z, ha, hz)) : {Nat.add(0n, Nat.add(D.Nat.of(_), 0n)) == 0n : Nat}
   {==}
 

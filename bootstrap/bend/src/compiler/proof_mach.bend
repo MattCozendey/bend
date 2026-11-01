@@ -735,7 +735,7 @@ def ev.val.mv(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2,
   +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, D.AF>, +ps: List<&2, U32>, +focus: C.Term,
   +et: {D.A.plugs(fs, focus) == t : C.Term}, ew: {D.A.w(False{}, focus, fs) == w : Nat}, +afs: D.AFs.ok(ds, fs),
   +isf: D.Is(ds, m, im, fi, nx, ks, img, foc, focus), +frs: D.Frs(ds, m, im, fi, nx, ks, img, ps, sp, fs),
-  +hp: D.Heap(m, nx, fi, [foc], pend, ps), +io: D.ImgOK(ds, ks, img, m, im, fi, nx),
+  +hp: D.Heap(m, nx, fi, im, [foc], pend, ps), +io: D.ImgOK(ds, ks, img, m, im, fi, nx),
   +nz2: {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(D.Fd(0n, m, foc), 256), 0)), Bool.to_u32(U32.is_ne(C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, U32.and(D.Fd(0n, m, foc), 63)))), 0)))) == False{} : Bool},
   +evv: {Bool.or(Bool.not(True{}), C.Eval.vals(ds, focus, False{})) == True{} : Bool}) ->
   MV(ds, ks, img, D.S(foc, 0, sp, pend, D.R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), t, w):
