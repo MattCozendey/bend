@@ -141,7 +141,7 @@ def Bounds(+P: Nat, +G: Nat, +a: U32, +nx: U32, +fi: U32, +im: U32, +pg: U32, +l
   +FI = U32.to_nat(fi)
   +K = U32.to_nat(im)
   +E = Nat.add(A, List.length(&2, U32, inp))
-  S.P2(S.P2(N.Le(1n+K, P), S.P2(N.Le(E, PH.H.t20(P)), N.Le(E, PB(pg)))),
+  S.P2(S.P2(S.P2({A == PH.H.t20(1n+K) : Nat}, N.Le(1n+K, P)), S.P2(N.Le(E, PH.H.t20(P)), N.Le(E, PB(pg)))),
        S.P2(S.P2(N.Le(E, PH.H.t20(FI)), N.Le(NX, P)),
             S.P2(S.P2(CF(Nat.sub(NX, FI), NX, PB(pg)), OF(U32.to_nat(on), NX, PB(pg))),
                  S.P2(N.Le(1n+U32.to_nat(lm), G), N.Le(U32.to_nat(pg), U32.to_nat(lm))))))
@@ -204,6 +204,82 @@ def inv.bounds(-P: Nat, -G: Nat, -a: U32, -n: U32, -cl: C.Cir.Cells, -nx: U32, -
   (h10, h11) = h1
   (ho, hb) = h11
   hb
+
+# The bounds, one by one
+
+def b.a(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> {U32.to_nat(a) == PH.H.t20(1n+U32.to_nat(im)) : Nat}:
+  (x0, x1) = hB
+  (x00, x01) = x0
+  (y0, y1) = x00
+  y0
+
+def b.k(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> N.Le(1n+U32.to_nat(im), P):
+  (x0, x1) = hB
+  (x00, x01) = x0
+  (y0, y1) = x00
+  y1
+
+def b.e20(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> N.Le(Nat.add(U32.to_nat(a), List.length(&2, U32, inp)), PH.H.t20(P)):
+  (x0, x1) = hB
+  (x00, x01) = x0
+  (y0, y1) = x01
+  y0
+
+def b.epb(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> N.Le(Nat.add(U32.to_nat(a), List.length(&2, U32, inp)), PB(pg)):
+  (x0, x1) = hB
+  (x00, x01) = x0
+  (y0, y1) = x01
+  y1
+
+def b.efi(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> N.Le(Nat.add(U32.to_nat(a), List.length(&2, U32, inp)), PH.H.t20(U32.to_nat(fi))):
+  (x0, x1) = hB
+  (x10, x11) = x1
+  (y0, y1) = x10
+  y0
+
+def b.nx(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> N.Le(U32.to_nat(nx), P):
+  (x0, x1) = hB
+  (x10, x11) = x1
+  (y0, y1) = x10
+  y1
+
+def b.cf(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> CF(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), U32.to_nat(nx), PB(pg)):
+  (x0, x1) = hB
+  (x10, x11) = x1
+  (y0, y1) = x11
+  (z0, z1) = y0
+  z0
+
+def b.of(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> OF(U32.to_nat(on), U32.to_nat(nx), PB(pg)):
+  (x0, x1) = hB
+  (x10, x11) = x1
+  (y0, y1) = x11
+  (z0, z1) = y0
+  z1
+
+def b.lm(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> N.Le(1n+U32.to_nat(lm), G):
+  (x0, x1) = hB
+  (x10, x11) = x1
+  (y0, y1) = x11
+  (z0, z1) = y1
+  z0
+
+def b.pg(-P: Nat, -G: Nat, -a: U32, -nx: U32, -fi: U32, -im: U32, -pg: U32, -lm: U32, -inp: List<&2, U32>, -on: U32,
+  +hB: Bounds(P, G, a, nx, fi, im, pg, lm, inp, on)) -> N.Le(U32.to_nat(pg), U32.to_nat(lm)):
+  (x0, x1) = hB
+  (x10, x11) = x1
+  (y0, y1) = x11
+  (z0, z1) = y1
+  z1
 
 # Elements of the views
 # ---------------------

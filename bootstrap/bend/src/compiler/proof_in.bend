@@ -325,3 +325,148 @@ def In.make(+f: Nat, +r: Nat, +h: C.Cir.Expr, +a: C.Cir.Expr, +b: C.Cir.Expr, +c
     s => In.Is(s, rg, C.Cir.Cells.set(m, next, C.Cir.Cell{vh, 1, va, vb, vc}), n1, F, K, L, I, In.lt(next)),
     In.alloc(f, r, regs, m, next, F, K, pg, L, I, p0, rl),
     ++pg1 => +lt => In.make.stores(f, r, h, a, b, c, rg, m, next, n1, F, K, pg1, L, I, vh, va, vb, vc, er, ec(lt), lt, eh, ea, eb, ef))
+
+# Booleans
+# --------
+
+def Bo.ft(-G: Type, h: {True{} == False{} : Bool}) -> G:
+  Empty.absurd(G, N.true_ne_false(h))
+
+def Bo.and_l(a: Bool, -b: Bool, h: {True{} == Bool.and(a, b) : Bool}) -> {True{} == a : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      Bo.ft({True{} == False{} : Bool}, h)
+
+def Bo.and_r(a: Bool, b: Bool, h: {True{} == Bool.and(a, b) : Bool}) -> {True{} == b : Bool}:
+  match a:
+    case True{}:
+      h
+    case False{}:
+      Bo.ft({True{} == b : Bool}, h)
+
+def Bo.and_i(-a: Bool, -b: Bool, ha: {True{} == a : Bool}, hb: {True{} == b : Bool}) -> {True{} == Bool.and(a, b) : Bool}:
+  %ha : {True{} == Bool.and(_, b) : Bool}
+  %hb : {True{} == Bool.and(True{}, _) : Bool}
+  {==}
+
+# The cells a term reads
+# ----------------------
+
+# the cell j may be read: one of the image's first 89, or one the machine took
+# (from F, before N)
+def In.rd(+j: U32, +F: U32, +N: Nat) -> Bool:
+  Bool.or(Nat.is_lt(U32.to_nat(j), 89n), Bool.and(Nat.is_le(U32.to_nat(F), U32.to_nat(j)), Nat.is_lt(U32.to_nat(j), N)))
+
+# the parts that a cell of the tag tag reads: only Ref, App, Tup and Lab
+def In.rds.cell(tag: Nat, r2: Unit -> Bool, r3: Unit -> Bool) -> Bool:
+  match tag:
+    case 1n:
+      True{}
+    case 8n:
+      Bool.and(r2(Unit{}), r3(Unit{}))
+    case 10n:
+      Bool.and(r2(Unit{}), r3(Unit{}))
+    case 13n:
+      True{}
+    case _:
+      False{}
+
+# T.tm.of(fuel, m, ks, img, c) reads only cells that may be read, of Ref, App,
+# Tup and Lab, and ends before its fuel
+def In.rds(fuel: Nat, +m: C.Cir.Cells, +F: U32, +N: Nat, +c: U32) -> Bool:
+  match fuel:
+    case 0n:
+      False{}
+    case 1n+(+f):
+      +cell = C.Cir.Cells.get(m, c)
+      Bool.and(In.rd(c, F, N), In.rds.cell(U32.to_nat(U32.and(C.Cir.Cell.get(0n, cell), 63)),
+        u => In.rds(f, m, F, N, C.Cir.Cell.get(2n, cell)), u => In.rds(f, m, F, N, C.Cir.Cell.get(3n, cell))))
+
+def In.fr.goal(tag: Nat, +q: C.Quan, +c: U32, +f2: U32, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+  a2: Maybe<&2, C.Term>, a3: Maybe<&2, C.Term>, a4: Maybe<&2, C.Term>, b2: Maybe<&2, C.Term>, b3: Maybe<&2, C.Term>, b4: Maybe<&2, C.Term>,
+  s2: Bool, s3: Bool) -> Type:
+  {T.tm.cell(tag, q, c, f2, ks, img, u => a2, u => a3, u => a4) == T.tm.cell(tag, q, c, f2, ks, img, u => b2, u => b3, u => b4) : Maybe<&2, C.Term>} &
+  {True{} == In.rds.cell(tag, u => s2, u => s3) : Bool}
+
+# a cell of the tag, whose parts that it reads give the same terms, gives the
+# same term
+def In.fr.cell(tag: Nat, +q: C.Quan, +c: U32, +f2: U32, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+  +a2: Maybe<&2, C.Term>, +a3: Maybe<&2, C.Term>, +a4: Maybe<&2, C.Term>, +b2: Maybe<&2, C.Term>, +b3: Maybe<&2, C.Term>, +b4: Maybe<&2, C.Term>,
+  +r2: Bool, +r3: Bool, +s2: Bool, +s3: Bool, +h: {True{} == In.rds.cell(tag, u => r2, u => r3) : Bool},
+  e2: {True{} == r2 : Bool} -> {a2 == b2 : Maybe<&2, C.Term>}, k2: {True{} == r2 : Bool} -> {True{} == s2 : Bool},
+  e3: {True{} == r3 : Bool} -> {a3 == b3 : Maybe<&2, C.Term>}, k3: {True{} == r3 : Bool} -> {True{} == s3 : Bool}) ->
+  In.fr.goal(tag, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3):
+  match tag:
+    case 0n:
+      Bo.ft(In.fr.goal(0n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 1n:
+      ({==}, {==})
+    case 2n:
+      Bo.ft(In.fr.goal(2n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 3n:
+      Bo.ft(In.fr.goal(3n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 4n:
+      Bo.ft(In.fr.goal(4n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 5n:
+      Bo.ft(In.fr.goal(5n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 6n:
+      Bo.ft(In.fr.goal(6n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 7n:
+      Bo.ft(In.fr.goal(7n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 8n:
+      +ra = Bo.and_l(r2, r3, h)
+      +rb = Bo.and_r(r2, r3, h)
+      %e2(ra) : In.fr.goal(8n, q, c, f2, ks, img, a2, a3, a4, _, b3, b4, s2, s3)
+      %e3(rb) : In.fr.goal(8n, q, c, f2, ks, img, a2, a3, a4, a2, _, b4, s2, s3)
+      ({==}, Bo.and_i(s2, s3, k2(ra), k3(rb)))
+    case 9n:
+      Bo.ft(In.fr.goal(9n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 10n:
+      +ra = Bo.and_l(r2, r3, h)
+      +rb = Bo.and_r(r2, r3, h)
+      %e2(ra) : In.fr.goal(10n, q, c, f2, ks, img, a2, a3, a4, _, b3, b4, s2, s3)
+      %e3(rb) : In.fr.goal(10n, q, c, f2, ks, img, a2, a3, a4, a2, _, b4, s2, s3)
+      ({==}, Bo.and_i(s2, s3, k2(ra), k3(rb)))
+    case 11n:
+      Bo.ft(In.fr.goal(11n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 12n:
+      Bo.ft(In.fr.goal(12n, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+    case 13n:
+      ({==}, {==})
+    case 14n+p:
+      Bo.ft(In.fr.goal(14n+p, q, c, f2, ks, img, a2, a3, a4, b2, b3, b4, s2, s3), h)
+
+# a pair of two Data types, itself Data
+def In.P(-A: Data, -B: Data) -> Data:
+  Sigma<&2, &2, A, _ => B>
+
+def In.p1(-A: Data, -B: Data, p: In.P(A, B)) -> A:
+  (a, b) = p
+  a
+
+def In.p2(-A: Data, -B: Data, p: In.P(A, B)) -> B:
+  (a, b) = p
+  b
+
+# a cell that may be read is not one that may not
+def In.ne(+c: U32, +i: U32, +F: U32, +N: Nat, hc: {True{} == In.rd(c, F, N) : Bool}, hi: {False{} == In.rd(i, F, N) : Bool},
+  e: {c == i : U32}) -> Empty:
+  N.true_ne_false(Equal.trans(Bool, True{}, In.rd(c, F, N), False{}, hc,
+    Equal.trans(Bool, In.rd(c, F, N), In.rd(i, F, N), False{}, Equal.cong(U32, Bool, j => In.rd(j, F, N), c, i, e),
+      Equal.sym(Bool, False{}, In.rd(i, F, N), hi))))
+
+def In.fr.res(f: Nat, +m: C.Cir.Cells, +F: U32, +N: Nat, +c: U32, +i: U32, +x: C.Cir.Cell, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>) -> Data:
+  In.P({T.tm.of(f, m, ks, img, c) == T.tm.of(f, C.Cir.Cells.set(m, i, x), ks, img, c) : Maybe<&2, C.Term>},
+    {True{} == In.rds(f, C.Cir.Cells.set(m, i, x), F, N, c) : Bool})
+
+# a term that reads only cells that may be read keeps its term, and still
+# reads only those, when a cell that may not be read is set
+def In.fr(f: Nat, +m: C.Cir.Cells, +F: U32, +N: Nat, +c: U32, +i: U32, +x: C.Cir.Cell, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+  +h: {True{} == In.rds(f, m, F, N, c) : Bool}, +hi: {False{} == In.rd(i, F, N) : Bool}) -> In.fr.res(f, m, F, N, c, i, x, ks, img):
+  match f:
+    case 0n:
+      Bo.ft(In.fr.res(0n, m, F, N, c, i, x, ks, img), h)
+    case 1n+(+p):
+      ?g
