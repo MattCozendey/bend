@@ -511,3 +511,100 @@ def Na.le_refl(a: Nat) -> {Nat.is_le(a, a) == True{} : Bool}:
       {==}
     case 1n+p:
       Na.le_refl(p)
+
+# a <= b gives a <= 1 + b
+def Na.le_up(a: Nat, b: Nat, h: {Nat.is_le(a, b) == True{} : Bool}) -> {Nat.is_le(a, 1n+b) == True{} : Bool}:
+  match a:
+    case 0n:
+      {==}
+    case 1n+p:
+      match b:
+        case 0n:
+          Bo.tf({Nat.is_le(1n+p, 1n) == True{} : Bool}, h)
+        case 1n+q:
+          Na.le_up(p, q, h)
+
+# q + c <= g gives c <= g
+def Na.le_add_l(q: Nat, +c: Nat, g: Nat, h: {Nat.is_le(Nat.add(q, c), g) == True{} : Bool}) -> {Nat.is_le(c, g) == True{} : Bool}:
+  match q:
+    case 0n:
+      h
+    case 1n+r:
+      match g:
+        case 0n:
+          Bo.tf({Nat.is_le(c, 0n) == True{} : Bool}, h)
+        case 1n+(+gp):
+          Na.le_up(c, gp, Na.le_add_l(r, c, gp, h))
+
+# q + c <= 0 and p < q are false
+def Na.c0(q: Nat, p: Nat, +c: Nat, -G: Type, h2: {Nat.is_le(Nat.add(q, c), 0n) == True{} : Bool},
+  h1: {Nat.is_lt(p, q) == True{} : Bool}) -> G:
+  match q:
+    case 0n:
+      match p:
+        case 0n:
+          Bo.tf(G, h1)
+        case 1n+r:
+          Bo.tf(G, h1)
+    case 1n+r:
+      Bo.tf(G, h2)
+
+# a < b, b + c <= 1 + g give a + c <= g
+def Na.lt_le_add(b: Nat, a: Nat, +c: Nat, g: Nat, h1: {Nat.is_lt(a, b) == True{} : Bool},
+  h2: {Nat.is_le(Nat.add(b, c), 1n+g) == True{} : Bool}) -> {Nat.is_le(Nat.add(a, c), g) == True{} : Bool}:
+  match b:
+    case 0n:
+      match a:
+        case 0n:
+          Bo.tf({Nat.is_le(c, g) == True{} : Bool}, h1)
+        case 1n+p:
+          Bo.tf({Nat.is_le(1n+Nat.add(p, c), g) == True{} : Bool}, h1)
+    case 1n+q:
+      match a:
+        case 0n:
+          Na.le_add_l(q, c, g, h2)
+        case 1n+p:
+          match g:
+            case 0n:
+              Na.c0(q, p, c, {Nat.is_le(1n+Nat.add(p, c), 0n) == True{} : Bool}, h2, h1)
+            case 1n+gp:
+              Na.lt_le_add(q, p, c, gp, h1, h2)
+
+# Nat order as U32 order
+def U.le_t.of(c: Cmp, +x: Nat, +y: Nat, r: N.Rel(c, x, y), h: N.Le(x, y)) -> {Cmp.is_le(c) == True{} : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      {==}
+    case GT{}:
+      Empty.absurd({False{} == True{} : Bool}, N.not_succ_le(y, N.le_trans(1n+y, x, y, r, h)))
+
+def U.le_t(+a: U32, +b: U32, h: N.Le(U32.to_nat(a), U32.to_nat(b))) -> {U32.is_le(a, b) == True{} : Bool}:
+  U.le_t.of(U32.cmp(a, b), U32.to_nat(a), U32.to_nat(b), U.rel(a, b), h)
+
+def U.lt_t.of(c: Cmp, +x: Nat, +y: Nat, r: N.Rel(c, x, y), h: N.Le(1n+x, y)) -> {Cmp.is_lt(c) == True{} : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      Empty.absurd({False{} == True{} : Bool}, N.not_succ_le(y, N.le_rw_l(1n+x, 1n+y, y, Equal.cong(Nat, Nat, z => 1n+z, x, y, r), h)))
+    case GT{}:
+      Empty.absurd({False{} == True{} : Bool}, N.not_succ_le(y, N.le_trans(1n+y, x, y, r, N.weaken(x, y, h))))
+
+def U.lt_t(+a: U32, +b: U32, h: N.Le(1n+U32.to_nat(a), U32.to_nat(b))) -> {U32.is_lt(a, b) == True{} : Bool}:
+  U.lt_t.of(U32.cmp(a, b), U32.to_nat(a), U32.to_nat(b), U.rel(a, b), h)
+
+# a < b <= c gives a < c
+def U.lt_le(+a: U32, +b: U32, +c: U32, h1: {U32.is_lt(a, b) == True{} : Bool}, h2: {U32.is_le(b, c) == True{} : Bool}) ->
+  {U32.is_lt(a, c) == True{} : Bool}:
+  U.lt_t(a, c, N.le_trans(1n+U32.to_nat(a), U32.to_nat(b), U32.to_nat(c), U.lt(a, b, h1), U.le(b, c, h2)))
+
+# a <= b < c gives a < c
+def U.le_lt(+a: U32, +b: U32, +c: U32, h1: {U32.is_le(a, b) == True{} : Bool}, h2: {U32.is_lt(b, c) == True{} : Bool}) ->
+  {U32.is_lt(a, c) == True{} : Bool}:
+  U.lt_t(a, c, N.le_trans(1n+U32.to_nat(a), 1n+U32.to_nat(b), U32.to_nat(c), U.le(a, b, h1), U.lt(b, c, h2)))
+
+# a < b and b <= a are false
+def U.lt_ge(+a: U32, +b: U32, -G: Type, h1: {U32.is_lt(a, b) == True{} : Bool}, h2: {U32.is_le(b, a) == True{} : Bool}) -> G:
+  Empty.absurd(G, N.not_succ_le(U32.to_nat(a), N.le_trans(1n+U32.to_nat(a), U32.to_nat(b), U32.to_nat(a), U.lt(a, b, h1), U.le(b, a, h2))))

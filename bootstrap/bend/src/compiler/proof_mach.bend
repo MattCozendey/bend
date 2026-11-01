@@ -1,35 +1,48 @@
 # compiler: layer B, the machine
 # ==============================
 #
-# The lemmas mach.safe, mach.sound and mach.complete of proof.bend, from the
-# invariant of the machine (Inv) and one lemma per move (the Lean machine of
-# bootstrap/lean, Machine.lean and Machine/*.lean, is the template).
+# mach.safe, mach.sound and mach.complete of proof.bend, with exactly their
+# types (mach.safe.proof, mach.sound.proof, mach.complete.proof, at the end
+# of "The run"), from the invariant of the machine (Inv) and one lemma per
+# move. The Lean machine (bootstrap/lean, Machine.lean, Machine/*.lean) is
+# the template: a move is an admin move that keeps the term, or one step of
+# Eval, and keeps what the state knows.
 #
 # Kit (Post): what a statement's outcome may be, for any fuel (dn False) or
 # for a fuel that ends it (dn True); more fuel keeps an outcome that ends
 # (mono).
 #
-# Terms (A.*): the machine's state as Lean's State: a focus, to evaluate (mode
-# 0) or a value (mode 1), and its frames, the innermost first; its term
-# (A.term) and the measure of its admin moves (A.w), which every admin move
-# makes smaller.
+# Terms of states (A.*): a focus, to evaluate (mode 0) or a value (mode 1),
+# and its frames (AF), the innermost first; their term (A.plugs) and the
+# measure of the admin moves (A.w), which every admin move makes smaller.
 #
-# Inv(ds, ks, img, st, t, w): the Cir state st holds the abstract state of
-# the term t and the measure w: the cells of the focus and of the frames
+# Inv(ds, ks, img, st, t, w): between two rounds, the state st holds an
+# abstract state (Wit) of the term t and the measure w: the registers RG
+# (focus, mode, sp, pend, then R60); the focus' cell and the frames' parts
 # stand for their terms (Is, by recursion on the term, in the machine's own
-# U32 forms), their flags say what holds, the counts and the pend list let a
-# cell be reused only when nothing points to it, and the registers hold the
-# focus, the mode, the frames and the pend list.
+# U32 forms, with VALUE, DATA and fv true of them); the frames (Frs); the
+# counts and the pend list (Heap: a term cell counts at least its pointers,
+# the pend list's cells have none, a pointer is below next); the image (ImgOK:
+# the table, the defs' bodies, the labels of Q0 to Q2, the names); no output.
 #
-# Moves: one round of the main loop (B.body) from Inv(st, t, w) is an admin
-# move (Inv(st', t, w') with w' < w), a step (Inv(st', u, w') with
-# Eval.step(ds, t) == Some{u}), a halt that says what Eval gives from t, or
-# out of memory (Rnd, HR). round.post and round.done gather the moves.
+# Moves (MV, mv.*): one round of the main loop (B.body) from a state that Inv
+# finds is, for any fuel, an admin move (Inv of the same term, a smaller
+# measure), a step (Inv of u with Eval.step(ds, t) == Some{u}), a halt as HR
+# says (0: t's bytes; 2: no step and no result), or out of memory; and it
+# ends with some fuel. round.mv picks the move by the abstract state; the
+# premises on M.copy, M.data, M.walk, M.out and M.input are open defs
+# (copy.post, data.post, walk.post, out.post, input.post and their .done).
 #
-# The loop: loop.post (by induction on the fuel) gives what Eval gives;
+# The loop: loop.post (by induction on the fuel) gives only what Eval gives;
 # loop.done (by induction on Eval's steps, then on the measure) finds a fuel
-# that gives it. mach.safe, mach.sound and mach.complete follow, with the
-# start (M.input, input.post and input.done) and the moves as premises.
+# that gives it, or runs out of memory.
+#
+# Proven: the kit, mono, the loop, the run from Cir.result's start, the
+# three lemmas; the choice of the moves (round.post, round.done); the moves
+# mv.ev.val, mv.ev.former, mv.ev.var and mv.out. Open (?TODO): the other
+# moves, the premises above, the frame conditions of allocation (is.pend,
+# is.fresh), Eval's ev.stops and ev.stuck, and mach.memory with what it
+# needs (round.peak, round.room).
 
 import Base
 import ./impl.bend as C
@@ -1070,7 +1083,7 @@ def copy.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img:
   env: Ag(ds, m, im, fi, nx, ks, img, ps, ce, es),
   hk: {Disj(keep, Copy.scr(r)) == True{} : Bool}) ->
   Post(False{}, C.Cir.exec(f, C.M.copy(r, src), C.Cir.State{regs, m, nx, fi, im, pg, lim, inp, Nil{}, 0}),
-    st2 => CopyQ(ds, ks, img, regs, fi, im, lim, inp, r, keep, Con{Rt{c, t}, os}, bs, fs, sp, t, ce, es, st2),
+    st2 => CopyQ(ds, ks, img, regs, fi, im, lim, inp, r, keep, os, Con{Rt{c, t}, bs}, fs, sp, t, ce, es, st2),
     s => st2 => Empty):
   ?TODO
 
@@ -1378,6 +1391,70 @@ def stp.inv(-ds: List<&2, C.Def>, -ks: List<&2, List<&2, U32>>, -img: List<&2, C
 def ev.stops(+ds: List<&2, C.Def>, +t: C.Term, h: {C.Eval.vals(ds, t, False{}) == True{} : Bool}) ->
   {C.Eval.step(ds, t) == None{} : Maybe<C.Term>}:
   ?TODO
+
+# Small facts
+# -----------
+
+def mb.get(x: Maybe<&2, List<&2, U32>>, d: List<&2, U32>) -> List<&2, U32>:
+  match x:
+    case None{}:
+      d
+    case Some{y}:
+      y
+
+# Some is one to one
+def mb.inj(+a: List<&2, U32>, -b: List<&2, U32>, e: {Some{a} == Some{b} : Maybe<&2, List<&2, U32>>}) ->
+  {a == b : List<&2, U32>}:
+  Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => mb.get(x, a), Some{a}, Some{b}, e)
+
+def mb.none(x: Maybe<&2, List<&2, U32>>) -> Type:
+  match x:
+    case None{}:
+      Unit
+    case Some{_}:
+      Empty
+
+# None is not Some
+def mb.ne(-o: List<&2, U32>, e: {None{} == Some{o} : Maybe<&2, List<&2, U32>>}) -> Empty:
+  %e : mb.none(_)
+  Unit{}
+
+# no steps from None
+def run.none(+j: Nat, +ds: List<&2, C.Def>) -> {C.Eval.run(j, ds, None{}) == None{} : Maybe<C.Term>}:
+  match j:
+    case 0n:
+      {==}
+    case 1n+p:
+      {==}
+
+# the result of a term that is no value is none
+def res.nv(+ds: List<&2, C.Def>, +t: C.Term, nv: {C.Eval.vals(ds, t, False{}) == False{} : Bool}) ->
+  {C.Program.result(ds, Some{t}) == None{} : Maybe<&2, List<&2, U32>>}:
+  %Equal.sym(Bool, C.Eval.vals(ds, t, False{}), False{}, nv) : {C.Program.result.if(_, t) == None{} : Maybe<&2, List<&2, U32>>}
+  {==}
+
+def st.none(x: Maybe<C.Term>) -> Type:
+  match x:
+    case None{}:
+      Unit
+    case Some{_}:
+      Empty
+
+# no step is not a step
+def st.ne(-u: C.Term, e: {None{} == Some{u} : Maybe<C.Term>}) -> Empty:
+  %e : st.none(_)
+  Unit{}
+
+# a term with a step is no value
+def vals.of(b: Bool, +ds: List<&2, C.Def>, +t: C.Term, -u: C.Term, eb: {C.Eval.vals(ds, t, False{}) == b : Bool},
+  es: {C.Eval.step(ds, t) == Some{u} : Maybe<C.Term>}) -> {C.Eval.vals(ds, t, False{}) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      Empty.absurd({C.Eval.vals(ds, t, False{}) == False{} : Bool},
+        st.ne(u, Equal.trans(Maybe<C.Term>, None{}, C.Eval.step(ds, t), Some{u},
+          Equal.sym(Maybe<C.Term>, C.Eval.step(ds, t), None{}, ev.stops(ds, t, eb)), es)))
 
 # Move kit
 # --------
@@ -1862,19 +1939,343 @@ def nz.of(-f0: U32, +e4: U32, hv: {U32.is_ne(U32.and(f0, 256), 0) == True{} : Bo
     {U32.is_zero(U32.or(Bool.to_u32(_), Bool.to_u32(U32.is_ne(e4, 0)))) == False{} : Bool}
   or1(U32.is_ne(e4, 0))
 
+# field 4 of the table's cell of a tag: 1 for a value by its form
+def A.f4(t: C.Term) -> U32:
+  match t:
+    case C.Term.Var{_}:
+      0
+    case C.Term.Ref{_}:
+      0
+    case C.Term.Ann{_, _}:
+      0
+    case C.Term.Let{_, _, _}:
+      0
+    case C.Term.Typ{_}:
+      1
+    case C.Term.Min{_, _}:
+      0
+    case C.Term.All{_, _, _}:
+      1
+    case C.Term.Lam{_, _}:
+      1
+    case C.Term.App{_, _, _}:
+      0
+    case C.Term.Sig{_, _, _}:
+      1
+    case C.Term.Tup{_, _, _}:
+      0
+    case C.Term.Prj{_}:
+      1
+    case C.Term.Enu{_}:
+      1
+    case C.Term.Lab{_}:
+      1
+    case C.Term.Mat{_, _, _}:
+      1
+    case C.Term.Efq{}:
+      1
+    case C.Term.Eql{_, _, _}:
+      1
+    case C.Term.Rfl{}:
+      1
+    case C.Term.Rwt{_, _, _}:
+      0
+
+def tbl.f4(-m: C.Cir.Cells, -im: U32, -fi: U32, -nx: U32, t: C.Term, h: Tbl(m, im, fi, nx)) ->
+  {Fd(4n, m, U32.add(345, A.tag(t))) == A.f4(t) : U32}:
+  match t:
+    case C.Term.Var{_}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}:
+          e
+    case C.Term.Ref{_}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}:
+          e
+    case C.Term.Ann{_, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}:
+          e
+    case C.Term.Let{_, _, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Typ{_}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Min{_, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.All{_, _, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Lam{_, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.App{_, _, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Sig{_, _, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Tup{_, _, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Prj{_}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Enu{_}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Lab{_}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Mat{_, _, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Efq{}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Eql{_, _, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Rfl{}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+    case C.Term.Rwt{_, _, _}:
+      match h:
+        case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
+          e
+
+def bool.t(b: Bool) -> Type:
+  match b:
+    case True{}:
+      Empty
+    case False{}:
+      Unit
+
+
+def bool.ft(-G: Type, e: {False{} == True{} : Bool}) -> G:
+  Empty.absurd(G, (%e : bool.t(_); Unit{}))
+
+# a value by its form, as the table says, has field 4 set
+def f4.one(t: C.Term, hf: {A.tbl(t) == True{} : Bool}) -> {A.f4(t) == 1 : U32}:
+  match t:
+    case C.Term.Var{+x0}:
+      bool.ft({A.f4(C.Term.Var{x0}) == 1 : U32}, hf)
+    case C.Term.Ref{+x0}:
+      bool.ft({A.f4(C.Term.Ref{x0}) == 1 : U32}, hf)
+    case C.Term.Ann{+x0, +x1}:
+      bool.ft({A.f4(C.Term.Ann{x0, x1}) == 1 : U32}, hf)
+    case C.Term.Let{+x0, +x1, +x2}:
+      bool.ft({A.f4(C.Term.Let{x0, x1, x2}) == 1 : U32}, hf)
+    case C.Term.Typ{+x0}:
+      {==}
+    case C.Term.Min{+x0, +x1}:
+      bool.ft({A.f4(C.Term.Min{x0, x1}) == 1 : U32}, hf)
+    case C.Term.All{+x0, +x1, +x2}:
+      {==}
+    case C.Term.Lam{+x0, +x1}:
+      {==}
+    case C.Term.App{+x0, +x1, +x2}:
+      bool.ft({A.f4(C.Term.App{x0, x1, x2}) == 1 : U32}, hf)
+    case C.Term.Sig{+x0, +x1, +x2}:
+      {==}
+    case C.Term.Tup{+x0, +x1, +x2}:
+      bool.ft({A.f4(C.Term.Tup{x0, x1, x2}) == 1 : U32}, hf)
+    case C.Term.Prj{+x0}:
+      {==}
+    case C.Term.Enu{+x0}:
+      {==}
+    case C.Term.Lab{+x0}:
+      {==}
+    case C.Term.Mat{+x0, +x1, +x2}:
+      {==}
+    case C.Term.Efq{}:
+      {==}
+    case C.Term.Eql{+x0, +x1, +x2}:
+      {==}
+    case C.Term.Rfl{}:
+      {==}
+    case C.Term.Rwt{+x0, +x1, +x2}:
+      bool.ft({A.f4(C.Term.Rwt{x0, x1, x2}) == 1 : U32}, hf)
+
+# a value by its form, as the table says, is a value
+def tbl.vals(+ds: List<&2, C.Def>, t: C.Term, hf: {A.tbl(t) == True{} : Bool}) ->
+  {Bool.or(Bool.not(True{}), C.Eval.vals(ds, t, False{})) == True{} : Bool}:
+  match t:
+    case C.Term.Var{+x0}:
+      bool.ft({Bool.or(Bool.not(True{}), C.Eval.vals(ds, C.Term.Var{x0}, False{})) == True{} : Bool}, hf)
+    case C.Term.Ref{+x0}:
+      bool.ft({Bool.or(Bool.not(True{}), C.Eval.vals(ds, C.Term.Ref{x0}, False{})) == True{} : Bool}, hf)
+    case C.Term.Ann{+x0, +x1}:
+      bool.ft({Bool.or(Bool.not(True{}), C.Eval.vals(ds, C.Term.Ann{x0, x1}, False{})) == True{} : Bool}, hf)
+    case C.Term.Let{+x0, +x1, +x2}:
+      bool.ft({Bool.or(Bool.not(True{}), C.Eval.vals(ds, C.Term.Let{x0, x1, x2}, False{})) == True{} : Bool}, hf)
+    case C.Term.Typ{+x0}:
+      {==}
+    case C.Term.Min{+x0, +x1}:
+      bool.ft({Bool.or(Bool.not(True{}), C.Eval.vals(ds, C.Term.Min{x0, x1}, False{})) == True{} : Bool}, hf)
+    case C.Term.All{+x0, +x1, +x2}:
+      {==}
+    case C.Term.Lam{+x0, +x1}:
+      {==}
+    case C.Term.App{+x0, +x1, +x2}:
+      bool.ft({Bool.or(Bool.not(True{}), C.Eval.vals(ds, C.Term.App{x0, x1, x2}, False{})) == True{} : Bool}, hf)
+    case C.Term.Sig{+x0, +x1, +x2}:
+      {==}
+    case C.Term.Tup{+x0, +x1, +x2}:
+      bool.ft({Bool.or(Bool.not(True{}), C.Eval.vals(ds, C.Term.Tup{x0, x1, x2}, False{})) == True{} : Bool}, hf)
+    case C.Term.Prj{+x0}:
+      {==}
+    case C.Term.Enu{+x0}:
+      {==}
+    case C.Term.Lab{+x0}:
+      {==}
+    case C.Term.Mat{+x0, +x1, +x2}:
+      {==}
+    case C.Term.Efq{}:
+      {==}
+    case C.Term.Eql{+x0, +x1, +x2}:
+      {==}
+    case C.Term.Rfl{}:
+      {==}
+    case C.Term.Rwt{+x0, +x1, +x2}:
+      bool.ft({Bool.or(Bool.not(True{}), C.Eval.vals(ds, C.Term.Rwt{x0, x1, x2}, False{})) == True{} : Bool}, hf)
+
+def or1r(b: Bool) -> {U32.is_zero(U32.or(Bool.to_u32(b), 1)) == False{} : Bool}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+# the test of M.ev on a value by its form is not 0
+def nzf.of(-m: C.Cir.Cells, -im: U32, -fi: U32, -nx: U32, +f0: U32, +focus: C.Term, etag: {TgW(f0) == A.tag(focus) : U32},
+  tb: Tbl(m, im, fi, nx), hf: {A.tbl(focus) == True{} : Bool}) ->
+  {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)),
+    Bool.to_u32(U32.is_ne(C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, U32.and(f0, 63)))), 0)))) == False{} : Bool}:
+  %Equal.sym(U32, TgW(f0), A.tag(focus), etag) :
+    {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)),
+      Bool.to_u32(U32.is_ne(C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, _))), 0)))) == False{} : Bool}
+  %Equal.sym(U32, Fd(4n, m, U32.add(345, A.tag(focus))), A.f4(focus), tbl.f4(m, im, fi, nx, focus, tb)) :
+    {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)), Bool.to_u32(U32.is_ne(_, 0)))) == False{} : Bool}
+  %Equal.sym(U32, A.f4(focus), 1, f4.one(focus, hf)) :
+    {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)), Bool.to_u32(U32.is_ne(_, 0)))) == False{} : Bool}
+  or1r(U32.is_ne(U32.and(f0, 256), 0))
+
+# the test of M.ev on a value by its form, from the facts of its cell
+def nzf.go(-ds: List<&2, C.Def>, -im: U32, -fi: U32, -nx: U32, +foc: U32, +m: C.Cir.Cells, +focus: C.Term,
+  nd: Nd(ds, im, fi, nx, foc, C.Cir.Cells.get(m, foc), focus, A.tag(focus)), tb: Tbl(m, im, fi, nx),
+  hf: {A.tbl(focus) == True{} : Bool}) ->
+  {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(Fd(0n, m, foc), 256), 0)), Bool.to_u32(U32.is_ne(C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, U32.and(Fd(0n, m, foc), 63)))), 0)))) == False{} : Bool}:
+  match nd:
+    case Tuple{_, Tuple{_, Tuple{etag, _}}}:
+      nzf.of(m, im, fi, nx, Fd(0n, m, foc), focus, etag, tb, hf)
+
 # M.ev, past its first statement, and past its second
 def B.cond2() -> C.Cir.Expr:
   C.M.or(C.M.flag(C.M.g(C.R.c()), C.F.value()), C.M.ne(C.M.entry(4n, C.M.g(C.R.c())), C.M.c(0)))
 
+# a halt
+def eq.halt(+f: Nat, +x: U32, +st: C.Cir.State) -> {C.Cir.exec(f, C.Cir.Stmt.halt{x}, st) == C.Cir.Out.halt{x, st} : C.Cir.Out}:
+  match f:
+    case 0n:
+      {==}
+    case 1n+g:
+      {==}
+
+# a then b, when a halts
+def eq.seq.h(+f: Nat, a: C.Cir.Stmt, +b: C.Cir.Stmt, +st: C.Cir.State, +x: U32, +st1: C.Cir.State,
+  e1: {C.Cir.exec(f, a, st) == C.Cir.Out.halt{x, st1} : C.Cir.Out}) ->
+  {C.Cir.exec(f, C.Cir.Stmt.seq{a, b}, st) == C.Cir.Out.halt{x, st1} : C.Cir.Out}:
+  match f:
+    case 0n:
+      %Equal.sym(C.Cir.Out, C.Cir.exec(0n, a, st), C.Cir.Out.halt{x, st1}, e1) :
+        {C.Cir.exec.then(_, u => C.Cir.exec(0n, b, u)) == C.Cir.Out.halt{x, st1} : C.Cir.Out}
+      {==}
+    case 1n+g:
+      %Equal.sym(C.Cir.Out, C.Cir.exec(1n+g, a, st), C.Cir.Out.halt{x, st1}, e1) :
+        {C.Cir.exec.then(_, u => C.Cir.exec(1n+g, b, u)) == C.Cir.Out.halt{x, st1} : C.Cir.Out}
+      {==}
+
+# a test of the tag of a cell whose tag is another
+def tag.ne(+f0: U32, +tag: U32, +x: U32, etag: {TgW(f0) == tag : U32}, e: {U32.is_eq(tag, x) == False{} : Bool}) ->
+  {U32.is_zero(C.Wasm.op(C.Wasm.Op.eq{}, TgW(f0), x)) == True{} : Bool}:
+  %Equal.sym(U32, TgW(f0), tag, etag) : {U32.is_zero(C.Wasm.op(C.Wasm.Op.eq{}, _, x)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(tag, x), False{}, e) : {U32.is_zero(Bool.to_u32(_)) == True{} : Bool}
+  {==}
+
+# the test of M.ev on a cell not flagged VALUE, whose tag's table field 4 is 0, is 0
+def z.of(-m: C.Cir.Cells, -im: U32, -fi: U32, -nx: U32, +f0: U32, +focus: C.Term, etag: {TgW(f0) == A.tag(focus) : U32},
+  tb: Tbl(m, im, fi, nx), hv: {U32.is_ne(U32.and(f0, 256), 0) == False{} : Bool}, h0: {A.f4(focus) == 0 : U32}) ->
+  {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)),
+    Bool.to_u32(U32.is_ne(C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, U32.and(f0, 63)))), 0)))) == True{} : Bool}:
+  %Equal.sym(U32, TgW(f0), A.tag(focus), etag) :
+    {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)),
+      Bool.to_u32(U32.is_ne(C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, _))), 0)))) == True{} : Bool}
+  %Equal.sym(U32, Fd(4n, m, U32.add(345, A.tag(focus))), A.f4(focus), tbl.f4(m, im, fi, nx, focus, tb)) :
+    {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)), Bool.to_u32(U32.is_ne(_, 0)))) == True{} : Bool}
+  %Equal.sym(U32, A.f4(focus), 0, h0) :
+    {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)), Bool.to_u32(U32.is_ne(_, 0)))) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_ne(U32.and(f0, 256), 0), False{}, hv) :
+    {U32.is_zero(U32.or(Bool.to_u32(_), Bool.to_u32(U32.is_ne(0, 0)))) == True{} : Bool}
+  {==}
+
+# Eval: a focus with no step that is no value makes its frames' term so
+def ev.stuck(+ds: List<&2, C.Def>, fs: List<&2, AF>, +u: C.Term, hfs: AFs.ok(ds, fs),
+  hs: {C.Eval.step(ds, u) == None{} : Maybe<C.Term>}, hv: {C.Eval.vals(ds, u, False{}) == False{} : Bool}) ->
+  P2({C.Eval.step(ds, A.plugs(fs, u)) == None{} : Maybe<C.Term>}, {C.Eval.vals(ds, A.plugs(fs, u), False{}) == False{} : Bool}):
+  ?TODO
+
+# a halt of a round, from a term equal to t
+def hr.eq(+ds: List<&2, C.Def>, -u: C.Term, -t: C.Term, -s: U32, -st: C.Cir.State, e: {u == t : C.Term},
+  h: HR(ds, u, s, st)) -> HR(ds, t, s, st):
+  %e : HR(ds, _, s, st)
+  h
+
+# a halt with 2 from a term that is stuck
+def hr.stuck(+ds: List<&2, C.Def>, +t: C.Term, -st: C.Cir.State,
+  h: P2({C.Eval.step(ds, t) == None{} : Maybe<C.Term>}, {C.Eval.vals(ds, t, False{}) == False{} : Bool})) -> HR(ds, t, 2, st):
+  match h:
+    case Tuple{es, ev}:
+      Inr{({==}, (es, res.nv(ds, t, ev)))}
+
+# M.ev's tests of the tag, from the last
+def B.e6() -> C.Cir.Stmt:
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.min())), C.M.ev.min(), C.M.halt(2))
+
+def B.e5() -> C.Cir.Stmt:
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.rwt())), C.M.ev.rwt(), B.e6())
+
+def B.e4() -> C.Cir.Stmt:
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.tup())), C.M.ev.tup(), B.e5())
+
+def B.e3() -> C.Cir.Stmt:
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.let())), C.M.ev.let(), B.e4())
+
+def B.e2() -> C.Cir.Stmt:
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.ann())), C.M.ev.ann(), B.e3())
+
+def B.e1() -> C.Cir.Stmt:
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.ref())), C.M.ev.ref(), B.e2())
+
 def B.else() -> C.Cir.Stmt:
-  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.app())), C.M.ev.app(),
-  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.ref())), C.M.ev.ref(),
-  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.ann())), C.M.ev.ann(),
-  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.let())), C.M.ev.let(),
-  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.tup())), C.M.ev.tup(),
-  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.rwt())), C.M.ev.rwt(),
-  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.min())), C.M.ev.min(),
-    C.M.halt(2))))))))
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.app())), C.M.ev.app(), B.e1())
 
 def B.ev2() -> C.Cir.Stmt:
   C.M.do([C.M.set(C.R.tag(), C.M.tag(C.M.g(C.R.c()))), C.M.if(B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else())])
@@ -1898,7 +2299,7 @@ def ev.val.E(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: 
   +pend: U32, +r4: U32, +r5: U32, +r6: U32, +r7: U32, +r8: U32, +r9: U32, +r10: U32, +r11: U32, +r12: U32, +r13: U32, +r14: U32, +r15: U32, +r16: U32, +r17: U32, +r18: U32, +r19: U32, +r20: U32, +r21: U32, +r22: U32, +r23: U32, +r24: U32, +r25: U32, +r26: U32, +r27: U32, +r28: U32, +r29: U32, +r30: U32, +r31: U32, +r32: U32, +r33: U32, +r34: U32, +r35: U32, +r36: U32, +r37: U32, +r38: U32, +r39: U32, +r40: U32, +r41: U32, +r42: U32, +r43: U32, +r44: U32, +r45: U32, +r46: U32, +r47: U32, +r48: U32, +r49: U32, +r50: U32, +r51: U32, +r52: U32, +r53: U32, +r54: U32, +r55: U32, +r56: U32, +r57: U32, +r58: U32, +r59: U32, +r60: U32, +r61: U32, +r62: U32, +r63: U32, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32,
   +inp: List<&2, U32>, +focus: C.Term,
   +nd: Nd(ds, im, fi, nx, foc, C.Cir.Cells.get(m, foc), focus, A.tag(focus)),
-  +tb: Tbl(m, im, fi, nx), +hv: {Fl(m, foc, 256) == True{} : Bool}) ->
+  +tb: Tbl(m, im, fi, nx), +nz2: {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(Fd(0n, m, foc), 256), 0)), Bool.to_u32(U32.is_ne(C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, U32.and(Fd(0n, m, foc), 63)))), 0)))) == False{} : Bool}) ->
   {C.Cir.exec(f, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)) ==
     C.Cir.Out.next{St.set(ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), 1n, 1)} : C.Cir.Out}:
   match nd:
@@ -1922,7 +2323,6 @@ def ev.val.E(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: 
       +flv = C.Wasm.op(C.Wasm.Op.ne{}, C.Wasm.op(C.Wasm.Op.and{}, f0, 256), 0)
       +nev = C.Wasm.op(C.Wasm.Op.ne{}, e4, 0)
       +ec2 = ev.op(C.Wasm.Op.or{}, C.M.flag(C.M.g(C.R.c()), C.F.value()), C.M.ne(C.M.entry(4n, C.M.g(C.R.c())), C.M.c(0)), st2, flv, nev, efl, ene)
-      +nz2 = nz.of(f0, e4, hv)
       +e3a = Equal.trans(C.Cir.Out, C.Cir.exec(f, C.Cir.Stmt.if{B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else()}, st2),
         C.Cir.exec(f, C.M.set(C.R.mode(), C.M.c(1)), st2), C.Cir.Out.next{st3},
         eq.if.t(f, B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else(), st2, C.Wasm.op(C.Wasm.Op.or{}, flv, nev), ec2, nz2),
@@ -1940,173 +2340,420 @@ def ev.val.E(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: 
         {_ == C.Cir.Out.next{st3} : C.Cir.Out}
       {==}
 
+# the table of the image
+def img.tbl(-ds: List<&2, C.Def>, -ks: List<&2, List<&2, U32>>, -img: List<&2, C.Term>, -m: C.Cir.Cells, -im: U32,
+  -fi: U32, -nx: U32, io: ImgOK(ds, ks, img, m, im, fi, nx)) -> Tbl(m, im, fi, nx):
+  match io:
+    case Tuple{tb, _}:
+      tb
+
+# a cell flagged VALUE stands for a value
+def nd.val(-ds: List<&2, C.Def>, -im: U32, -fi: U32, -nx: U32, -c: U32, -x: C.Cir.Cell, -t: C.Term, -tag: U32,
+  nd: Nd(ds, im, fi, nx, c, x, t, tag), hv: {FlW(C.Cir.Cell.get(0n, x), 256) == True{} : Bool}) ->
+  {Bool.or(Bool.not(True{}), C.Eval.vals(ds, t, False{})) == True{} : Bool}:
+  match nd:
+    case Tuple{_, Tuple{_, Tuple{_, Tuple{nv, _}}}}:
+      %hv : {Bool.or(Bool.not(_), C.Eval.vals(ds, t, False{})) == True{} : Bool}
+      nv
+
+# mode 1 costs less than mode 0 by the focus' measure
+def ret.lt(+focus: C.Term, +fs: List<&2, AF>, -w: Nat, ew: {A.w(False{}, focus, fs) == w : Nat}) ->
+  N.Le(1n+A.w(True{}, focus, fs), w):
+  %ew : N.Le(1n+A.w(True{}, focus, fs), _)
+  N.add_mono(1n, A.w3(focus), A.w.frames(fs), A.w.frames(fs), A.w3.pos(focus), N.le_refl(A.w.frames(fs)))
+
+def ev.val.mv(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32,
+  +pend: U32, +r4: U32, +r5: U32, +r6: U32, +r7: U32, +r8: U32, +r9: U32, +r10: U32, +r11: U32, +r12: U32, +r13: U32, +r14: U32, +r15: U32, +r16: U32, +r17: U32, +r18: U32, +r19: U32, +r20: U32, +r21: U32, +r22: U32, +r23: U32, +r24: U32, +r25: U32, +r26: U32, +r27: U32, +r28: U32, +r29: U32, +r30: U32, +r31: U32, +r32: U32, +r33: U32, +r34: U32, +r35: U32, +r36: U32, +r37: U32, +r38: U32, +r39: U32, +r40: U32, +r41: U32, +r42: U32, +r43: U32, +r44: U32, +r45: U32, +r46: U32, +r47: U32, +r48: U32, +r49: U32, +r50: U32, +r51: U32, +r52: U32, +r53: U32, +r54: U32, +r55: U32, +r56: U32, +r57: U32, +r58: U32, +r59: U32, +r60: U32, +r61: U32, +r62: U32, +r63: U32, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32,
+  +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term,
+  +et: {A.plugs(fs, focus) == t : C.Term}, ew: {A.w(False{}, focus, fs) == w : Nat}, +afs: AFs.ok(ds, fs),
+  +isf: Is(ds, m, im, fi, nx, ks, img, foc, focus), +frs: Frs(ds, m, im, fi, nx, ks, img, ps, sp, fs),
+  +hp: Heap(m, nx, fi, [foc], fs, sp, pend, ps), +io: ImgOK(ds, ks, img, m, im, fi, nx),
+  +nz2: {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(Fd(0n, m, foc), 256), 0)), Bool.to_u32(U32.is_ne(C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, U32.and(Fd(0n, m, foc), 63)))), 0)))) == False{} : Bool},
+  +evv: {Bool.or(Bool.not(True{}), C.Eval.vals(ds, focus, False{})) == True{} : Bool}) ->
+  MV(ds, ks, img, S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), t, w):
+  +nd = is.nd(ds, m, im, fi, nx, ks, img, foc, focus, isf)
+  +tb = img.tbl(ds, ks, img, m, im, fi, nx, io)
+  +w2 = A.w(True{}, focus, fs)
+  +inv3 = {(Wit{True{}, focus, fs, foc, sp, pend, ps, R60.of(St.regs(St.set(ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), 1n, 1)))},
+    (et, ({==}, (evv,
+    (afs, ({==}, (isf, (frs, (hp, (io, ({==}, {==}))))))))))) : Inv(ds, ks, img, St.set(ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), 1n, 1), t, w2)}
+  +lt = ret.lt(focus, fs, w, ew)
+  (f => (%Equal.sym(C.Cir.Out, C.Cir.exec(f, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.Out.next{St.set(ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), 1n, 1)},
+      ev.val.E(f, ds, ks, img, foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp, focus, nd, tb, nz2)) :
+      Post(False{}, _, s => Rnd(ds, ks, img, t, w, s), s => st2 => HR(ds, t, s, st2));
+      Inl{(w2, (inv3, lt))}),
+   (0n, (%Equal.sym(C.Cir.Out, C.Cir.exec(0n, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.Out.next{St.set(ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), 1n, 1)},
+      ev.val.E(0n, ds, ks, img, foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp, focus, nd, tb, nz2)) : Ends(_);
+      Unit{})))
+
+# the tests of M.ev on a cell of the tag 0: none takes it, a halt with 2
+def B.chain0(+f: Nat, +st: C.Cir.State, +f0: U32,
+  +etag: {TgW(f0) == 0 : U32}, +er: {C.Cir.eval(C.M.g(C.R.tag()), st) == Some{TgW(f0)} : Maybe<&2, U32>}) ->
+  {C.Cir.exec(f, B.else(), st) == C.Cir.Out.halt{2, st} : C.Cir.Out}:
+  %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.else(), st), C.Cir.exec(f, B.e1(), st),
+    eq.if.e(f, C.M.eq(C.M.g(C.R.tag()), C.M.c(8)), C.M.ev.app(), B.e1(), st, C.Wasm.op(C.Wasm.Op.eq{}, TgW(f0), 8),
+      ev.op(C.Wasm.Op.eq{}, C.M.g(C.R.tag()), C.M.c(8), st, TgW(f0), 8, er, {==}), tag.ne(f0, 0, 8, etag, {==}))) :
+    {_ == C.Cir.Out.halt{2, st} : C.Cir.Out}
+  %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.e1(), st), C.Cir.exec(f, B.e2(), st),
+    eq.if.e(f, C.M.eq(C.M.g(C.R.tag()), C.M.c(1)), C.M.ev.ref(), B.e2(), st, C.Wasm.op(C.Wasm.Op.eq{}, TgW(f0), 1),
+      ev.op(C.Wasm.Op.eq{}, C.M.g(C.R.tag()), C.M.c(1), st, TgW(f0), 1, er, {==}), tag.ne(f0, 0, 1, etag, {==}))) :
+    {_ == C.Cir.Out.halt{2, st} : C.Cir.Out}
+  %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.e2(), st), C.Cir.exec(f, B.e3(), st),
+    eq.if.e(f, C.M.eq(C.M.g(C.R.tag()), C.M.c(2)), C.M.ev.ann(), B.e3(), st, C.Wasm.op(C.Wasm.Op.eq{}, TgW(f0), 2),
+      ev.op(C.Wasm.Op.eq{}, C.M.g(C.R.tag()), C.M.c(2), st, TgW(f0), 2, er, {==}), tag.ne(f0, 0, 2, etag, {==}))) :
+    {_ == C.Cir.Out.halt{2, st} : C.Cir.Out}
+  %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.e3(), st), C.Cir.exec(f, B.e4(), st),
+    eq.if.e(f, C.M.eq(C.M.g(C.R.tag()), C.M.c(3)), C.M.ev.let(), B.e4(), st, C.Wasm.op(C.Wasm.Op.eq{}, TgW(f0), 3),
+      ev.op(C.Wasm.Op.eq{}, C.M.g(C.R.tag()), C.M.c(3), st, TgW(f0), 3, er, {==}), tag.ne(f0, 0, 3, etag, {==}))) :
+    {_ == C.Cir.Out.halt{2, st} : C.Cir.Out}
+  %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.e4(), st), C.Cir.exec(f, B.e5(), st),
+    eq.if.e(f, C.M.eq(C.M.g(C.R.tag()), C.M.c(10)), C.M.ev.tup(), B.e5(), st, C.Wasm.op(C.Wasm.Op.eq{}, TgW(f0), 10),
+      ev.op(C.Wasm.Op.eq{}, C.M.g(C.R.tag()), C.M.c(10), st, TgW(f0), 10, er, {==}), tag.ne(f0, 0, 10, etag, {==}))) :
+    {_ == C.Cir.Out.halt{2, st} : C.Cir.Out}
+  %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.e5(), st), C.Cir.exec(f, B.e6(), st),
+    eq.if.e(f, C.M.eq(C.M.g(C.R.tag()), C.M.c(18)), C.M.ev.rwt(), B.e6(), st, C.Wasm.op(C.Wasm.Op.eq{}, TgW(f0), 18),
+      ev.op(C.Wasm.Op.eq{}, C.M.g(C.R.tag()), C.M.c(18), st, TgW(f0), 18, er, {==}), tag.ne(f0, 0, 18, etag, {==}))) :
+    {_ == C.Cir.Out.halt{2, st} : C.Cir.Out}
+  %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.e6(), st), C.Cir.exec(f, C.M.halt(2), st),
+    eq.if.e(f, C.M.eq(C.M.g(C.R.tag()), C.M.c(5)), C.M.ev.min(), C.M.halt(2), st, C.Wasm.op(C.Wasm.Op.eq{}, TgW(f0), 5),
+      ev.op(C.Wasm.Op.eq{}, C.M.g(C.R.tag()), C.M.c(5), st, TgW(f0), 5, er, {==}), tag.ne(f0, 0, 5, etag, {==}))) :
+    {_ == C.Cir.Out.halt{2, st} : C.Cir.Out}
+  eq.halt(f, 2, st)
+
+# a round from mode 0 whose focus' cell is a variable: no case of M.ev takes
+# it, a halt with 2
+def ev.var.E(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32,
+  +pend: U32, +r4: U32, +r5: U32, +r6: U32, +r7: U32, +r8: U32, +r9: U32, +r10: U32, +r11: U32, +r12: U32, +r13: U32, +r14: U32, +r15: U32, +r16: U32, +r17: U32, +r18: U32, +r19: U32, +r20: U32, +r21: U32, +r22: U32, +r23: U32, +r24: U32, +r25: U32, +r26: U32, +r27: U32, +r28: U32, +r29: U32, +r30: U32, +r31: U32, +r32: U32, +r33: U32, +r34: U32, +r35: U32, +r36: U32, +r37: U32, +r38: U32, +r39: U32, +r40: U32, +r41: U32, +r42: U32, +r43: U32, +r44: U32, +r45: U32, +r46: U32, +r47: U32, +r48: U32, +r49: U32, +r50: U32, +r51: U32, +r52: U32, +r53: U32, +r54: U32, +r55: U32, +r56: U32, +r57: U32, +r58: U32, +r59: U32, +r60: U32, +r61: U32, +r62: U32, +r63: U32, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32,
+  +inp: List<&2, U32>, +i: Nat,
+  +nd: Nd(ds, im, fi, nx, foc, C.Cir.Cells.get(m, foc), C.Term.Var{i}, 0),
+  +tb: Tbl(m, im, fi, nx), +hv: {Fl(m, foc, 256) == False{} : Bool}) ->
+  {C.Cir.exec(f, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)) == C.Cir.Out.halt{2, ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)} : C.Cir.Out}:
+  match nd:
+    case Tuple{+valid, Tuple{_, Tuple{+etag, _}}}:
+      +st1 = ev.st1(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)
+      +st2 = ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)
+      +f0 = Fd(0n, m, foc)
+      +ef1 = ev.fld(0n, C.M.g(C.R.c()), St.regs(st1), m, nx, fi, im, pg, lim, inp, Nil{}, 0, foc, {==}, valid)
+      +ef2 = ev.fld(0n, C.M.g(C.R.c()), St.regs(st2), m, nx, fi, im, pg, lim, inp, Nil{}, 0, foc, {==}, valid)
+      +etg = ev.op(C.Wasm.Op.and{}, C.M.f(0n, C.M.g(C.R.c())), C.M.c(63), st1, f0, 63, ef1, {==})
+      +etg2 = ev.op(C.Wasm.Op.and{}, C.M.f(0n, C.M.g(C.R.c())), C.M.c(63), st2, f0, 63, ef2, {==})
+      +efl = ev.op(C.Wasm.Op.ne{}, C.M.and(C.M.f(0n, C.M.g(C.R.c())), C.M.c(256)), C.M.c(0), st2, C.Wasm.op(C.Wasm.Op.and{}, f0, 256), 0,
+        ev.op(C.Wasm.Op.and{}, C.M.f(0n, C.M.g(C.R.c())), C.M.c(256), st2, f0, 256, ef2, {==}), {==})
+      +addr = C.Wasm.op(C.Wasm.Op.add{}, 345, C.Wasm.op(C.Wasm.Op.and{}, f0, 63))
+      +eadr = ev.op(C.Wasm.Op.add{}, C.M.c(345), C.M.tag(C.M.g(C.R.c())), st2, 345, C.Wasm.op(C.Wasm.Op.and{}, f0, 63), {==}, etg2)
+      +vt = vt.of(m, im, fi, nx, f0, C.Term.Var{i}, etag, tb)
+      +e4 = C.Cir.Cell.get(4n, C.Cir.Cells.get(m, addr))
+      +ee4 = ev.fld(4n, C.M.add(C.M.c(345), C.M.tag(C.M.g(C.R.c()))), St.regs(st2), m, nx, fi, im, pg, lim, inp, Nil{}, 0, addr, eadr, vt)
+      +ene = ev.op(C.Wasm.Op.ne{}, C.M.entry(4n, C.M.g(C.R.c())), C.M.c(0), st2, e4, 0, ee4, {==})
+      +flv = C.Wasm.op(C.Wasm.Op.ne{}, C.Wasm.op(C.Wasm.Op.and{}, f0, 256), 0)
+      +nev = C.Wasm.op(C.Wasm.Op.ne{}, e4, 0)
+      +ec2 = ev.op(C.Wasm.Op.or{}, C.M.flag(C.M.g(C.R.c()), C.F.value()), C.M.ne(C.M.entry(4n, C.M.g(C.R.c())), C.M.c(0)), st2, flv, nev, efl, ene)
+      +z2 = z.of(m, im, fi, nx, f0, C.Term.Var{i}, etag, tb, hv, {==})
+      +e3a = Equal.trans(C.Cir.Out, C.Cir.exec(f, C.Cir.Stmt.if{B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else()}, st2),
+        C.Cir.exec(f, B.else(), st2), C.Cir.Out.halt{2, st2},
+        eq.if.e(f, B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else(), st2, C.Wasm.op(C.Wasm.Op.or{}, flv, nev), ec2, z2),
+        B.chain0(f, st2, f0, etag, {==}))
+      %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.exec(f, C.M.ev(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)),
+        eq.if.t(f, C.M.eq(C.M.g(C.R.mode()), C.M.c(0)), C.M.ev(), C.M.ret(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), 1, {==}, {==})) :
+        {_ == C.Cir.Out.halt{2, st2} : C.Cir.Out}
+      %rw.seq(f, C.M.set(C.R.c(), C.M.g(C.R.focus())), B.ev2(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), st1,
+        eq.set(f, 8n, C.M.g(C.R.focus()), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), foc, {==}, {==})) : {_ == C.Cir.Out.halt{2, st2} : C.Cir.Out}
+      %rw.seq(f, C.M.set(C.R.tag(), C.M.tag(C.M.g(C.R.c()))), B.ev3(), st1, st2,
+        eq.set(f, 10n, C.M.tag(C.M.g(C.R.c())), st1, TgW(f0), etg, {==})) : {_ == C.Cir.Out.halt{2, st2} : C.Cir.Out}
+      eq.seq.h(f, C.Cir.Stmt.if{B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else()}, C.Cir.Stmt.nop{}, st2, 2, st2, e3a)
+
+# the parts of an if, to name the parts of a statement of impl.bend without
+# copying them
+def stmt.cond(x: C.Cir.Stmt) -> C.Cir.Expr:
+  match x:
+    case C.Cir.Stmt.if{c, _, _}:
+      c
+    case _:
+      C.Cir.Expr.const{0}
+
+def stmt.then(x: C.Cir.Stmt) -> C.Cir.Stmt:
+  match x:
+    case C.Cir.Stmt.if{_, t, _}:
+      t
+    case _:
+      C.Cir.Stmt.nop{}
+
+def stmt.else(x: C.Cir.Stmt) -> C.Cir.Stmt:
+  match x:
+    case C.Cir.Stmt.if{_, _, e}:
+      e
+    case _:
+      C.Cir.Stmt.nop{}
+
+# a weaker outcome
+def post.map(dn: Bool, o: C.Cir.Out, -Q1: C.Cir.State -> Type, -Q2: C.Cir.State -> Type, -H1: U32 -> C.Cir.State -> Type,
+  -H2: U32 -> C.Cir.State -> Type, h: Post(dn, o, Q1, H1), q: @st: C.Cir.State -> Q1(st) -> Q2(st),
+  hh: @s: U32 -> @st: C.Cir.State -> H1(s, st) -> H2(s, st)) -> Post(dn, o, Q2, H2):
+  match o:
+    case C.Cir.Out.next{st}:
+      q(st, h)
+    case C.Cir.Out.halt{s, st}:
+      hh(s, st, h)
+    case C.Cir.Out.out_of_memory{}:
+      Unit{}
+    case C.Cir.Out.trap{}:
+      h
+    case C.Cir.Out.not_done{}:
+      h
+
+# the result of a value is its bytes
+def res.val(+ds: List<&2, C.Def>, +v: C.Term, -x: Maybe<&2, List<&2, U32>>, ev: {C.Eval.vals(ds, v, False{}) == True{} : Bool},
+  eu: {C.Program.unbytes(v) == x : Maybe<&2, List<&2, U32>>}) -> {C.Program.result(ds, Some{v}) == x : Maybe<&2, List<&2, U32>>}:
+  %Equal.sym(Bool, C.Eval.vals(ds, v, False{}), True{}, ev) : {C.Program.result.if(_, v) == x : Maybe<&2, List<&2, U32>>}
+  eu
+
+# M.out's halts are a round's, from its value v
+def out.hr(+ds: List<&2, C.Def>, +v: C.Term, +ev: {C.Eval.vals(ds, v, False{}) == True{} : Bool}, -s: U32, -st2: C.Cir.State,
+  h: OutH(v, s, st2)) -> HR(ds, v, s, st2):
+  match h:
+    case Inl{x}:
+      (e0, eu) = x
+      Inl{(e0, (ev.stops(ds, v, ev), res.val(ds, v, Some{List.reverse(&2, U32, St.out(st2))}, ev, eu)))}
+    case Inr{x}:
+      (e2, eu) = x
+      Inr{(e2, (ev.stops(ds, v, ev), res.val(ds, v, None{}, ev, eu)))}
+
+# a round from mode 1 with no frame is M.out
+def out.E(+f: Nat, +foc: U32, +pend: U32, +r4: U32, +r5: U32, +r6: U32, +r7: U32, +r8: U32, +r9: U32, +r10: U32, +r11: U32, +r12: U32, +r13: U32, +r14: U32, +r15: U32, +r16: U32, +r17: U32, +r18: U32, +r19: U32, +r20: U32, +r21: U32, +r22: U32, +r23: U32, +r24: U32, +r25: U32, +r26: U32, +r27: U32, +r28: U32, +r29: U32, +r30: U32, +r31: U32, +r32: U32, +r33: U32, +r34: U32, +r35: U32, +r36: U32, +r37: U32, +r38: U32, +r39: U32, +r40: U32, +r41: U32, +r42: U32, +r43: U32, +r44: U32, +r45: U32, +r46: U32, +r47: U32, +r48: U32, +r49: U32, +r50: U32, +r51: U32, +r52: U32, +r53: U32, +r54: U32, +r55: U32, +r56: U32, +r57: U32, +r58: U32, +r59: U32, +r60: U32, +r61: U32, +r62: U32, +r63: U32, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32,
+  +inp: List<&2, U32>) -> {C.Cir.exec(f, B.body(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)) == C.Cir.exec(f, C.M.out(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)) : C.Cir.Out}:
+  Equal.trans(C.Cir.Out, C.Cir.exec(f, B.body(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.exec(f, C.M.ret(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.exec(f, C.M.out(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)),
+    eq.if.e(f, C.M.eq(C.M.g(C.R.mode()), C.M.c(0)), C.M.ev(), C.M.ret(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), 0, {==}, {==}),
+    eq.if.t(f, stmt.cond(C.M.ret()), stmt.then(C.M.ret()), stmt.else(C.M.ret()), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), 1, {==}, {==}))
+
+def out.mv(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +pend: U32,
+  +r4: U32, +r5: U32, +r6: U32, +r7: U32, +r8: U32, +r9: U32, +r10: U32, +r11: U32, +r12: U32, +r13: U32, +r14: U32, +r15: U32, +r16: U32, +r17: U32, +r18: U32, +r19: U32, +r20: U32, +r21: U32, +r22: U32, +r23: U32, +r24: U32, +r25: U32, +r26: U32, +r27: U32, +r28: U32, +r29: U32, +r30: U32, +r31: U32, +r32: U32, +r33: U32, +r34: U32, +r35: U32, +r36: U32, +r37: U32, +r38: U32, +r39: U32, +r40: U32, +r41: U32, +r42: U32, +r43: U32, +r44: U32, +r45: U32, +r46: U32, +r47: U32, +r48: U32, +r49: U32, +r50: U32, +r51: U32, +r52: U32, +r53: U32, +r54: U32, +r55: U32, +r56: U32, +r57: U32, +r58: U32, +r59: U32, +r60: U32, +r61: U32, +r62: U32, +r63: U32, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>,
+  +t: C.Term, +w: Nat, +focus: C.Term, +et: {focus == t : C.Term},
+  +ev: {C.Eval.vals(ds, focus, False{}) == True{} : Bool}, +isf: Is(ds, m, im, fi, nx, ks, img, foc, focus),
+  +ks2: List<&2, List<&2, U32>>, +hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>}) ->
+  MV(ds, ks, img, S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), t, w):
+  +od = out.done(ds, ks, img, foc, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp, focus, ks2, isf, hk)
+  +f1 = Ex.fst(Nat, f => Ends(C.Cir.exec(f, C.M.out(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp))), od)
+  (+f => (%Equal.sym(C.Cir.Out, C.Cir.exec(f, B.body(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.exec(f, C.M.out(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)),
+      out.E(f, foc, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)) :
+      Post(False{}, _, s => Rnd(ds, ks, img, t, w, s), s => st2 => HR(ds, t, s, st2));
+      post.map(False{}, C.Cir.exec(f, C.M.out(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), st => Empty, s => Rnd(ds, ks, img, t, w, s),
+        s => st2 => OutH(focus, s, st2), s => st2 => HR(ds, t, s, st2),
+        out.post(f, ds, ks, img, foc, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp, focus, ks2, isf, hk),
+        st => h => Empty.absurd(Rnd(ds, ks, img, t, w, st), h),
+        s => st2 => h => hr.eq(ds, focus, t, s, st2, et, out.hr(ds, focus, ev, s, st2, h)))),
+   (f1, (%Equal.sym(C.Cir.Out, C.Cir.exec(f1, B.body(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.exec(f1, C.M.out(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)),
+      out.E(f1, foc, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)) : Ends(_);
+      Ex.snd(Nat, f => Ends(C.Cir.exec(f, C.M.out(), S(foc, 1, 0, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp))), od))))
+
+# the image's names, the machine's first
+def img.ks(-ds: List<&2, C.Def>, -ks: List<&2, List<&2, U32>>, -img: List<&2, C.Term>, -m: C.Cir.Cells, -im: U32,
+  -fi: U32, -nx: U32, io: ImgOK(ds, ks, img, m, im, fi, nx)) -> Ex(List<&2, List<&2, U32>>, ks2 => {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>}):
+  match io:
+    case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{k, _}}}}}}:
+      k
+
 # The moves, one lemma each (open where the body is ?TODO)
 
 # mode 0, a focus flagged VALUE: a value, mode 1; an admin move
 def mv.ev.val(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, focus, fs, ps), hv: {Fl(m, foc, 256) == True{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, focus, fs, ps), +hv: {Fl(m, foc, 256) == True{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
-  ?TODO
+  match rest:
+    case R60{+r4, +r5, +r6, +r7, +r8, +r9, +r10, +r11, +r12, +r13, +r14, +r15, +r16, +r17, +r18, +r19, +r20, +r21, +r22, +r23, +r24, +r25, +r26, +r27, +r28, +r29, +r30, +r31, +r32, +r33, +r34, +r35, +r36, +r37, +r38, +r39, +r40, +r41, +r42, +r43, +r44, +r45, +r46, +r47, +r48, +r49, +r50, +r51, +r52, +r53, +r54, +r55, +r56, +r57, +r58, +r59, +r60, +r61, +r62, +r63}:
+      match iv:
+        case Tuple{+et, Tuple{+ew, Tuple{_, Tuple{+afs, Tuple{_, Tuple{+isf, Tuple{+frs, Tuple{+hp, Tuple{+io, Tuple{_, _}}}}}}}}}}:
+          +nd = is.nd(ds, m, im, fi, nx, ks, img, foc, focus, isf)
+          ev.val.mv(ds, ks, img, foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp, t, w, fs, ps, focus, et, ew, afs, isf, frs, hp,
+            io, nz.of(Fd(0n, m, foc), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, U32.add(345, U32.and(Fd(0n, m, foc), 63)))), hv),
+            nd.val(ds, im, fi, nx, foc, C.Cir.Cells.get(m, foc), focus, A.tag(focus), nd, hv))
 
 # mode 0, a focus that is a value by its form, as the table says (A.tbl): mode 1; an admin move
 def mv.ev.former(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, focus, fs, ps), hf: {A.tbl(focus) == True{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, focus, fs, ps), +hf: {A.tbl(focus) == True{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
-  ?TODO
+  match rest:
+    case R60{+r4, +r5, +r6, +r7, +r8, +r9, +r10, +r11, +r12, +r13, +r14, +r15, +r16, +r17, +r18, +r19, +r20, +r21, +r22, +r23, +r24, +r25, +r26, +r27, +r28, +r29, +r30, +r31, +r32, +r33, +r34, +r35, +r36, +r37, +r38, +r39, +r40, +r41, +r42, +r43, +r44, +r45, +r46, +r47, +r48, +r49, +r50, +r51, +r52, +r53, +r54, +r55, +r56, +r57, +r58, +r59, +r60, +r61, +r62, +r63}:
+      match iv:
+        case Tuple{+et, Tuple{+ew, Tuple{_, Tuple{+afs, Tuple{_, Tuple{+isf, Tuple{+frs, Tuple{+hp, Tuple{+io, Tuple{_, _}}}}}}}}}}:
+          +nd = is.nd(ds, m, im, fi, nx, ks, img, foc, focus, isf)
+          ev.val.mv(ds, ks, img, foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp, t, w, fs, ps, focus, et, ew, afs, isf, frs, hp,
+            io, nzf.go(ds, im, fi, nx, foc, m, focus, nd, img.tbl(ds, ks, img, m, im, fi, nx, io), hf), tbl.vals(ds, focus, hf))
 
 # mode 0, a variable: free in the whole term, which has no step and is no value; halt 2
 def mv.ev.var(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +i: Nat,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Var{i}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Var{i}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
-  ?TODO
+  match rest:
+    case R60{+r4, +r5, +r6, +r7, +r8, +r9, +r10, +r11, +r12, +r13, +r14, +r15, +r16, +r17, +r18, +r19, +r20, +r21, +r22, +r23, +r24, +r25, +r26, +r27, +r28, +r29, +r30, +r31, +r32, +r33, +r34, +r35, +r36, +r37, +r38, +r39, +r40, +r41, +r42, +r43, +r44, +r45, +r46, +r47, +r48, +r49, +r50, +r51, +r52, +r53, +r54, +r55, +r56, +r57, +r58, +r59, +r60, +r61, +r62, +r63}:
+      match iv:
+        case Tuple{+et, Tuple{_, Tuple{_, Tuple{+afs, Tuple{_, Tuple{+isf, Tuple{_, Tuple{_, Tuple{+io, Tuple{_, _}}}}}}}}}}:
+          +nd = is.nd(ds, m, im, fi, nx, ks, img, foc, C.Term.Var{i}, isf)
+          +tb = img.tbl(ds, ks, img, m, im, fi, nx, io)
+          hr = hr.eq(ds, A.plugs(fs, C.Term.Var{i}), t, 2, ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), et,
+            hr.stuck(ds, A.plugs(fs, C.Term.Var{i}), ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), ev.stuck(ds, fs, C.Term.Var{i}, afs, {==}, {==})))
+          (f => (%Equal.sym(C.Cir.Out, C.Cir.exec(f, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.Out.halt{2, ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)},
+              ev.var.E(f, ds, ks, img, foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp, i, nd, tb, hv)) :
+              Post(False{}, _, s => Rnd(ds, ks, img, t, w, s), s => st2 => HR(ds, t, s, st2));
+              hr),
+           (0n, (%Equal.sym(C.Cir.Out, C.Cir.exec(0n, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.Out.halt{2, ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)},
+              ev.var.E(0n, ds, ks, img, foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp, i, nd, tb, hv)) : Ends(_);
+              Unit{})))
 
 # mode 0, Ref k: the call of k on no arguments (M.call, with M.walk and M.copy): a step to the copy of its leaf; or, when its case tree takes an argument, mode 1, an admin move; halt 2 when no walk exists
 def mv.ev.ref(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +k: List<&2, U32>,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Ref{k}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Ref{k}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 0, Ann x y: x, a step
 def mv.ev.ann(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +x: C.Term, +y: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Ann{x, y}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Ann{x, y}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 0, Let q v b with q live: v in the frame Let q □ b; an admin move
 def mv.ev.let(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +q: C.Quan, +v: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Let{q, v, b}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}, hq: {C.Quan.live(q) == True{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Let{q, v, b}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}, +hq: {C.Quan.live(q) == True{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 0, Let q v b with q dead: b with v put in (M.copy), a step
 def mv.ev.unlet(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +q: C.Quan, +v: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Let{q, v, b}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}, hq: {C.Quan.live(q) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Let{q, v, b}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}, +hq: {C.Quan.live(q) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 0, App q g x: g in the frame App q □ x; an admin move
 def mv.ev.app(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +q: C.Quan, +g: C.Term, +x: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.App{q, g, x}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.App{q, g, x}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 0, Tup q a b with q live, not flagged VALUE: a in the frame Tup q □ b; an admin move
 def mv.ev.tup(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +q: C.Quan, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Tup{q, a, b}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}, hq: {C.Quan.live(q) == True{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Tup{q, a, b}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}, +hq: {C.Quan.live(q) == True{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 0, Tup q a b with q dead, not flagged VALUE: b in the frame Tup q a □; an admin move
 def mv.ev.tup0(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +q: C.Quan, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Tup{q, a, b}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}, hq: {C.Quan.live(q) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Tup{q, a, b}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}, +hq: {C.Quan.live(q) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 0, Rwt e p b: e in the frame Rwt □ p b; an admin move
 def mv.ev.rwt(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +e: C.Term, +p: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Rwt{e, p, b}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Rwt{e, p, b}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 0, Min a b: a in the frame Min □ b; an admin move
 def mv.ev.min(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Min{a, b}, fs, ps), hv: {Fl(m, foc, 256) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, False{}, C.Term.Min{a, b}, fs, ps), +hv: {Fl(m, foc, 256) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 0, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, no frame: M.out halts with 0 and the bytes of the value (Program.unbytes), or with 2 when it is no list of bytes
 def mv.out(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Nil{}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Nil{}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
-  ?TODO
+  match rest:
+    case R60{+r4, +r5, +r6, +r7, +r8, +r9, +r10, +r11, +r12, +r13, +r14, +r15, +r16, +r17, +r18, +r19, +r20, +r21, +r22, +r23, +r24, +r25, +r26, +r27, +r28, +r29, +r30, +r31, +r32, +r33, +r34, +r35, +r36, +r37, +r38, +r39, +r40, +r41, +r42, +r43, +r44, +r45, +r46, +r47, +r48, +r49, +r50, +r51, +r52, +r53, +r54, +r55, +r56, +r57, +r58, +r59, +r60, +r61, +r62, +r63}:
+      match iv:
+        case Tuple{+et, Tuple{_, Tuple{+evv, Tuple{_, Tuple{_, Tuple{+isf, Tuple{+frs, Tuple{_, Tuple{+io, Tuple{_, _}}}}}}}}}}:
+          +k = img.ks(ds, ks, img, m, im, fi, nx, io)
+          %Equal.sym(U32, sp, 0, frs) : MV(ds, ks, img, S(foc, 1, _, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), t, w)
+          out.mv(ds, ks, img, foc, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp, t, w, focus, et, evv, isf,
+            Ex.fst(List<&2, List<&2, U32>>, ks2 => {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>}, k),
+            Ex.snd(List<&2, List<&2, U32>>, ks2 => {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>}, k))
 
 # mode 1, App q □ a (app_arg, app_val) with q live and a not known: a to evaluate, in the frame App q v □; an admin move
 def mv.ret.swap(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term, +kind: FK, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{kind, q, k, a, b}, fs}, ps), hk: {FK.isapp(kind) == True{} : Bool}, hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == True{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{kind, q, k, a, b}, fs}, ps), +hk: {FK.isapp(kind) == True{} : Bool}, +hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == True{} : Bool}) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, App q v □ a (app_arg, app_val), when q is dead or a known: the redex of a λ (Eval.redex): its body with the argument put in (M.data, M.copy), a step; halt 2 when the λ does not bind it
 def mv.ret.app.lam(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +r: C.Quan, +h: C.Term, +kind: FK, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, C.Term.Lam{r, h}, Con{AF{kind, q, k, a, b}, fs}, ps), hk: {FK.isapp(kind) == True{} : Bool}, hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, C.Term.Lam{r, h}, Con{AF{kind, q, k, a, b}, fs}, ps), +hk: {FK.isapp(kind) == True{} : Bool}, +hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, App q g □ (app_fun), with the value v: the redex of a λ (Eval.redex): its body with the argument put in (M.data, M.copy), a step; halt 2 when the λ does not bind it
 def mv.ret.fun.lam(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +r: C.Quan, +h: C.Term, +focus: C.Term, +q: C.Quan, +k: Bool, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.fun{}, q, k, C.Term.Lam{r, h}, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.fun{}, q, k, C.Term.Lam{r, h}, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, App q v □ a (app_arg, app_val), when q is dead or a known: the redex of a λ-match of pairs: its case on the pair's fields, a step; halt 2 when the argument is no live pair
 def mv.ret.app.prj(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +h: C.Term, +kind: FK, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, C.Term.Prj{h}, Con{AF{kind, q, k, a, b}, fs}, ps), hk: {FK.isapp(kind) == True{} : Bool}, hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, C.Term.Prj{h}, Con{AF{kind, q, k, a, b}, fs}, ps), +hk: {FK.isapp(kind) == True{} : Bool}, +hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, App q g □ (app_fun), with the value v: the redex of a λ-match of pairs: its case on the pair's fields, a step; halt 2 when the argument is no live pair
 def mv.ret.fun.prj(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +h: C.Term, +focus: C.Term, +q: C.Quan, +k: Bool, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.fun{}, q, k, C.Term.Prj{h}, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.fun{}, q, k, C.Term.Prj{h}, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, App q v □ a (app_arg, app_val), when q is dead or a known: the redex of a λ-match of labels: the case of the label, a step; halt 2 when the argument is no live label
 def mv.ret.app.mat(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +j: List<&2, U32>, +h: C.Term, +n: C.Term, +kind: FK, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, C.Term.Mat{j, h, n}, Con{AF{kind, q, k, a, b}, fs}, ps), hk: {FK.isapp(kind) == True{} : Bool}, hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, C.Term.Mat{j, h, n}, Con{AF{kind, q, k, a, b}, fs}, ps), +hk: {FK.isapp(kind) == True{} : Bool}, +hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, App q g □ (app_fun), with the value v: the redex of a λ-match of labels: the case of the label, a step; halt 2 when the argument is no live label
 def mv.ret.fun.mat(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +j: List<&2, U32>, +h: C.Term, +n: C.Term, +focus: C.Term, +q: C.Quan, +k: Bool, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.fun{}, q, k, C.Term.Mat{j, h, n}, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.fun{}, q, k, C.Term.Mat{j, h, n}, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, App q v □ a (app_arg, app_val), when q is dead or a known: the redex of any other value: a call (M.call, with M.walk and M.copy) of the def at the head of its spine: a step to the copy of its leaf, or a value that waits for more arguments (an admin move); halt 2 when no walk exists
 def mv.ret.app.call(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term, +kind: FK, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{kind, q, k, a, b}, fs}, ps), hk: {FK.isapp(kind) == True{} : Bool}, hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == False{} : Bool}, hn: {A.node(focus) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{kind, q, k, a, b}, fs}, ps), +hk: {FK.isapp(kind) == True{} : Bool}, +hs: {Bool.and(C.Quan.live(q), Bool.not(k)) == False{} : Bool}, +hn: {A.node(focus) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, App q g □ (app_fun), with the value v: the redex of any other value: a call (M.call, with M.walk and M.copy) of the def at the head of its spine: a step to the copy of its leaf, or a value that waits for more arguments (an admin move); halt 2 when no walk exists
 def mv.ret.fun.call(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +g: C.Term, +focus: C.Term, +q: C.Quan, +k: Bool, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.fun{}, q, k, g, b}, fs}, ps), hn: {A.node(g) == False{} : Bool}) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.fun{}, q, k, g, b}, fs}, ps), +hn: {A.node(g) == False{} : Bool}) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, Let q □ a, with the value v: a with v put in (M.data, M.copy), a step; halt 2 when q is 2 and v is no Data
 def mv.ret.let(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.let{}, q, k, a, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.let{}, q, k, a, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, Tup q □ a, with the value v: a to evaluate, in the frame Tup q v □; an admin move
 def mv.ret.tupb(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.tupb{}, q, k, a, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.tupb{}, q, k, a, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, Tup q a □, with the value v: the value Tup q a v; an admin move
 def mv.ret.tupa(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.tupa{}, q, k, a, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.tupa{}, q, k, a, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, Rwt □ a b, with the value v: b when v is Rfl, a step; else halt 2
 def mv.ret.rwt(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.rwt{}, q, k, a, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.rwt{}, q, k, a, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, Min □ a, with the value v: a to evaluate, in the frame Min v □; an admin move
 def mv.ret.minb(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.minb{}, q, k, a, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.minb{}, q, k, a, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
 # mode 1, Min a □, with the value v: the meet of a and v, a step, when both are labels of quantities; else halt 2
 def mv.ret.mina(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32, +pend: U32, +rest: R60, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>, +t: C.Term, +w: Nat, +fs: List<&2, AF>, +ps: List<&2, U32>, +focus: C.Term, +q: C.Quan, +k: Bool, +a: C.Term, +b: C.Term,
-  iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.mina{}, q, k, a, b}, fs}, ps)) ->
+  +iv: IV(ds, ks, img, foc, sp, pend, rest, m, nx, fi, im, t, w, True{}, focus, Con{AF{FK.mina{}, q, k, a, b}, fs}, ps)) ->
   MV(ds, ks, img, S(foc, 1, sp, pend, rest, m, nx, fi, im, pg, lim, inp), t, w):
   ?TODO
 
@@ -2364,70 +3011,6 @@ def round.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img
 def round.done(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +st: C.Cir.State,
   +t: C.Term, +w: Nat, inv: Inv(ds, ks, img, st, t, w)) -> Ex(Nat, f => Ends(C.Cir.exec(f, B.body(), st))):
   mv.done(ds, ks, img, st, t, w, round.mv(ds, ks, img, st, t, w, inv))
-
-# Small facts
-# -----------
-
-def mb.get(x: Maybe<&2, List<&2, U32>>, d: List<&2, U32>) -> List<&2, U32>:
-  match x:
-    case None{}:
-      d
-    case Some{y}:
-      y
-
-# Some is one to one
-def mb.inj(+a: List<&2, U32>, -b: List<&2, U32>, e: {Some{a} == Some{b} : Maybe<&2, List<&2, U32>>}) ->
-  {a == b : List<&2, U32>}:
-  Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => mb.get(x, a), Some{a}, Some{b}, e)
-
-def mb.none(x: Maybe<&2, List<&2, U32>>) -> Type:
-  match x:
-    case None{}:
-      Unit
-    case Some{_}:
-      Empty
-
-# None is not Some
-def mb.ne(-o: List<&2, U32>, e: {None{} == Some{o} : Maybe<&2, List<&2, U32>>}) -> Empty:
-  %e : mb.none(_)
-  Unit{}
-
-# no steps from None
-def run.none(+j: Nat, +ds: List<&2, C.Def>) -> {C.Eval.run(j, ds, None{}) == None{} : Maybe<C.Term>}:
-  match j:
-    case 0n:
-      {==}
-    case 1n+p:
-      {==}
-
-# the result of a term that is no value is none
-def res.nv(+ds: List<&2, C.Def>, +t: C.Term, nv: {C.Eval.vals(ds, t, False{}) == False{} : Bool}) ->
-  {C.Program.result(ds, Some{t}) == None{} : Maybe<&2, List<&2, U32>>}:
-  %Equal.sym(Bool, C.Eval.vals(ds, t, False{}), False{}, nv) : {C.Program.result.if(_, t) == None{} : Maybe<&2, List<&2, U32>>}
-  {==}
-
-def st.none(x: Maybe<C.Term>) -> Type:
-  match x:
-    case None{}:
-      Unit
-    case Some{_}:
-      Empty
-
-# no step is not a step
-def st.ne(-u: C.Term, e: {None{} == Some{u} : Maybe<C.Term>}) -> Empty:
-  %e : st.none(_)
-  Unit{}
-
-# a term with a step is no value
-def vals.of(b: Bool, +ds: List<&2, C.Def>, +t: C.Term, -u: C.Term, eb: {C.Eval.vals(ds, t, False{}) == b : Bool},
-  es: {C.Eval.step(ds, t) == Some{u} : Maybe<C.Term>}) -> {C.Eval.vals(ds, t, False{}) == False{} : Bool}:
-  match b:
-    case False{}:
-      eb
-    case True{}:
-      Empty.absurd({C.Eval.vals(ds, t, False{}) == False{} : Bool},
-        st.ne(u, Equal.trans(Maybe<C.Term>, None{}, C.Eval.step(ds, t), Some{u},
-          Equal.sym(Maybe<C.Term>, C.Eval.step(ds, t), None{}, ev.stops(ds, t, eb)), es)))
 
 # The loop gives what Eval gives
 # ------------------------------
@@ -3247,3 +3830,81 @@ def mach.complete.proof(
     x => Or({x == C.Wasm.Outcome.result{o} : C.Wasm.Outcome}, {x == C.Wasm.Outcome.out_of_memory{} : C.Wasm.Outcome}),
     Inr{{==}},
     +kk => +len => +pg => +lim => +first => s => comp.of(k, p, ds, i, m, o, kk, len, pg, lim, first, rd, small, s, e))
+
+# Memory (mach.memory)
+# --------------------
+#
+# With the memory of INVARIANTS #4 the machine never runs out of memory, so
+# mach.complete's out-of-memory case cannot occur. What it needs:
+#
+#   1. a round takes a new cell (Cir alloc) only when the pend list is
+#      empty, and the cells of the machine's own (next - first) stay within
+#      Peak(t) of the term t of the round's state, or of an earlier one
+#      (round.peak): the live cells are the nodes of t, each at most once
+#      (a copy shares what it does not reach), and its frames, at most
+#      2 × |t|; a move takes at most |t| more for a while (a copy's new
+#      cells, M.data's checks, a walk's locals and arguments); about 2.5 ×
+#      S in all, which Peak rounds up to 3 × |t| + 2^16 (the cache of the
+#      input's bytes: 256 × 26 cells);
+#   2. the bytes: the image's k cells, k <= 363 + |p| / 2 (img.small's
+#      count), the input's |i| bytes after them, then 20 × Peak bytes of
+#      cells, then the output's bytes, |o| <= S: in all at most
+#      20 × (364 + |p| / 2) + |i| + 20 × (3 × S + 2^16) + |o|, which is at
+#      most 64 × (|p| + S) + 2^24 = Program.need (|i| <= S, as the input is
+#      in the first term); so Cir.result's alloc, every Cir alloc
+#      (Cir.room) and every emit find their pages (round.room), and
+#      next < 214748364 since need <= 2^32;
+#   3. then loop.done's out-of-memory cases are empty, and its Good is a
+#      halt with 0 (mach.memory.proof, from the parts of mach.complete).
+
+def St.lim(st: C.Cir.State) -> U32:
+  match st:
+    case C.Cir.State{_, _, _, _, _, _, lim, _, _, _}:
+      lim
+
+def St.first(st: C.Cir.State) -> U32:
+  match st:
+    case C.Cir.State{_, _, _, fi, _, _, _, _, _, _}:
+      fi
+
+# the machine's own cells of a state
+def Mem.cells(+st: C.Cir.State) -> Nat:
+  Nat.sub(U32.to_nat(St.next(st)), U32.to_nat(St.first(st)))
+
+# the most cells of the machine's own that a round from the term t needs
+def Peak(t: C.Term) -> Nat:
+  Nat.add(Nat.mul(3n, C.Term.size(t)), N.D(16n, 1n))
+
+# the run does not run out of memory
+def NoOom(o: C.Cir.Out) -> Data:
+  match o:
+    case C.Cir.Out.out_of_memory{}:
+      Empty
+    case _:
+      Unit
+
+# Open: a round keeps the machine's cells within the peak of its term
+def round.peak(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+  +st: C.Cir.State, +t: C.Term, +w: Nat, inv: Inv(ds, ks, img, st, t, w)) ->
+  Post(False{}, C.Cir.exec(f, B.body(), st), s => N.Le(Mem.cells(s), Nat.max(Mem.cells(st), Peak(t))), s => st2 => Unit):
+  ?TODO
+
+# Open: a round whose memory has room for the peak of its term, and for the
+# output, does not run out of memory
+def round.room(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+  +st: C.Cir.State, +t: C.Term, +w: Nat, inv: Inv(ds, ks, img, st, t, w),
+  room: N.Le(Nat.add(Nat.mul(20n, Nat.add(U32.to_nat(St.first(st)), Nat.max(Mem.cells(st), Peak(t)))), C.Term.size(t)),
+    U32.to_nat(U32.shln(C.Wasm.min(St.lim(st), 65536), 16n)))) ->
+  NoOom(C.Cir.exec(f, B.body(), st)):
+  ?TODO
+
+# B: with the memory of INVARIANTS #4, the machine gives the list of bytes
+# (open: from round.peak and round.room as above)
+def mach.memory.proof(
+  +p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m: U32, +k: Nat, +o: List<&2, U32>,
+  rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>},
+  small: {C.Img.small(p, 0) == True{} : Bool},
+  e: {C.Program.result(ds, C.Eval.steps(k, ds, C.Program.start(i))) == Some{o} : Maybe<&2, List<&2, U32>>},
+  big: {Nat.is_le(C.Program.need(p, i, k), C.Program.memory(m)) == True{} : Bool}
+) -> &n:Nat -> {C.Cir.result(n, C.Mach.code(), C.Mach.regs(), C.Img.cells(ds), i, m) == C.Wasm.Outcome.result{o} : C.Wasm.Outcome}:
+  ?TODO

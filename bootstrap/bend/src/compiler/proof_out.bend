@@ -1,3 +1,29 @@
+# compiler: M.out gives the bytes of the focus' term, for layer B
+# ===============================================================
+#
+# When the stack is empty and the focus is a value, the machine runs M.out:
+# it walks the value as a list of bytes, emits each byte and halts with 0, or
+# halts with 2 when the value is no list of bytes. out.run (and out.gives,
+# out.some, out.none) proves that it gives Program.unbytes(v), for the term v
+# of the focus' cell c (T.tm.of): a halt with 0 and the bytes out, a halt with
+# 2 when there are none, or out of memory (Gives).
+#
+# The proof has three layers, joined by readers of the same shape:
+#   - terms: U and Wd read a term as the machine does (V1, VL), one cell at a
+#     time; UE and WE prove that they read what Program.unbytes and
+#     Program.unword read;
+#   - cells: CB, GB, CW and Step read the cells by the machine's tests (Pm,
+#     Lm, LAST, ISLAB), CU a whole list; BB, WB and LB prove that they read
+#     what U and Wd read of the cells' terms, under ok (every cell that the
+#     walk reads is a cell the state lets the machine read, Ref and Enu have
+#     no pair or label term, and a label's number compares with the machine's
+#     names as its name does);
+#   - runs: MB (M.out.bit), ML and MWd (M.out.word), MCon (M.out.con), LO (the
+#     loop of M.out) and MOUT (M.out) run the statements on states ST, whose
+#     registers have an explicit spine (RG), so that reading and setting a
+#     register computes. Wp(o, K, H) says what the outcome may be; each test
+#     is split by CasesK, and the continuation kk gets what the reader read.
+
 import Base
 import ./impl.bend as C
 import ./proof_term.bend as T
@@ -3802,30 +3828,30 @@ def LO(+n: Nat, +F: Nat, +hF: PN.Le(Nat.add(n, 34n), F), +b: C.Cir.State, +c: U3
 def At(+k: Nat, +xs: List<&2, U32>) -> U32:
   Rg.hd(Rg.drop(k, xs))
 
-# M.out from a state whose focus register holds the cell c: the run halts as
-# CU says of the list of c, or runs out of memory
-def MOUT(+n: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>,
-  +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+# M.out from a state whose focus register holds the cell c, with fuel 1 + f
+# of n + 34 or more: the run halts as CU says of the list of c, or runs out
+# of memory
+def MOUT(+n: Nat, +f: Nat, +hF: PN.Le(Nat.add(n, 34n), 1n+f), +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
   +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
   +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
   +hok: {ok(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
-  Wp(C.Cir.exec(1n+Nat.add(n, 34n), C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), st => Empty,
+  Wp(C.Cir.exec(1n+f, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), st => Empty,
     s => st => Fin(CU(n, m, Step(m, c)), out, outn, s, st)):
   +b = {C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn} : C.Cir.State}
-  +N = Nat.add(n, 34n)
   +esp = Rg.sp_eq(64n, regs, PN.toLe(64n, List.length(&2, U32, regs), hlen))
   +ec = Equal.cong(Maybe<&2, U32>, U32, x => Maybe.default(&2, U32, x, 0), Some{Rg.hd(regs)}, Some{c},
     Equal.trans(Maybe<&2, U32>, Some{Rg.hd(regs)}, List.get(&2, U32, regs, 0n), Some{c},
       Equal.cong(List<&2, U32>, Maybe<&2, U32>, xs => List.get(&2, U32, xs, 0n), Rg.sp(regs), regs, esp), hreg))
   -K0 = {st => Empty : C.Cir.State -> Type}
   -H0 = {s => st => Fin(CU(n, m, Step(m, Rg.hd(regs))), out, outn, s, st) : U32 -> C.Cir.State -> Type}
-  %ec : Wp(C.Cir.exec(1n+N, C.M.out(), b), st => Empty, s => st => Fin(CU(n, m, Step(m, _)), out, outn, s, st))
-  %esp : Wp(C.Cir.exec(1n+N, C.M.out(), C.Cir.State{_, m, nx, fs, im, pg, lim, inp, out, outn}), K0, H0)
-  Wp.seq(N, C.M.set(C.R.oc(), C.M.g(C.R.focus())), C.M.do([WO()]), C.Cir.State{Rg.sp(regs), m, nx, fs, im, pg, lim, inp, out, outn}, K0, H0,
-    Wp.set(N, 45n, C.M.g(C.R.focus()), C.Cir.State{Rg.sp(regs), m, nx, fs, im, pg, lim, inp, out, outn},
-      t => Wp(C.Cir.exec(1n+N, C.M.do([WO()]), t), K0, H0), H0, Rg.hd(regs), {==},
-      Wp.seq(N, WO(), C.Cir.Stmt.nop{}, ST(b, Rg.hd(regs), At(46n, regs), At(47n, regs), At(48n, regs), At(62n, regs), At(63n, regs), pg, out, outn), K0, H0,
-        LO(n, 1n+N, PN.le_succ(N, N, PN.le_refl(N)), b, Rg.hd(regs), At(46n, regs), At(47n, regs), At(48n, regs), At(62n, regs), At(63n, regs),
+  %ec : Wp(C.Cir.exec(1n+f, C.M.out(), b), st => Empty, s => st => Fin(CU(n, m, Step(m, _)), out, outn, s, st))
+  %esp : Wp(C.Cir.exec(1n+f, C.M.out(), C.Cir.State{_, m, nx, fs, im, pg, lim, inp, out, outn}), K0, H0)
+  Wp.seq(f, C.M.set(C.R.oc(), C.M.g(C.R.focus())), C.M.do([WO()]), C.Cir.State{Rg.sp(regs), m, nx, fs, im, pg, lim, inp, out, outn}, K0, H0,
+    Wp.set(f, 45n, C.M.g(C.R.focus()), C.Cir.State{Rg.sp(regs), m, nx, fs, im, pg, lim, inp, out, outn},
+      t => Wp(C.Cir.exec(1n+f, C.M.do([WO()]), t), K0, H0), H0, Rg.hd(regs), {==},
+      Wp.seq(f, WO(), C.Cir.Stmt.nop{}, ST(b, Rg.hd(regs), At(46n, regs), At(47n, regs), At(48n, regs), At(62n, regs), At(63n, regs), pg, out, outn), K0, H0,
+        LO(n, 1n+f, hF, b, Rg.hd(regs), At(46n, regs), At(47n, regs), At(48n, regs), At(62n, regs), At(63n, regs),
           pg, out, outn, ks, img,
           Tr(U32, x => {ok(n, m, ks, img, x, im, fs, nx) == True{} : Bool}, c, Rg.hd(regs), Equal.sym(U32, Rg.hd(regs), c, ec), hok)))))
 
@@ -4764,3 +4790,1204 @@ def WE(+p: Nat, +t: C.Term) -> {C.Program.unword(p, t) == Wd(p, t) : Maybe<&2, W
     case 1n+q:
       WE1(q, t)
 
+
+# The term of a word is the word that CW reads
+# ---------------------------------------------
+
+def W0z_eq(x: Bool) -> {C.Program.unword.nil(x) == CW0.z(x) : Maybe<&2, Word(0n)>}:
+  match x:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def WB0.u2(+k: List<&2, U32>, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +hok3: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +eL: {Lm(m, Fd(3n, m, c)) == True{} : Bool},
+  +ek: {T.tm.name(ks, Fd(2n, m, Fd(3n, m, c))) == Some{k} : Maybe<&2, List<&2, U32>>}) ->
+  {W0.z(Some{k}) == CW0.z(U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0)) : Maybe<&2, Word(0n)>}:
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.unit()), U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0), kn0(Fd(2n, m, Fd(3n, m, c)), k, LK(g, m, ks, img, Fd(3n, m, c), im, fs, nx, hok3, eL, k, ek))) :
+    {C.Program.unword.nil(_) == CW0.z(U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0)) : Maybe<&2, Word(0n)>}
+  W0z_eq(U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0))
+
+def WB0.u(bu: Bool, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +hok3: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +e: {Lm(m, Fd(3n, m, c)) == bu : Bool}) ->
+  SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), z => {W0.z(VL(z)) == CW0.z(Bool.and(bu, U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0))) : Maybe<&2, Word(0n)>}):
+  match bu:
+    case False{}:
+      cellNotL(g, m, ks, img, Fd(3n, m, c), im, fs, nx, z => {W0.z(VL(z)) == CW0.z(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0))) : Maybe<&2, Word(0n)>}, e, hok3,
+        v => ev => Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, Word(0n)>, mm => W0.z(mm), VL(v), None{}, ev))
+    case True{}:
+      cellLab(g, m, ks, img, Fd(3n, m, c), z => {W0.z(VL(z)) == CW0.z(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0))) : Maybe<&2, Word(0n)>}, e,
+        k => ek => WB0.u2(k, g, m, ks, img, c, im, fs, nx, hok3, e, ek))
+
+def WB0.k(bk: Bool, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +hok3: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}) ->
+  SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), z => {W0.k(bk, z) == CW0.l(bk, m, c) : Maybe<&2, Word(0n)>}):
+  match bk:
+    case False{}:
+      SpecM.all(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), z => {W0.k(False{}, z) == CW0.l(False{}, m, c) : Maybe<&2, Word(0n)>}, z => {==})
+    case True{}:
+      WB0.u(Lm(m, Fd(3n, m, c)), g, m, ks, img, c, im, fs, nx, hok3, {==})
+
+def WB0.k0(+k: List<&2, U32>, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +hok2: {ok(1n+g, m, ks, img, Fd(2n, m, c), im, fs, nx) == True{} : Bool}, +hok3: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool},
+  +eL: {Lm(m, Fd(2n, m, c)) == True{} : Bool}, +ek: {T.tm.name(ks, Fd(2n, m, Fd(2n, m, c))) == Some{k} : Maybe<&2, List<&2, U32>>}) ->
+  SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), z => {W0.a(Some{k}, z) == CW0.l(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 4)), m, c) : Maybe<&2, Word(0n)>}):
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.wnil()), U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 4), kn4(Fd(2n, m, Fd(2n, m, c)), k, LK(g, m, ks, img, Fd(2n, m, c), im, fs, nx, hok2, eL, k, ek))) :
+    SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), z => {W0.k(_, z) == CW0.l(U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 4), m, c) : Maybe<&2, Word(0n)>})
+  WB0.k(U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 4), g, m, ks, img, c, im, fs, nx, hok3)
+
+def WB0.l(bl: Bool, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +hok2: {ok(1n+g, m, ks, img, Fd(2n, m, c), im, fs, nx) == True{} : Bool}, +hok3: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool},
+  +e: {Lm(m, Fd(2n, m, c)) == bl : Bool}) ->
+  SpecM(T.tm.of(1n+g, m, ks, img, Fd(2n, m, c)), a => SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)),
+    z => {W0.a(VL(a), z) == CW0.l(Bool.and(bl, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 4)), m, c) : Maybe<&2, Word(0n)>})):
+  match bl:
+    case False{}:
+      cellNotL(g, m, ks, img, Fd(2n, m, c), im, fs, nx, a => SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)),
+        z => {W0.a(VL(a), z) == CW0.l(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 4)), m, c) : Maybe<&2, Word(0n)>}), e, hok2,
+        v => ev => SpecM.all(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)),
+          z => {W0.a(VL(v), z) == CW0.l(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 4)), m, c) : Maybe<&2, Word(0n)>},
+          z => Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, Word(0n)>, mm => W0.a(mm, z), VL(v), None{}, ev)))
+    case True{}:
+      cellLab(g, m, ks, img, Fd(2n, m, c), a => SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)),
+        z => {W0.a(VL(a), z) == CW0.l(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 4)), m, c) : Maybe<&2, Word(0n)>}), e,
+        k => ek => WB0.k0(k, g, m, ks, img, c, im, fs, nx, hok2, hok3, e, ek))
+
+def WB0.p(b: Bool, +f: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +hok: {ok(1n+f, m, ks, img, c, im, fs, nx) == True{} : Bool}, +eb: {Pm(m, c) == b : Bool}) ->
+  SpecM(T.tm.of(1n+f, m, ks, img, c), t => {W0.r(V1(t)) == CW0.p(b, m, c) : Maybe<&2, Word(0n)>}):
+  match b:
+    case False{}:
+      cellNotT1(f, m, ks, img, c, im, fs, nx, t => {W0.r(V1(t)) == CW0.p(False{}, m, c) : Maybe<&2, Word(0n)>}, eb, hok,
+        v => ev => Equal.cong(Maybe<&2, TP>, Maybe<&2, Word(0n)>, mm => W0.r(mm), V1(v), None{}, ev))
+    case True{}:
+      match f:
+        case 0n:
+          cellT1(0n, m, ks, img, c, t => {W0.r(V1(t)) == CW0.p(True{}, m, c) : Maybe<&2, Word(0n)>}, eb, Unit{})
+        case 1n+g:
+          cellT1(1n+g, m, ks, img, c, t => {W0.r(V1(t)) == CW0.p(True{}, m, c) : Maybe<&2, Word(0n)>}, eb,
+            WB0.l(Lm(m, Fd(2n, m, c)), g, m, ks, img, c, im, fs, nx, ok.l(1n+g, m, ks, img, c, im, fs, nx, hok, eb),
+              ok.r(1n+g, m, ks, img, c, im, fs, nx, hok, eb), {==}))
+
+# the term of the cell c, a word of no bits, is what CW reads
+def WB0(+fw: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +hok: {ok(fw, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  SpecM(T.tm.of(fw, m, ks, img, c), t => {Wd(0n, t) == CW(0n, m, c) : Maybe<&2, Word(0n)>}):
+  match fw:
+    case 0n:
+      Empty.absurd(SpecM(T.tm.of(0n, m, ks, img, c), t => {Wd(0n, t) == CW(0n, m, c) : Maybe<&2, Word(0n)>}), ok.zero(m, ks, img, c, im, fs, nx, hok))
+    case 1n+f:
+      WB0.p(Pm(m, c), f, m, ks, img, c, im, fs, nx, hok, {==})
+
+# the claim of WB for the word of q bits after a bit
+def WB.IH(+q: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +im: U32, +fs: U32, +nx: U32) -> Type:
+  @fw2: Nat -> @c2: U32 -> {ok(fw2, m, ks, img, c2, im, fs, nx) == True{} : Bool} ->
+    SpecM(T.tm.of(fw2, m, ks, img, c2), w => {C.Program.unword(q, w) == CW(q, m, c2) : Maybe<&2, Word(q)>})
+
+def WB1.u(bu: Bool, +q: Nat, +x: Bool, +i: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokn: {ok(1n+i, m, ks, img, CW.next(m, c), im, fs, nx) == True{} : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {W1.u(q, x, bu, w) == W1.g(q, GB.z(x, bu), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  match bu:
+    case False{}:
+      SpecM.all(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {W1.u(q, x, False{}, w) == W1.g(q, GB.z(x, False{}), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, w => {==})
+    case True{}:
+      SpecM.map(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {C.Program.unword(q, w) == CW(q, m, CW.next(m, c)) : Maybe<&2, Word(q)>},
+        w => {W1.u(q, x, True{}, w) == W1.g(q, GB.z(x, True{}), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, ih(1n+i, CW.next(m, c), hokn),
+        w => e => Equal.cong(Maybe<&2, Word(q)>, Maybe<&2, Word(1n+q)>, mw => W1.w(q, x, mw), C.Program.unword(q, w), CW(q, m, CW.next(m, c)), e))
+
+def WB1.u0(+k: List<&2, U32>, +q: Nat, +x: Bool, +i: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokz: {ok(1n+i, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokn: {ok(1n+i, m, ks, img, CW.next(m, c), im, fs, nx) == True{} : Bool},
+  +eL: {Lm(m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))) == True{} : Bool}, +ek: {T.tm.name(ks, Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))))) == Some{k} : Maybe<&2, List<&2, U32>>}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {W1.z(q, x, w, Some{k}) == W1.g(q, GB.z(x, Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.unit()), U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0), kn0(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), k, LK(i, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx, hokz, eL, k, ek))) :
+    SpecM(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {W1.u(q, x, _, w) == W1.g(q, GB.z(x, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>})
+  WB1.u(U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0), q, x, i, m, ks, img, c, im, fs, nx, hokn, ih)
+
+def WB1.z(bz: Bool, +q: Nat, +x: Bool, +i: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokz: {ok(1n+i, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokn: {ok(1n+i, m, ks, img, CW.next(m, c), im, fs, nx) == True{} : Bool},
+  +e: {Lm(m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))) == bz : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+i, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), z => SpecM(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {W1.z(q, x, w, VL(z)) == W1.g(q, GB.z(x, Bool.and(bz, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>})):
+  match bz:
+    case False{}:
+      cellNotL(i, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx, z => SpecM(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {W1.z(q, x, w, VL(z)) == W1.g(q, GB.z(x, Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}),
+        e, hokz, v => ev => SpecM.all(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {W1.z(q, x, w, VL(v)) == W1.g(q, GB.z(x, Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>},
+          w => Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, Word(1n+q)>, mm => W1.z(q, x, w, mm), VL(v), None{}, ev)))
+    case True{}:
+      cellLab(i, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), z => SpecM(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), w => {W1.z(q, x, w, VL(z)) == W1.g(q, GB.z(x, Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}),
+        e, k => ek => WB1.u0(k, q, x, i, m, ks, img, c, im, fs, nx, hokz, hokn, e, ek, ih))
+
+def WB1.r(br: Bool, +q: Nat, +x: Bool, +h: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokr: {ok(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx) == True{} : Bool}, +e: {Pm(m, Fd(3n, m, Fd(3n, m, c))) == br : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c))), r => {W1.r2(q, x, V1(r)) == W1.g(q, GB.r(x, br, m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  match br:
+    case False{}:
+      cellNotT1(h, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx, r => {W1.r2(q, x, V1(r)) == W1.g(q, GB.r(x, False{}, m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, e, hokr,
+        v => ev => Equal.cong(Maybe<&2, TP>, Maybe<&2, Word(1n+q)>, mm => W1.r2(q, x, mm), V1(v), None{}, ev))
+    case True{}:
+      match h:
+        case 0n:
+          cellT1(0n, m, ks, img, Fd(3n, m, Fd(3n, m, c)), r => {W1.r2(q, x, V1(r)) == W1.g(q, GB.r(x, True{}, m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, e, Unit{})
+        case 1n+i:
+          cellT1(1n+i, m, ks, img, Fd(3n, m, Fd(3n, m, c)), r => {W1.r2(q, x, V1(r)) == W1.g(q, GB.r(x, True{}, m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, e,
+            SpecM.swap(T.tm.of(1n+i, m, ks, img, CW.next(m, c)), T.tm.of(1n+i, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), w => z => {W1.r2(q, x, V1(C.Term.Tup{C.Quan.Q1{}, w, z})) == W1.g(q, GB.r(x, True{}, m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>},
+              WB1.z(Lm(m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), q, x, i, m, ks, img, c, im, fs, nx, ok.r(1n+i, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx, hokr, e), ok.l(1n+i, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx, hokr, e), {==}, ih)))
+
+def WB1.b(mb: Maybe<&2, Bool>, +q: Nat, +h: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokr: {ok(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx) == True{} : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c))), r => {W1.b(q, mb, r) == W1.g(q, GB.b(mb, m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  match mb:
+    case None{}:
+      SpecM.all(T.tm.of(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c))), r => {W1.b(q, None{}, r) == W1.g(q, GB.b(None{}, m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, r => {==})
+    case Some{x}:
+      WB1.r(Pm(m, Fd(3n, m, Fd(3n, m, c))), q, x, h, m, ks, img, c, im, fs, nx, hokr, {==}, ih)
+
+def WB1.bt(+q: Nat, -bt: C.Term, +h: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +eub: {Ub(bt) == CB(m, Fd(2n, m, Fd(3n, m, c))) : Maybe<&2, Bool>},
+  x: SpecM(T.tm.of(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c))), r => {W1.b(q, CB(m, Fd(2n, m, Fd(3n, m, c))), r) == W1.g(q, GB.b(CB(m, Fd(2n, m, Fd(3n, m, c))), m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>})) ->
+  SpecM(T.tm.of(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c))), r => {W1.b(q, Ub(bt), r) == W1.g(q, GB.b(CB(m, Fd(2n, m, Fd(3n, m, c))), m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  %Equal.sym(Maybe<&2, Bool>, Ub(bt), CB(m, Fd(2n, m, Fd(3n, m, c))), eub) :
+    SpecM(T.tm.of(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c))), r => {W1.b(q, _, r) == W1.g(q, GB.b(CB(m, Fd(2n, m, Fd(3n, m, c))), m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>})
+  x
+
+def WB1.f(bf: Bool, +q: Nat, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokf: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +e: {Pm(m, Fd(3n, m, c)) == bf : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.f(q, V1(fv)) == W1.g(q, GB.f(bf, m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  match bf:
+    case False{}:
+      cellNotT1(g, m, ks, img, Fd(3n, m, c), im, fs, nx, fv => {W1.f(q, V1(fv)) == W1.g(q, GB.f(False{}, m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, e, hokf,
+        v => ev => Equal.cong(Maybe<&2, TP>, Maybe<&2, Word(1n+q)>, mm => W1.f(q, mm), V1(v), None{}, ev))
+    case True{}:
+      match g:
+        case 0n:
+          cellT1(0n, m, ks, img, Fd(3n, m, c), fv => {W1.f(q, V1(fv)) == W1.g(q, GB.f(True{}, m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, e, Unit{})
+        case 1n+h:
+          cellT1(1n+h, m, ks, img, Fd(3n, m, c), fv => {W1.f(q, V1(fv)) == W1.g(q, GB.f(True{}, m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, e,
+            SpecM.map(T.tm.of(1n+h, m, ks, img, Fd(2n, m, Fd(3n, m, c))), bt => {Ub(bt) == CB(m, Fd(2n, m, Fd(3n, m, c))) : Maybe<&2, Bool>},
+              bt => SpecM(T.tm.of(1n+h, m, ks, img, Fd(3n, m, Fd(3n, m, c))), r => {W1.b(q, Ub(bt), r) == W1.g(q, GB.b(CB(m, Fd(2n, m, Fd(3n, m, c))), m, Fd(3n, m, Fd(3n, m, c))), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}),
+              BB(1n+h, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx, ok.l(1n+h, m, ks, img, Fd(3n, m, c), im, fs, nx, hokf, e)),
+              bt => eub => WB1.bt(q, bt, h, m, ks, img, c, im, fs, nx, eub, WB1.b(CB(m, Fd(2n, m, Fd(3n, m, c))), q, h, m, ks, img, c, im, fs, nx, ok.r(1n+h, m, ks, img, Fd(3n, m, c), im, fs, nx, hokf, e), ih))))
+
+def WB1.k(bk: Bool, +q: Nat, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokf: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.k(q, bk, fv) == W1.g(q, GB.l(bk, m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  match bk:
+    case False{}:
+      SpecM.all(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.k(q, False{}, fv) == W1.g(q, GB.l(False{}, m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, fv => {==})
+    case True{}:
+      WB1.f(Pm(m, Fd(3n, m, c)), q, g, m, ks, img, c, im, fs, nx, hokf, {==}, ih)
+
+def WB1.k0(+k: List<&2, U32>, +q: Nat, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok2: {ok(1n+g, m, ks, img, Fd(2n, m, c), im, fs, nx) == True{} : Bool}, +hokf: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool},
+  +eL: {Lm(m, Fd(2n, m, c)) == True{} : Bool}, +ek: {T.tm.name(ks, Fd(2n, m, Fd(2n, m, c))) == Some{k} : Maybe<&2, List<&2, U32>>}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.a(q, Some{k}, fv) == W1.g(q, GB.l(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 5)), m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.wcon()), U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 5), kn5(Fd(2n, m, Fd(2n, m, c)), k, LK(g, m, ks, img, Fd(2n, m, c), im, fs, nx, hok2, eL, k, ek))) :
+    SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.k(q, _, fv) == W1.g(q, GB.l(U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 5), m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>})
+  WB1.k(U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 5), q, g, m, ks, img, c, im, fs, nx, hokf, ih)
+
+def WB1.l(bl: Bool, +q: Nat, +g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok2: {ok(1n+g, m, ks, img, Fd(2n, m, c), im, fs, nx) == True{} : Bool}, +hokf: {ok(1n+g, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +e: {Lm(m, Fd(2n, m, c)) == bl : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+g, m, ks, img, Fd(2n, m, c)), a => SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.a(q, VL(a), fv) == W1.g(q, GB.l(Bool.and(bl, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 5)), m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>})):
+  match bl:
+    case False{}:
+      cellNotL(g, m, ks, img, Fd(2n, m, c), im, fs, nx, a => SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.a(q, VL(a), fv) == W1.g(q, GB.l(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 5)), m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}),
+        e, hok2, v => ev => SpecM.all(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.a(q, VL(v), fv) == W1.g(q, GB.l(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 5)), m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>},
+          fv => Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, Word(1n+q)>, mm => W1.a(q, mm, fv), VL(v), None{}, ev)))
+    case True{}:
+      cellLab(g, m, ks, img, Fd(2n, m, c), a => SpecM(T.tm.of(1n+g, m, ks, img, Fd(3n, m, c)), fv => {W1.a(q, VL(a), fv) == W1.g(q, GB.l(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 5)), m, Fd(3n, m, c)), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}),
+        e, k => ek => WB1.k0(k, q, g, m, ks, img, c, im, fs, nx, hok2, hokf, e, ek, ih))
+
+def WB1.p(b: Bool, +q: Nat, +f: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok: {ok(1n+f, m, ks, img, c, im, fs, nx) == True{} : Bool}, +eb: {Pm(m, c) == b : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+f, m, ks, img, c), t => {W1.r(q, V1(t)) == W1.g(q, GB.p(b, m, c), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}):
+  match b:
+    case False{}:
+      cellNotT1(f, m, ks, img, c, im, fs, nx, t => {W1.r(q, V1(t)) == W1.g(q, GB.p(False{}, m, c), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, eb, hok,
+        v => ev => Equal.cong(Maybe<&2, TP>, Maybe<&2, Word(1n+q)>, mm => W1.r(q, mm), V1(v), None{}, ev))
+    case True{}:
+      match f:
+        case 0n:
+          cellT1(0n, m, ks, img, c, t => {W1.r(q, V1(t)) == W1.g(q, GB.p(True{}, m, c), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, eb, Unit{})
+        case 1n+g:
+          cellT1(1n+g, m, ks, img, c, t => {W1.r(q, V1(t)) == W1.g(q, GB.p(True{}, m, c), CW(q, m, CW.next(m, c))) : Maybe<&2, Word(1n+q)>}, eb,
+            WB1.l(Lm(m, Fd(2n, m, c)), q, g, m, ks, img, c, im, fs, nx, ok.l(1n+g, m, ks, img, c, im, fs, nx, hok, eb), ok.r(1n+g, m, ks, img, c, im, fs, nx, hok, eb), {==}, ih))
+
+def WB1(+q: Nat, +fw: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok: {ok(fw, m, ks, img, c, im, fs, nx) == True{} : Bool}, ih: WB.IH(q, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(fw, m, ks, img, c), t => {Wd(1n+q, t) == CW(1n+q, m, c) : Maybe<&2, Word(1n+q)>}):
+  match fw:
+    case 0n:
+      Empty.absurd(SpecM(T.tm.of(0n, m, ks, img, c), t => {Wd(1n+q, t) == CW(1n+q, m, c) : Maybe<&2, Word(1n+q)>}), ok.zero(m, ks, img, c, im, fs, nx, hok))
+    case 1n+f:
+      WB1.p(Pm(m, c), q, f, m, ks, img, c, im, fs, nx, hok, {==}, ih)
+
+# the term of the cell c, a word of p bits, is the word that CW reads
+def WB(+p: Nat, +fw: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok: {ok(fw, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  SpecM(T.tm.of(fw, m, ks, img, c), t => {C.Program.unword(p, t) == CW(p, m, c) : Maybe<&2, Word(p)>}):
+  match p:
+    case 0n:
+      SpecM.map(T.tm.of(fw, m, ks, img, c), t => {Wd(0n, t) == CW(0n, m, c) : Maybe<&2, Word(0n)>}, t => {C.Program.unword(0n, t) == CW(0n, m, c) : Maybe<&2, Word(0n)>},
+        WB0(fw, m, ks, img, c, im, fs, nx, hok), t => e => Equal.trans(Maybe<&2, Word(0n)>, C.Program.unword(0n, t), Wd(0n, t), CW(0n, m, c), WE0(t), e))
+    case 1n+q:
+      SpecM.map(T.tm.of(fw, m, ks, img, c), t => {Wd(1n+q, t) == CW(1n+q, m, c) : Maybe<&2, Word(1n+q)>}, t => {C.Program.unword(1n+q, t) == CW(1n+q, m, c) : Maybe<&2, Word(1n+q)>},
+        WB1(q, fw, m, ks, img, c, im, fs, nx, hok, fw2 => c2 => h2 => WB(q, fw2, m, ks, img, c2, im, fs, nx, h2)),
+        t => e => Equal.trans(Maybe<&2, Word(1n+q)>, C.Program.unword(1n+q, t), Wd(1n+q, t), CW(1n+q, m, c), WE1(q, t), e))
+
+# The term of a list is the list that CU reads
+# --------------------------------------------
+
+# the claim of LB for the rest of a list
+def LB.IH(+k: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +im: U32, +fs: U32, +nx: U32) -> Type:
+  @rc2: U32 -> {ok(k, m, ks, img, rc2, im, fs, nx) == True{} : Bool} ->
+    SpecM(T.tm.of(k, m, ks, img, rc2), t => {C.Program.unbytes(t) == CU(k, m, Step(m, rc2)) : Maybe<&2, List<&2, U32>>})
+
+def LB.c11(lt: Bool, +v: U32, +a4: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokr: {ok(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, ih: LB.IH(2n+a4, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c11(lt, v, C.Program.unbytes(rest)) == CU(5n+a4, m, S.c8(lt, v, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}):
+  match lt:
+    case False{}:
+      SpecM.all(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c11(False{}, v, C.Program.unbytes(rest)) == CU(5n+a4, m, S.c8(False{}, v, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}, rest => Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+4n+a4, m, SR.done{None{}}), None{}, CUd(4n+a4, m, None{})))
+    case True{}:
+      SpecM.map(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {C.Program.unbytes(rest) == CU(2n+a4, m, Step(m, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>},
+        rest => {U.c11(True{}, v, C.Program.unbytes(rest)) == CU(5n+a4, m, S.c8(True{}, v, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}, ih(Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), hokr),
+        rest => e => Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, List<&2, U32>>, mr => U.c12(v, mr), C.Program.unbytes(rest), CU(2n+a4, m, Step(m, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))), e))
+
+def LB.c10(mw: Maybe<&2, Word(32n)>, +a4: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokr: {ok(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, ih: LB.IH(2n+a4, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c10(mw, rest) == CU(5n+a4, m, S.c7(mw, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}):
+  match mw:
+    case None{}:
+      SpecM.all(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c10(None{}, rest) == CU(5n+a4, m, S.c7(None{}, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}, rest => Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+4n+a4, m, SR.done{None{}}), None{}, CUd(4n+a4, m, None{})))
+    case Some{+x}:
+      LB.c11(U32.is_lt(U32{x}, 256), U32{x}, a4, m, ks, img, c, im, fs, nx, hokr, ih)
+
+def LB.c9w(-w: C.Term, +a4: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +ew: {C.Program.unword(32n, w) == CW(32n, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))) : Maybe<&2, Word(32n)>},
+  x: SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c10(CW(32n, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), rest) == CU(5n+a4, m, S.c7(CW(32n, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})) ->
+  SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c10(C.Program.unword(32n, w), rest) == CU(5n+a4, m, S.c7(CW(32n, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}):
+  %Equal.sym(Maybe<&2, Word(32n)>, C.Program.unword(32n, w), CW(32n, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), ew) :
+    SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c10(_, rest) == CU(5n+a4, m, S.c7(CW(32n, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})
+  x
+
+def LB.c9(bu: Bool, +a4: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokwc: {ok(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), im, fs, nx) == True{} : Bool}, +hokr: {ok(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, ih: LB.IH(2n+a4, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c9(bu, w, rest) == CU(5n+a4, m, S.c6(bu, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})):
+  match bu:
+    case False{}:
+      SpecM.all(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c9(False{}, w, rest) == CU(5n+a4, m, S.c6(False{}, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}),
+        w => SpecM.all(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c9(False{}, w, rest) == CU(5n+a4, m, S.c6(False{}, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}, rest => Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+4n+a4, m, SR.done{None{}}), None{}, CUd(4n+a4, m, None{}))))
+    case True{}:
+      SpecM.map(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => {C.Program.unword(32n, w) == CW(32n, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))) : Maybe<&2, Word(32n)>},
+        w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c9(True{}, w, rest) == CU(5n+a4, m, S.c6(True{}, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}),
+        WB(32n, 1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), im, fs, nx, hokwc),
+        w => ew => LB.c9w(w, a4, m, ks, img, c, im, fs, nx, ew, LB.c10(CW(32n, m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), a4, m, ks, img, c, im, fs, nx, hokr, ih)))
+
+def LB.c8k(+k: List<&2, U32>, +a4: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokwc: {ok(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), im, fs, nx) == True{} : Bool}, +hokz: {ok(1n+a4, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), im, fs, nx) == True{} : Bool}, +hokr: {ok(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool},
+  +eL: {Lm(m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))) == True{} : Bool}, +ek: {T.tm.name(ks, Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))))) == Some{k} : Maybe<&2, List<&2, U32>>}, ih: LB.IH(2n+a4, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c8(Some{k}, w, rest) == CU(5n+a4, m, S.c6(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0)), m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})):
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.unit()), U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0), kn0(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), k, LK(a4, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), im, fs, nx, hokz, eL, k, ek))) :
+    SpecM(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c9(_, w, rest) == CU(5n+a4, m, S.c6(U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0), m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}))
+  LB.c9(U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0), a4, m, ks, img, c, im, fs, nx, hokwc, hokr, ih)
+
+def LB.c8(bz: Bool, +a4: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokwc: {ok(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), im, fs, nx) == True{} : Bool}, +hokz: {ok(1n+a4, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), im, fs, nx) == True{} : Bool}, +hokr: {ok(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool},
+  +e: {Lm(m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))) == bz : Bool}, ih: LB.IH(2n+a4, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a4, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), l1 => SpecM(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest =>
+    {U.c8(VL(l1), w, rest) == CU(5n+a4, m, S.c6(Bool.and(bz, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0)), m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}))):
+  match bz:
+    case False{}:
+      cellNotL(a4, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), im, fs, nx, l1 => SpecM(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest =>
+          {U.c8(VL(l1), w, rest) == CU(5n+a4, m, S.c6(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0)), m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})), e, hokz,
+        v => ev => SpecM.all(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest =>
+            {U.c8(VL(v), w, rest) == CU(5n+a4, m, S.c6(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0)), m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}),
+          w => SpecM.all(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c8(VL(v), w, rest) == CU(5n+a4, m, S.c6(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0)), m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>},
+            rest => Equal.trans(Maybe<&2, List<&2, U32>>, U.c8(VL(v), w, rest), None{}, CU(5n+a4, m, SR.done{None{}}), Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, List<&2, U32>>, mm => U.c8(mm, w, rest), VL(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+4n+a4, m, SR.done{None{}}), None{}, CUd(4n+a4, m, None{}))))))
+    case True{}:
+      cellLab(a4, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), l1 => SpecM(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), w => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest =>
+          {U.c8(VL(l1), w, rest) == CU(5n+a4, m, S.c6(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), 0)), m, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})), e,
+        k => ek => LB.c8k(k, a4, m, ks, img, c, im, fs, nx, hokwc, hokz, hokr, e, ek, ih))
+
+def LB.c7(bw: Bool, +a3: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokw: {ok(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokr: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +e: {Pm(m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))) == bw : Bool}, ih: LB.IH(1n+a3, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c7(V1(wt), rest) == CU(4n+a3, m, S.c5(bw, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})):
+  match bw:
+    case False{}:
+      cellNotT1(a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx, wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c7(V1(wt), rest) == CU(4n+a3, m, S.c5(False{}, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}), e, hokw,
+        v => ev => SpecM.all(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c7(V1(v), rest) == CU(4n+a3, m, S.c5(False{}, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>},
+          rest => Equal.trans(Maybe<&2, List<&2, U32>>, U.c7(V1(v), rest), None{}, CU(4n+a3, m, SR.done{None{}}), Equal.cong(Maybe<&2, TP>, Maybe<&2, List<&2, U32>>, mm => U.c7(mm, rest), V1(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+3n+a3, m, SR.done{None{}}), None{}, CUd(3n+a3, m, None{})))))
+    case True{}:
+      match a3:
+        case 0n:
+          cellT1(0n, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), wt => SpecM(T.tm.of(1n+0n, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c7(V1(wt), rest) == CU(4n, m, S.c5(True{}, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}), e, Unit{})
+        case 1n+a4:
+          cellT1(1n+a4, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), wt => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c7(V1(wt), rest) == CU(5n+a4, m, S.c5(True{}, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}), e,
+            SpecM.swap(T.tm.of(1n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), T.tm.of(1n+a4, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))),
+              w => l1 => SpecM(T.tm.of(2n+a4, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c7(V1(C.Term.Tup{C.Quan.Q1{}, w, l1}), rest) == CU(5n+a4, m, S.c5(True{}, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}),
+              LB.c8(Lm(m, Fd(3n, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))))), a4, m, ks, img, c, im, fs, nx, ok.l(1n+a4, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx, hokw, e), ok.r(1n+a4, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx, hokw, e), hokr, {==}, ih)))
+
+def LB.c6(bu: Bool, +a3: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokw: {ok(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokr: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, ih: LB.IH(1n+a3, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c6(bu, wt, rest) == CU(4n+a3, m, S.c4(bu, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})):
+  match bu:
+    case False{}:
+      SpecM.all(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c6(False{}, wt, rest) == CU(4n+a3, m, S.c4(False{}, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}),
+        wt => SpecM.all(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c6(False{}, wt, rest) == CU(4n+a3, m, S.c4(False{}, m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}, rest => Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+3n+a3, m, SR.done{None{}}), None{}, CUd(3n+a3, m, None{}))))
+    case True{}:
+      LB.c7(Pm(m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), a3, m, ks, img, c, im, fs, nx, hokw, hokr, {==}, ih)
+
+def LB.c5k(+k: List<&2, U32>, +a3: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokl: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokw: {ok(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokr: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool},
+  +eL: {Lm(m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))) == True{} : Bool}, +ek: {T.tm.name(ks, Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c))))) == Some{k} : Maybe<&2, List<&2, U32>>}, ih: LB.IH(1n+a3, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c5(Some{k}, wt, rest) == CU(4n+a3, m, S.c4(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3)), m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})):
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.u32()), U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3), kn3(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), k, LK(a3, m, ks, img, Fd(2n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx, hokl, eL, k, ek))) :
+    SpecM(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c6(_, wt, rest) == CU(4n+a3, m, S.c4(U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3), m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}))
+  LB.c6(U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3), a3, m, ks, img, c, im, fs, nx, hokw, hokr, ih)
+
+def LB.c5(bl: Bool, +a3: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokl: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokw: {ok(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokr: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool},
+  +e: {Lm(m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))) == bl : Bool}, ih: LB.IH(1n+a3, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), cl => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest =>
+    {U.c5(VL(cl), wt, rest) == CU(4n+a3, m, S.c4(Bool.and(bl, U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3)), m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}))):
+  match bl:
+    case False{}:
+      cellNotL(a3, m, ks, img, Fd(2n, m, Fd(2n, m, Fd(3n, m, c))), im, fs, nx, cl => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest =>
+          {U.c5(VL(cl), wt, rest) == CU(4n+a3, m, S.c4(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3)), m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})), e, hokl,
+        v => ev => SpecM.all(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest =>
+            {U.c5(VL(v), wt, rest) == CU(4n+a3, m, S.c4(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3)), m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}),
+          wt => SpecM.all(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c5(VL(v), wt, rest) == CU(4n+a3, m, S.c4(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3)), m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>},
+            rest => Equal.trans(Maybe<&2, List<&2, U32>>, U.c5(VL(v), wt, rest), None{}, CU(4n+a3, m, SR.done{None{}}), Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, List<&2, U32>>, mm => U.c5(mm, wt, rest), VL(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+3n+a3, m, SR.done{None{}}), None{}, CUd(3n+a3, m, None{}))))))
+    case True{}:
+      cellLab(a3, m, ks, img, Fd(2n, m, Fd(2n, m, Fd(3n, m, c))), cl => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(2n, m, Fd(3n, m, c)))), wt => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest =>
+          {U.c5(VL(cl), wt, rest) == CU(4n+a3, m, S.c4(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), 3)), m, Fd(3n, m, Fd(2n, m, Fd(3n, m, c))), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})), e,
+        k => ek => LB.c5k(k, a3, m, ks, img, c, im, fs, nx, hokl, hokw, hokr, e, ek, ih))
+
+def LB.c4(bx: Bool, +a3: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokx: {ok(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx) == True{} : Bool}, +hokr: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +e: {Pm(m, Fd(2n, m, Fd(3n, m, c))) == bx : Bool}, ih: LB.IH(1n+a3, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c4(V1(x), rest) == CU(4n+a3, m, S.c3(bx, m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})):
+  match bx:
+    case False{}:
+      cellNotT1(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx, x => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c4(V1(x), rest) == CU(4n+a3, m, S.c3(False{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}), e, hokx,
+        v => ev => SpecM.all(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c4(V1(v), rest) == CU(4n+a3, m, S.c3(False{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>},
+          rest => Equal.trans(Maybe<&2, List<&2, U32>>, U.c4(V1(v), rest), None{}, CU(4n+a3, m, SR.done{None{}}), Equal.cong(Maybe<&2, TP>, Maybe<&2, List<&2, U32>>, mm => U.c4(mm, rest), V1(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+3n+a3, m, SR.done{None{}}), None{}, CUd(3n+a3, m, None{})))))
+    case True{}:
+      cellT1(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c)), x => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => {U.c4(V1(x), rest) == CU(4n+a3, m, S.c3(True{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}), e,
+        LB.c5(Lm(m, Fd(2n, m, Fd(2n, m, Fd(3n, m, c)))), a3, m, ks, img, c, im, fs, nx, ok.l(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx, hokx, e), ok.r(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx, hokx, e), hokr, {==}, ih))
+
+def LB.c3(bu: Bool, +a3: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokx: {ok(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx) == True{} : Bool}, +hokr: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, ih: LB.IH(1n+a3, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c3(bu, x, rest) == CU(4n+a3, m, S.c2(bu, m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})):
+  match bu:
+    case False{}:
+      SpecM.all(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c3(False{}, x, rest) == CU(4n+a3, m, S.c2(False{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}),
+        rest => SpecM.all(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c3(False{}, x, rest) == CU(4n+a3, m, S.c2(False{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}, x => Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+3n+a3, m, SR.done{None{}}), None{}, CUd(3n+a3, m, None{}))))
+    case True{}:
+      SpecM.swap(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), rest => x => {U.c3(True{}, x, rest) == CU(4n+a3, m, S.c2(True{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>},
+        LB.c4(Pm(m, Fd(2n, m, Fd(3n, m, c))), a3, m, ks, img, c, im, fs, nx, hokx, hokr, {==}, ih))
+
+def LB.c2k(+k: List<&2, U32>, +a3: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokx: {ok(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx) == True{} : Bool}, +hokr: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokz: {ok(1n+a3, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool},
+  +eL: {Lm(m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))) == True{} : Bool}, +ek: {T.tm.name(ks, Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))))) == Some{k} : Maybe<&2, List<&2, U32>>}, ih: LB.IH(1n+a3, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c2(x, rest, Some{k}) == CU(4n+a3, m, S.c2(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0)), m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})):
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.unit()), U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0), kn0(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), k, LK(a3, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx, hokz, eL, k, ek))) :
+    SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c3(_, x, rest) == CU(4n+a3, m, S.c2(U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0), m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}))
+  LB.c3(U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0), a3, m, ks, img, c, im, fs, nx, hokx, hokr, ih)
+
+def LB.c2(bz: Bool, +a3: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokx: {ok(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx) == True{} : Bool}, +hokr: {ok(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool}, +hokz: {ok(1n+a3, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx) == True{} : Bool},
+  +e: {Lm(m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))) == bz : Bool}, ih: LB.IH(1n+a3, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), z => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x =>
+    {U.c2(x, rest, VL(z)) == CU(4n+a3, m, S.c2(Bool.and(bz, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0)), m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}))):
+  match bz:
+    case False{}:
+      cellNotL(a3, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), im, fs, nx, z => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x =>
+          {U.c2(x, rest, VL(z)) == CU(4n+a3, m, S.c2(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0)), m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})), e, hokz,
+        v => ev => SpecM.all(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x =>
+            {U.c2(x, rest, VL(v)) == CU(4n+a3, m, S.c2(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0)), m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>}),
+          rest => SpecM.all(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c2(x, rest, VL(v)) == CU(4n+a3, m, S.c2(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0)), m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>},
+            x => Equal.trans(Maybe<&2, List<&2, U32>>, U.c2(x, rest, VL(v)), None{}, CU(4n+a3, m, SR.done{None{}}), Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, List<&2, U32>>, mm => U.c2(x, rest, mm), VL(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+3n+a3, m, SR.done{None{}}), None{}, CUd(3n+a3, m, None{}))))))
+    case True{}:
+      cellLab(a3, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c))), z => SpecM(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), rest => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x =>
+          {U.c2(x, rest, VL(z)) == CU(4n+a3, m, S.c2(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), 0)), m, Fd(2n, m, Fd(3n, m, c)), Fd(2n, m, Fd(3n, m, Fd(3n, m, c))))) : Maybe<&2, List<&2, U32>>})), e,
+        k => ek => LB.c2k(k, a3, m, ks, img, c, im, fs, nx, hokx, hokr, hokz, e, ek, ih))
+
+def LB.c1(by: Bool, +a2: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokx: {ok(1n+a2, m, ks, img, Fd(2n, m, Fd(3n, m, c)), im, fs, nx) == True{} : Bool}, +hoky: {ok(1n+a2, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx) == True{} : Bool}, +e: {Pm(m, Fd(3n, m, Fd(3n, m, c))) == by : Bool}, ih: LB.IH(a2, m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a2, m, ks, img, Fd(3n, m, Fd(3n, m, c))), yy => SpecM(T.tm.of(1n+a2, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c1(x, V1(yy)) == CU(3n+a2, m, S.c1(by, m, Fd(2n, m, Fd(3n, m, c)), Fd(3n, m, Fd(3n, m, c)))) : Maybe<&2, List<&2, U32>>})):
+  match by:
+    case False{}:
+      cellNotT1(a2, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx, yy => SpecM(T.tm.of(1n+a2, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c1(x, V1(yy)) == CU(3n+a2, m, S.c1(False{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(3n, m, Fd(3n, m, c)))) : Maybe<&2, List<&2, U32>>}), e, hoky,
+        v => ev => SpecM.all(T.tm.of(1n+a2, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c1(x, V1(v)) == CU(3n+a2, m, S.c1(False{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(3n, m, Fd(3n, m, c)))) : Maybe<&2, List<&2, U32>>},
+          x => Equal.trans(Maybe<&2, List<&2, U32>>, U.c1(x, V1(v)), None{}, CU(3n+a2, m, SR.done{None{}}), Equal.cong(Maybe<&2, TP>, Maybe<&2, List<&2, U32>>, mm => U.c1(x, mm), V1(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+2n+a2, m, SR.done{None{}}), None{}, CUd(2n+a2, m, None{})))))
+    case True{}:
+      match a2:
+        case 0n:
+          cellT1(0n, m, ks, img, Fd(3n, m, Fd(3n, m, c)), yy => SpecM(T.tm.of(1n+0n, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c1(x, V1(yy)) == CU(3n, m, S.c1(True{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(3n, m, Fd(3n, m, c)))) : Maybe<&2, List<&2, U32>>}), e, Unit{})
+        case 1n+a3:
+          cellT1(1n+a3, m, ks, img, Fd(3n, m, Fd(3n, m, c)), yy => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c1(x, V1(yy)) == CU(4n+a3, m, S.c1(True{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(3n, m, Fd(3n, m, c)))) : Maybe<&2, List<&2, U32>>}), e,
+            SpecM.swap(T.tm.of(1n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, Fd(3n, m, c)))), T.tm.of(1n+a3, m, ks, img, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))),
+              rest => z => SpecM(T.tm.of(2n+a3, m, ks, img, Fd(2n, m, Fd(3n, m, c))), x => {U.c1(x, V1(C.Term.Tup{C.Quan.Q1{}, rest, z})) == CU(4n+a3, m, S.c1(True{}, m, Fd(2n, m, Fd(3n, m, c)), Fd(3n, m, Fd(3n, m, c)))) : Maybe<&2, List<&2, U32>>}),
+              LB.c2(Lm(m, Fd(3n, m, Fd(3n, m, Fd(3n, m, c)))), a3, m, ks, img, c, im, fs, nx, hokx, ok.l(1n+a3, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx, hoky, e), ok.r(1n+a3, m, ks, img, Fd(3n, m, Fd(3n, m, c)), im, fs, nx, hoky, e), {==}, ih)))
+
+def LB.c0(b0: Bool, +a1: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hokb: {ok(1n+a1, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +e: {Pm(m, Fd(3n, m, c)) == b0 : Bool}, ih: LB.IH(Pr(a1), m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.con(V1(y)) == CU(2n+a1, m, S.c0(b0, m, Fd(3n, m, c))) : Maybe<&2, List<&2, U32>>}):
+  match b0:
+    case False{}:
+      cellNotT1(a1, m, ks, img, Fd(3n, m, c), im, fs, nx, y => {U.con(V1(y)) == CU(2n+a1, m, S.c0(False{}, m, Fd(3n, m, c))) : Maybe<&2, List<&2, U32>>}, e, hokb,
+        v => ev => Equal.trans(Maybe<&2, List<&2, U32>>, U.con(V1(v)), None{}, CU(2n+a1, m, SR.done{None{}}), Equal.cong(Maybe<&2, TP>, Maybe<&2, List<&2, U32>>, mm => U.con(mm), V1(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+1n+a1, m, SR.done{None{}}), None{}, CUd(1n+a1, m, None{}))))
+    case True{}:
+      match a1:
+        case 0n:
+          cellT1(0n, m, ks, img, Fd(3n, m, c), y => {U.con(V1(y)) == CU(2n, m, S.c0(True{}, m, Fd(3n, m, c))) : Maybe<&2, List<&2, U32>>}, e, Unit{})
+        case 1n+a2:
+          cellT1(1n+a2, m, ks, img, Fd(3n, m, c), y => {U.con(V1(y)) == CU(3n+a2, m, S.c0(True{}, m, Fd(3n, m, c))) : Maybe<&2, List<&2, U32>>}, e,
+            SpecM.swap(T.tm.of(1n+a2, m, ks, img, Fd(2n, m, Fd(3n, m, c))), T.tm.of(1n+a2, m, ks, img, Fd(3n, m, Fd(3n, m, c))), x => yy => {U.con(V1(C.Term.Tup{C.Quan.Q1{}, x, yy})) == CU(3n+a2, m, S.c0(True{}, m, Fd(3n, m, c))) : Maybe<&2, List<&2, U32>>},
+              LB.c1(Pm(m, Fd(3n, m, Fd(3n, m, c))), a2, m, ks, img, c, im, fs, nx, ok.l(1n+a2, m, ks, img, Fd(3n, m, c), im, fs, nx, hokb, e), ok.r(1n+a2, m, ks, img, Fd(3n, m, c), im, fs, nx, hokb, e), {==}, ih)))
+
+def LB.nilv(x: Bool, +a: Nat, +m: C.Cir.Cells) -> {C.Program.unbytes.nil(x) == CU(1n+a, m, S.nil(x)) : Maybe<&2, List<&2, U32>>}:
+  match x:
+    case True{}:
+      Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+a, m, SR.done{Some{Nil{}}}), Some{Nil{}}, CUd(a, m, Some{Nil{}}))
+    case False{}:
+      Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+a, m, SR.done{None{}}), None{}, CUd(a, m, None{}))
+
+def LB.nilk(+k: List<&2, U32>, +a1: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok3: {ok(1n+a1, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +eL: {Lm(m, Fd(3n, m, c)) == True{} : Bool},
+  +ek: {T.tm.name(ks, Fd(2n, m, Fd(3n, m, c))) == Some{k} : Maybe<&2, List<&2, U32>>}) ->
+  {U.nil(Some{k}) == CU(2n+a1, m, S.nil(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0)))) : Maybe<&2, List<&2, U32>>}:
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.unit()), U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0), kn0(Fd(2n, m, Fd(3n, m, c)), k, LK(a1, m, ks, img, Fd(3n, m, c), im, fs, nx, hok3, eL, k, ek))) :
+    {C.Program.unbytes.nil(_) == CU(2n+a1, m, S.nil(U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0))) : Maybe<&2, List<&2, U32>>}
+  LB.nilv(U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0), 1n+a1, m)
+
+def LB.nil(bu: Bool, +a1: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok3: {ok(1n+a1, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +e: {Lm(m, Fd(3n, m, c)) == bu : Bool}) ->
+  SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.nil(VL(y)) == CU(2n+a1, m, S.nil(Bool.and(bu, U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0)))) : Maybe<&2, List<&2, U32>>}):
+  match bu:
+    case False{}:
+      cellNotL(a1, m, ks, img, Fd(3n, m, c), im, fs, nx, y => {U.nil(VL(y)) == CU(2n+a1, m, S.nil(Bool.and(False{}, U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0)))) : Maybe<&2, List<&2, U32>>}, e, hok3,
+        v => ev => Equal.trans(Maybe<&2, List<&2, U32>>, U.nil(VL(v)), None{}, CU(2n+a1, m, SR.done{None{}}), Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, List<&2, U32>>, mm => U.nil(mm), VL(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+1n+a1, m, SR.done{None{}}), None{}, CUd(1n+a1, m, None{}))))
+    case True{}:
+      cellLab(a1, m, ks, img, Fd(3n, m, c), y => {U.nil(VL(y)) == CU(2n+a1, m, S.nil(Bool.and(True{}, U32.is_eq(Fd(2n, m, Fd(3n, m, c)), 0)))) : Maybe<&2, List<&2, U32>>}, e,
+        k => ek => LB.nilk(k, a1, m, ks, img, c, im, fs, nx, hok3, e, ek))
+
+def LB.w(isnil: Bool, iscon: Bool, +a1: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok3: {ok(1n+a1, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, ih: LB.IH(Pr(a1), m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.k(isnil, iscon, y) == CU(2n+a1, m, S.w(isnil, iscon, m, c)) : Maybe<&2, List<&2, U32>>}):
+  match isnil:
+    case True{}:
+      LB.nil(Lm(m, Fd(3n, m, c)), a1, m, ks, img, c, im, fs, nx, hok3, {==})
+    case False{}:
+      match iscon:
+        case False{}:
+          SpecM.all(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.k(False{}, False{}, y) == CU(2n+a1, m, S.w(False{}, False{}, m, c)) : Maybe<&2, List<&2, U32>>}, y => Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+1n+a1, m, SR.done{None{}}), None{}, CUd(1n+a1, m, None{})))
+        case True{}:
+          LB.c0(Pm(m, Fd(3n, m, c)), a1, m, ks, img, c, im, fs, nx, hok3, {==}, ih)
+
+def LB.k0(+k: List<&2, U32>, +a1: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok2: {ok(1n+a1, m, ks, img, Fd(2n, m, c), im, fs, nx) == True{} : Bool}, +hok3: {ok(1n+a1, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +eL: {Lm(m, Fd(2n, m, c)) == True{} : Bool},
+  +ek: {T.tm.name(ks, Fd(2n, m, Fd(2n, m, c))) == Some{k} : Maybe<&2, List<&2, U32>>}, ih: LB.IH(Pr(a1), m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.a(Some{k}, y) == CU(2n+a1, m, S.l(True{}, m, c)) : Maybe<&2, List<&2, U32>>}):
+  +h = LK(a1, m, ks, img, Fd(2n, m, c), im, fs, nx, hok2, eL, k, ek)
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.nil()), U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 1), kn1(Fd(2n, m, Fd(2n, m, c)), k, h)) :
+    SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.k(_, C.Name.is_eq(k, C.Program.name.con()), y) == CU(2n+a1, m, S.w(U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 1), U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 2), m, c)) : Maybe<&2, List<&2, U32>>})
+  %Equal.sym(Bool, C.Name.is_eq(k, C.Program.name.con()), U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 2), kn2(Fd(2n, m, Fd(2n, m, c)), k, h)) :
+    SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.k(U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 1), _, y) == CU(2n+a1, m, S.w(U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 1), U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 2), m, c)) : Maybe<&2, List<&2, U32>>})
+  LB.w(U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 1), U32.is_eq(Fd(2n, m, Fd(2n, m, c)), 2), a1, m, ks, img, c, im, fs, nx, hok3, ih)
+
+def LB.l(bl: Bool, +a1: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok2: {ok(1n+a1, m, ks, img, Fd(2n, m, c), im, fs, nx) == True{} : Bool}, +hok3: {ok(1n+a1, m, ks, img, Fd(3n, m, c), im, fs, nx) == True{} : Bool}, +e: {Lm(m, Fd(2n, m, c)) == bl : Bool}, ih: LB.IH(Pr(a1), m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a1, m, ks, img, Fd(2n, m, c)), x => SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.a(VL(x), y) == CU(2n+a1, m, S.l(bl, m, c)) : Maybe<&2, List<&2, U32>>})):
+  match bl:
+    case False{}:
+      cellNotL(a1, m, ks, img, Fd(2n, m, c), im, fs, nx, x => SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.a(VL(x), y) == CU(2n+a1, m, S.l(False{}, m, c)) : Maybe<&2, List<&2, U32>>}), e, hok2,
+        v => ev => SpecM.all(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.a(VL(v), y) == CU(2n+a1, m, S.l(False{}, m, c)) : Maybe<&2, List<&2, U32>>},
+          y => Equal.trans(Maybe<&2, List<&2, U32>>, U.a(VL(v), y), None{}, CU(2n+a1, m, SR.done{None{}}), Equal.cong(Maybe<&2, List<&2, U32>>, Maybe<&2, List<&2, U32>>, mm => U.a(mm, y), VL(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+1n+a1, m, SR.done{None{}}), None{}, CUd(1n+a1, m, None{})))))
+    case True{}:
+      cellLab(a1, m, ks, img, Fd(2n, m, c), x => SpecM(T.tm.of(1n+a1, m, ks, img, Fd(3n, m, c)), y => {U.a(VL(x), y) == CU(2n+a1, m, S.l(True{}, m, c)) : Maybe<&2, List<&2, U32>>}), e,
+        k => ek => LB.k0(k, a1, m, ks, img, c, im, fs, nx, hok2, hok3, e, ek, ih))
+
+def LB.p(b: Bool, +a: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok: {ok(1n+a, m, ks, img, c, im, fs, nx) == True{} : Bool}, +eb: {Pm(m, c) == b : Bool}, ih: LB.IH(Pr(Pr(a)), m, ks, img, im, fs, nx)) ->
+  SpecM(T.tm.of(1n+a, m, ks, img, c), t => {U.r(V1(t)) == CU(1n+a, m, S.p(b, m, c)) : Maybe<&2, List<&2, U32>>}):
+  match b:
+    case False{}:
+      cellNotT1(a, m, ks, img, c, im, fs, nx, t => {U.r(V1(t)) == CU(1n+a, m, S.p(False{}, m, c)) : Maybe<&2, List<&2, U32>>}, eb, hok,
+        v => ev => Equal.trans(Maybe<&2, List<&2, U32>>, U.r(V1(v)), None{}, CU(1n+a, m, SR.done{None{}}), Equal.cong(Maybe<&2, TP>, Maybe<&2, List<&2, U32>>, mm => U.r(mm), V1(v), None{}, ev), Equal.sym(Maybe<&2, List<&2, U32>>, CU(1n+a, m, SR.done{None{}}), None{}, CUd(a, m, None{}))))
+    case True{}:
+      match a:
+        case 0n:
+          cellT1(0n, m, ks, img, c, t => {U.r(V1(t)) == CU(1n, m, S.p(True{}, m, c)) : Maybe<&2, List<&2, U32>>}, eb, Unit{})
+        case 1n+a1:
+          cellT1(1n+a1, m, ks, img, c, t => {U.r(V1(t)) == CU(2n+a1, m, S.p(True{}, m, c)) : Maybe<&2, List<&2, U32>>}, eb,
+            LB.l(Lm(m, Fd(2n, m, c)), a1, m, ks, img, c, im, fs, nx, ok.l(1n+a1, m, ks, img, c, im, fs, nx, hok, eb), ok.r(1n+a1, m, ks, img, c, im, fs, nx, hok, eb), {==}, ih))
+
+# the term of the list cell c is the list that CU reads
+def LB(+n: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32, +hok: {ok(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  SpecM(T.tm.of(n, m, ks, img, c), t => {C.Program.unbytes(t) == CU(n, m, Step(m, c)) : Maybe<&2, List<&2, U32>>}):
+  match n:
+    case 0n:
+      Unit{}
+    case 1n+a:
+      match a:
+        case 0n:
+          SpecM.map(T.tm.of(1n, m, ks, img, c), t => {U(t) == CU(1n, m, Step(m, c)) : Maybe<&2, List<&2, U32>>}, t => {C.Program.unbytes(t) == CU(1n, m, Step(m, c)) : Maybe<&2, List<&2, U32>>},
+            LB.p(Pm(m, c), 0n, m, ks, img, c, im, fs, nx, hok, {==}, rc2 => h => Unit{}),
+            t => e => Equal.trans(Maybe<&2, List<&2, U32>>, C.Program.unbytes(t), U(t), CU(1n, m, Step(m, c)), UE(t), e))
+        case 1n+a1:
+          match a1:
+            case 0n:
+              SpecM.map(T.tm.of(2n, m, ks, img, c), t => {U(t) == CU(2n, m, Step(m, c)) : Maybe<&2, List<&2, U32>>}, t => {C.Program.unbytes(t) == CU(2n, m, Step(m, c)) : Maybe<&2, List<&2, U32>>},
+                LB.p(Pm(m, c), 1n, m, ks, img, c, im, fs, nx, hok, {==}, rc2 => h => Unit{}),
+                t => e => Equal.trans(Maybe<&2, List<&2, U32>>, C.Program.unbytes(t), U(t), CU(2n, m, Step(m, c)), UE(t), e))
+            case 1n+a2:
+              SpecM.map(T.tm.of(3n+a2, m, ks, img, c), t => {U(t) == CU(3n+a2, m, Step(m, c)) : Maybe<&2, List<&2, U32>>}, t => {C.Program.unbytes(t) == CU(3n+a2, m, Step(m, c)) : Maybe<&2, List<&2, U32>>},
+                LB.p(Pm(m, c), 2n+a2, m, ks, img, c, im, fs, nx, hok, {==}, rc2 => h => LB(a2, m, ks, img, rc2, im, fs, nx, h)),
+                t => e => Equal.trans(Maybe<&2, List<&2, U32>>, C.Program.unbytes(t), U(t), CU(3n+a2, m, Step(m, c)), UE(t), e))
+
+# M.out gives the bytes of the focus' term
+# ----------------------------------------
+
+# xs reversed onto acc is xs reversed, then acc
+def rev_go(xs: List<&2, U32>, +ys: List<&2, U32>, +acc: List<&2, U32>) ->
+  {List.reverse.go(&2, U32, xs, List.append(&2, U32, ys, acc)) == List.append(&2, U32, List.reverse.go(&2, U32, xs, ys), acc) : List<&2, U32>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+h, +t}:
+      rev_go(t, Con{h, ys}, acc)
+
+def rev_app(+xs: List<&2, U32>, +acc: List<&2, U32>) ->
+  {List.reverse.go(&2, U32, xs, acc) == List.append(&2, U32, List.reverse(&2, U32, xs), acc) : List<&2, U32>}:
+  rev_go(xs, Nil{}, acc)
+
+# a halt with the status s in the state st, by the bytes r: with 0 and the
+# bytes of r out (the output holds them reversed, in front of out0; outn0
+# gains one for each), or with 2 when r is none
+def Gives.halt(r: Maybe<&2, List<&2, U32>>, out0: List<&2, U32>, outn0: U32, s: U32, st: C.Cir.State) -> Type:
+  match r:
+    case Some{bs}:
+      {s == 0 : U32} & ({St.out(st) == List.append(&2, U32, List.reverse(&2, U32, bs), out0) : List<&2, U32>} & {St.outn(st) == Incs(bs, outn0) : U32})
+    case None{}:
+      {s == 2 : U32}
+
+# the run o halts as Gives.halt says, or runs out of memory
+def Gives(o: C.Cir.Out, r: Maybe<&2, List<&2, U32>>, out0: List<&2, U32>, outn0: U32) -> Type:
+  match o:
+    case C.Cir.Out.next{_}:
+      Empty
+    case C.Cir.Out.halt{s, st}:
+      Gives.halt(r, out0, outn0, s, st)
+    case C.Cir.Out.out_of_memory{}:
+      Unit
+    case C.Cir.Out.trap{}:
+      Empty
+    case C.Cir.Out.not_done{}:
+      Empty
+
+def Gives.fin(r: Maybe<&2, List<&2, U32>>, +out0: List<&2, U32>, +outn0: U32, +s: U32, +st: C.Cir.State, h: Fin(r, out0, outn0, s, st)) ->
+  Gives.halt(r, out0, outn0, s, st):
+  match r:
+    case Some{+bs}:
+      (e0, rest) = h
+      (eo, en) = rest
+      (e0, (Equal.trans(List<&2, U32>, St.out(st), List.reverse.go(&2, U32, bs, out0), List.append(&2, U32, List.reverse(&2, U32, bs), out0), eo,
+        rev_app(bs, out0)), en))
+    case None{}:
+      h
+
+def Gives.of(o: C.Cir.Out, r: Maybe<&2, List<&2, U32>>, +out0: List<&2, U32>, +outn0: U32,
+  h: Wp(o, st => Empty, s => st => Fin(r, out0, outn0, s, st))) -> Gives(o, r, out0, outn0):
+  match o:
+    case C.Cir.Out.next{st}:
+      match h:
+    case C.Cir.Out.halt{+s, +st}:
+      Gives.fin(r, out0, outn0, s, st, h)
+    case C.Cir.Out.out_of_memory{}:
+      Unit{}
+    case C.Cir.Out.trap{}:
+      match h:
+    case C.Cir.Out.not_done{}:
+      match h:
+
+# THE LEMMA, with the fuel 1 + f of n + 34 or more. The focus register of the
+# state holds the cell c, whose term (with the fuel n of T.tm.of) is v; the
+# state has the machine's 64 registers at least; and ok holds of c: every
+# cell that the walk of M.out reads is one that Cir.is_cell accepts, a Ref or
+# an Enu has an image's term that is no pair at quantity 1 nor label, and the
+# number j of a label is one whose name in ks is the machine's name i (for i
+# from 0 to 7: (), Nil, Con, U32, WNil, WCon, True, False) exactly when j is
+# i. Then M.out gives Program.unbytes(v) (Gives).
+def out.run(+n: Nat, +f: Nat, +hF: PN.Le(Nat.add(n, 34n), 1n+f), +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +v: C.Term,
+  +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
+  +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
+  +htm: {T.tm.of(n, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>},
+  +hok: {ok(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  Gives(C.Cir.exec(1n+f, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), C.Program.unbytes(v), out, outn):
+  ev = Tr(Maybe<&2, C.Term>, r => SpecM(r, t => {C.Program.unbytes(t) == CU(n, m, Step(m, c)) : Maybe<&2, List<&2, U32>>}),
+    T.tm.of(n, m, ks, img, c), Some{v}, htm, LB(n, m, ks, img, c, im, fs, nx, hok))
+  Gives.of(C.Cir.exec(1n+f, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), C.Program.unbytes(v), out, outn,
+    Tr(Maybe<&2, List<&2, U32>>, r => Wp(C.Cir.exec(1n+f, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), st => Empty,
+        s => st => Fin(r, out, outn, s, st)),
+      CU(n, m, Step(m, c)), C.Program.unbytes(v), Equal.sym(Maybe<&2, List<&2, U32>>, C.Program.unbytes(v), CU(n, m, Step(m, c)), ev),
+      MOUT(n, f, hF, regs, m, nx, fs, im, pg, lim, inp, out, outn, c, ks, img, hreg, hlen, hok)))
+
+# THE LEMMA, for some fuel F (1 + n + 34)
+def out.gives(+n: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +v: C.Term,
+  +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
+  +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
+  +htm: {T.tm.of(n, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>},
+  +hok: {ok(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  &F: Nat -> Gives(C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), C.Program.unbytes(v), out, outn):
+  (1n+Nat.add(n, 34n), out.run(n, Nat.add(n, 34n), PN.le_succ(Nat.add(n, 34n), Nat.add(n, 34n), PN.le_refl(Nat.add(n, 34n))),
+    regs, m, nx, fs, im, pg, lim, inp, out, outn, c, ks, img, v, hreg, hlen, htm, hok))
+
+# Gives, for bytes, as a halt with 0 or out of memory
+def Gives.some(o: C.Cir.Out, +bs: List<&2, U32>, +out0: List<&2, U32>, +outn0: U32, g: Gives(o, Some{bs}, out0, outn0)) ->
+  Or(&st: C.Cir.State -> ({o == C.Cir.Out.halt{0, st} : C.Cir.Out} & ({St.out(st) == List.append(&2, U32, List.reverse(&2, U32, bs), out0) : List<&2, U32>} &
+      {St.outn(st) == Incs(bs, outn0) : U32})),
+    {o == C.Cir.Out.out_of_memory{} : C.Cir.Out}):
+  match o:
+    case C.Cir.Out.next{st}:
+      match g:
+    case C.Cir.Out.halt{+s, +st}:
+      (e0, rest) = g
+      Inl{(st, (Equal.cong(U32, C.Cir.Out, x => C.Cir.Out.halt{x, st}, s, 0, e0), rest))}
+    case C.Cir.Out.out_of_memory{}:
+      Inr{{==}}
+    case C.Cir.Out.trap{}:
+      match g:
+    case C.Cir.Out.not_done{}:
+      match g:
+
+# Gives, for no bytes, as a halt with 2 or out of memory
+def Gives.none(o: C.Cir.Out, -out0: List<&2, U32>, -outn0: U32, g: Gives(o, None{}, out0, outn0)) ->
+  Or(&st: C.Cir.State -> {o == C.Cir.Out.halt{2, st} : C.Cir.Out}, {o == C.Cir.Out.out_of_memory{} : C.Cir.Out}):
+  match o:
+    case C.Cir.Out.next{st}:
+      match g:
+    case C.Cir.Out.halt{+s, +st}:
+      Inl{(st, Equal.cong(U32, C.Cir.Out, x => C.Cir.Out.halt{x, st}, s, 2, g))}
+    case C.Cir.Out.out_of_memory{}:
+      Inr{{==}}
+    case C.Cir.Out.trap{}:
+      match g:
+    case C.Cir.Out.not_done{}:
+      match g:
+
+# when Program.unbytes(v) is Some{o}: M.out halts with 0 and the output o,
+# or runs out of memory
+def out.some(+n: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +v: C.Term, +o: List<&2, U32>,
+  +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
+  +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
+  +htm: {T.tm.of(n, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>},
+  +hok: {ok(n, m, ks, img, c, im, fs, nx) == True{} : Bool},
+  +eo: {C.Program.unbytes(v) == Some{o} : Maybe<&2, List<&2, U32>>}) ->
+  &F: Nat -> Or(&st2: C.Cir.State ->
+      ({C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}) == C.Cir.Out.halt{0, st2} : C.Cir.Out} &
+       ({St.out(st2) == List.append(&2, U32, List.reverse(&2, U32, o), out) : List<&2, U32>} & {St.outn(st2) == Incs(o, outn) : U32})),
+    {C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}) == C.Cir.Out.out_of_memory{} : C.Cir.Out}):
+  +F = {1n+Nat.add(n, 34n) : Nat}
+  +x = {C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}) : C.Cir.Out}
+  (F, Gives.some(x, o, out, outn,
+    Tr(Maybe<&2, List<&2, U32>>, r => Gives(x, r, out, outn), C.Program.unbytes(v), Some{o}, eo,
+      out.run(n, Nat.add(n, 34n), PN.le_succ(Nat.add(n, 34n), Nat.add(n, 34n), PN.le_refl(Nat.add(n, 34n))),
+        regs, m, nx, fs, im, pg, lim, inp, out, outn, c, ks, img, v, hreg, hlen, htm, hok))))
+
+# when Program.unbytes(v) is none: M.out halts with 2, or runs out of memory
+def out.none(+n: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +v: C.Term,
+  +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
+  +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
+  +htm: {T.tm.of(n, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>},
+  +hok: {ok(n, m, ks, img, c, im, fs, nx) == True{} : Bool},
+  +eo: {C.Program.unbytes(v) == None{} : Maybe<&2, List<&2, U32>>}) ->
+  &F: Nat -> Or(&st2: C.Cir.State -> {C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}) == C.Cir.Out.halt{2, st2} : C.Cir.Out},
+    {C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}) == C.Cir.Out.out_of_memory{} : C.Cir.Out}):
+  +F = {1n+Nat.add(n, 34n) : Nat}
+  +x = {C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}) : C.Cir.Out}
+  (F, Gives.none(x, out, outn,
+    Tr(Maybe<&2, List<&2, U32>>, r => Gives(x, r, out, outn), C.Program.unbytes(v), None{}, eo,
+      out.run(n, Nat.add(n, 34n), PN.le_succ(Nat.add(n, 34n), Nat.add(n, 34n), PN.le_refl(Nat.add(n, 34n))),
+        regs, m, nx, fs, im, pg, lim, inp, out, outn, c, ks, img, v, hreg, hlen, htm, hok))))
+
+# The names of the labels
+# -----------------------
+#
+# In the image, the names ks are C.Img.known(ks2): the machine's own first,
+# and a label holds the number C.Img.id(ks, k, 0) of its name k, the first
+# place of k in ks (labid). Such a number compares with the machine's names
+# 0 to 7 as its name does (labid.ok), which is what ok asks (labok).
+
+def nat_eq_refl(+b: Nat) -> {Nat.is_eq(b, b) == True{} : Bool}:
+  match b:
+    case 0n:
+      {==}
+    case 1n+p:
+      nat_eq_refl(p)
+
+def ne_rel(c: Cmp, -X: Nat, +a: Nat, +b: Nat, h: PN.Rel(c, X, b), +ea: {X == a : Nat}, +hne: {Nat.is_eq(a, b) == False{} : Bool}) ->
+  {Cmp.is_eq(c) == False{} : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case GT{}:
+      {==}
+    case EQ{}:
+      +eab = Equal.trans(Nat, a, X, b, Equal.sym(Nat, X, a, ea), h)
+      Empty.absurd({Cmp.is_eq(EQ{}) == False{} : Bool}, PN.true_ne_false(Equal.trans(Bool, True{}, Nat.is_eq(b, b), False{},
+        Equal.sym(Bool, Nat.is_eq(b, b), True{}, nat_eq_refl(b)), Tr(Nat, y => {Nat.is_eq(y, b) == False{} : Bool}, a, b, eab, hne))))
+
+# a U32 of the number a is not n, when a is not the number of n
+def ne_num(+x: U32, +n: U32, +a: Nat, +ea: {U32.to_nat(x) == a : Nat}, +hne: {Nat.is_eq(a, U32.to_nat(n)) == False{} : Bool}) ->
+  {U32.is_eq(x, n) == False{} : Bool}:
+  ne_rel(U32.cmp(x, n), U32.to_nat(x), a, U32.to_nat(n), PN.U32.rel(x, n), ea, hne)
+
+# U32.is_eq and Name.is_eq do not depend on the order of their arguments
+def Fsym(c: Cmp, d: Cmp, a: Bool, b: Bool, +e: {Cmp.is_eq(c) == Cmp.is_eq(d) : Bool}) ->
+  {Cmp.is_eq(Word.cmp.fin(a, b, c)) == Cmp.is_eq(Word.cmp.fin(b, a, d)) : Bool}:
+  match c d:
+    case LT{} LT{}:
+      {==}
+    case LT{} GT{}:
+      {==}
+    case GT{} LT{}:
+      {==}
+    case GT{} GT{}:
+      {==}
+    case EQ{} EQ{}:
+      match a b:
+        case True{} True{}:
+          {==}
+        case True{} False{}:
+          {==}
+        case False{} True{}:
+          {==}
+        case False{} False{}:
+          {==}
+    case LT{} EQ{}:
+      Empty.absurd({Cmp.is_eq(Word.cmp.fin(a, b, LT{})) == Cmp.is_eq(Word.cmp.fin(b, a, EQ{})) : Bool}, PN.false_ne_true(e))
+    case GT{} EQ{}:
+      Empty.absurd({Cmp.is_eq(Word.cmp.fin(a, b, GT{})) == Cmp.is_eq(Word.cmp.fin(b, a, EQ{})) : Bool}, PN.false_ne_true(e))
+    case EQ{} LT{}:
+      Empty.absurd({Cmp.is_eq(Word.cmp.fin(a, b, EQ{})) == Cmp.is_eq(Word.cmp.fin(b, a, LT{})) : Bool}, PN.true_ne_false(e))
+    case EQ{} GT{}:
+      Empty.absurd({Cmp.is_eq(Word.cmp.fin(a, b, EQ{})) == Cmp.is_eq(Word.cmp.fin(b, a, GT{})) : Bool}, PN.true_ne_false(e))
+
+def Wsym(+n: Nat, a: Word(n), b: Word(n)) -> {Cmp.is_eq(Word.cmp(n, a, b)) == Cmp.is_eq(Word.cmp(n, b, a)) : Bool}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+p:
+      match a b:
+        case WCon{+x, +at} WCon{+y, +bt}:
+          Fsym(Word.cmp(p, at, bt), Word.cmp(p, bt, at), x, y, Wsym(p, at, bt))
+
+def Usym(x: U32, y: U32) -> {U32.is_eq(x, y) == U32.is_eq(y, x) : Bool}:
+  match x y:
+    case U32{a} U32{b}:
+      Wsym(32n, a, b)
+
+def Nsym(a: List<&2, U32>, b: List<&2, U32>) -> {C.Name.is_eq(a, b) == C.Name.is_eq(b, a) : Bool}:
+  match a b:
+    case Nil{} Nil{}:
+      {==}
+    case Nil{} Con{_, _}:
+      {==}
+    case Con{_, _} Nil{}:
+      {==}
+    case Con{+x, +xs} Con{+y, +ys}:
+      %Usym(y, x) : {Bool.and(_, C.Name.is_eq(xs, ys)) == Bool.and(U32.is_eq(y, x), C.Name.is_eq(ys, xs)) : Bool}
+      %Equal.sym(Bool, C.Name.is_eq(xs, ys), C.Name.is_eq(ys, xs), Nsym(xs, ys)) :
+        {Bool.and(U32.is_eq(y, x), _) == Bool.and(U32.is_eq(y, x), C.Name.is_eq(ys, xs)) : Bool}
+      {==}
+
+# known.ok, once its parts are known
+def KO(n0: Bool, n1: Bool, n2: Bool, n3: Bool, n4: Bool, n5: Bool, n6: Bool, n7: Bool,
+  x0: Bool, x1: Bool, x2: Bool, x3: Bool, x4: Bool, x5: Bool, x6: Bool, x7: Bool) -> Bool:
+  iff(n0, x0) && iff(n1, x1) && iff(n2, x2) && iff(n3, x3) && iff(n4, x4) && iff(n5, x5) && iff(n6, x6) && iff(n7, x7)
+
+def KO.rw(+b: List<&2, U32>, +j: U32, n0: Bool, n1: Bool, n2: Bool, n3: Bool, n4: Bool, n5: Bool, n6: Bool, n7: Bool, x0: Bool, x1: Bool, x2: Bool, x3: Bool, x4: Bool, x5: Bool, x6: Bool, x7: Bool,
+  +en0: {C.Name.is_eq(b, C.Program.name.unit()) == n0 : Bool},
+  +en1: {C.Name.is_eq(b, C.Program.name.nil()) == n1 : Bool},
+  +en2: {C.Name.is_eq(b, C.Program.name.con()) == n2 : Bool},
+  +en3: {C.Name.is_eq(b, C.Program.name.u32()) == n3 : Bool},
+  +en4: {C.Name.is_eq(b, C.Program.name.wnil()) == n4 : Bool},
+  +en5: {C.Name.is_eq(b, C.Program.name.wcon()) == n5 : Bool},
+  +en6: {C.Name.is_eq(b, C.Program.name.true()) == n6 : Bool},
+  +en7: {C.Name.is_eq(b, C.Program.name.false()) == n7 : Bool},
+  +ex0: {U32.is_eq(j, 0) == x0 : Bool},
+  +ex1: {U32.is_eq(j, 1) == x1 : Bool},
+  +ex2: {U32.is_eq(j, 2) == x2 : Bool},
+  +ex3: {U32.is_eq(j, 3) == x3 : Bool},
+  +ex4: {U32.is_eq(j, 4) == x4 : Bool},
+  +ex5: {U32.is_eq(j, 5) == x5 : Bool},
+  +ex6: {U32.is_eq(j, 6) == x6 : Bool},
+  +ex7: {U32.is_eq(j, 7) == x7 : Bool},
+  +h: {KO(n0, n1, n2, n3, n4, n5, n6, n7, x0, x1, x2, x3, x4, x5, x6, x7) == True{} : Bool}) -> {known.ok(j, b) == True{} : Bool}:
+  %Equal.sym(Bool, C.Name.is_eq(b, C.Program.name.unit()), n0, en0) : {KO(_, C.Name.is_eq(b, C.Program.name.nil()), C.Name.is_eq(b, C.Program.name.con()), C.Name.is_eq(b, C.Program.name.u32()), C.Name.is_eq(b, C.Program.name.wnil()), C.Name.is_eq(b, C.Program.name.wcon()), C.Name.is_eq(b, C.Program.name.true()), C.Name.is_eq(b, C.Program.name.false()), U32.is_eq(j, 0), U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, C.Name.is_eq(b, C.Program.name.nil()), n1, en1) : {KO(n0, _, C.Name.is_eq(b, C.Program.name.con()), C.Name.is_eq(b, C.Program.name.u32()), C.Name.is_eq(b, C.Program.name.wnil()), C.Name.is_eq(b, C.Program.name.wcon()), C.Name.is_eq(b, C.Program.name.true()), C.Name.is_eq(b, C.Program.name.false()), U32.is_eq(j, 0), U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, C.Name.is_eq(b, C.Program.name.con()), n2, en2) : {KO(n0, n1, _, C.Name.is_eq(b, C.Program.name.u32()), C.Name.is_eq(b, C.Program.name.wnil()), C.Name.is_eq(b, C.Program.name.wcon()), C.Name.is_eq(b, C.Program.name.true()), C.Name.is_eq(b, C.Program.name.false()), U32.is_eq(j, 0), U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, C.Name.is_eq(b, C.Program.name.u32()), n3, en3) : {KO(n0, n1, n2, _, C.Name.is_eq(b, C.Program.name.wnil()), C.Name.is_eq(b, C.Program.name.wcon()), C.Name.is_eq(b, C.Program.name.true()), C.Name.is_eq(b, C.Program.name.false()), U32.is_eq(j, 0), U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, C.Name.is_eq(b, C.Program.name.wnil()), n4, en4) : {KO(n0, n1, n2, n3, _, C.Name.is_eq(b, C.Program.name.wcon()), C.Name.is_eq(b, C.Program.name.true()), C.Name.is_eq(b, C.Program.name.false()), U32.is_eq(j, 0), U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, C.Name.is_eq(b, C.Program.name.wcon()), n5, en5) : {KO(n0, n1, n2, n3, n4, _, C.Name.is_eq(b, C.Program.name.true()), C.Name.is_eq(b, C.Program.name.false()), U32.is_eq(j, 0), U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, C.Name.is_eq(b, C.Program.name.true()), n6, en6) : {KO(n0, n1, n2, n3, n4, n5, _, C.Name.is_eq(b, C.Program.name.false()), U32.is_eq(j, 0), U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, C.Name.is_eq(b, C.Program.name.false()), n7, en7) : {KO(n0, n1, n2, n3, n4, n5, n6, _, U32.is_eq(j, 0), U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(j, 0), x0, ex0) : {KO(n0, n1, n2, n3, n4, n5, n6, n7, _, U32.is_eq(j, 1), U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(j, 1), x1, ex1) : {KO(n0, n1, n2, n3, n4, n5, n6, n7, x0, _, U32.is_eq(j, 2), U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(j, 2), x2, ex2) : {KO(n0, n1, n2, n3, n4, n5, n6, n7, x0, x1, _, U32.is_eq(j, 3), U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(j, 3), x3, ex3) : {KO(n0, n1, n2, n3, n4, n5, n6, n7, x0, x1, x2, _, U32.is_eq(j, 4), U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(j, 4), x4, ex4) : {KO(n0, n1, n2, n3, n4, n5, n6, n7, x0, x1, x2, x3, _, U32.is_eq(j, 5), U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(j, 5), x5, ex5) : {KO(n0, n1, n2, n3, n4, n5, n6, n7, x0, x1, x2, x3, x4, _, U32.is_eq(j, 6), U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(j, 6), x6, ex6) : {KO(n0, n1, n2, n3, n4, n5, n6, n7, x0, x1, x2, x3, x4, x5, _, U32.is_eq(j, 7)) == True{} : Bool}
+  %Equal.sym(Bool, U32.is_eq(j, 7), x7, ex7) : {KO(n0, n1, n2, n3, n4, n5, n6, n7, x0, x1, x2, x3, x4, x5, x6, _) == True{} : Bool}
+  h
+
+
+# the list xs past its first n
+def KD(n: Nat, xs: List<&2, List<&2, U32>>) -> List<&2, List<&2, U32>>:
+  match n:
+    case 0n:
+      xs
+    case 1n+p:
+      match xs:
+        case Nil{}:
+          Nil{}
+        case Con{_, t}:
+          KD(p, t)
+
+def id.at0(+ks2: List<&2, List<&2, U32>>, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == True{} : Bool}) -> {C.Img.id(C.Img.known(ks2), k, 0) == 0 : U32}:
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.unit(), k), True{}, e0) : {C.Img.ref.if(_, 0, u => C.Img.id(KD(1n, C.Img.known(ks2)), k, U32.inc(0))) == 0 : U32}
+  {==}
+
+def id.at1(+ks2: List<&2, List<&2, U32>>, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == True{} : Bool}) -> {C.Img.id(C.Img.known(ks2), k, 0) == 1 : U32}:
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.unit(), k), False{}, e0) : {C.Img.ref.if(_, 0, u => C.Img.id(KD(1n, C.Img.known(ks2)), k, U32.inc(0))) == 1 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.nil(), k), True{}, e1) : {C.Img.ref.if(_, 1, u => C.Img.id(KD(2n, C.Img.known(ks2)), k, U32.inc(1))) == 1 : U32}
+  {==}
+
+def id.at2(+ks2: List<&2, List<&2, U32>>, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == True{} : Bool}) -> {C.Img.id(C.Img.known(ks2), k, 0) == 2 : U32}:
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.unit(), k), False{}, e0) : {C.Img.ref.if(_, 0, u => C.Img.id(KD(1n, C.Img.known(ks2)), k, U32.inc(0))) == 2 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.nil(), k), False{}, e1) : {C.Img.ref.if(_, 1, u => C.Img.id(KD(2n, C.Img.known(ks2)), k, U32.inc(1))) == 2 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.con(), k), True{}, e2) : {C.Img.ref.if(_, 2, u => C.Img.id(KD(3n, C.Img.known(ks2)), k, U32.inc(2))) == 2 : U32}
+  {==}
+
+def id.at3(+ks2: List<&2, List<&2, U32>>, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == True{} : Bool}) -> {C.Img.id(C.Img.known(ks2), k, 0) == 3 : U32}:
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.unit(), k), False{}, e0) : {C.Img.ref.if(_, 0, u => C.Img.id(KD(1n, C.Img.known(ks2)), k, U32.inc(0))) == 3 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.nil(), k), False{}, e1) : {C.Img.ref.if(_, 1, u => C.Img.id(KD(2n, C.Img.known(ks2)), k, U32.inc(1))) == 3 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.con(), k), False{}, e2) : {C.Img.ref.if(_, 2, u => C.Img.id(KD(3n, C.Img.known(ks2)), k, U32.inc(2))) == 3 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.u32(), k), True{}, e3) : {C.Img.ref.if(_, 3, u => C.Img.id(KD(4n, C.Img.known(ks2)), k, U32.inc(3))) == 3 : U32}
+  {==}
+
+def id.at4(+ks2: List<&2, List<&2, U32>>, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == True{} : Bool}) -> {C.Img.id(C.Img.known(ks2), k, 0) == 4 : U32}:
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.unit(), k), False{}, e0) : {C.Img.ref.if(_, 0, u => C.Img.id(KD(1n, C.Img.known(ks2)), k, U32.inc(0))) == 4 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.nil(), k), False{}, e1) : {C.Img.ref.if(_, 1, u => C.Img.id(KD(2n, C.Img.known(ks2)), k, U32.inc(1))) == 4 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.con(), k), False{}, e2) : {C.Img.ref.if(_, 2, u => C.Img.id(KD(3n, C.Img.known(ks2)), k, U32.inc(2))) == 4 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.u32(), k), False{}, e3) : {C.Img.ref.if(_, 3, u => C.Img.id(KD(4n, C.Img.known(ks2)), k, U32.inc(3))) == 4 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.wnil(), k), True{}, e4) : {C.Img.ref.if(_, 4, u => C.Img.id(KD(5n, C.Img.known(ks2)), k, U32.inc(4))) == 4 : U32}
+  {==}
+
+def id.at5(+ks2: List<&2, List<&2, U32>>, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == False{} : Bool}, +e5: {C.Name.is_eq(C.Program.name.wcon(), k) == True{} : Bool}) -> {C.Img.id(C.Img.known(ks2), k, 0) == 5 : U32}:
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.unit(), k), False{}, e0) : {C.Img.ref.if(_, 0, u => C.Img.id(KD(1n, C.Img.known(ks2)), k, U32.inc(0))) == 5 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.nil(), k), False{}, e1) : {C.Img.ref.if(_, 1, u => C.Img.id(KD(2n, C.Img.known(ks2)), k, U32.inc(1))) == 5 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.con(), k), False{}, e2) : {C.Img.ref.if(_, 2, u => C.Img.id(KD(3n, C.Img.known(ks2)), k, U32.inc(2))) == 5 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.u32(), k), False{}, e3) : {C.Img.ref.if(_, 3, u => C.Img.id(KD(4n, C.Img.known(ks2)), k, U32.inc(3))) == 5 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.wnil(), k), False{}, e4) : {C.Img.ref.if(_, 4, u => C.Img.id(KD(5n, C.Img.known(ks2)), k, U32.inc(4))) == 5 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.wcon(), k), True{}, e5) : {C.Img.ref.if(_, 5, u => C.Img.id(KD(6n, C.Img.known(ks2)), k, U32.inc(5))) == 5 : U32}
+  {==}
+
+def id.at6(+ks2: List<&2, List<&2, U32>>, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == False{} : Bool}, +e5: {C.Name.is_eq(C.Program.name.wcon(), k) == False{} : Bool}, +e6: {C.Name.is_eq(C.Program.name.true(), k) == True{} : Bool}) -> {C.Img.id(C.Img.known(ks2), k, 0) == 6 : U32}:
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.unit(), k), False{}, e0) : {C.Img.ref.if(_, 0, u => C.Img.id(KD(1n, C.Img.known(ks2)), k, U32.inc(0))) == 6 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.nil(), k), False{}, e1) : {C.Img.ref.if(_, 1, u => C.Img.id(KD(2n, C.Img.known(ks2)), k, U32.inc(1))) == 6 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.con(), k), False{}, e2) : {C.Img.ref.if(_, 2, u => C.Img.id(KD(3n, C.Img.known(ks2)), k, U32.inc(2))) == 6 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.u32(), k), False{}, e3) : {C.Img.ref.if(_, 3, u => C.Img.id(KD(4n, C.Img.known(ks2)), k, U32.inc(3))) == 6 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.wnil(), k), False{}, e4) : {C.Img.ref.if(_, 4, u => C.Img.id(KD(5n, C.Img.known(ks2)), k, U32.inc(4))) == 6 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.wcon(), k), False{}, e5) : {C.Img.ref.if(_, 5, u => C.Img.id(KD(6n, C.Img.known(ks2)), k, U32.inc(5))) == 6 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.true(), k), True{}, e6) : {C.Img.ref.if(_, 6, u => C.Img.id(KD(7n, C.Img.known(ks2)), k, U32.inc(6))) == 6 : U32}
+  {==}
+
+def id.at7(+ks2: List<&2, List<&2, U32>>, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == False{} : Bool}, +e5: {C.Name.is_eq(C.Program.name.wcon(), k) == False{} : Bool}, +e6: {C.Name.is_eq(C.Program.name.true(), k) == False{} : Bool}, +e7: {C.Name.is_eq(C.Program.name.false(), k) == True{} : Bool}) -> {C.Img.id(C.Img.known(ks2), k, 0) == 7 : U32}:
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.unit(), k), False{}, e0) : {C.Img.ref.if(_, 0, u => C.Img.id(KD(1n, C.Img.known(ks2)), k, U32.inc(0))) == 7 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.nil(), k), False{}, e1) : {C.Img.ref.if(_, 1, u => C.Img.id(KD(2n, C.Img.known(ks2)), k, U32.inc(1))) == 7 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.con(), k), False{}, e2) : {C.Img.ref.if(_, 2, u => C.Img.id(KD(3n, C.Img.known(ks2)), k, U32.inc(2))) == 7 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.u32(), k), False{}, e3) : {C.Img.ref.if(_, 3, u => C.Img.id(KD(4n, C.Img.known(ks2)), k, U32.inc(3))) == 7 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.wnil(), k), False{}, e4) : {C.Img.ref.if(_, 4, u => C.Img.id(KD(5n, C.Img.known(ks2)), k, U32.inc(4))) == 7 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.wcon(), k), False{}, e5) : {C.Img.ref.if(_, 5, u => C.Img.id(KD(6n, C.Img.known(ks2)), k, U32.inc(5))) == 7 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.true(), k), False{}, e6) : {C.Img.ref.if(_, 6, u => C.Img.id(KD(7n, C.Img.known(ks2)), k, U32.inc(6))) == 7 : U32}
+  %Equal.sym(Bool, C.Name.is_eq(C.Program.name.false(), k), True{}, e7) : {C.Img.ref.if(_, 7, u => C.Img.id(KD(8n, C.Img.known(ks2)), k, U32.inc(7))) == 7 : U32}
+  {==}
+
+def lab.at0(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  +etn = eq_nat(j, 0, Tr(U32, y => {U32.is_eq(j, y) == True{} : Bool}, C.Img.id(C.Img.known(ks2), k, 0), 0, id.at0(ks2, k, e0), ej))
+  +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.unit()}, Some{k},
+    Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 0n, etn, ek))
+  Tr(List<&2, U32>, b => {known.ok(j, b) == True{} : Bool}, C.Program.name.unit(), k, enk,
+    KO.rw(C.Program.name.unit(), j, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, nat_eq(j, 0, etn), ne_num(j, 1, 0n, etn, {==}), ne_num(j, 2, 0n, etn, {==}), ne_num(j, 3, 0n, etn, {==}), ne_num(j, 4, 0n, etn, {==}), ne_num(j, 5, 0n, etn, {==}), ne_num(j, 6, 0n, etn, {==}), ne_num(j, 7, 0n, etn, {==}), {==}))
+
+def lab.at1(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  +etn = eq_nat(j, 1, Tr(U32, y => {U32.is_eq(j, y) == True{} : Bool}, C.Img.id(C.Img.known(ks2), k, 0), 1, id.at1(ks2, k, e0, e1), ej))
+  +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.nil()}, Some{k},
+    Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 1n, etn, ek))
+  Tr(List<&2, U32>, b => {known.ok(j, b) == True{} : Bool}, C.Program.name.nil(), k, enk,
+    KO.rw(C.Program.name.nil(), j, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, ne_num(j, 0, 1n, etn, {==}), nat_eq(j, 1, etn), ne_num(j, 2, 1n, etn, {==}), ne_num(j, 3, 1n, etn, {==}), ne_num(j, 4, 1n, etn, {==}), ne_num(j, 5, 1n, etn, {==}), ne_num(j, 6, 1n, etn, {==}), ne_num(j, 7, 1n, etn, {==}), {==}))
+
+def lab.at2(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  +etn = eq_nat(j, 2, Tr(U32, y => {U32.is_eq(j, y) == True{} : Bool}, C.Img.id(C.Img.known(ks2), k, 0), 2, id.at2(ks2, k, e0, e1, e2), ej))
+  +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.con()}, Some{k},
+    Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 2n, etn, ek))
+  Tr(List<&2, U32>, b => {known.ok(j, b) == True{} : Bool}, C.Program.name.con(), k, enk,
+    KO.rw(C.Program.name.con(), j, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, ne_num(j, 0, 2n, etn, {==}), ne_num(j, 1, 2n, etn, {==}), nat_eq(j, 2, etn), ne_num(j, 3, 2n, etn, {==}), ne_num(j, 4, 2n, etn, {==}), ne_num(j, 5, 2n, etn, {==}), ne_num(j, 6, 2n, etn, {==}), ne_num(j, 7, 2n, etn, {==}), {==}))
+
+def lab.at3(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  +etn = eq_nat(j, 3, Tr(U32, y => {U32.is_eq(j, y) == True{} : Bool}, C.Img.id(C.Img.known(ks2), k, 0), 3, id.at3(ks2, k, e0, e1, e2, e3), ej))
+  +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.u32()}, Some{k},
+    Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 3n, etn, ek))
+  Tr(List<&2, U32>, b => {known.ok(j, b) == True{} : Bool}, C.Program.name.u32(), k, enk,
+    KO.rw(C.Program.name.u32(), j, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, ne_num(j, 0, 3n, etn, {==}), ne_num(j, 1, 3n, etn, {==}), ne_num(j, 2, 3n, etn, {==}), nat_eq(j, 3, etn), ne_num(j, 4, 3n, etn, {==}), ne_num(j, 5, 3n, etn, {==}), ne_num(j, 6, 3n, etn, {==}), ne_num(j, 7, 3n, etn, {==}), {==}))
+
+def lab.at4(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  +etn = eq_nat(j, 4, Tr(U32, y => {U32.is_eq(j, y) == True{} : Bool}, C.Img.id(C.Img.known(ks2), k, 0), 4, id.at4(ks2, k, e0, e1, e2, e3, e4), ej))
+  +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.wnil()}, Some{k},
+    Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 4n, etn, ek))
+  Tr(List<&2, U32>, b => {known.ok(j, b) == True{} : Bool}, C.Program.name.wnil(), k, enk,
+    KO.rw(C.Program.name.wnil(), j, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, ne_num(j, 0, 4n, etn, {==}), ne_num(j, 1, 4n, etn, {==}), ne_num(j, 2, 4n, etn, {==}), ne_num(j, 3, 4n, etn, {==}), nat_eq(j, 4, etn), ne_num(j, 5, 4n, etn, {==}), ne_num(j, 6, 4n, etn, {==}), ne_num(j, 7, 4n, etn, {==}), {==}))
+
+def lab.at5(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == False{} : Bool}, +e5: {C.Name.is_eq(C.Program.name.wcon(), k) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  +etn = eq_nat(j, 5, Tr(U32, y => {U32.is_eq(j, y) == True{} : Bool}, C.Img.id(C.Img.known(ks2), k, 0), 5, id.at5(ks2, k, e0, e1, e2, e3, e4, e5), ej))
+  +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.wcon()}, Some{k},
+    Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 5n, etn, ek))
+  Tr(List<&2, U32>, b => {known.ok(j, b) == True{} : Bool}, C.Program.name.wcon(), k, enk,
+    KO.rw(C.Program.name.wcon(), j, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, ne_num(j, 0, 5n, etn, {==}), ne_num(j, 1, 5n, etn, {==}), ne_num(j, 2, 5n, etn, {==}), ne_num(j, 3, 5n, etn, {==}), ne_num(j, 4, 5n, etn, {==}), nat_eq(j, 5, etn), ne_num(j, 6, 5n, etn, {==}), ne_num(j, 7, 5n, etn, {==}), {==}))
+
+def lab.at6(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == False{} : Bool}, +e5: {C.Name.is_eq(C.Program.name.wcon(), k) == False{} : Bool}, +e6: {C.Name.is_eq(C.Program.name.true(), k) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  +etn = eq_nat(j, 6, Tr(U32, y => {U32.is_eq(j, y) == True{} : Bool}, C.Img.id(C.Img.known(ks2), k, 0), 6, id.at6(ks2, k, e0, e1, e2, e3, e4, e5, e6), ej))
+  +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.true()}, Some{k},
+    Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 6n, etn, ek))
+  Tr(List<&2, U32>, b => {known.ok(j, b) == True{} : Bool}, C.Program.name.true(), k, enk,
+    KO.rw(C.Program.name.true(), j, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, ne_num(j, 0, 6n, etn, {==}), ne_num(j, 1, 6n, etn, {==}), ne_num(j, 2, 6n, etn, {==}), ne_num(j, 3, 6n, etn, {==}), ne_num(j, 4, 6n, etn, {==}), ne_num(j, 5, 6n, etn, {==}), nat_eq(j, 6, etn), ne_num(j, 7, 6n, etn, {==}), {==}))
+
+def lab.at7(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == False{} : Bool}, +e5: {C.Name.is_eq(C.Program.name.wcon(), k) == False{} : Bool}, +e6: {C.Name.is_eq(C.Program.name.true(), k) == False{} : Bool}, +e7: {C.Name.is_eq(C.Program.name.false(), k) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  +etn = eq_nat(j, 7, Tr(U32, y => {U32.is_eq(j, y) == True{} : Bool}, C.Img.id(C.Img.known(ks2), k, 0), 7, id.at7(ks2, k, e0, e1, e2, e3, e4, e5, e6, e7), ej))
+  +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.false()}, Some{k},
+    Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 7n, etn, ek))
+  Tr(List<&2, U32>, b => {known.ok(j, b) == True{} : Bool}, C.Program.name.false(), k, enk,
+    KO.rw(C.Program.name.false(), j, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, True{}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, ne_num(j, 0, 7n, etn, {==}), ne_num(j, 1, 7n, etn, {==}), ne_num(j, 2, 7n, etn, {==}), ne_num(j, 3, 7n, etn, {==}), ne_num(j, 4, 7n, etn, {==}), ne_num(j, 5, 7n, etn, {==}), ne_num(j, 6, 7n, etn, {==}), nat_eq(j, 7, etn), {==}))
+
+def lab.ne0(b: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +en: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +eb: {U32.is_eq(j, 0) == b : Bool}) -> {U32.is_eq(j, 0) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +etn = eq_nat(j, 0, eb)
+      +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.unit()}, Some{k},
+        Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 0n, etn, ek))
+      Empty.absurd({U32.is_eq(j, 0) == False{} : Bool}, PN.true_ne_false(Tr(List<&2, U32>, y => {C.Name.is_eq(C.Program.name.unit(), y) == False{} : Bool}, k, C.Program.name.unit(),
+        Equal.sym(List<&2, U32>, C.Program.name.unit(), k, enk), en)))
+
+def lab.ne1(b: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +en: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +eb: {U32.is_eq(j, 1) == b : Bool}) -> {U32.is_eq(j, 1) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +etn = eq_nat(j, 1, eb)
+      +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.nil()}, Some{k},
+        Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 1n, etn, ek))
+      Empty.absurd({U32.is_eq(j, 1) == False{} : Bool}, PN.true_ne_false(Tr(List<&2, U32>, y => {C.Name.is_eq(C.Program.name.nil(), y) == False{} : Bool}, k, C.Program.name.nil(),
+        Equal.sym(List<&2, U32>, C.Program.name.nil(), k, enk), en)))
+
+def lab.ne2(b: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +en: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +eb: {U32.is_eq(j, 2) == b : Bool}) -> {U32.is_eq(j, 2) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +etn = eq_nat(j, 2, eb)
+      +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.con()}, Some{k},
+        Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 2n, etn, ek))
+      Empty.absurd({U32.is_eq(j, 2) == False{} : Bool}, PN.true_ne_false(Tr(List<&2, U32>, y => {C.Name.is_eq(C.Program.name.con(), y) == False{} : Bool}, k, C.Program.name.con(),
+        Equal.sym(List<&2, U32>, C.Program.name.con(), k, enk), en)))
+
+def lab.ne3(b: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +en: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +eb: {U32.is_eq(j, 3) == b : Bool}) -> {U32.is_eq(j, 3) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +etn = eq_nat(j, 3, eb)
+      +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.u32()}, Some{k},
+        Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 3n, etn, ek))
+      Empty.absurd({U32.is_eq(j, 3) == False{} : Bool}, PN.true_ne_false(Tr(List<&2, U32>, y => {C.Name.is_eq(C.Program.name.u32(), y) == False{} : Bool}, k, C.Program.name.u32(),
+        Equal.sym(List<&2, U32>, C.Program.name.u32(), k, enk), en)))
+
+def lab.ne4(b: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +en: {C.Name.is_eq(C.Program.name.wnil(), k) == False{} : Bool}, +eb: {U32.is_eq(j, 4) == b : Bool}) -> {U32.is_eq(j, 4) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +etn = eq_nat(j, 4, eb)
+      +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.wnil()}, Some{k},
+        Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 4n, etn, ek))
+      Empty.absurd({U32.is_eq(j, 4) == False{} : Bool}, PN.true_ne_false(Tr(List<&2, U32>, y => {C.Name.is_eq(C.Program.name.wnil(), y) == False{} : Bool}, k, C.Program.name.wnil(),
+        Equal.sym(List<&2, U32>, C.Program.name.wnil(), k, enk), en)))
+
+def lab.ne5(b: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +en: {C.Name.is_eq(C.Program.name.wcon(), k) == False{} : Bool}, +eb: {U32.is_eq(j, 5) == b : Bool}) -> {U32.is_eq(j, 5) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +etn = eq_nat(j, 5, eb)
+      +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.wcon()}, Some{k},
+        Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 5n, etn, ek))
+      Empty.absurd({U32.is_eq(j, 5) == False{} : Bool}, PN.true_ne_false(Tr(List<&2, U32>, y => {C.Name.is_eq(C.Program.name.wcon(), y) == False{} : Bool}, k, C.Program.name.wcon(),
+        Equal.sym(List<&2, U32>, C.Program.name.wcon(), k, enk), en)))
+
+def lab.ne6(b: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +en: {C.Name.is_eq(C.Program.name.true(), k) == False{} : Bool}, +eb: {U32.is_eq(j, 6) == b : Bool}) -> {U32.is_eq(j, 6) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +etn = eq_nat(j, 6, eb)
+      +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.true()}, Some{k},
+        Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 6n, etn, ek))
+      Empty.absurd({U32.is_eq(j, 6) == False{} : Bool}, PN.true_ne_false(Tr(List<&2, U32>, y => {C.Name.is_eq(C.Program.name.true(), y) == False{} : Bool}, k, C.Program.name.true(),
+        Equal.sym(List<&2, U32>, C.Program.name.true(), k, enk), en)))
+
+def lab.ne7(b: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +en: {C.Name.is_eq(C.Program.name.false(), k) == False{} : Bool}, +eb: {U32.is_eq(j, 7) == b : Bool}) -> {U32.is_eq(j, 7) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +etn = eq_nat(j, 7, eb)
+      +enk = Equal.cong(Maybe<&2, List<&2, U32>>, List<&2, U32>, x => Maybe.default(&2, List<&2, U32>, x, Nil{}), Some{C.Program.name.false()}, Some{k},
+        Tr(Nat, t => {List.get(&2, List<&2, U32>, C.Img.known(ks2), t) == Some{k} : Maybe<&2, List<&2, U32>>}, U32.to_nat(j), 7n, etn, ek))
+      Empty.absurd({U32.is_eq(j, 7) == False{} : Bool}, PN.true_ne_false(Tr(List<&2, U32>, y => {C.Name.is_eq(C.Program.name.false(), y) == False{} : Bool}, k, C.Program.name.false(),
+        Equal.sym(List<&2, U32>, C.Program.name.false(), k, enk), en)))
+
+def lab.none(+ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +e0: {C.Name.is_eq(C.Program.name.unit(), k) == False{} : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == False{} : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == False{} : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == False{} : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == False{} : Bool}, +e5: {C.Name.is_eq(C.Program.name.wcon(), k) == False{} : Bool}, +e6: {C.Name.is_eq(C.Program.name.true(), k) == False{} : Bool}, +e7: {C.Name.is_eq(C.Program.name.false(), k) == False{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  KO.rw(k, j, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, Equal.trans(Bool, C.Name.is_eq(k, C.Program.name.unit()), C.Name.is_eq(C.Program.name.unit(), k), False{}, Nsym(k, C.Program.name.unit()), e0), Equal.trans(Bool, C.Name.is_eq(k, C.Program.name.nil()), C.Name.is_eq(C.Program.name.nil(), k), False{}, Nsym(k, C.Program.name.nil()), e1), Equal.trans(Bool, C.Name.is_eq(k, C.Program.name.con()), C.Name.is_eq(C.Program.name.con(), k), False{}, Nsym(k, C.Program.name.con()), e2), Equal.trans(Bool, C.Name.is_eq(k, C.Program.name.u32()), C.Name.is_eq(C.Program.name.u32(), k), False{}, Nsym(k, C.Program.name.u32()), e3), Equal.trans(Bool, C.Name.is_eq(k, C.Program.name.wnil()), C.Name.is_eq(C.Program.name.wnil(), k), False{}, Nsym(k, C.Program.name.wnil()), e4), Equal.trans(Bool, C.Name.is_eq(k, C.Program.name.wcon()), C.Name.is_eq(C.Program.name.wcon(), k), False{}, Nsym(k, C.Program.name.wcon()), e5), Equal.trans(Bool, C.Name.is_eq(k, C.Program.name.true()), C.Name.is_eq(C.Program.name.true(), k), False{}, Nsym(k, C.Program.name.true()), e6), Equal.trans(Bool, C.Name.is_eq(k, C.Program.name.false()), C.Name.is_eq(C.Program.name.false(), k), False{}, Nsym(k, C.Program.name.false()), e7), lab.ne0(U32.is_eq(j, 0), ks2, j, k, ek, e0, {==}), lab.ne1(U32.is_eq(j, 1), ks2, j, k, ek, e1, {==}), lab.ne2(U32.is_eq(j, 2), ks2, j, k, ek, e2, {==}), lab.ne3(U32.is_eq(j, 3), ks2, j, k, ek, e3, {==}), lab.ne4(U32.is_eq(j, 4), ks2, j, k, ek, e4, {==}), lab.ne5(U32.is_eq(j, 5), ks2, j, k, ek, e5, {==}), lab.ne6(U32.is_eq(j, 6), ks2, j, k, ek, e6, {==}), lab.ne7(U32.is_eq(j, 7), ks2, j, k, ek, e7, {==}), {==})
+
+def lab.cases(b0: Bool, b1: Bool, b2: Bool, b3: Bool, b4: Bool, b5: Bool, b6: Bool, b7: Bool, +ks2: List<&2, List<&2, U32>>, +j: U32, +k: List<&2, U32>, +e0: {C.Name.is_eq(C.Program.name.unit(), k) == b0 : Bool}, +e1: {C.Name.is_eq(C.Program.name.nil(), k) == b1 : Bool}, +e2: {C.Name.is_eq(C.Program.name.con(), k) == b2 : Bool}, +e3: {C.Name.is_eq(C.Program.name.u32(), k) == b3 : Bool}, +e4: {C.Name.is_eq(C.Program.name.wnil(), k) == b4 : Bool}, +e5: {C.Name.is_eq(C.Program.name.wcon(), k) == b5 : Bool}, +e6: {C.Name.is_eq(C.Program.name.true(), k) == b6 : Bool}, +e7: {C.Name.is_eq(C.Program.name.false(), k) == b7 : Bool},
+  +ek: {T.tm.name(C.Img.known(ks2), j) == Some{k} : Maybe<&2, List<&2, U32>>},
+  +ej: {U32.is_eq(j, C.Img.id(C.Img.known(ks2), k, 0)) == True{} : Bool}) -> {known.ok(j, k) == True{} : Bool}:
+  match b0:
+    case True{}:
+      lab.at0(ks2, j, k, ek, ej, e0)
+    case False{}:
+      match b1:
+        case True{}:
+          lab.at1(ks2, j, k, ek, ej, e0, e1)
+        case False{}:
+          match b2:
+            case True{}:
+              lab.at2(ks2, j, k, ek, ej, e0, e1, e2)
+            case False{}:
+              match b3:
+                case True{}:
+                  lab.at3(ks2, j, k, ek, ej, e0, e1, e2, e3)
+                case False{}:
+                  match b4:
+                    case True{}:
+                      lab.at4(ks2, j, k, ek, ej, e0, e1, e2, e3, e4)
+                    case False{}:
+                      match b5:
+                        case True{}:
+                          lab.at5(ks2, j, k, ek, ej, e0, e1, e2, e3, e4, e5)
+                        case False{}:
+                          match b6:
+                            case True{}:
+                              lab.at6(ks2, j, k, ek, ej, e0, e1, e2, e3, e4, e5, e6)
+                            case False{}:
+                              match b7:
+                                case True{}:
+                                  lab.at7(ks2, j, k, ek, ej, e0, e1, e2, e3, e4, e5, e6, e7)
+                                case False{}:
+                                  lab.none(ks2, j, k, ek, e0, e1, e2, e3, e4, e5, e6, e7)
+
+
+# the number j of a label is the number of its name
+def labid.of(n: Maybe<&2, List<&2, U32>>, +j: U32, +ks: List<&2, List<&2, U32>>) -> Bool:
+  match n:
+    case None{}:
+      True{}
+    case Some{+k}:
+      U32.is_eq(j, C.Img.id(ks, k, 0))
+
+def labid(+ks: List<&2, List<&2, U32>>, +j: U32) -> Bool:
+  labid.of(T.tm.name(ks, j), j, ks)
+
+def labid.ok.of(n: Maybe<&2, List<&2, U32>>, +ks2: List<&2, List<&2, U32>>, +j: U32,
+  +en: {T.tm.name(C.Img.known(ks2), j) == n : Maybe<&2, List<&2, U32>>}, +h: {labid.of(n, j, C.Img.known(ks2)) == True{} : Bool}) ->
+  {labok.of(n, j) == True{} : Bool}:
+  match n:
+    case None{}:
+      {==}
+    case Some{+k}:
+      lab.cases(C.Name.is_eq(C.Program.name.unit(), k), C.Name.is_eq(C.Program.name.nil(), k), C.Name.is_eq(C.Program.name.con(), k), C.Name.is_eq(C.Program.name.u32(), k), C.Name.is_eq(C.Program.name.wnil(), k), C.Name.is_eq(C.Program.name.wcon(), k), C.Name.is_eq(C.Program.name.true(), k), C.Name.is_eq(C.Program.name.false(), k), ks2, j, k, {==}, {==}, {==}, {==}, {==}, {==}, {==}, {==}, en, h)
+
+# a label that holds the number of its name is one that ok accepts
+def labid.ok(+ks2: List<&2, List<&2, U32>>, +j: U32, +h: {labid(C.Img.known(ks2), j) == True{} : Bool}) ->
+  {labok(C.Img.known(ks2), j) == True{} : Bool}:
+  labid.ok.of(T.tm.name(C.Img.known(ks2), j), ks2, j, {==}, h)
+
+# ok, with labels that hold the number of their name (labid) in place of
+# labok
+def okn.lab(+t: U32, +ks: List<&2, List<&2, U32>>, +j: U32) -> Bool:
+  Bool.or(Bool.not(U32.is_eq(t, 13)), labid(ks, j))
+
+def okn(+fuel: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32,
+  +fs: U32, +nx: U32) -> Bool:
+  match fuel:
+    case 0n:
+      False{}
+    case 1n+f:
+      +t = Tg(m, c)
+      Bool.and(Bool.and(Bool.and(C.Cir.is_cell(c, im, fs, nx), ok.img(t, T.tm.image(img, c))), okn.lab(t, ks, Fd(2n, m, c))),
+        Bool.or(Bool.not(U32.is_eq(t, 10)),
+          Bool.and(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx))))
+
+def and_i(a: Bool, -b: Bool, +ea: {a == True{} : Bool}, +eb: {b == True{} : Bool}) -> {Bool.and(a, b) == True{} : Bool}:
+  match a:
+    case True{}:
+      eb
+    case False{}:
+      Empty.absurd({Bool.and(False{}, b) == True{} : Bool}, PN.false_ne_true(ea))
+
+def or_imp(x: Bool, -y: Bool, -z: Bool, +h: {Bool.or(Bool.not(x), y) == True{} : Bool}, k: {y == True{} : Bool} -> {z == True{} : Bool}) ->
+  {Bool.or(Bool.not(x), z) == True{} : Bool}:
+  match x:
+    case True{}:
+      k(h)
+    case False{}:
+      {==}
+
+# okn gives ok, when the names are the machine's first
+def okn.ok(+fuel: Nat, +m: C.Cir.Cells, +ks2: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32, +im: U32, +fs: U32, +nx: U32,
+  +h: {okn(fuel, m, C.Img.known(ks2), img, c, im, fs, nx) == True{} : Bool}) ->
+  {ok(fuel, m, C.Img.known(ks2), img, c, im, fs, nx) == True{} : Bool}:
+  match fuel:
+    case 0n:
+      h
+    case 1n+f:
+      +ks = C.Img.known(ks2)
+      +t = Tg(m, c)
+      +IC = C.Cir.is_cell(c, im, fs, nx)
+      +IM = ok.img(t, T.tm.image(img, c))
+      +L2 = okn.lab(t, ks, Fd(2n, m, c))
+      +K2 = Bool.or(Bool.not(U32.is_eq(t, 10)), Bool.and(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx)))
+      +h1 = and_l(Bool.and(Bool.and(IC, IM), L2), K2, h)
+      +h2 = and_l(Bool.and(IC, IM), L2, h1)
+      +hl = and_r(Bool.and(IC, IM), L2, h1)
+      +hk = and_r(Bool.and(Bool.and(IC, IM), L2), K2, h)
+      and_i(Bool.and(Bool.and(IC, IM), ok.lab(t, ks, Fd(2n, m, c))),
+        Bool.or(Bool.not(U32.is_eq(t, 10)), Bool.and(ok(f, m, ks, img, Fd(2n, m, c), im, fs, nx), ok(f, m, ks, img, Fd(3n, m, c), im, fs, nx))),
+        and_i(Bool.and(IC, IM), ok.lab(t, ks, Fd(2n, m, c)), h2,
+          or_imp(U32.is_eq(t, 13), labid(ks, Fd(2n, m, c)), labok(ks, Fd(2n, m, c)), hl, e => labid.ok(ks2, Fd(2n, m, c), e))),
+        or_imp(U32.is_eq(t, 10), Bool.and(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx)),
+          Bool.and(ok(f, m, ks, img, Fd(2n, m, c), im, fs, nx), ok(f, m, ks, img, Fd(3n, m, c), im, fs, nx)), hk,
+          +e => and_i(ok(f, m, ks, img, Fd(2n, m, c), im, fs, nx), ok(f, m, ks, img, Fd(3n, m, c), im, fs, nx),
+            okn.ok(f, m, ks2, img, Fd(2n, m, c), im, fs, nx, and_l(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx), e)),
+            okn.ok(f, m, ks2, img, Fd(3n, m, c), im, fs, nx, and_r(okn(f, m, ks, img, Fd(2n, m, c), im, fs, nx), okn(f, m, ks, img, Fd(3n, m, c), im, fs, nx), e)))))
+
+# THE LEMMA, with the image's names: ks is C.Img.known(ks2), and every label
+# that the walk reads holds the number of its name (okn)
+def out.known(+n: Nat, +regs: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +fs: U32, +im: U32,
+  +pg: U32, +lim: U32, +inp: List<&2, U32>, +out: List<&2, U32>, +outn: U32, +c: U32, +ks: List<&2, List<&2, U32>>,
+  +ks2: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +v: C.Term,
+  +hreg: {List.get(&2, U32, regs, C.R.focus()) == Some{c} : Maybe<&2, U32>},
+  +hlen: {Nat.is_le(C.Mach.regs(), List.length(&2, U32, regs)) == True{} : Bool},
+  +htm: {T.tm.of(n, m, ks, img, c) == Some{v} : Maybe<&2, C.Term>},
+  +hk: {ks == C.Img.known(ks2) : List<&2, List<&2, U32>>},
+  +hok: {okn(n, m, ks, img, c, im, fs, nx) == True{} : Bool}) ->
+  &F: Nat -> Gives(C.Cir.exec(F, C.M.out(), C.Cir.State{regs, m, nx, fs, im, pg, lim, inp, out, outn}), C.Program.unbytes(v), out, outn):
+  out.gives(n, regs, m, nx, fs, im, pg, lim, inp, out, outn, c, ks, img, v, hreg, hlen, htm,
+    Tr(List<&2, List<&2, U32>>, x => {ok(n, m, x, img, c, im, fs, nx) == True{} : Bool}, C.Img.known(ks2), ks,
+      Equal.sym(List<&2, List<&2, U32>>, ks, C.Img.known(ks2), hk),
+      okn.ok(n, m, ks2, img, c, im, fs, nx,
+        Tr(List<&2, List<&2, U32>>, x => {okn(n, m, x, img, c, im, fs, nx) == True{} : Bool}, ks, C.Img.known(ks2), hk, hok))))

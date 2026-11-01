@@ -378,3 +378,11 @@ def Al.ok(+f: Nat, +r: Nat, +R: List<&2, U32>, +m: C.Cir.Cells, +nx: U32, +F: U3
   D.Ok(C.Cir.exec(1n+f, C.M.alloc(r), D.S(D.Rg.ex(64n, R, 0n), m, nx, F, K, pg, L, I)), F, K, L, I,
     rg => ms => nx2 => pg2 => D.Ex(Aw, w => Al.post(r, R, m, nx, K, F, P, Bu, w, rg, ms, nx2))):
   ?TODO
+
+# no garbage cell of P points to the cells ns
+def Pz(ns: List<&2, U32>, +P: List<&2, U32>, +m: C.Cir.Cells) -> Bool:
+  match ns:
+    case Nil{}:
+      True{}
+    case Con{+n, rest}:
+      Bool.and(Nat.is_eq(D.Pp(P, m, n), 0n), Pz(rest, P, m))
