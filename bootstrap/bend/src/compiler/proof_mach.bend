@@ -1623,16 +1623,14 @@ def weq.eq(n: Nat, v: Word(n), w: Word(n), h: {Weq(n, v, w) == True{} : Bool}) -
           {==}
     case 1n+(+p):
       match v w:
-        case WCon{a, +s} WCon{b, +t}:
-          match a b:
-            case True{} True{}:
-              Equal.cong(Word(p), Word(1n+p), x => WCon{True{}, x}, s, t, weq.eq(p, s, t, h))
-            case False{} False{}:
-              Equal.cong(Word(p), Word(1n+p), x => WCon{False{}, x}, s, t, weq.eq(p, s, t, h))
-            case True{} False{}:
-              bool.ft({WCon{True{}, s} == WCon{False{}, t} : Word(1n+p)}, h)
-            case False{} True{}:
-              bool.ft({WCon{False{}, s} == WCon{True{}, t} : Word(1n+p)}, h)
+        case WCon{True{}, +s} WCon{True{}, +t}:
+          Equal.cong(Word(p), Word(1n+p), x => WCon{True{}, x}, s, t, weq.eq(p, s, t, h))
+        case WCon{False{}, +s} WCon{False{}, +t}:
+          Equal.cong(Word(p), Word(1n+p), x => WCon{False{}, x}, s, t, weq.eq(p, s, t, h))
+        case WCon{True{}, +s} WCon{False{}, +t}:
+          bool.ft({WCon{True{}, s} == WCon{False{}, t} : Word(1n+p)}, h)
+        case WCon{False{}, +s} WCon{True{}, +t}:
+          bool.ft({WCon{False{}, s} == WCon{True{}, t} : Word(1n+p)}, h)
 
 def weq.refl(n: Nat, w: Word(n)) -> {Weq(n, w, w) == True{} : Bool}:
   match n:
@@ -1640,12 +1638,10 @@ def weq.refl(n: Nat, w: Word(n)) -> {Weq(n, w, w) == True{} : Bool}:
       {==}
     case 1n+p:
       match w:
-        case WCon{a, s}:
-          match a:
-            case True{}:
-              weq.refl(p, s)
-            case False{}:
-              weq.refl(p, s)
+        case WCon{True{}, s}:
+          weq.refl(p, s)
+        case WCon{False{}, s}:
+          weq.refl(p, s)
 
 # U32.is_eq decides equality
 def u32.eq(+a: U32, +b: U32, h: {U32.is_eq(a, b) == True{} : Bool}) -> {a == b : U32}:
@@ -1671,12 +1667,10 @@ def cl.none(n: Nat, +w: Word(n)) -> {C.Cir.Cells.get.at(n, w, C.Cir.Cells.none{}
       {==}
     case 1n+p:
       match w:
-        case WCon{b, t}:
-          match b:
-            case True{}:
-              {==}
-            case False{}:
-              {==}
+        case WCon{True{}, t}:
+          {==}
+        case WCon{False{}, t}:
+          {==}
 
 def cl.gs.at(n: Nat, +w: Word(n), +m: C.Cir.Cells, +c: C.Cir.Cell) ->
   {C.Cir.Cells.get.at(n, w, C.Cir.Cells.set.at(n, w, m, c)) == c : C.Cir.Cell}:
@@ -1684,21 +1678,19 @@ def cl.gs.at(n: Nat, +w: Word(n), +m: C.Cir.Cells, +c: C.Cir.Cell) ->
     case 0n:
       {==}
     case 1n+p:
-      match w:
-        case WCon{b, +t}:
-          match b m:
-            case False{} C.Cir.Cells.node{+lo, +hi}:
-              cl.gs.at(p, t, lo, c)
-            case True{} C.Cir.Cells.node{+lo, +hi}:
-              cl.gs.at(p, t, hi, c)
-            case False{} C.Cir.Cells.none{}:
-              cl.gs.at(p, t, C.Cir.Cells.none{}, c)
-            case True{} C.Cir.Cells.none{}:
-              cl.gs.at(p, t, C.Cir.Cells.none{}, c)
-            case False{} C.Cir.Cells.one{d}:
-              cl.gs.at(p, t, C.Cir.Cells.none{}, c)
-            case True{} C.Cir.Cells.one{d}:
-              cl.gs.at(p, t, C.Cir.Cells.none{}, c)
+      match w m:
+        case WCon{False{}, +t} C.Cir.Cells.node{+lo, +hi}:
+          cl.gs.at(p, t, lo, c)
+        case WCon{True{}, +t} C.Cir.Cells.node{+lo, +hi}:
+          cl.gs.at(p, t, hi, c)
+        case WCon{False{}, +t} C.Cir.Cells.none{}:
+          cl.gs.at(p, t, C.Cir.Cells.none{}, c)
+        case WCon{True{}, +t} C.Cir.Cells.none{}:
+          cl.gs.at(p, t, C.Cir.Cells.none{}, c)
+        case WCon{False{}, +t} C.Cir.Cells.one{d}:
+          cl.gs.at(p, t, C.Cir.Cells.none{}, c)
+        case WCon{True{}, +t} C.Cir.Cells.one{d}:
+          cl.gs.at(p, t, C.Cir.Cells.none{}, c)
 
 # a cell set is there
 def cl.gs(+m: C.Cir.Cells, +i: U32, +c: C.Cir.Cell) -> {C.Cir.Cells.get(C.Cir.Cells.set(m, i, c), i) == c : C.Cir.Cell}:
@@ -1715,37 +1707,35 @@ def cl.go.at(n: Nat, +v: Word(n), +w: Word(n), +m: C.Cir.Cells, +c: C.Cir.Cell, 
           bool.ft({C.Cir.Cells.get.at(0n, WNil{}, C.Cir.Cells.set.at(0n, WNil{}, m, c)) == C.Cir.Cells.get.at(0n, WNil{}, m) : C.Cir.Cell},
             Equal.sym(Bool, True{}, False{}, h))
     case 1n+(+p):
-      match v w:
-        case WCon{a, +s} WCon{b, +t}:
-          match a b m:
-            case False{} False{} C.Cir.Cells.node{+lo, +hi}:
-              cl.go.at(p, s, t, lo, c, h)
-            case False{} False{} C.Cir.Cells.none{}:
-              Equal.trans(C.Cir.Cell, C.Cir.Cells.get.at(p, s, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, c)), C.Cir.Cells.get.at(p, s, C.Cir.Cells.none{}), C.Cir.Cell.zero(),
-                cl.go.at(p, s, t, C.Cir.Cells.none{}, c, h), cl.none(p, s))
-            case False{} False{} C.Cir.Cells.one{+d}:
-              Equal.trans(C.Cir.Cell, C.Cir.Cells.get.at(p, s, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, c)), C.Cir.Cells.get.at(p, s, C.Cir.Cells.none{}), C.Cir.Cell.zero(),
-                cl.go.at(p, s, t, C.Cir.Cells.none{}, c, h), cl.none(p, s))
-            case False{} True{} C.Cir.Cells.node{+lo, +hi}:
-              {==}
-            case False{} True{} C.Cir.Cells.none{}:
-              cl.none(p, s)
-            case False{} True{} C.Cir.Cells.one{+d}:
-              cl.none(p, s)
-            case True{} False{} C.Cir.Cells.node{+lo, +hi}:
-              {==}
-            case True{} False{} C.Cir.Cells.none{}:
-              cl.none(p, s)
-            case True{} False{} C.Cir.Cells.one{+d}:
-              cl.none(p, s)
-            case True{} True{} C.Cir.Cells.node{+lo, +hi}:
-              cl.go.at(p, s, t, hi, c, h)
-            case True{} True{} C.Cir.Cells.none{}:
-              Equal.trans(C.Cir.Cell, C.Cir.Cells.get.at(p, s, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, c)), C.Cir.Cells.get.at(p, s, C.Cir.Cells.none{}), C.Cir.Cell.zero(),
-                cl.go.at(p, s, t, C.Cir.Cells.none{}, c, h), cl.none(p, s))
-            case True{} True{} C.Cir.Cells.one{+d}:
-              Equal.trans(C.Cir.Cell, C.Cir.Cells.get.at(p, s, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, c)), C.Cir.Cells.get.at(p, s, C.Cir.Cells.none{}), C.Cir.Cell.zero(),
-                cl.go.at(p, s, t, C.Cir.Cells.none{}, c, h), cl.none(p, s))
+      match v w m:
+        case WCon{False{}, +s} WCon{False{}, +t} C.Cir.Cells.node{+lo, +hi}:
+          cl.go.at(p, s, t, lo, c, h)
+        case WCon{False{}, +s} WCon{False{}, +t} C.Cir.Cells.none{}:
+          Equal.trans(C.Cir.Cell, C.Cir.Cells.get.at(p, s, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, c)), C.Cir.Cells.get.at(p, s, C.Cir.Cells.none{}), C.Cir.Cell.zero(),
+            cl.go.at(p, s, t, C.Cir.Cells.none{}, c, h), cl.none(p, s))
+        case WCon{False{}, +s} WCon{False{}, +t} C.Cir.Cells.one{+d}:
+          Equal.trans(C.Cir.Cell, C.Cir.Cells.get.at(p, s, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, c)), C.Cir.Cells.get.at(p, s, C.Cir.Cells.none{}), C.Cir.Cell.zero(),
+            cl.go.at(p, s, t, C.Cir.Cells.none{}, c, h), cl.none(p, s))
+        case WCon{False{}, +s} WCon{True{}, +t} C.Cir.Cells.node{+lo, +hi}:
+          {==}
+        case WCon{False{}, +s} WCon{True{}, +t} C.Cir.Cells.none{}:
+          cl.none(p, s)
+        case WCon{False{}, +s} WCon{True{}, +t} C.Cir.Cells.one{+d}:
+          cl.none(p, s)
+        case WCon{True{}, +s} WCon{False{}, +t} C.Cir.Cells.node{+lo, +hi}:
+          {==}
+        case WCon{True{}, +s} WCon{False{}, +t} C.Cir.Cells.none{}:
+          cl.none(p, s)
+        case WCon{True{}, +s} WCon{False{}, +t} C.Cir.Cells.one{+d}:
+          cl.none(p, s)
+        case WCon{True{}, +s} WCon{True{}, +t} C.Cir.Cells.node{+lo, +hi}:
+          cl.go.at(p, s, t, hi, c, h)
+        case WCon{True{}, +s} WCon{True{}, +t} C.Cir.Cells.none{}:
+          Equal.trans(C.Cir.Cell, C.Cir.Cells.get.at(p, s, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, c)), C.Cir.Cells.get.at(p, s, C.Cir.Cells.none{}), C.Cir.Cell.zero(),
+            cl.go.at(p, s, t, C.Cir.Cells.none{}, c, h), cl.none(p, s))
+        case WCon{True{}, +s} WCon{True{}, +t} C.Cir.Cells.one{+d}:
+          Equal.trans(C.Cir.Cell, C.Cir.Cells.get.at(p, s, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, c)), C.Cir.Cells.get.at(p, s, C.Cir.Cells.none{}), C.Cir.Cell.zero(),
+            cl.go.at(p, s, t, C.Cir.Cells.none{}, c, h), cl.none(p, s))
 
 # a set keeps the other cells
 def cl.go(+m: C.Cir.Cells, +j: U32, +i: U32, +c: C.Cir.Cell, h: {U32.is_eq(j, i) == False{} : Bool}) ->
