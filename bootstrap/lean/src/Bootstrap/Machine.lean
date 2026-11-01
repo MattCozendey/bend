@@ -1,4 +1,5 @@
 import Bootstrap.Stepwise
+import Bootstrap.Bytes
 
 -- Machine
 -- =======
@@ -262,6 +263,45 @@ def move (bk : Book) : State → Move
       | Lab i, Lab j =>
         if i ∈ QS ∧ j ∈ QS then .step ⟨.ev (Term.qmin (Lab i) (Lab j)) .nil, st⟩ else .stop
       | _, _ => .stop
+
+-- the value of t, when t is a cell (Bootstrap/Bytes.lean)
+def cellValue : Term → Option Nat
+  | Tup Q1 (Lab "U32") (Tup Q1 w (Lab "()")) => unbits 32 w
+  | _ => none
+
+-- c when it is t, else t: t either way
+def pick (c t : Term) : Term := if c = t then c else t
+
+theorem pick_eq : pick c t = t := by
+  unfold pick; split <;> simp_all
+
+-- t, or its copy in cells when t is a cell below 256
+def share (t : Term) : Term :=
+  match cellValue t with
+  | some v => if h : v < 256 then pick (cells[v]'(by rw [cells_size]; exact h)) t else t
+  | none => t
+
+theorem share_eq : share t = t := by
+  unfold share
+  split
+  · split
+    · exact pick_eq
+    · rfl
+  · rfl
+
+-- move, with each pair that it builds shared: compiled code, and so run, calls
+-- it for move
+def moveS (bk : Book) (s : State) : Move :=
+  match s with
+  | ⟨.ret v vl, .tupA q a al :: st⟩ => .admin ⟨.ret (share (Tup q (close a al) (close v vl))) .nil, st⟩
+  | s => move bk s
+
+@[csimp] theorem move_moveS : @move = @moveS := by
+  funext bk s
+  unfold moveS
+  split
+  · rw [share_eq]; rfl
+  · rfl
 
 -- the moves that a run makes before stepwise takes over: far more than a run
 -- can make in practice

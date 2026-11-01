@@ -26,6 +26,25 @@ def list : List Term → Term
 
 def cell (b : UInt8) : Term := ctor "U32" [bits 32 b.toNat]
 
+-- Sharing
+-- -------
+-- A cell is 263 nodes, and a list of bytes holds one for each byte. Compiled
+-- code takes each cell from cells, made once (cell_cellS), so equal cells are
+-- one term in memory: the terms are the same, only their copies change. The
+-- machine shares the cells that it builds the same way (Machine.share).
+
+-- the 256 cells
+def cells : Array Term := Array.ofFn fun (i : Fin 256) => cell i.val.toUInt8
+
+theorem cells_size : cells.size = 256 := Array.size_ofFn
+
+-- cell, from cells
+def cellS (b : UInt8) : Term := cells[b.toNat]'(by rw [cells_size]; exact b.toNat_lt)
+
+@[csimp] theorem cell_cellS : @cell = @cellS := by
+  funext b
+  simp [cellS, cells]
+
 def bytes (bs : List UInt8) : Term := list (bs.map cell)
 
 -- the value of a Word(n)
