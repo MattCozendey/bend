@@ -615,3 +615,112 @@ def is.fz(t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, 
               nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rwt{a, b, d}, 18, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(4n, m, c), Con{PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}}}, mem.tl(PM.Fd(3n, m, c), PM.Fd(4n, m, c), Con{PM.Fd(4n, m, c), Nil{}}, mem.hd(PM.Fd(4n, m, c), Nil{}))),
               e => hh => is.fz(d, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(4n, m, c), tbl, hz0, hzs, e, hh), pd)))))
 
+
+# A store to a cell that nothing points to: the heap
+# --------------------------------------------------
+#
+# Fs of a cell o reads o and the table's cell of o's tag. A store to z keeps
+# Fs of every other cell o, when z is not the table's cell that o reads
+# (TblR); and Fs of z, when z holds no pointer before or after (Nil). So it
+# keeps every count Pc and Ptr, and with them Cnt, Pts, PendOK and Chain.
+
+# the term cell o does not read its mask at z
+def TblAt(+m: C.Cir.Cells, +o: U32, +z: U32) -> Bool:
+  Bool.or(Bool.not(U32.is_lt(PM.Tg(m, o), 32)), Bool.not(U32.is_eq(U32.add(345, PM.Tg(m, o)), z)))
+
+# none of the n cells from o reads its mask at z
+def TblR(n: Nat, +m: C.Cir.Cells, +o: U32, +z: U32) -> Bool:
+  match n:
+    case 0n:
+      True{}
+    case 1n+k:
+      Bool.and(TblAt(m, o, z), TblR(k, m, U32.inc(o), z))
+
+def not.t(b: Bool, h: {Bool.not(b) == True{} : Bool}) -> {b == False{} : Bool}:
+  match b:
+    case True{}:
+      PM.bool.ft({True{} == False{} : Bool}, h)
+    case False{}:
+      {==}
+
+def tbl.ne(l: Bool, e: Bool, ht: {Bool.or(Bool.not(l), Bool.not(e)) == True{} : Bool}, el: {l == True{} : Bool}) -> {e == False{} : Bool}:
+  match l:
+    case True{}:
+      not.t(e, ht)
+    case False{}:
+      PM.bool.ft({e == False{} : Bool}, el)
+
+# Fs of the cell o, by its value y, with the mask a
+def FsK(b: Bool, +a: U32, +y: C.Cir.Cell, +ps: List<&2, U32>, +o: U32) -> List<&2, U32>:
+  +tg = PM.TgW(C.Cir.Cell.get(0n, y))
+  Bool.pick(List<&2, U32>, b, PM.Fs.term(a, C.Cir.Cell.get(2n, y), C.Cir.Cell.get(3n, y), C.Cir.Cell.get(4n, y)),
+    Bool.pick(List<&2, U32>, Bool.and(U32.is_le(tg, 40), Bool.not(PM.Mem(ps, o))),
+      Con{C.Cir.Cell.get(2n, y), PM.Fs.opt(U32.is_eq(tg, 38), C.Cir.Cell.get(3n, y), Nil{})},
+      Bool.pick(List<&2, U32>, Bool.and(Bool.and(U32.is_eq(tg, 41), PM.FlW(C.Cir.Cell.get(0n, y), 4096)), Bool.not(PM.Mem(ps, o))),
+        [C.Cir.Cell.get(2n, y)], Nil{})))
+
+def fsk.b(b: Bool, +a1: U32, +a2: U32, +y: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, h: {b == True{} : Bool} -> {a1 == a2 : U32}) ->
+  {FsK(b, a1, y, ps, o) == FsK(b, a2, y, ps, o) : List<&2, U32>}:
+  match b:
+    case False{}:
+      {==}
+    case True{}:
+      %h({==}) : {FsK(True{}, a1, y, ps, o) == FsK(True{}, _, y, ps, o) : List<&2, U32>}
+      {==}
+
+# a store to z keeps Fs of another cell o, that does not read its mask at z
+def fs.eq(+m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, ne: {U32.is_eq(o, z) == False{} : Bool},
+  ht: {TblAt(m, o, z) == True{} : Bool}) -> {PM.Fs(C.Cir.Cells.set(m, z, x), ps, o) == PM.Fs(m, ps, o) : List<&2, U32>}:
+  +M2 = C.Cir.Cells.set(m, z, x)
+  +Y = C.Cir.Cells.get(m, o)
+  +tg = PM.TgW(C.Cir.Cell.get(0n, Y))
+  %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, o), Y, PM.cl.go(m, o, z, x, ne)) :
+    {FsK(U32.is_lt(PM.TgW(C.Cir.Cell.get(0n, _)), 32), PM.Fd(2n, M2, U32.add(345, PM.TgW(C.Cir.Cell.get(0n, _)))), _, ps, o) ==
+      FsK(U32.is_lt(tg, 32), PM.Fd(2n, m, U32.add(345, tg)), Y, ps, o) : List<&2, U32>}
+  fsk.b(U32.is_lt(tg, 32), PM.Fd(2n, M2, U32.add(345, tg)), PM.Fd(2n, m, U32.add(345, tg)), Y, ps, o,
+    e => Equal.cong(C.Cir.Cell, U32, w => C.Cir.Cell.get(2n, w), C.Cir.Cells.get(M2, U32.add(345, tg)), C.Cir.Cells.get(m, U32.add(345, tg)),
+      PM.cl.go(m, U32.add(345, tg), z, x, tbl.ne(U32.is_lt(tg, 32), U32.is_eq(U32.add(345, tg), z), ht, e))))
+
+# a store to z keeps Fs of every cell: of z too, when it holds no pointer
+# before or after
+def fs.eq2(b: Bool, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, eb: {U32.is_eq(o, z) == b : Bool},
+  ht: {TblAt(m, o, z) == True{} : Bool}, hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>},
+  hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>}) ->
+  {PM.Fs(C.Cir.Cells.set(m, z, x), ps, o) == PM.Fs(m, ps, o) : List<&2, U32>}:
+  match b:
+    case False{}:
+      fs.eq(m, z, x, ps, o, eb, ht)
+    case True{}:
+      %Equal.sym(U32, o, z, PM.u32.eq(o, z, eb)) : {PM.Fs(C.Cir.Cells.set(m, z, x), ps, _) == PM.Fs(m, ps, _) : List<&2, U32>}
+      Equal.trans(List<&2, U32>, PM.Fs(C.Cir.Cells.set(m, z, x), ps, z), Nil{}, PM.Fs(m, ps, z), hf1, Equal.sym(List<&2, U32>, PM.Fs(m, ps, z), Nil{}, hf0))
+
+def fs.all(+m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32,
+  ht: {TblAt(m, o, z) == True{} : Bool}, hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>},
+  hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>}) ->
+  {PM.Fs(C.Cir.Cells.set(m, z, x), ps, o) == PM.Fs(m, ps, o) : List<&2, U32>}:
+  fs.eq2(U32.is_eq(o, z), m, z, x, ps, o, {==}, ht, hf0, hf1)
+
+# a store to z keeps the pointers that the n cells from o hold
+def Pc.eq(n: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +ps: List<&2, U32>, +o: U32, +c: U32,
+  +hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
+  ht: {TblR(n, m, o, z) == True{} : Bool}) -> {PM.Pc(n, C.Cir.Cells.set(m, z, x), ps, o, c) == PM.Pc(n, m, ps, o, c) : Nat}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+(+k):
+      +M2 = C.Cir.Cells.set(m, z, x)
+      +ht2 = ht
+      +e1 = fs.all(m, z, x, ps, o, and.l(TblAt(m, o, z), TblR(k, m, U32.inc(o), z), ht2), hf0, hf1)
+      +e2 = Pc.eq(k, m, z, x, ps, U32.inc(o), c, hf0, hf1, and.r(TblAt(m, o, z), TblR(k, m, U32.inc(o), z), ht2))
+      %Equal.sym(List<&2, U32>, PM.Fs(M2, ps, o), PM.Fs(m, ps, o), e1) :
+        {Nat.add(PM.RcL(_, c), PM.Pc(k, M2, ps, U32.inc(o), c)) == Nat.add(PM.RcL(PM.Fs(m, ps, o), c), PM.Pc(k, m, ps, U32.inc(o), c)) : Nat}
+      %Equal.sym(Nat, PM.Pc(k, M2, ps, U32.inc(o), c), PM.Pc(k, m, ps, U32.inc(o), c), e2) :
+        {Nat.add(PM.RcL(PM.Fs(m, ps, o), c), _) == Nat.add(PM.RcL(PM.Fs(m, ps, o), c), PM.Pc(k, m, ps, U32.inc(o), c)) : Nat}
+      {==}
+
+# and every count
+def Ptr.eq(+n: Nat, +m: C.Cir.Cells, +z: U32, +x: C.Cir.Cell, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +c: U32,
+  hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
+  ht: {TblR(n, m, fi, z) == True{} : Bool}) -> {PM.Ptr(n, C.Cir.Cells.set(m, z, x), fi, ps, rs, c) == PM.Ptr(n, m, fi, ps, rs, c) : Nat}:
+  Equal.cong(Nat, Nat, w => Nat.add(w, PM.RcL(rs, c)), PM.Pc(n, C.Cir.Cells.set(m, z, x), ps, fi, c), PM.Pc(n, m, ps, fi, c),
+    Pc.eq(n, m, z, x, ps, fi, c, hf0, hf1, ht))

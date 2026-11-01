@@ -184,6 +184,254 @@ def Tz.cg3(-k: C.Term -> C.Term -> C.Term -> C.Term, -a1: C.Term, -a2: C.Term, -
   %e3 : {k(a1, a2, a3) == k(a1, a2, _) : C.Term}
   {==}
 
+# Shifts and substitutions
+# ------------------------
+
+# a shift keeps a term whose free variables are all below the cutoff c
+def Tz.shift_closed(t: C.Term, +d: Nat, +c: Nat, +hb: {PM.Term.below(t, c) == True{} : Bool}) ->
+  {C.Term.shift(t, d, c) == t : C.Term}:
+  match t:
+    case C.Term.Var{+i}:
+      %Equal.sym(Bool, Nat.is_lt(i, c), True{}, hb) : {C.Term.Var{C.Term.shift.at(_, i, d)} == C.Term.Var{i} : C.Term}
+      {==}
+    case C.Term.Ann{+x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Ann{X0, Y0}, C.Term.shift(x, d, c), C.Term.shift(y, d, c), x, y,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.shift_closed(y, d, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.Let{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Let{q, X0, Y0}, C.Term.shift(x, d, c), C.Term.shift(y, d, 1n+c), x, y,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)), Tz.shift_closed(y, d, 1n+c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)))
+    case C.Term.Typ{+x}:
+      Tz.cg1(X0 => C.Term.Typ{X0}, C.Term.shift(x, d, c), x,
+        Tz.shift_closed(x, d, c, hb))
+    case C.Term.Min{+x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Min{X0, Y0}, C.Term.shift(x, d, c), C.Term.shift(y, d, c), x, y,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.shift_closed(y, d, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.All{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.All{q, X0, Y0}, C.Term.shift(x, d, c), C.Term.shift(y, d, 1n+c), x, y,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)), Tz.shift_closed(y, d, 1n+c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)))
+    case C.Term.Lam{+q, +x}:
+      Tz.cg1(X0 => C.Term.Lam{q, X0}, C.Term.shift(x, d, 1n+c), x,
+        Tz.shift_closed(x, d, 1n+c, hb))
+    case C.Term.App{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.App{q, X0, Y0}, C.Term.shift(x, d, c), C.Term.shift(y, d, c), x, y,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.shift_closed(y, d, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.Sig{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Sig{q, X0, Y0}, C.Term.shift(x, d, c), C.Term.shift(y, d, 1n+c), x, y,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)), Tz.shift_closed(y, d, 1n+c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)))
+    case C.Term.Tup{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Tup{q, X0, Y0}, C.Term.shift(x, d, c), C.Term.shift(y, d, c), x, y,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.shift_closed(y, d, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.Prj{+x}:
+      Tz.cg1(X0 => C.Term.Prj{X0}, C.Term.shift(x, d, c), x,
+        Tz.shift_closed(x, d, c, hb))
+    case C.Term.Mat{+k, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Mat{k, X0, Y0}, C.Term.shift(x, d, c), C.Term.shift(y, d, c), x, y,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.shift_closed(y, d, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.Eql{+x, +y, +z}:
+      +r = K.Bo.and_r(PM.Term.below(x, c), Bool.and(PM.Term.below(y, c), PM.Term.below(z, c)), hb)
+      Tz.cg3(X0 => Y0 => Z0 => C.Term.Eql{X0, Y0, Z0}, C.Term.shift(x, d, c), C.Term.shift(y, d, c), C.Term.shift(z, d, c), x, y, z,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), Bool.and(PM.Term.below(y, c), PM.Term.below(z, c)), hb)), Tz.shift_closed(y, d, c, K.Bo.and_l(PM.Term.below(y, c), PM.Term.below(z, c), r)), Tz.shift_closed(z, d, c, K.Bo.and_r(PM.Term.below(y, c), PM.Term.below(z, c), r)))
+    case C.Term.Rwt{+x, +y, +z}:
+      +r = K.Bo.and_r(PM.Term.below(x, c), Bool.and(PM.Term.below(y, 2n+c), PM.Term.below(z, c)), hb)
+      Tz.cg3(X0 => Y0 => Z0 => C.Term.Rwt{X0, Y0, Z0}, C.Term.shift(x, d, c), C.Term.shift(y, d, 2n+c), C.Term.shift(z, d, c), x, y, z,
+        Tz.shift_closed(x, d, c, K.Bo.and_l(PM.Term.below(x, c), Bool.and(PM.Term.below(y, 2n+c), PM.Term.below(z, c)), hb)), Tz.shift_closed(y, d, 2n+c, K.Bo.and_l(PM.Term.below(y, 2n+c), PM.Term.below(z, c), r)), Tz.shift_closed(z, d, c, K.Bo.and_r(PM.Term.below(y, 2n+c), PM.Term.below(z, c), r)))
+    case C.Term.Ref{_}:
+      {==}
+    case C.Term.Enu{_}:
+      {==}
+    case C.Term.Lab{_}:
+      {==}
+    case C.Term.Efq{}:
+      {==}
+    case C.Term.Rfl{}:
+      {==}
+
+# a shift by 0 keeps any term
+def Tz.sz.at(b: Bool, +i: Nat) -> {C.Term.Var{C.Term.shift.at(b, i, 0n)} == C.Term.Var{i} : C.Term}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      %Equal.sym(Nat, Nat.add(i, 0n), i, N.add_zero(i)) : {C.Term.Var{_} == C.Term.Var{i} : C.Term}
+      {==}
+
+def Tz.shift_zero(t: C.Term, +c: Nat) -> {C.Term.shift(t, 0n, c) == t : C.Term}:
+  match t:
+    case C.Term.Var{+i}:
+      Tz.sz.at(Nat.is_lt(i, c), i)
+    case C.Term.Ann{+x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Ann{X0, Y0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, c), x, y,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, c))
+    case C.Term.Let{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Let{q, X0, Y0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, 1n+c), x, y,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, 1n+c))
+    case C.Term.Typ{+x}:
+      Tz.cg1(X0 => C.Term.Typ{X0}, C.Term.shift(x, 0n, c), x,
+        Tz.shift_zero(x, c))
+    case C.Term.Min{+x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Min{X0, Y0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, c), x, y,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, c))
+    case C.Term.All{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.All{q, X0, Y0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, 1n+c), x, y,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, 1n+c))
+    case C.Term.Lam{+q, +x}:
+      Tz.cg1(X0 => C.Term.Lam{q, X0}, C.Term.shift(x, 0n, 1n+c), x,
+        Tz.shift_zero(x, 1n+c))
+    case C.Term.App{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.App{q, X0, Y0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, c), x, y,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, c))
+    case C.Term.Sig{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Sig{q, X0, Y0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, 1n+c), x, y,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, 1n+c))
+    case C.Term.Tup{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Tup{q, X0, Y0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, c), x, y,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, c))
+    case C.Term.Prj{+x}:
+      Tz.cg1(X0 => C.Term.Prj{X0}, C.Term.shift(x, 0n, c), x,
+        Tz.shift_zero(x, c))
+    case C.Term.Mat{+k, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Mat{k, X0, Y0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, c), x, y,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, c))
+    case C.Term.Eql{+x, +y, +z}:
+      Tz.cg3(X0 => Y0 => Z0 => C.Term.Eql{X0, Y0, Z0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, c), C.Term.shift(z, 0n, c), x, y, z,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, c), Tz.shift_zero(z, c))
+    case C.Term.Rwt{+x, +y, +z}:
+      Tz.cg3(X0 => Y0 => Z0 => C.Term.Rwt{X0, Y0, Z0}, C.Term.shift(x, 0n, c), C.Term.shift(y, 0n, 2n+c), C.Term.shift(z, 0n, c), x, y, z,
+        Tz.shift_zero(x, c), Tz.shift_zero(y, 2n+c), Tz.shift_zero(z, c))
+    case C.Term.Ref{_}:
+      {==}
+    case C.Term.Enu{_}:
+      {==}
+    case C.Term.Lab{_}:
+      {==}
+    case C.Term.Efq{}:
+      {==}
+    case C.Term.Rfl{}:
+      {==}
+
+# the variable i below the depth d is kept
+def Tz.sc.var(+e: List<&2, C.Term>, d: Nat, +i: Nat, h: {Nat.is_lt(i, d) == True{} : Bool}) ->
+  {C.Term.lift(e, d, i) == C.Term.Var{i} : C.Term}:
+  match d:
+    case 0n:
+      Tz.lt0.no(i, {C.Term.lift(e, 0n, i) == C.Term.Var{i} : C.Term}, h)
+    case 1n++p:
+      %Equal.sym(Bool, Nat.is_lt(i, 1n+p), True{}, h) : {C.Term.lift.at(_, i, C.Term.shift(C.Env.sub(e, Nat.sub(i, 1n+p)), 1n+p, 0n)) == C.Term.Var{i} : C.Term}
+      {==}
+
+# a substitution keeps a term whose free variables are all below the depth
+def Tz.subst_closed(t: C.Term, +e: List<&2, C.Term>, +c: Nat, +hb: {PM.Term.below(t, c) == True{} : Bool}) ->
+  {C.Term.subst(t, e, c) == t : C.Term}:
+  match t:
+    case C.Term.Var{+i}:
+      Tz.sc.var(e, c, i, hb)
+    case C.Term.Ann{+x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Ann{X0, Y0}, C.Term.subst(x, e, c), C.Term.subst(y, e, c), x, y,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.subst_closed(y, e, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.Let{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Let{q, X0, Y0}, C.Term.subst(x, e, c), C.Term.subst(y, e, 1n+c), x, y,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)), Tz.subst_closed(y, e, 1n+c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)))
+    case C.Term.Typ{+x}:
+      Tz.cg1(X0 => C.Term.Typ{X0}, C.Term.subst(x, e, c), x,
+        Tz.subst_closed(x, e, c, hb))
+    case C.Term.Min{+x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Min{X0, Y0}, C.Term.subst(x, e, c), C.Term.subst(y, e, c), x, y,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.subst_closed(y, e, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.All{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.All{q, X0, Y0}, C.Term.subst(x, e, c), C.Term.subst(y, e, 1n+c), x, y,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)), Tz.subst_closed(y, e, 1n+c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)))
+    case C.Term.Lam{+q, +x}:
+      Tz.cg1(X0 => C.Term.Lam{q, X0}, C.Term.subst(x, e, 1n+c), x,
+        Tz.subst_closed(x, e, 1n+c, hb))
+    case C.Term.App{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.App{q, X0, Y0}, C.Term.subst(x, e, c), C.Term.subst(y, e, c), x, y,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.subst_closed(y, e, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.Sig{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Sig{q, X0, Y0}, C.Term.subst(x, e, c), C.Term.subst(y, e, 1n+c), x, y,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)), Tz.subst_closed(y, e, 1n+c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, 1n+c), hb)))
+    case C.Term.Tup{+q, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Tup{q, X0, Y0}, C.Term.subst(x, e, c), C.Term.subst(y, e, c), x, y,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.subst_closed(y, e, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.Prj{+x}:
+      Tz.cg1(X0 => C.Term.Prj{X0}, C.Term.subst(x, e, c), x,
+        Tz.subst_closed(x, e, c, hb))
+    case C.Term.Mat{+k, +x, +y}:
+      Tz.cg2(X0 => Y0 => C.Term.Mat{k, X0, Y0}, C.Term.subst(x, e, c), C.Term.subst(y, e, c), x, y,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), PM.Term.below(y, c), hb)), Tz.subst_closed(y, e, c, K.Bo.and_r(PM.Term.below(x, c), PM.Term.below(y, c), hb)))
+    case C.Term.Eql{+x, +y, +z}:
+      +r = K.Bo.and_r(PM.Term.below(x, c), Bool.and(PM.Term.below(y, c), PM.Term.below(z, c)), hb)
+      Tz.cg3(X0 => Y0 => Z0 => C.Term.Eql{X0, Y0, Z0}, C.Term.subst(x, e, c), C.Term.subst(y, e, c), C.Term.subst(z, e, c), x, y, z,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), Bool.and(PM.Term.below(y, c), PM.Term.below(z, c)), hb)), Tz.subst_closed(y, e, c, K.Bo.and_l(PM.Term.below(y, c), PM.Term.below(z, c), r)), Tz.subst_closed(z, e, c, K.Bo.and_r(PM.Term.below(y, c), PM.Term.below(z, c), r)))
+    case C.Term.Rwt{+x, +y, +z}:
+      +r = K.Bo.and_r(PM.Term.below(x, c), Bool.and(PM.Term.below(y, 2n+c), PM.Term.below(z, c)), hb)
+      Tz.cg3(X0 => Y0 => Z0 => C.Term.Rwt{X0, Y0, Z0}, C.Term.subst(x, e, c), C.Term.subst(y, e, 2n+c), C.Term.subst(z, e, c), x, y, z,
+        Tz.subst_closed(x, e, c, K.Bo.and_l(PM.Term.below(x, c), Bool.and(PM.Term.below(y, 2n+c), PM.Term.below(z, c)), hb)), Tz.subst_closed(y, e, 2n+c, K.Bo.and_l(PM.Term.below(y, 2n+c), PM.Term.below(z, c), r)), Tz.subst_closed(z, e, c, K.Bo.and_r(PM.Term.below(y, 2n+c), PM.Term.below(z, c), r)))
+    case C.Term.Ref{_}:
+      {==}
+    case C.Term.Enu{_}:
+      {==}
+    case C.Term.Lab{_}:
+      {==}
+    case C.Term.Efq{}:
+      {==}
+    case C.Term.Rfl{}:
+      {==}
+
+# Variables
+# ---------
+
+# M.copy's part, a variable i of the source at the depth d, not below it:
+# the local i - d, shifted by d
+def Tz.sb.env(+e: List<&2, C.Term>, d: Nat, +i: Nat, h: {Nat.is_lt(i, d) == False{} : Bool}) ->
+  {C.Term.subst(C.Term.Var{i}, e, d) == C.Term.shift(C.Env.sub(e, Nat.sub(i, d)), d, 0n) : C.Term}:
+  match d:
+    case 0n:
+      %Equal.sym(Nat, Nat.sub(i, 0n), i, Tz.sub0(i)) : {C.Env.sub(e, i) == C.Term.shift(C.Env.sub(e, _), 0n, 0n) : C.Term}
+      Equal.sym(C.Term, C.Term.shift(C.Env.sub(e, i), 0n, 0n), C.Env.sub(e, i), Tz.shift_zero(C.Env.sub(e, i), 0n))
+    case 1n++p:
+      %Equal.sym(Bool, Nat.is_lt(i, 1n+p), False{}, h) : {C.Term.lift.at(_, i, C.Term.shift(C.Env.sub(e, Nat.sub(i, 1n+p)), 1n+p, 0n)) == C.Term.shift(C.Env.sub(e, Nat.sub(i, 1n+p)), 1n+p, 0n) : C.Term}
+      {==}
+
+# a local j of the list xs: its element j
+def Tz.ev.get(xs: List<&2, C.Term>, j: Nat, h: {Nat.is_lt(j, List.length(&2, C.Term, xs)) == True{} : Bool}) ->
+  {Some{C.Env.sub(xs, j)} == List.get(&2, C.Term, xs, j) : Maybe<&2, C.Term>}:
+  match xs:
+    case Nil{}:
+      Tz.lt0.no(j, {Some{C.Env.sub(Nil{}, j)} == List.get(&2, C.Term, Nil{}, j) : Maybe<&2, C.Term>}, h)
+    case Con{x, rest}:
+      match j:
+        case 0n:
+          {==}
+        case 1n+jp:
+          Tz.ev.get(rest, jp, h)
+
+# a variable j past the list xs: Var(j - |xs|)
+def Tz.ev.past(xs: List<&2, C.Term>, j: Nat, h: {Nat.is_lt(j, List.length(&2, C.Term, xs)) == False{} : Bool}) ->
+  {C.Env.sub(xs, j) == C.Term.Var{Nat.sub(j, List.length(&2, C.Term, xs))} : C.Term}:
+  match xs:
+    case Nil{}:
+      %Equal.sym(Nat, Nat.sub(j, 0n), j, Tz.sub0(j)) : {C.Term.Var{j} == C.Term.Var{_} : C.Term}
+      {==}
+    case Con{x, rest}:
+      match j:
+        case 0n:
+          K.Bo.ft({C.Env.sub(Con{x, rest}, 0n) == C.Term.Var{Nat.sub(0n, 1n+List.length(&2, C.Term, rest))} : C.Term}, h)
+        case 1n+jp:
+          Tz.ev.past(rest, jp, h)
+
+# M.copy's part, a variable i of the source at the depth d, past the locals
+# e: Var(i - |e|)
+def Tz.sb.past(+e: List<&2, C.Term>, +d: Nat, +i: Nat, +h1: {Nat.is_lt(i, d) == False{} : Bool},
+  +h2: {Nat.is_lt(Nat.sub(i, d), List.length(&2, C.Term, e)) == False{} : Bool}) ->
+  {C.Term.subst(C.Term.Var{i}, e, d) == C.Term.Var{Nat.sub(i, List.length(&2, C.Term, e))} : C.Term}:
+  +L = List.length(&2, C.Term, e)
+  +k = Nat.sub(Nat.sub(i, d), L)
+  %Equal.sym(C.Term, C.Term.subst(C.Term.Var{i}, e, d), C.Term.shift(C.Env.sub(e, Nat.sub(i, d)), d, 0n), Tz.sb.env(e, d, i, h1)) : {_ == C.Term.Var{Nat.sub(i, L)} : C.Term}
+  %Equal.sym(C.Term, C.Env.sub(e, Nat.sub(i, d)), C.Term.Var{k}, Tz.ev.past(e, Nat.sub(i, d), h2)) : {C.Term.shift(_, d, 0n) == C.Term.Var{Nat.sub(i, L)} : C.Term}
+  %Equal.sym(Bool, Nat.is_lt(k, 0n), False{}, Tz.lt0(k)) : {C.Term.Var{C.Term.shift.at(_, k, d)} == C.Term.Var{Nat.sub(i, L)} : C.Term}
+  %Equal.sym(Nat, Nat.add(k, d), Nat.sub(i, L), Tz.subsub(i, d, L, h1, h2)) : {C.Term.Var{_} == C.Term.Var{Nat.sub(i, L)} : C.Term}
+  {==}
+
 # Term.below
 # ----------
 
