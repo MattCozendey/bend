@@ -27,5 +27,6 @@ import Bootstrap.GivesRun
 import Bootstrap.NeedRun
 import Bootstrap.OrLaw
 import Bootstrap.Compiler
+import Bootstrap.Ops
 
 #guard_axioms
