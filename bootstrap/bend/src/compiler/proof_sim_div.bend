@@ -266,3 +266,54 @@ def dm(+p: Nat, +a: Word(p), +b: U32, +T: Nat, +eT: {N.D(32n, PH.H.bn(True{})) =
       %Equal.sym(Nat, Word.to_nat(1n+q, WCon{a0, hi}), Nat.add(PH.H.bn(a0), Nat.double(Word.to_nat(q, hi))), wt(q, a0, hi)) :
         DM(1n+q, U32.divmod.go.rec(q, a0, b, U32.divmod.go(q, hi, b)), U32.to_nat(b), _)
       dm.rec(q, a0, b, U32.divmod.go(q, hi, b), Word.to_nat(q, hi), T, eT, H, eH, hb, dm(q, hi, b, T, eT, H, eH, hb, hb1))
+
+# q1 b + r1 = q2 b + r2 with r1, r2 < b gives q1 = q2
+def qr.uniq(+Q1: Nat, +R1: Nat, +Q2: Nat, +R2: Nat, +B: Nat, e: {Nat.add(Nat.mul(Q1, B), R1) == Nat.add(Nat.mul(Q2, B), R2) : Nat},
+  h1: N.Le(1n+R1, B), h2: N.Le(1n+R2, B)) -> {Q1 == Q2 : Nat}:
+  match Q1 Q2:
+    case 0n 0n:
+      {==}
+    case 0n 1n+q:
+      +l = N.le_rw_r(B, Nat.add(Nat.add(B, Nat.mul(q, B)), R2), R1, Equal.sym(Nat, R1, Nat.add(Nat.add(B, Nat.mul(q, B)), R2), e),
+        N.le_trans(B, Nat.add(B, Nat.mul(q, B)), Nat.add(Nat.add(B, Nat.mul(q, B)), R2), N.le_add_r(B, Nat.mul(q, B)), N.le_add_r(Nat.add(B, Nat.mul(q, B)), R2)))
+      Empty.absurd({0n == 1n+q : Nat}, N.not_succ_le(R1, N.le_trans(1n+R1, B, R1, h1, l)))
+    case 1n+p 0n:
+      +l = N.le_rw_r(B, Nat.add(Nat.add(B, Nat.mul(p, B)), R1), R2, e,
+        N.le_trans(B, Nat.add(B, Nat.mul(p, B)), Nat.add(Nat.add(B, Nat.mul(p, B)), R1), N.le_add_r(B, Nat.mul(p, B)), N.le_add_r(Nat.add(B, Nat.mul(p, B)), R1)))
+      Empty.absurd({1n+p == 0n : Nat}, N.not_succ_le(R2, N.le_trans(1n+R2, B, R2, h2, l)))
+    case 1n+p 1n+q:
+      +e2 = Equal.trans(Nat, Nat.add(B, Nat.add(Nat.mul(p, B), R1)), Nat.add(Nat.add(B, Nat.mul(p, B)), R1), Nat.add(B, Nat.add(Nat.mul(q, B), R2)),
+        Equal.sym(Nat, Nat.add(Nat.add(B, Nat.mul(p, B)), R1), Nat.add(B, Nat.add(Nat.mul(p, B), R1)), Z.add.assoc(B, Nat.mul(p, B), R1)),
+        Equal.trans(Nat, Nat.add(Nat.add(B, Nat.mul(p, B)), R1), Nat.add(Nat.add(B, Nat.mul(q, B)), R2), Nat.add(B, Nat.add(Nat.mul(q, B), R2)), e,
+          Z.add.assoc(B, Nat.mul(q, B), R2)))
+      Equal.cong(Nat, Nat, z => 1n+z, p, q, qr.uniq(p, R1, q, R2, B, PH.H.lcancel(B, Nat.add(Nat.mul(p, B), R1), Nat.add(Nat.mul(q, B), R2), e2), h1, h2))
+
+def div.dq(x: Word(32n) & U32) -> {U32.div.fin(x) == U32{dq(32n, x)} : U32}:
+  match x:
+    case Tuple{q, r}:
+      {==}
+
+# 2^(1 + k) x = 2 (2^k x)
+def dsucc(+k: Nat, +x: Nat) -> {N.D(1n+k, x) == Nat.double(N.D(k, x)) : Nat}:
+  {==}
+
+def div.go(+xw: Word(32n), +Qn: Nat, +Rn: Nat, e: {Nat.add(Nat.mul(Qn, 20n), Rn) == Word.to_nat(32n, xw) : Nat}, hR: N.Le(1n+Rn, 20n),
+  dmr: DM(32n, U32.divmod.go(32n, xw, 20), U32.to_nat(20), Word.to_nat(32n, xw))) -> {U32.div(U32{xw}, 20) == U32.from_nat(Qn) : U32}:
+  (+eq, +lt) = dmr
+  +Q1 = Word.to_nat(32n, dq(32n, U32.divmod.go(32n, xw, 20)))
+  +R1 = U32.to_nat(dr(32n, U32.divmod.go(32n, xw, 20)))
+  +eQ = qr.uniq(Q1, R1, Qn, Rn, 20n, Equal.trans(Nat, Nat.add(Nat.mul(Q1, 20n), R1), Word.to_nat(32n, xw), Nat.add(Nat.mul(Qn, 20n), Rn), eq,
+    Equal.sym(Nat, Nat.add(Nat.mul(Qn, 20n), Rn), Word.to_nat(32n, xw), e)), lt, hR)
+  Equal.trans(U32, U32.div.fin(U32.divmod.go(32n, xw, 20)), U32{dq(32n, U32.divmod.go(32n, xw, 20))}, U32.from_nat(Qn), div.dq(U32.divmod.go(32n, xw, 20)),
+    Equal.trans(U32, U32{dq(32n, U32.divmod.go(32n, xw, 20))}, U32.from_nat(U32.to_nat(U32{dq(32n, U32.divmod.go(32n, xw, 20))})), U32.from_nat(Qn),
+      Equal.sym(U32, U32.from_nat(U32.to_nat(U32{dq(32n, U32.divmod.go(32n, xw, 20))})), U32{dq(32n, U32.divmod.go(32n, xw, 20))}, Z.from.to(U32{dq(32n, U32.divmod.go(32n, xw, 20))})),
+      Equal.cong(Nat, U32, z => U32.from_nat(z), U32.to_nat(U32{dq(32n, U32.divmod.go(32n, xw, 20))}), Qn,
+        Equal.trans(Nat, U32.to_nat(U32{dq(32n, U32.divmod.go(32n, xw, 20))}), Q1, Qn, N.u32_to_nat(dq(32n, U32.divmod.go(32n, xw, 20))), eQ))))
+
+# x divided by 20 is q, when x = 20q + r with r < 20
+def div.twenty(+x: U32, +Qn: Nat, +Rn: Nat, e: {Nat.add(Nat.mul(Qn, 20n), Rn) == U32.to_nat(x) : Nat}, hR: N.Le(1n+Rn, 20n)) ->
+  {U32.div(x, 20) == U32.from_nat(Qn) : U32}:
+  match x:
+    case U32{+xw}:
+      div.go(xw, Qn, Rn, e, hR, dm(32n, xw, 20, N.D(32n, 1n), Equal.cong(Nat, Nat, z => N.D(32n, z), PH.H.bn(True{}), 1n, {==}), N.D(31n, 1n),
+        Equal.sym(Nat, N.D(32n, 1n), Nat.double(N.D(31n, 1n)), dsucc(31n, 1n)), Unit{}, Unit{}))

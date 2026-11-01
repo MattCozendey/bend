@@ -1745,6 +1745,471 @@ def cl.go(+m: C.Cir.Cells, +j: U32, +i: U32, +c: C.Cir.Cell, h: {U32.is_eq(j, i)
       cl.go.at(32n, v, w, m, c, Equal.trans(Bool, Weq(32n, v, w), Cmp.is_eq(Word.cmp(32n, v, w)), False{},
         Equal.sym(Bool, Cmp.is_eq(Word.cmp(32n, v, w)), Weq(32n, v, w), weq.cmp(32n, v, w)), h))
 
+# a cell equal to sx would have sx's tag
+def ne.of(b: Bool, +m: C.Cir.Cells, +c: U32, +sx: U32, -tag: U32, eb: {U32.is_eq(c, sx) == b : Bool},
+  etag: {TgW(C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c))) == tag : U32}, ht: {U32.is_lt(TgW(Fd(0n, m, sx)), 32) == False{} : Bool},
+  hl: {U32.is_lt(tag, 32) == True{} : Bool}) -> {U32.is_eq(c, sx) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +e = u32.eq(c, sx, eb)
+      bool.ft({U32.is_eq(c, sx) == False{} : Bool},
+        Equal.trans(Bool, False{}, U32.is_lt(TgW(Fd(0n, m, c)), 32), True{},
+          (%Equal.sym(U32, c, sx, e) : {False{} == U32.is_lt(TgW(Fd(0n, m, _)), 32) : Bool}; Equal.sym(Bool, U32.is_lt(TgW(Fd(0n, m, sx)), 32), False{}, ht)),
+          (%Equal.sym(U32, TgW(C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c))), tag, etag) : {U32.is_lt(_, 32) == True{} : Bool}; hl)))
+
+# Stores to a cell of the machine's own kinds
+# -------------------------------------------
+#
+# A store to a cell whose tag is 32 or more (a frame, an argument, a check, a
+# root) keeps every term that Is says: a node of a term has a tag below 32,
+# so it is another cell (is.st, by induction on the term).
+
+# a node of the tag tag (below 32) is not the cell sx (of a tag of 32 or more)
+def ne.nd(+ds: List<&2, C.Def>, +im: U32, +fi: U32, +nx: U32, +m: C.Cir.Cells, +c: U32, +sx: U32, -t: C.Term, +tag: U32,
+  nd: Nd(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), t, tag), ht: {U32.is_lt(TgW(Fd(0n, m, sx)), 32) == False{} : Bool},
+  hl: {U32.is_lt(tag, 32) == True{} : Bool}) -> {U32.is_eq(c, sx) == False{} : Bool}:
+  match nd:
+    case Tuple{_, Tuple{_, Tuple{etag, _}}}:
+      ne.of(U32.is_eq(c, sx), m, c, sx, tag, {==}, etag, ht, hl)
+
+def isc.at(+ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +c: U32, -y1: C.Cir.Cell, -y2: C.Cir.Cell, -t: C.Term, e: {y1 == y2 : C.Cir.Cell},
+  h: IsC(ds, m, im, fi, nx, ks, img, c, y2, t)) -> IsC(ds, m, im, fi, nx, ks, img, c, y1, t):
+  %Equal.sym(C.Cir.Cell, y1, y2, e) : IsC(ds, m, im, fi, nx, ks, img, c, _, t)
+  h
+
+def sp.at(+fi: U32, +nx: U32, +c: U32, -y1: C.Cir.Cell, -y2: C.Cir.Cell, e: {y1 == y2 : C.Cir.Cell}, h: Sp(fi, nx, c, y2)) ->
+  Sp(fi, nx, c, y1):
+  %Equal.sym(C.Cir.Cell, y1, y2, e) : Sp(fi, nx, c, _)
+  h
+
+# a store to the cell sx, of a tag of 32 or more, keeps the cell c and its term
+def is.st(t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +sx: U32, +sv: C.Cir.Cell, +c: U32, +ht: {U32.is_lt(TgW(Fd(0n, m, sx)), 32) == False{} : Bool},
+  h: Is(ds, m, im, fi, nx, ks, img, c, t)) ->
+  P2({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c) == C.Cir.Cells.get(m, c) : C.Cir.Cell}, Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, t)):
+  match t:
+    case C.Term.Var{+i}:
+      match h:
+        case Tuple{+nd, x1}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Var{i}, 0, nd, ht, {==}))
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Var{i}, ec, (nd, x1)))
+    case C.Term.Ref{+kk}:
+      match h:
+        case Tuple{+nd, Tuple{x1, Tuple{x2, x3}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Ref{kk}, 1, nd, ht, {==}))
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Ref{kk}, ec, (nd, (x1, (x2, x3)))))
+    case C.Term.Ann{+t1, +t2}:
+      match h:
+        case Tuple{+nd, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Ann{t1, t2}, 2, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Ann{t1, t2}, ec, (nd, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3))))))
+    case C.Term.Let{+qq, +t1, +t2}:
+      match h:
+        case Tuple{+nd, Tuple{x1, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Let{qq, t1, t2}, 3, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Let{qq, t1, t2}, ec, (nd, (x1, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3)))))))
+    case C.Term.Typ{+t1}:
+      match h:
+        case Tuple{+nd, Tuple{sp2, h2}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Typ{t1}, 4, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Typ{t1}, ec, (nd, (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)))))
+    case C.Term.Min{+t1, +t2}:
+      match h:
+        case Tuple{+nd, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Min{t1, t2}, 5, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Min{t1, t2}, ec, (nd, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3))))))
+    case C.Term.All{+qq, +t1, +t2}:
+      match h:
+        case Tuple{+nd, Tuple{x1, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.All{qq, t1, t2}, 6, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.All{qq, t1, t2}, ec, (nd, (x1, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3)))))))
+    case C.Term.Lam{+qq, +t1}:
+      match h:
+        case Tuple{+nd, Tuple{x1, Tuple{sp2, h2}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Lam{qq, t1}, 7, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Lam{qq, t1}, ec, (nd, (x1, (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2))))))
+    case C.Term.App{+qq, +t1, +t2}:
+      match h:
+        case Tuple{+nd, Tuple{x1, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.App{qq, t1, t2}, 8, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.App{qq, t1, t2}, ec, (nd, (x1, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3)))))))
+    case C.Term.Sig{+qq, +t1, +t2}:
+      match h:
+        case Tuple{+nd, Tuple{x1, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Sig{qq, t1, t2}, 9, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Sig{qq, t1, t2}, ec, (nd, (x1, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3)))))))
+    case C.Term.Tup{+qq, +t1, +t2}:
+      match h:
+        case Tuple{+nd, Tuple{x1, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Tup{qq, t1, t2}, 10, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Tup{qq, t1, t2}, ec, (nd, (x1, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3)))))))
+    case C.Term.Prj{+t1}:
+      match h:
+        case Tuple{+nd, Tuple{sp2, h2}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Prj{t1}, 11, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Prj{t1}, ec, (nd, (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)))))
+    case C.Term.Enu{+ee}:
+      match h:
+        case Tuple{+nd, Tuple{x1, x2}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Enu{ee}, 12, nd, ht, {==}))
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Enu{ee}, ec, (nd, (x1, x2))))
+    case C.Term.Lab{+kk}:
+      match h:
+        case Tuple{+nd, x1}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Lab{kk}, 13, nd, ht, {==}))
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Lab{kk}, ec, (nd, x1)))
+    case C.Term.Mat{+kk, +t1, +t2}:
+      match h:
+        case Tuple{+nd, Tuple{x1, Tuple{Tuple{sp3, h3}, Tuple{sp4, h4}}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Mat{kk, t1, t2}, 14, nd, ht, {==}))
+          +r3 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          +r4 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), ht, h4)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Mat{kk, t1, t2}, ec, (nd, (x1, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t1), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t1), r3)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), t2), r4), sp4), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), t2), r4)))))))
+    case C.Term.Efq{}:
+      +nd = h
+      +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Efq{}, 15, nd, ht, {==}))
+      (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Efq{}, ec, nd))
+    case C.Term.Eql{+t1, +t2, +t3}:
+      match h:
+        case Tuple{+nd, Tuple{Tuple{sp2, h2}, Tuple{Tuple{sp3, h3}, Tuple{sp4, h4}}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Eql{t1, t2, t3}, 16, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          +r4 = is.st(t3, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), ht, h4)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Eql{t1, t2, t3}, ec, (nd, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), t3), r4), sp4), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), t3), r4)))))))
+    case C.Term.Rfl{}:
+      +nd = h
+      +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Rfl{}, 17, nd, ht, {==}))
+      (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Rfl{}, ec, nd))
+    case C.Term.Rwt{+t1, +t2, +t3}:
+      match h:
+        case Tuple{+nd, Tuple{Tuple{sp2, h2}, Tuple{Tuple{sp3, h3}, Tuple{sp4, h4}}}}:
+          +ec = cl.go(m, c, sx, sv, ne.nd(ds, im, fi, nx, m, c, sx, C.Term.Rwt{t1, t2, t3}, 18, nd, ht, {==}))
+          +r2 = is.st(t1, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), ht, h2)
+          +r3 = is.st(t2, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), ht, h3)
+          +r4 = is.st(t3, ds, m, im, fi, nx, ks, img, sx, sv, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), ht, h4)
+          (ec, isc.at(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), c), C.Cir.Cells.get(m, c), C.Term.Rwt{t1, t2, t3}, ec, (nd, ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2), sp2), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(2n, C.Cir.Cells.get(m, c)), t1), r2)), ((sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3), sp3), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(3n, C.Cir.Cells.get(m, c)), t2), r3)), (sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))), C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))), Ex.fst({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), t3), r4), sp4), Ex.snd({C.Cir.Cells.get(C.Cir.Cells.set(m, sx, sv), C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) == C.Cir.Cells.get(m, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c))) : C.Cir.Cell}, _ => Is(ds, C.Cir.Cells.set(m, sx, sv), im, fi, nx, ks, img, C.Cir.Cell.get(4n, C.Cir.Cells.get(m, c)), t3), r4)))))))
+
+# Stores to field 1
+# -----------------
+#
+# A store to field 1 of any cell (a count, or a link of the pend list or of
+# the frames) keeps every term that Is says, and field 0 of its cells (is.f1,
+# by induction on the term): Is reads fields 0, 2, 3 and 4 only.
+
+def set1.id(+y: C.Cir.Cell) -> {y == C.Cir.Cell.set(1n, y, C.Cir.Cell.get(1n, y)) : C.Cir.Cell}:
+  match y:
+    case C.Cir.Cell{a, b, x2, x3, x4}:
+      {==}
+
+def cl.f1.of(b: Bool, +m: C.Cir.Cells, +sx: U32, +sv: U32, +c: U32, eb: {U32.is_eq(c, sx) == b : Bool}) ->
+  Ex(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), w) : C.Cir.Cell}):
+  match b:
+    case True{}:
+      +e = u32.eq(c, sx, eb)
+      %Equal.sym(U32, c, sx, e) :
+        Ex(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), _) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, _), w) : C.Cir.Cell})
+      (sv, cl.gs(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)))
+    case False{}:
+      (C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c)),
+        Equal.trans(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cells.get(m, c),
+          C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), C.Cir.Cell.get(1n, C.Cir.Cells.get(m, c))),
+          cl.go(m, c, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv), eb), set1.id(C.Cir.Cells.get(m, c))))
+
+# after a store to field 1, a cell is its old one with another field 1
+def cl.f1(+m: C.Cir.Cells, +sx: U32, +sv: U32, +c: U32) ->
+  Ex(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), w) : C.Cir.Cell}):
+  cl.f1.of(U32.is_eq(c, sx), m, sx, sv, c, {==})
+
+def sp.at0(+fi: U32, +nx: U32, +c: U32, -y1: C.Cir.Cell, -y2: C.Cir.Cell,
+  e: {C.Cir.Cell.get(0n, y1) == C.Cir.Cell.get(0n, y2) : U32}, h: Sp(fi, nx, c, y2)) -> Sp(fi, nx, c, y1):
+  %Equal.sym(U32, C.Cir.Cell.get(0n, y1), C.Cir.Cell.get(0n, y2), e) : {Bool.or(Own(fi, nx, c), FlW(_, 1024)) == True{} : Bool}
+  h
+
+
+# a store to field 1 of the cell sx keeps field 0 of the cell c, of the old
+# value y, and its term
+def is.f1(t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +sx: U32, +sv: U32, +c: U32, y: C.Cir.Cell, +w: U32,
+  +ew: {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c) == C.Cir.Cell.set(1n, y, w) : C.Cir.Cell},
+  +ey: {C.Cir.Cells.get(m, c) == y : C.Cir.Cell}, h: IsC(ds, m, im, fi, nx, ks, img, c, y, t)) ->
+  P2({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)) : U32},
+    Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, t)):
+  match t:
+    case C.Term.Var{+i}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, x1e}:
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Var{i}, ew, (nd, x1e)))
+    case C.Term.Ref{+kk}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, Tuple{x2e, x3e}}}:
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Ref{kk}, ew, (nd, (x1e, (x2e, x3e)))))
+    case C.Term.Ann{+t1, +t2}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Ann{t1, t2}, ew, (nd, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3))))))
+    case C.Term.Let{+qq, +t1, +t2}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Let{qq, t1, t2}, ew, (nd, (x1e, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3)))))))
+    case C.Term.Typ{+t1}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{sp2, h2}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Typ{t1}, ew, (nd, (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)))))
+    case C.Term.Min{+t1, +t2}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Min{t1, t2}, ew, (nd, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3))))))
+    case C.Term.All{+qq, +t1, +t2}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.All{qq, t1, t2}, ew, (nd, (x1e, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3)))))))
+    case C.Term.Lam{+qq, +t1}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, Tuple{sp2, h2}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Lam{qq, t1}, ew, (nd, (x1e, (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2))))))
+    case C.Term.App{+qq, +t1, +t2}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.App{qq, t1, t2}, ew, (nd, (x1e, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3)))))))
+    case C.Term.Sig{+qq, +t1, +t2}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Sig{qq, t1, t2}, ew, (nd, (x1e, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3)))))))
+    case C.Term.Tup{+qq, +t1, +t2}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, Tuple{Tuple{sp2, h2}, Tuple{sp3, h3}}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Tup{qq, t1, t2}, ew, (nd, (x1e, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3)))))))
+    case C.Term.Prj{+t1}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{sp2, h2}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Prj{t1}, ew, (nd, (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)))))
+    case C.Term.Enu{+ee}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, x2e}}:
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Enu{ee}, ew, (nd, (x1e, x2e))))
+    case C.Term.Lab{+kk}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, x1e}:
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Lab{kk}, ew, (nd, x1e)))
+    case C.Term.Mat{+kk, +t1, +t2}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{x1e, Tuple{Tuple{sp3, h3}, Tuple{sp4, h4}}}}:
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              +c4 = cl.f1(m, sx, sv, x4)
+              +r4 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x4, C.Cir.Cells.get(m, x4), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x4), w) : C.Cir.Cell}, c4),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x4), w) : C.Cir.Cell}, c4), {==}, h4)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Mat{kk, t1, t2}, ew, (nd, (x1e, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t1), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t1), r3)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4), C.Cir.Cells.get(m, x4), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x4)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x4, t2), r4), sp4), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x4)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x4, t2), r4)))))))
+    case C.Term.Efq{}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+            isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Efq{}, ew, h))
+    case C.Term.Eql{+t1, +t2, +t3}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{Tuple{sp2, h2}, Tuple{Tuple{sp3, h3}, Tuple{sp4, h4}}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              +c4 = cl.f1(m, sx, sv, x4)
+              +r4 = is.f1(t3, ds, m, im, fi, nx, ks, img, sx, sv, x4, C.Cir.Cells.get(m, x4), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x4), w) : C.Cir.Cell}, c4),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x4), w) : C.Cir.Cell}, c4), {==}, h4)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Eql{t1, t2, t3}, ew, (nd, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4), C.Cir.Cells.get(m, x4), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x4)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x4, t3), r4), sp4), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x4)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x4, t3), r4)))))))
+    case C.Term.Rfl{}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+            isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Rfl{}, ew, h))
+    case C.Term.Rwt{+t1, +t2, +t3}:
+      match y:
+        case C.Cir.Cell{+a, b0, +x2, +x3, +x4}:
+          match h:
+            case Tuple{nd, Tuple{Tuple{sp2, h2}, Tuple{Tuple{sp3, h3}, Tuple{sp4, h4}}}}:
+              +c2 = cl.f1(m, sx, sv, x2)
+              +r2 = is.f1(t1, ds, m, im, fi, nx, ks, img, sx, sv, x2, C.Cir.Cells.get(m, x2), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x2), w) : C.Cir.Cell}, c2), {==}, h2)
+              +c3 = cl.f1(m, sx, sv, x3)
+              +r3 = is.f1(t2, ds, m, im, fi, nx, ks, img, sx, sv, x3, C.Cir.Cells.get(m, x3), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x3), w) : C.Cir.Cell}, c3), {==}, h3)
+              +c4 = cl.f1(m, sx, sv, x4)
+              +r4 = is.f1(t3, ds, m, im, fi, nx, ks, img, sx, sv, x4, C.Cir.Cells.get(m, x4), Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x4), w) : C.Cir.Cell}, c4),
+                Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x4), w) : C.Cir.Cell}, c4), {==}, h4)
+              (Equal.trans(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)), a, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)),
+            Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, ew),
+            Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)), a, Equal.cong(C.Cir.Cell, U32, z => C.Cir.Cell.get(0n, z), C.Cir.Cells.get(m, c), C.Cir.Cell{a, b0, x2, x3, x4}, ey))),
+                isc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c), C.Cir.Cell{a, w, x2, x3, x4}, C.Term.Rwt{t1, t2, t3}, ew, (nd, ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2), C.Cir.Cells.get(m, x2), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2), sp2), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x2)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x2)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x2, t1), r2)), ((sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3), C.Cir.Cells.get(m, x3), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3), sp3), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x3)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x3)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x3, t2), r3)), (sp.at0(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4), C.Cir.Cells.get(m, x4), Ex.fst({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x4)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x4, t3), r4), sp4), Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), x4)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, x4)) : U32}, _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, x4, t3), r4)))))))
+
+# a store to field 1 keeps every term
+def is.f1.top(+t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +sx: U32, +sv: U32, +c: U32, h: Is(ds, m, im, fi, nx, ks, img, c, t)) ->
+  Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, t):
+  +r = cl.f1(m, sx, sv, c)
+  +q = is.f1(t, ds, m, im, fi, nx, ks, img, sx, sv, c, C.Cir.Cells.get(m, c),
+    Ex.fst(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), w) : C.Cir.Cell}, r),
+    Ex.snd(U32, w => {C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), w) : C.Cir.Cell}, r), {==}, h)
+  Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)) : U32},
+    _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, t), q)
+
 # Move kit
 # --------
 #
