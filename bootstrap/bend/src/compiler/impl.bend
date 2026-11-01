@@ -2109,10 +2109,19 @@ def Wasm.write.bytes(xs: List<&2, U32>, +a: U32, m: Wasm.Bytes) -> Wasm.Bytes:
     case Con{x, rest}:
       Wasm.write.bytes(rest, U32.inc(a), Wasm.write8(m, a, x))
 
-# len bytes from start fit in p pages of 2^16 bytes
+# len bytes from start fit in p pages of 2^16 bytes: start + len, as an
+# integer (spec 4.4.7), is at most p * 2^16. A sum that wraps is 2^32 only when
+# it wraps to 0, and 2^32 bytes fit in 65536 pages
+def Wasm.fits.end(wrap: Bool, +p: U32, +end: U32) -> Bool:
+  match wrap:
+    case True{}:
+      U32.is_zero(end) && U32.is_le(65536, p)
+    case False{}:
+      U32.is_zero(end) || U32.is_lt(U32.shrn(U32.sub(end, 1), 16n), p)
+
 def Wasm.fits(+p: U32, +start: U32, +len: U32) -> Bool:
   +end = U32.add(start, len)
-  Bool.not(U32.is_lt(end, start)) && (U32.is_zero(end) || U32.is_lt(U32.shrn(U32.sub(end, 1), 16n), p))
+  Wasm.fits.end(U32.is_lt(end, start), p, end)
 
 # an access of w bytes at a + o is inside the memory of p pages (spec 4.4.7);
 # the sum a + o does not wrap

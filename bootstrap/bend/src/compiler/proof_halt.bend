@@ -1417,7 +1417,7 @@ def H.fits(+k: U32, +p: U32, c1: {U32.is_lt(U32.add(20, k), 20) == False{} : Boo
   hX: {U32.is_lt(U32.shrn(U32.sub(U32.add(20, k), 1), 16n), p) == True{} : Bool}) -> {C.Wasm.fits(p, 20, k) == True{} : Bool}:
   +E = U32.add(20, k)
   %Equal.sym(Bool, U32.is_lt(E, 20), False{}, c1) :
-    {Bool.and(Bool.not(_), Bool.or(U32.is_zero(E), U32.is_lt(U32.shrn(U32.sub(E, 1), 16n), p))) == True{} : Bool}
+    {C.Wasm.fits.end(_, p, E) == True{} : Bool}
   H.or_r(U32.is_zero(E), U32.is_lt(U32.shrn(U32.sub(E, 1), 16n), p), hX)
 
 # x + 1 <= 1 gives x < 1, for x = z >> 1
