@@ -25,6 +25,21 @@
 # C. r = 39 (croot): M.copy.end writes K.root (45) into field 0 of the
 #    result. r = 3 (pend): register r ends with the root, tag 45. r = 64: a
 #    trap. src = 39: the root's part is the root itself.
+#
+# D. A local whose term has a free variable near 2^32 (CopyPost, as fixed,
+#    still false). The source c = 400 is Lam{Q0, Var 1} (fv 1; its part 401
+#    is Var 1, fv 2), owned by register 0 and borrowed in register 13; the
+#    chain cenv = 402 is one K.arg, OWNED (4096), last, whose term 403 is
+#    Var 4294967295 with fv fv_max (a Var's term may be OWNED). HS, Held, Ag
+#    and the registers' premises hold (counts: 400 by the root, 401 by 400,
+#    403 by the OWNED 402; no pend list; no frames). Term.subst gives
+#    Lam{Q0, Term.shift(Var 4294967295, 1n, 0n)} = Lam{Q0, Var 4294967296},
+#    which no cell stands for (Is of a Var asks to_nat(field 2) == i), but
+#    the run ends in next{_} (4 cells, room to spare): M.shift's M.var adds
+#    samt = 1 to 4294967295 as a U32, so the result 405 is Lam{Q0, Var 0}
+#    (cell 407, field 2 = 0), and CopyQ cannot hold. The run makes no other
+#    mistake: a premise that bounds the locals' variables (each local's term
+#    below 2^25, the book's own bound) makes the sum fit.
 import Base
 import ./impl.bend as C
 
@@ -209,4 +224,72 @@ def C2.s39_reg() -> {Cx.reg(C2.copy(15n, 39n), 15n) == Some{401}: Maybe<&2, U32>
   {==}
 
 def C2.s39_tag() -> {Cx.fd(C2.copy(15n, 39n), 0n, 401) == 45: U32}:
+  {==}
+
+# D
+# -
+
+# the table's row of Lam (7) too
+def D.tbl() -> C.Cir.Cells:
+  C.Cir.Cells.set(Cx.tbl(), 352, C.Cir.Cell{0, 0, 1, 1, 1})
+
+# c = 400: Lam (7), fv 1, count 1, part 401; 401: Var 1, fv 2, count 1;
+# a = 402: K.arg (41), OWNED, last, term 403; 403: Var 4294967295, fv fv_max
+# (524287 << 13 = 4294959104), count 1
+def D.m() -> C.Cir.Cells:
+  C.Cir.Cells.set(
+    C.Cir.Cells.set(
+      C.Cir.Cells.set(
+        C.Cir.Cells.set(D.tbl(), 400, C.Cir.Cell{8199, 1, 401, 0, 0}),
+        401,
+        C.Cir.Cell{16384, 1, 1, 0, 0}
+      ),
+      402,
+      C.Cir.Cell{4137, 0, 403, 0, 0}
+    ),
+    403,
+    C.Cir.Cell{4294959104, 1, 4294967295, 0, 0}
+  )
+
+# focus 0 and src 13 hold c, pend 0, cenv 402, clen 1
+def D.regs() -> List<&2, U32>:
+  List.set(
+    &2,
+    U32,
+    List.set(
+      &2,
+      U32,
+      List.set(&2, U32, List.set(&2, U32, Cx.z(64n), 0n, 400), 13n, 400),
+      36n,
+      402
+    ),
+    37n,
+    1
+  )
+
+def D.copy() -> C.Cir.Out:
+  C.Cir.exec(8n, C.M.copy(15n, 13n), Cx.st(D.regs(), D.m(), 404))
+
+# the run ends with a state: register 15 holds 405
+def D.r15() -> {Cx.reg(D.copy(), 15n) == Some{405}: Maybe<&2, U32>}:
+  {==}
+
+# 405 is a Lam (tag 7, no fv) whose part is 407
+def D.lam_f0() -> {Cx.fd(D.copy(), 0n, 405) == 7: U32}:
+  {==}
+
+def D.lam_f2() -> {Cx.fd(D.copy(), 2n, 405) == 407: U32}:
+  {==}
+
+# 407 is Var 0 (tag 0, fv 1): the shift's 4294967295 + 1 wrapped
+def D.var_f0() -> {Cx.fd(D.copy(), 0n, 407) == 8192: U32}:
+  {==}
+
+def D.var_f2() -> {Cx.fd(D.copy(), 2n, 407) == 0: U32}:
+  {==}
+
+# what Term.subst gives, for the local Var i = 1 + p: Lam{Q0, Var i + 1}; for
+# i = 4294967295, Var 4294967296, of which no cell stands
+def D.subst(+p: Nat) -> {C.Term.subst(C.Term.Lam{C.Quan.Q0{}, C.Term.Var{1n}}, [C.Term.Var{1n+p}], 0n) ==
+  C.Term.Lam{C.Quan.Q0{}, C.Term.Var{Nat.add(1n+p, 1n)}} : C.Term}:
   {==}
