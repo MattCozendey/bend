@@ -5166,6 +5166,231 @@ def hs.fz(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: L
     (Heap.fz(m, nx, fi, im, rs, pend, ps, z, x, hf0, hf1, htN, hzm, hz0, hxt, hp),
       ImgOK.fz(dk, ds, ks, img, m, im, fi, nx, ps, rs, z, x, hz0, hzs, hzo, hi))))))
 
+# Stores to field 1 (Put1)
+# ------------------------
+#
+# Put1(ws, m): the cells m after the stores ws to field 1, the last first.
+# Every part of HSK but the counts (Cnt) and the links of the pend list and
+# of the frames reads fields 0, 2, 3 and 4 only, so it holds after them
+# (put1.at: each cell is the old one with another field 1).
+
+type W1 is Data:
+  W1{c: U32, v: U32}
+
+# the cells m with field 1 of each cell of ws set, the first of ws last
+def Put1(ws: List<&2, W1>, +m: C.Cir.Cells) -> C.Cir.Cells:
+  match ws:
+    case Nil{}:
+      m
+    case Con{W1{+c, v}, +rest}:
+      C.Cir.Cells.set(Put1(rest, m), c, C.Cir.Cell.set(1n, C.Cir.Cells.get(Put1(rest, m), c), v))
+
+def W1.cells(ws: List<&2, W1>) -> List<&2, U32>:
+  match ws:
+    case Nil{}:
+      Nil{}
+    case Con{W1{c, _}, rest}:
+      Con{c, W1.cells(rest)}
+
+def cg0(+x: C.Cir.Cell, -w: U32) -> {C.Cir.Cell.get(0n, C.Cir.Cell.set(1n, x, w)) == C.Cir.Cell.get(0n, x) : U32}:
+  match x:
+    case C.Cir.Cell{a, b, x2, x3, x4}:
+      {==}
+
+def cg1(+x: C.Cir.Cell, -w: U32) -> {C.Cir.Cell.get(1n, C.Cir.Cell.set(1n, x, w)) == w : U32}:
+  match x:
+    case C.Cir.Cell{a, b, x2, x3, x4}:
+      {==}
+
+def cg2(+x: C.Cir.Cell, -w: U32) -> {C.Cir.Cell.get(2n, C.Cir.Cell.set(1n, x, w)) == C.Cir.Cell.get(2n, x) : U32}:
+  match x:
+    case C.Cir.Cell{a, b, x2, x3, x4}:
+      {==}
+
+def cg3(+x: C.Cir.Cell, -w: U32) -> {C.Cir.Cell.get(3n, C.Cir.Cell.set(1n, x, w)) == C.Cir.Cell.get(3n, x) : U32}:
+  match x:
+    case C.Cir.Cell{a, b, x2, x3, x4}:
+      {==}
+
+def cg4(+x: C.Cir.Cell, -w: U32) -> {C.Cir.Cell.get(4n, C.Cir.Cell.set(1n, x, w)) == C.Cir.Cell.get(4n, x) : U32}:
+  match x:
+    case C.Cir.Cell{a, b, x2, x3, x4}:
+      {==}
+
+def s1s1(+x: C.Cir.Cell, -a: U32, -b: U32) -> {C.Cir.Cell.set(1n, C.Cir.Cell.set(1n, x, a), b) == C.Cir.Cell.set(1n, x, b) : C.Cir.Cell}:
+  match x:
+    case C.Cir.Cell{y0, y1, y2, y3, y4}:
+      {==}
+
+# is_eq is symmetric
+def ne.sym.b(c: Bool, +a: U32, +b: U32, ec: {U32.is_eq(b, a) == c : Bool}, h: {U32.is_eq(a, b) == False{} : Bool}) ->
+  {U32.is_eq(b, a) == False{} : Bool}:
+  match c:
+    case False{}:
+      ec
+    case True{}:
+      Empty.absurd({U32.is_eq(b, a) == False{} : Bool}, u32.ne(a, b, h, Equal.sym(U32, b, a, u32.eq(b, a, ec))))
+
+def ne.sym(+a: U32, +b: U32, h: {U32.is_eq(a, b) == False{} : Bool}) -> {U32.is_eq(b, a) == False{} : Bool}:
+  ne.sym.b(U32.is_eq(b, a), a, b, {==}, h)
+
+def put1.at.b(b: Bool, +m: C.Cir.Cells, +rest: List<&2, W1>, +z: U32, +v: U32, +c: U32, eb: {U32.is_eq(c, z) == b : Bool},
+  ihc: {C.Cir.Cells.get(Put1(rest, m), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(rest, m), c)) : C.Cir.Cell},
+  ihz: {C.Cir.Cells.get(Put1(rest, m), z) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, z), Fd(1n, Put1(rest, m), z)) : C.Cir.Cell}) ->
+  {C.Cir.Cells.get(Put1(Con{W1{z, v}, rest}, m), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(Con{W1{z, v}, rest}, m), c)) : C.Cir.Cell}:
+  +M = Put1(rest, m)
+  +x = C.Cir.Cell.set(1n, C.Cir.Cells.get(M, z), v)
+  +M2 = C.Cir.Cells.set(M, z, x)
+  match b:
+    case False{}:
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, c), C.Cir.Cells.get(M, c), cl.go(M, c, z, x, eb)) :
+        {_ == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), C.Cir.Cell.get(1n, _)) : C.Cir.Cell}
+      ihc
+    case True{}:
+      %Equal.sym(U32, c, z, u32.eq(c, z, eb)) :
+        {C.Cir.Cells.get(M2, _) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, _), Fd(1n, M2, _)) : C.Cir.Cell}
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, z), x, cl.gs(M, z, x)) :
+        {_ == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, z), C.Cir.Cell.get(1n, _)) : C.Cir.Cell}
+      %Equal.sym(U32, C.Cir.Cell.get(1n, x), v, cg1(C.Cir.Cells.get(M, z), v)) :
+        {x == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, z), _) : C.Cir.Cell}
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M, z), C.Cir.Cell.set(1n, C.Cir.Cells.get(m, z), Fd(1n, M, z)), ihz) :
+        {C.Cir.Cell.set(1n, _, v) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, z), v) : C.Cir.Cell}
+      s1s1(C.Cir.Cells.get(m, z), Fd(1n, M, z), v)
+
+# after stores to field 1, a cell is its old one with another field 1
+def put1.at(ws: List<&2, W1>, +m: C.Cir.Cells, +c: U32) ->
+  {C.Cir.Cells.get(Put1(ws, m), c) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)) : C.Cir.Cell}:
+  match ws:
+    case Nil{}:
+      set1.id(C.Cir.Cells.get(m, c))
+    case Con{W1{+z, +v}, +rest}:
+      put1.at.b(U32.is_eq(c, z), m, rest, z, v, c, {==}, put1.at(rest, m, c), put1.at(rest, m, z))
+
+# and a cell that no store reaches is the old one
+def put1.out(ws: List<&2, W1>, +m: C.Cir.Cells, +c: U32, h: {Mem(W1.cells(ws), c) == False{} : Bool}) ->
+  {C.Cir.Cells.get(Put1(ws, m), c) == C.Cir.Cells.get(m, c) : C.Cir.Cell}:
+  match ws:
+    case Nil{}:
+      {==}
+    case Con{W1{+z, +v}, +rest}:
+      +h2 = h
+      Equal.trans(C.Cir.Cell, C.Cir.Cells.get(Put1(Con{W1{z, v}, rest}, m), c), C.Cir.Cells.get(Put1(rest, m), c), C.Cir.Cells.get(m, c),
+        cl.go(Put1(rest, m), c, z, C.Cir.Cell.set(1n, C.Cir.Cells.get(Put1(rest, m), z), v),
+          ne.sym(z, c, or.f.l(U32.is_eq(z, c), Mem(W1.cells(rest), c), h2))),
+        put1.out(rest, m, c, or.f.r(U32.is_eq(z, c), Mem(W1.cells(rest), c), h2)))
+
+def put1.f0(+ws: List<&2, W1>, +m: C.Cir.Cells, +c: U32) -> {Fd(0n, Put1(ws, m), c) == Fd(0n, m, c) : U32}:
+  Equal.trans(U32, Fd(0n, Put1(ws, m), c), C.Cir.Cell.get(0n, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c))), Fd(0n, m, c),
+    Equal.cong(C.Cir.Cell, U32, y => C.Cir.Cell.get(0n, y), C.Cir.Cells.get(Put1(ws, m), c), C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)), put1.at(ws, m, c)),
+    cg0(C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)))
+
+def put1.f2(+ws: List<&2, W1>, +m: C.Cir.Cells, +c: U32) -> {Fd(2n, Put1(ws, m), c) == Fd(2n, m, c) : U32}:
+  Equal.trans(U32, Fd(2n, Put1(ws, m), c), C.Cir.Cell.get(2n, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c))), Fd(2n, m, c),
+    Equal.cong(C.Cir.Cell, U32, y => C.Cir.Cell.get(2n, y), C.Cir.Cells.get(Put1(ws, m), c), C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)), put1.at(ws, m, c)),
+    cg2(C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)))
+
+def put1.f3(+ws: List<&2, W1>, +m: C.Cir.Cells, +c: U32) -> {Fd(3n, Put1(ws, m), c) == Fd(3n, m, c) : U32}:
+  Equal.trans(U32, Fd(3n, Put1(ws, m), c), C.Cir.Cell.get(3n, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c))), Fd(3n, m, c),
+    Equal.cong(C.Cir.Cell, U32, y => C.Cir.Cell.get(3n, y), C.Cir.Cells.get(Put1(ws, m), c), C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)), put1.at(ws, m, c)),
+    cg3(C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)))
+
+def put1.f4(+ws: List<&2, W1>, +m: C.Cir.Cells, +c: U32) -> {Fd(4n, Put1(ws, m), c) == Fd(4n, m, c) : U32}:
+  Equal.trans(U32, Fd(4n, Put1(ws, m), c), C.Cir.Cell.get(4n, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c))), Fd(4n, m, c),
+    Equal.cong(C.Cir.Cell, U32, y => C.Cir.Cell.get(4n, y), C.Cir.Cells.get(Put1(ws, m), c), C.Cir.Cell.set(1n, C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)), put1.at(ws, m, c)),
+    cg4(C.Cir.Cells.get(m, c), Fd(1n, Put1(ws, m), c)))
+
+def fsk.s1(b: Bool, +a: U32, +y: C.Cir.Cell, -w: U32, +ps: List<&2, U32>, +o: U32) ->
+  {FsK(b, a, C.Cir.Cell.set(1n, y, w), ps, o) == FsK(b, a, y, ps, o) : List<&2, U32>}:
+  match y:
+    case C.Cir.Cell{y0, y1, y2, y3, y4}:
+      {==}
+
+# stores to field 1 keep the pointers of each cell
+def fs.put1(+ws: List<&2, W1>, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32) -> {Fs(Put1(ws, m), ps, o) == Fs(m, ps, o) : List<&2, U32>}:
+  +M2 = Put1(ws, m)
+  +Y = C.Cir.Cells.get(m, o)
+  +w = Fd(1n, M2, o)
+  +tg = TgW(C.Cir.Cell.get(0n, Y))
+  %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, o), C.Cir.Cell.set(1n, Y, w), put1.at(ws, m, o)) :
+    {FsK(U32.is_lt(TgW(C.Cir.Cell.get(0n, _)), 19), Fd(2n, M2, U32.add(345, TgW(C.Cir.Cell.get(0n, _)))), _, ps, o) == Fs(m, ps, o) : List<&2, U32>}
+  %Equal.sym(U32, C.Cir.Cell.get(0n, C.Cir.Cell.set(1n, Y, w)), C.Cir.Cell.get(0n, Y), cg0(Y, w)) :
+    {FsK(U32.is_lt(TgW(_), 19), Fd(2n, M2, U32.add(345, TgW(_))), C.Cir.Cell.set(1n, Y, w), ps, o) == Fs(m, ps, o) : List<&2, U32>}
+  %Equal.sym(U32, Fd(2n, M2, U32.add(345, tg)), Fd(2n, m, U32.add(345, tg)), put1.f2(ws, m, U32.add(345, tg))) :
+    {FsK(U32.is_lt(tg, 19), _, C.Cir.Cell.set(1n, Y, w), ps, o) == Fs(m, ps, o) : List<&2, U32>}
+  fsk.s1(U32.is_lt(tg, 19), Fd(2n, m, U32.add(345, tg)), Y, w, ps, o)
+
+def pc.put1(n: Nat, +ws: List<&2, W1>, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +c: U32) ->
+  {Pc(n, Put1(ws, m), ps, o, c) == Pc(n, m, ps, o, c) : Nat}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+(+k):
+      +M2 = Put1(ws, m)
+      %Equal.sym(List<&2, U32>, Fs(M2, ps, o), Fs(m, ps, o), fs.put1(ws, m, ps, o)) :
+        {Nat.add(RcL(_, c), Pc(k, M2, ps, U32.inc(o), c)) == Nat.add(RcL(Fs(m, ps, o), c), Pc(k, m, ps, U32.inc(o), c)) : Nat}
+      %Equal.sym(Nat, Pc(k, M2, ps, U32.inc(o), c), Pc(k, m, ps, U32.inc(o), c), pc.put1(k, ws, m, ps, U32.inc(o), c)) :
+        {Nat.add(RcL(Fs(m, ps, o), c), _) == Nat.add(RcL(Fs(m, ps, o), c), Pc(k, m, ps, U32.inc(o), c)) : Nat}
+      {==}
+
+def ptr.put1(+n: Nat, +ws: List<&2, W1>, +m: C.Cir.Cells, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +c: U32) ->
+  {Ptr(n, Put1(ws, m), fi, ps, rs, c) == Ptr(n, m, fi, ps, rs, c) : Nat}:
+  Equal.cong(Nat, Nat, w => Nat.add(w, RcL(rs, c)), Pc(n, Put1(ws, m), ps, fi, c), Pc(n, m, ps, fi, c), pc.put1(n, ws, m, ps, fi, c))
+
+def ltc.s1(+y: U32, +x: C.Cir.Cell, -w: U32, +im: U32, +fi: U32, +nx: U32) ->
+  {LtC(y, C.Cir.Cell.set(1n, x, w), im, fi, nx) == LtC(y, x, im, fi, nx) : Bool}:
+  match x:
+    case C.Cir.Cell{a, b, x2, x3, x4}:
+      {==}
+
+def lt.put1(xs: List<&2, U32>, +ws: List<&2, W1>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32) ->
+  {Lt.all(xs, Put1(ws, m), im, fi, nx) == Lt.all(xs, m, im, fi, nx) : Bool}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+x, +rest}:
+      +M2 = Put1(ws, m)
+      %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(M2, x), C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x), Fd(1n, M2, x)), put1.at(ws, m, x)) :
+        {Bool.and(LtC(x, _, im, fi, nx), Lt.all(rest, M2, im, fi, nx)) == Lt.all(Con{x, rest}, m, im, fi, nx) : Bool}
+      %Equal.sym(Bool, LtC(x, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, x), Fd(1n, M2, x)), im, fi, nx), LtC(x, C.Cir.Cells.get(m, x), im, fi, nx),
+          ltc.s1(x, C.Cir.Cells.get(m, x), Fd(1n, M2, x), im, fi, nx)) :
+        {Bool.and(_, Lt.all(rest, M2, im, fi, nx)) == Lt.all(Con{x, rest}, m, im, fi, nx) : Bool}
+      %Equal.sym(Bool, Lt.all(rest, M2, im, fi, nx), Lt.all(rest, m, im, fi, nx), lt.put1(rest, ws, m, im, fi, nx)) :
+        {Bool.and(LtC(x, C.Cir.Cells.get(m, x), im, fi, nx), _) == Lt.all(Con{x, rest}, m, im, fi, nx) : Bool}
+      {==}
+
+def pts.put1(n: Nat, +ws: List<&2, W1>, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +im: U32, +fi: U32, +nx: U32) ->
+  {Pts(n, Put1(ws, m), ps, o, im, fi, nx) == Pts(n, m, ps, o, im, fi, nx) : Bool}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+(+k):
+      +M2 = Put1(ws, m)
+      %Equal.sym(List<&2, U32>, Fs(M2, ps, o), Fs(m, ps, o), fs.put1(ws, m, ps, o)) :
+        {Bool.and(Lt.all(_, M2, im, fi, nx), Pts(k, M2, ps, U32.inc(o), im, fi, nx)) == Pts(1n+k, m, ps, o, im, fi, nx) : Bool}
+      %Equal.sym(Bool, Lt.all(Fs(m, ps, o), M2, im, fi, nx), Lt.all(Fs(m, ps, o), m, im, fi, nx), lt.put1(Fs(m, ps, o), ws, m, im, fi, nx)) :
+        {Bool.and(_, Pts(k, M2, ps, U32.inc(o), im, fi, nx)) == Pts(1n+k, m, ps, o, im, fi, nx) : Bool}
+      %Equal.sym(Bool, Pts(k, M2, ps, U32.inc(o), im, fi, nx), Pts(k, m, ps, U32.inc(o), im, fi, nx), pts.put1(k, ws, m, ps, U32.inc(o), im, fi, nx)) :
+        {Bool.and(Lt.all(Fs(m, ps, o), m, im, fi, nx), _) == Pts(1n+k, m, ps, o, im, fi, nx) : Bool}
+      {==}
+
+def pendok.put1(qs: List<&2, U32>, +ps: List<&2, U32>, +ws: List<&2, W1>, +m: C.Cir.Cells, +fi: U32, +nx: U32, +rs: List<&2, U32>,
+  h: PendOK(qs, ps, m, fi, nx, rs)) -> PendOK(qs, ps, Put1(ws, m), fi, nx, rs):
+  match qs:
+    case Nil{}:
+      Unit{}
+    case Con{+p, +rest}:
+      (ho, r1) = h
+      (hs, r2) = r1
+      (htg, r3) = r2
+      (hp0, r4) = r3
+      +M2 = Put1(ws, m)
+      +e0 = put1.f0(ws, m, p)
+      +n = Nat.sub(U32.to_nat(nx), U32.to_nat(fi))
+      (ho, ((%Equal.sym(U32, Fd(0n, M2, p), Fd(0n, m, p), e0) : {U32.is_ne(U32.and(_, 1024), 0) == False{} : Bool}; hs),
+        ((%Equal.sym(U32, Fd(0n, M2, p), Fd(0n, m, p), e0) : {Bool.or(U32.is_lt(U32.and(_, 63), 19), U32.is_le(32, U32.and(_, 63))) == True{} : Bool}; htg),
+        ((%Equal.sym(Nat, Ptr(n, M2, fi, ps, rs, p), Ptr(n, m, fi, ps, rs, p), ptr.put1(n, ws, m, fi, ps, rs, p)) : {_ == 0n : Nat}; hp0),
+          pendok.put1(rest, ps, ws, m, fi, nx, rs, r4)))))
+
 # Open: the heap's operations (this file)
 # ---------------------------------------
 #
@@ -5309,17 +5534,6 @@ def AlFr(+m: C.Cir.Cells, +ps: List<&2, U32>, +nx: U32, st2: C.Cir.State) -> Typ
   (@q: U32 -> {Mem(ps, q) == False{} : Bool} -> {U32.is_eq(q, nx) == False{} : Bool} ->
     P2({C.Cir.Cells.get(St.cells(st2), q) == C.Cir.Cell.set(1n, C.Cir.Cells.get(m, q), Fd(1n, St.cells(st2), q)) : C.Cir.Cell},
       {Bool.or(Bool.and(U32.is_lt(Tg(m, q), 19), Taken(ps, m, q)), U32.is_eq(Fd(1n, St.cells(st2), q), Fd(1n, m, q))) == True{} : Bool}))
-
-type W1 is Data:
-  W1{c: U32, v: U32}
-
-# the cells m with field 1 of each cell of ws set, the first of ws last
-def Put1(ws: List<&2, W1>, +m: C.Cir.Cells) -> C.Cir.Cells:
-  match ws:
-    case Nil{}:
-      m
-    case Con{W1{+c, v}, +rest}:
-      C.Cir.Cells.set(Put1(rest, m), c, C.Cir.Cell.set(1n, C.Cir.Cells.get(Put1(rest, m), c), v))
 
 # each cell of ws is a term cell, a part of the cell taken
 def Took(ws: List<&2, W1>, +ps: List<&2, U32>, +m: C.Cir.Cells) -> Bool:

@@ -383,24 +383,6 @@ def tup.hd(+dk: Bool, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
 # witness reads: cells that are STATIC or have a pointer (Hd). Each store of
 # the run is one of these frames (Fr), with what it needs of the cells.
 
-# (stand-ins for proof_mach_defs.bend's, until alloc.post has them)
-type W1 is Data:
-  W1{c: U32, v: U32}
-
-def Put1(ws: List<&2, W1>, +m: C.Cir.Cells) -> C.Cir.Cells:
-  match ws:
-    case Nil{}:
-      m
-    case Con{W1{+c, v}, +rest}:
-      C.Cir.Cells.set(Put1(rest, m), c, C.Cir.Cell.set(1n, C.Cir.Cells.get(Put1(rest, m), c), v))
-
-def Took(ws: List<&2, W1>, +ps: List<&2, U32>, +m: C.Cir.Cells) -> Bool:
-  match ws:
-    case Nil{}:
-      True{}
-    case Con{W1{+c, _}, rest}:
-      Bool.and(Bool.and(U32.is_lt(PM.Tg(m, c), 19), PM.Taken(ps, m, c)), Took(rest, ps, m))
-
 # a store of field 1 or field 0 keeps the other fields
 def s1.f0(c: C.Cir.Cell, +v: U32) -> {C.Cir.Cell.get(0n, C.Cir.Cell.set(1n, c, v)) == C.Cir.Cell.get(0n, c) : U32}:
   match c:
@@ -462,13 +444,13 @@ def ff.of(b: Bool, +m: C.Cir.Cells, +z: U32, +y: C.Cir.Cell, +x: U32, eb: {U32.i
   ht: {b == True{} : Bool} -> FF(m, C.Cir.Cells.set(m, z, y), z)) -> FF(m, C.Cir.Cells.set(m, z, y), x):
   match b:
     case True{}:
-      %PM.u32.eq(x, z, eb) : FF(m, C.Cir.Cells.set(m, z, y), _)
+      %Equal.sym(U32, x, z, PM.u32.eq(x, z, eb)) : FF(m, C.Cir.Cells.set(m, z, y), _)
       ht({==})
     case False{}:
       ff.go(m, z, y, x, eb)
 
 # a store of field 1 keeps fields 0, 2 and 3 of every cell
-def ff.put1(+m: C.Cir.Cells, +z: U32, +v: U32, +x: U32) -> FF(m, X.put(m, 1n, z, v), x):
+def ff.put1(+m: C.Cir.Cells, +z: U32, +v: U32, +x: U32) -> FF(m, X.X.put(m, 1n, z, v), x):
   +y = C.Cir.Cell.set(1n, C.Cir.Cells.get(m, z), v)
   +gs = PM.cl.gs(m, z, y)
   ff.of(U32.is_eq(x, z), m, z, y, x, {==},
@@ -483,9 +465,9 @@ def ff.put1(+m: C.Cir.Cells, +z: U32, +v: U32, +x: U32) -> FF(m, X.put(m, 1n, z,
             s1.f3(C.Cir.Cells.get(m, z), v)))))
 
 # writes of field 1 keep fields 0, 2 and 3 of every cell
-def ff.put1s(ws: List<&2, W1>, +m: C.Cir.Cells, +x: U32) -> FF(m, Put1(ws, m), x):
+def ff.put1s(ws: List<&2, PM.W1>, +m: C.Cir.Cells, +x: U32) -> FF(m, PM.Put1(ws, m), x):
   match ws:
     case Nil{}:
       ff.refl(m, x)
-    case Con{W1{+c, +v}, +rest}:
-      ff.trans(m, Put1(rest, m), Put1(Con{W1{c, v}, rest}, m), x, ff.put1(Put1(rest, m), c, v, x), ff.put1s(rest, m, x))
+    case Con{PM.W1{+c, +v}, +rest}:
+      ff.trans(m, PM.Put1(rest, m), PM.Put1(Con{PM.W1{c, v}, rest}, m), x, ff.put1(PM.Put1(rest, m), c, v, x), ff.put1s(rest, m, x))

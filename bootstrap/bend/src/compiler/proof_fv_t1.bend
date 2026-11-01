@@ -8,9 +8,9 @@ def isApp(t: C.Term) -> Bool:
     case _:
       False{}
 
-def t.args(t: C.Term, xs: List<&2, C.Arg>) -> {Bool.or(isApp(t), Nat.is_eq(List.length(&2, C.Arg, C.Term.args(t, xs)), List.length(&2, C.Arg, xs))) == True{} : Bool}:
+def t.k(+t: C.Term) -> {isApp(t) == isApp(t) : Bool}:
   match t:
-    case C.Term.App{q, f, x}:
-      {==}
+    case C.Term.Var{i}:
+      ?h
     case _:
       {==}
