@@ -32,6 +32,7 @@ STEPS:
 4 - We must write the BEND COPY of `Eval` and the LEAN PROOF of INVARIANTS #2. This is because Bend can't use Lean's `Eval`, so #1 can only state its laws through a copy. Without this proof, a wrong copy makes #1 prove the wrong thing.
 5 - We must write the BEND COPY OF WASM'S MEANING (WHAT WE TRUST #6), so that the laws of #1 can say what a compiled program gives. This is because our compiler compiles to WASM (OUR GOALS #2), and the WASM spec is not written in Bend.
 6 - We must write the LEAN WRITER, the BEND READER and the LEAN PROOF of INVARIANTS #5. This is because the kernel's parser is made of `partial def`s, so no Lean theorem can say what it returns, and the kernel is fixed (WHAT WE TRUST #2): a Bend copy of the parser could never be proven to read a text as the kernel does. Without this proof, our compiler could compile a different book than the one the kernel read.
+7 - We must write a LEAN VERSION OF THE OFFICIAL WASM SEMANTICS of the subset that our compiler uses, TRANSLATED BY A PROGRAM FROM THE SPEC'S OWN FORMAL SOURCE (SpecTec), and a LEAN PROOF that the Bend copy of WASM (#5) gives what it gives. This is because our Bend copy is only reviewed and tested (WHAT WE TRUST #6). With this proof we trust the spec's SpecTec source and the translator instead. The official tests of #5 stay, for historical reasons.
 
 NOTES:
 1 - The current UNTRUSTED TypeScript compiler is only a reference guide for ideas.
@@ -40,4 +41,3 @@ NOTES:
 4 - WORK ONLY IN `bootstrap`, FULLY ISOLATED FROM THE PREVIOUS BOOTSTRAP ATTEMPT. IT IS NOT IN THIS BRANCH: LOOK INTO THE `old-bootstrap` BRANCH FOR IT. IT MAY ONLY SERVE AS REFERENCE.
 5 - THE COMPILED CODE KEEPS ITS STACK IN WASM MEMORY, NOT ON THE ENGINE'S CALL STACK. THE WASM SPEC LETS AN ENGINE STOP A PROGRAM WHEN THE ENGINE'S CALL STACK RUNS OUT, SO MEMORY MUST BE THE ONLY RESOURCE LIMIT (INVARIANTS #4).
 6 - Bend guide may serve as reference; same as the untrusted compiler. Things like import dont seem to exist in the kernel for example so are out of scope and not needed for a bootstrap even if ir means a single huge file
-7 - POSSIBLE TODO: A LEAN VERSION OF THE OFFICIAL WASM SEMANTICS OF THE SUBSET THAT OUR COMPILER USES, TRANSLATED BY A PROGRAM FROM THE SPEC'S OWN FORMAL SOURCE (SPECTEC), AND A LEAN PROOF THAT THE BEND COPY OF WASM (STEPS #5) GIVES WHAT IT GIVES. IT REPLACES WHAT WE TRUST #6 (OUR OWN COPY) WITH TRUST IN THE SPEC'S SPECTEC SOURCE AND IN THE TRANSLATOR. WHAT WE TRUST #5 (THE ENGINE) STAYS.
