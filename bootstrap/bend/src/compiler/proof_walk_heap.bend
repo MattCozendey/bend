@@ -438,3 +438,180 @@ def nd.tg(-ds: List<&2, C.Def>, -im: U32, -fi: U32, -nx: U32, -c: U32, -x: C.Cir
   (e1, r1) = r0
   (e, r) = r1
   e
+
+# a part of a node, after a store to the cell z, which nothing points to and
+# is not STATIC: the part is not z, so the store keeps it (rec)
+def part.fz(ty: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +c: U32, +y: U32, +tg: U32, +mask: U32,
+  hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  etag: {PM.TgW(PM.Fd(0n, m, c)) == tg : U32}, hlt: {U32.is_lt(tg, 32) == True{} : Bool},
+  emask: {PM.Fd(2n, m, U32.add(345, tg)) == mask : U32},
+  hm: {PM.Mem(PM.Fs.term(mask, PM.Fd(2n, m, c), PM.Fd(3n, m, c), PM.Fd(4n, m, c)), y) == True{} : Bool},
+  rec: {U32.is_eq(y, z) == False{} : Bool} -> PM.Is(ds, m, im, fi, nx, ks, img, y, ty) -> PM.Is(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, y, ty),
+  hp: PM.P2(PM.Sp(fi, nx, c, C.Cir.Cells.get(m, y)), PM.IsC(ds, m, im, fi, nx, ks, img, y, C.Cir.Cells.get(m, y), ty))) ->
+  PM.P2(PM.Sp(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), y)),
+    PM.IsC(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, y, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), y), ty)):
+  (+sp, hy) = hp
+  +ne = part.ne(m, nx, fi, ps, rs, c, y, z, tg, mask, sp, etag, hlt, emask, hm, hz0, hzs)
+  (PM.sp.at(fi, nx, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), y), C.Cir.Cells.get(m, y), PM.cl.go(m, y, z, x, ne), sp), rec(ne, hy))
+
+# a store to the cell z, which nothing points to (Ptr 0) and is not STATIC,
+# keeps the term of every cell c but z
+def is.fz(t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +rs: List<&2, U32>, +z: U32, +x: C.Cir.Cell, +c: U32, +tbl: PM.Tbl(m, im, fi, nx),
+  +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}, +hzs: {PM.Fl(m, z, 1024) == False{} : Bool},
+  hc: {U32.is_eq(c, z) == False{} : Bool}, h: PM.Is(ds, m, im, fi, nx, ks, img, c, t)) ->
+  PM.Is(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, t):
+  match t:
+    case C.Term.Var{+i}:
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Var{i}, PM.cl.go(m, c, z, x, hc),
+            h)
+    case C.Term.Ref{+k}:
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Ref{k}, PM.cl.go(m, c, z, x, hc),
+            h)
+    case C.Term.Enu{+e}:
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Enu{e}, PM.cl.go(m, c, z, x, hc),
+            h)
+    case C.Term.Lab{+k}:
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Lab{k}, PM.cl.go(m, c, z, x, hc),
+            h)
+    case C.Term.Efq{}:
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Efq{}, PM.cl.go(m, c, z, x, hc),
+            h)
+    case C.Term.Rfl{}:
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Rfl{}, PM.cl.go(m, c, z, x, hc),
+            h)
+    case C.Term.Ann{+a, +b}:
+      (+nd, r) = h
+      (pa, pb) = r
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Ann{a, b}, PM.cl.go(m, c, z, x, hc),
+            (nd, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 2, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Ann{a, b}, 2, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Ann{a, b}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Nil{}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 2, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Ann{a, b}, 2, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Ann{a, b}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Nil{}}, mem.hd(PM.Fd(3n, m, c), Nil{})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb))))
+    case C.Term.Min{+a, +b}:
+      (+nd, r) = h
+      (pa, pb) = r
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Min{a, b}, PM.cl.go(m, c, z, x, hc),
+            (nd, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 5, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Min{a, b}, 5, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Min{a, b}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Nil{}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 5, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Min{a, b}, 5, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Min{a, b}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Nil{}}, mem.hd(PM.Fd(3n, m, c), Nil{})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb))))
+    case C.Term.Let{+q, +a, +b}:
+      (+nd, r) = h
+      (qs, r2) = r
+      (pa, pb) = r2
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Let{q, a, b}, PM.cl.go(m, c, z, x, hc),
+            (nd, (qs, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 3, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Let{q, a, b}, 3, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Let{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Nil{}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 3, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Let{q, a, b}, 3, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Let{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Nil{}}, mem.hd(PM.Fd(3n, m, c), Nil{})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb)))))
+    case C.Term.All{+q, +a, +b}:
+      (+nd, r) = h
+      (qs, r2) = r
+      (pa, pb) = r2
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.All{q, a, b}, PM.cl.go(m, c, z, x, hc),
+            (nd, (qs, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 6, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.All{q, a, b}, 6, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.All{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Nil{}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 6, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.All{q, a, b}, 6, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.All{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Nil{}}, mem.hd(PM.Fd(3n, m, c), Nil{})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb)))))
+    case C.Term.App{+q, +a, +b}:
+      (+nd, r) = h
+      (qs, r2) = r
+      (pa, pb) = r2
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.App{q, a, b}, PM.cl.go(m, c, z, x, hc),
+            (nd, (qs, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 8, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.App{q, a, b}, 8, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.App{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Nil{}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 8, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.App{q, a, b}, 8, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.App{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Nil{}}, mem.hd(PM.Fd(3n, m, c), Nil{})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb)))))
+    case C.Term.Sig{+q, +a, +b}:
+      (+nd, r) = h
+      (qs, r2) = r
+      (pa, pb) = r2
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Sig{q, a, b}, PM.cl.go(m, c, z, x, hc),
+            (nd, (qs, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 9, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Sig{q, a, b}, 9, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Sig{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Nil{}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 9, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Sig{q, a, b}, 9, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Sig{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Nil{}}, mem.hd(PM.Fd(3n, m, c), Nil{})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb)))))
+    case C.Term.Tup{+q, +a, +b}:
+      (+nd, r) = h
+      (qs, r2) = r
+      (pa, pb) = r2
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Tup{q, a, b}, PM.cl.go(m, c, z, x, hc),
+            (nd, (qs, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 10, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Tup{q, a, b}, 10, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Tup{q, a, b}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Nil{}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 10, 3, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Tup{q, a, b}, 10, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Tup{q, a, b}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Nil{}}, mem.hd(PM.Fd(3n, m, c), Nil{})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb)))))
+    case C.Term.Typ{+a}:
+      (+nd, pa) = h
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Typ{a}, PM.cl.go(m, c, z, x, hc),
+            (nd, part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 4, 1, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Typ{a}, 4, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Typ{a}, tbl), mem.hd(PM.Fd(2n, m, c), Nil{}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa)))
+    case C.Term.Prj{+a}:
+      (+nd, pa) = h
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Prj{a}, PM.cl.go(m, c, z, x, hc),
+            (nd, part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 11, 1, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Prj{a}, 11, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Prj{a}, tbl), mem.hd(PM.Fd(2n, m, c), Nil{}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa)))
+    case C.Term.Lam{+q, +a}:
+      (+nd, r) = h
+      (qs, pa) = r
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Lam{q, a}, PM.cl.go(m, c, z, x, hc),
+            (nd, (qs, part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 7, 1, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Lam{q, a}, 7, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Lam{q, a}, tbl), mem.hd(PM.Fd(2n, m, c), Nil{}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa))))
+    case C.Term.Mat{+k, +a, +b}:
+      (+nd, r) = h
+      (nm, r2) = r
+      (pa, pb) = r2
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Mat{k, a, b}, PM.cl.go(m, c, z, x, hc),
+            (nd, (nm, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 14, 6, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Mat{k, a, b}, 14, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Mat{k, a, b}, tbl), mem.hd(PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pa),
+              part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(4n, m, c), 14, 6, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Mat{k, a, b}, 14, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Mat{k, a, b}, tbl), mem.tl(PM.Fd(3n, m, c), PM.Fd(4n, m, c), Con{PM.Fd(4n, m, c), Nil{}}, mem.hd(PM.Fd(4n, m, c), Nil{})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(4n, m, c), tbl, hz0, hzs, e, hh), pb)))))
+    case C.Term.Eql{+a, +b, +d}:
+      (+nd, r) = h
+      (pa, r2) = r
+      (pb, pd) = r2
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Eql{a, b, d}, PM.cl.go(m, c, z, x, hc),
+            (nd, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 16, 7, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Eql{a, b, d}, 16, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              (part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 16, 7, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Eql{a, b, d}, 16, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}}}, mem.hd(PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb),
+              part.fz(d, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(4n, m, c), 16, 7, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Eql{a, b, d}, 16, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Eql{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(4n, m, c), Con{PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}}}, mem.tl(PM.Fd(3n, m, c), PM.Fd(4n, m, c), Con{PM.Fd(4n, m, c), Nil{}}, mem.hd(PM.Fd(4n, m, c), Nil{}))),
+              e => hh => is.fz(d, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(4n, m, c), tbl, hz0, hzs, e, hh), pd)))))
+    case C.Term.Rwt{+a, +b, +d}:
+      (+nd, r) = h
+      (pa, r2) = r
+      (pb, pd) = r2
+      PM.isc.at(ds, C.Cir.Cells.set(m, z, x), im, fi, nx, ks, img, c, C.Cir.Cells.get(C.Cir.Cells.set(m, z, x), c), C.Cir.Cells.get(m, c), C.Term.Rwt{a, b, d}, PM.cl.go(m, c, z, x, hc),
+            (nd, (part.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(2n, m, c), 18, 7, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rwt{a, b, d}, 18, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.hd(PM.Fd(2n, m, c), Con{PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}}}),
+              e => hh => is.fz(a, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(2n, m, c), tbl, hz0, hzs, e, hh), pa),
+              (part.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(3n, m, c), 18, 7, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rwt{a, b, d}, 18, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(3n, m, c), Con{PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}}}, mem.hd(PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}})),
+              e => hh => is.fz(b, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(3n, m, c), tbl, hz0, hzs, e, hh), pb),
+              part.fz(d, ds, m, im, fi, nx, ks, img, ps, rs, z, x, c, PM.Fd(4n, m, c), 18, 7, hz0, hzs,
+              nd.tg(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rwt{a, b, d}, 18, nd), {==}, tbl.mask(m, im, fi, nx, C.Term.Rwt{a, b, d}, tbl), mem.tl(PM.Fd(2n, m, c), PM.Fd(4n, m, c), Con{PM.Fd(3n, m, c), Con{PM.Fd(4n, m, c), Nil{}}}, mem.tl(PM.Fd(3n, m, c), PM.Fd(4n, m, c), Con{PM.Fd(4n, m, c), Nil{}}, mem.hd(PM.Fd(4n, m, c), Nil{}))),
+              e => hh => is.fz(d, ds, m, im, fi, nx, ks, img, ps, rs, z, x, PM.Fd(4n, m, c), tbl, hz0, hzs, e, hh), pd)))))
+
