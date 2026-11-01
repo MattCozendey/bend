@@ -2210,6 +2210,128 @@ def is.f1.top(+t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: 
   Ex.snd({C.Cir.Cell.get(0n, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), c)) == C.Cir.Cell.get(0n, C.Cir.Cells.get(m, c)) : U32},
     _ => Is(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, t), q)
 
+def ne.fr.k(kind: FK, -fr: U32, -sx: U32, h: {U32.is_lt(FK.tag(kind), 32) == True{} : Bool}) ->
+  {U32.is_eq(fr, sx) == False{} : Bool}:
+  match kind:
+    case FK.arg{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+    case FK.val{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+    case FK.fun{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+    case FK.let{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+    case FK.tupb{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+    case FK.tupa{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+    case FK.rwt{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+    case FK.minb{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+    case FK.mina{}:
+      bool.ft({U32.is_eq(fr, sx) == False{} : Bool}, h)
+
+# the frames from fr, with the top cell's value x (Frs, by its parts)
+def FrsC(+ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +fr: U32, +x: C.Cir.Cell, fs: List<&2, AF>) -> Data:
+  match fs:
+    case Nil{}:
+      {fr == 0 : U32}
+    case Con{AF{+kind, +q, +k, +a, +b}, rest}:
+      P2({U32.is_eq(fr, 0) == False{} : Bool},
+      P2({C.Cir.is_cell(fr, im, fi, nx) == True{} : Bool},
+      P2({Own(fi, nx, fr) == True{} : Bool},
+      P2({FlW(C.Cir.Cell.get(0n, x), 1024) == False{} : Bool},
+      P2({Mem(ps, fr) == False{} : Bool},
+      P2({TgW(C.Cir.Cell.get(0n, x)) == FK.tag(kind) : U32},
+      P2(Qs(x, q),
+      P2({FlW(C.Cir.Cell.get(0n, x), 2048) == k : Bool},
+      P2(Is(ds, m, im, fi, nx, ks, img, C.Cir.Cell.get(2n, x), a),
+      P2(Frs.b(ds, m, im, fi, nx, ks, img, C.Cir.Cell.get(3n, x), kind, b),
+        Frs(ds, m, im, fi, nx, ks, img, ps, C.Cir.Cell.get(1n, x), rest)))))))))))
+
+def frsc.at(+ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +fr: U32, -y1: C.Cir.Cell, -y2: C.Cir.Cell, -fs: List<&2, AF>,
+  e: {y1 == y2 : C.Cir.Cell}, h: FrsC(ds, m, im, fi, nx, ks, img, ps, fr, y2, fs)) -> FrsC(ds, m, im, fi, nx, ks, img, ps, fr, y1, fs):
+  %Equal.sym(C.Cir.Cell, y1, y2, e) : FrsC(ds, m, im, fi, nx, ks, img, ps, fr, _, fs)
+  h
+
+# a frame's cell (of a tag of 32 or more) is not the cell sx (of a tag below 32)
+def ne.fr(b: Bool, +m: C.Cir.Cells, +fr: U32, +sx: U32, kind: FK, eb: {U32.is_eq(fr, sx) == b : Bool},
+  etag: {Tg(m, fr) == FK.tag(kind) : U32}, hsx: {U32.is_lt(TgW(Fd(0n, m, sx)), 32) == True{} : Bool}) ->
+  {U32.is_eq(fr, sx) == False{} : Bool}:
+  match b:
+    case False{}:
+      eb
+    case True{}:
+      +e = u32.eq(fr, sx, eb)
+      +h2 = (%Equal.sym(U32, fr, sx, e) : {U32.is_lt(TgW(Fd(0n, m, _)), 32) == True{} : Bool}; hsx)
+      ne.fr.k(kind, fr, sx, Equal.trans(Bool, U32.is_lt(FK.tag(kind), 32), U32.is_lt(Tg(m, fr), 32), True{},
+        Equal.cong(U32, Bool, z => U32.is_lt(z, 32), FK.tag(kind), Tg(m, fr), Equal.sym(U32, Tg(m, fr), FK.tag(kind), etag)), h2))
+
+def frs.c(+ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +fr: U32, fs: List<&2, AF>, h: Frs(ds, m, im, fi, nx, ks, img, ps, fr, fs)) ->
+  FrsC(ds, m, im, fi, nx, ks, img, ps, fr, C.Cir.Cells.get(m, fr), fs):
+  match fs:
+    case Nil{}:
+      h
+    case Con{AF{kind, q, k, a, b}, rest}:
+      h
+
+def frs.uc(+ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +ps: List<&2, U32>, +fr: U32, fs: List<&2, AF>, h: FrsC(ds, m, im, fi, nx, ks, img, ps, fr, C.Cir.Cells.get(m, fr), fs)) ->
+  Frs(ds, m, im, fi, nx, ks, img, ps, fr, fs):
+  match fs:
+    case Nil{}:
+      h
+    case Con{AF{kind, q, k, a, b}, rest}:
+      h
+
+def frsb.f1(kind: FK, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
+  +img: List<&2, C.Term>, +sx: U32, +sv: U32, +c: U32, +b: C.Term, h: Frs.b(ds, m, im, fi, nx, ks, img, c, kind, b)) ->
+  Frs.b(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, c, kind, b):
+  match kind:
+    case FK.rwt{}:
+      is.f1.top(b, ds, m, im, fi, nx, ks, img, sx, sv, c, h)
+    case FK.arg{}:
+      Unit{}
+    case FK.val{}:
+      Unit{}
+    case FK.fun{}:
+      Unit{}
+    case FK.let{}:
+      Unit{}
+    case FK.tupb{}:
+      Unit{}
+    case FK.tupa{}:
+      Unit{}
+    case FK.minb{}:
+      Unit{}
+    case FK.mina{}:
+      Unit{}
+
+# a store to field 1 of a cell of a tag below 32 keeps the frames
+def frs.f1(fs: List<&2, AF>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32,
+  +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +ps: List<&2, U32>, +sx: U32, +sv: U32, +fr: U32,
+  +hsx: {U32.is_lt(TgW(Fd(0n, m, sx)), 32) == True{} : Bool}, h: Frs(ds, m, im, fi, nx, ks, img, ps, fr, fs)) ->
+  Frs(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, ps, fr, fs):
+  match fs:
+    case Nil{}:
+      h
+    case Con{AF{+kind, +q, +k, +a, +b}, +rest}:
+      match h:
+        case Tuple{e0, Tuple{ev, Tuple{eo, Tuple{es, Tuple{em, Tuple{+etg, Tuple{eq, Tuple{ek, Tuple{ia, Tuple{ib, ir}}}}}}}}}}:
+          +ne = ne.fr(U32.is_eq(fr, sx), m, fr, sx, kind, {==}, etg, hsx)
+          +ec = cl.go(m, fr, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv), ne)
+          frs.uc(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, ps, fr, Con{AF{kind, q, k, a, b}, rest},
+            frsc.at(ds, C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), im, fi, nx, ks, img, ps, fr, C.Cir.Cells.get(C.Cir.Cells.set(m, sx, C.Cir.Cell.set(1n, C.Cir.Cells.get(m, sx), sv)), fr), C.Cir.Cells.get(m, fr),
+              Con{AF{kind, q, k, a, b}, rest}, ec,
+              (e0, (ev, (eo, (es, (em, (etg, (eq, (ek,
+                (is.f1.top(a, ds, m, im, fi, nx, ks, img, sx, sv, Fd(2n, m, fr), ia),
+                (frsb.f1(kind, ds, m, im, fi, nx, ks, img, sx, sv, Fd(3n, m, fr), b, ib),
+                 frs.f1(rest, ds, m, im, fi, nx, ks, img, ps, sx, sv, Fd(1n, m, fr), hsx, ir))))))))))))))
+
 # Move kit
 # --------
 #
