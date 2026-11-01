@@ -53,5 +53,44 @@ def NS(s: C.Cir.Stmt) -> Nat:
     case C.Cir.Stmt.halt{_}:
       1n
 
-def mach.nodes() -> N.Le(NS(C.Mach.code()), N.D(16n, 1n)):
-  Unit{}
+# a bound on the bytes of the instructions xs: 7 for each, 3 more than its
+# body for a block or loop, 11 more than 5 per label for a br_table
+def ib.tab(ls: List<&2, U32>) -> Nat:
+  match ls:
+    case Nil{}:
+      0n
+    case Con{_, r}:
+      5n+ib.tab(r)
+
+def ib(xs: List<&2, C.Wasm.Instr>) -> Nat:
+  match xs:
+    case Nil{}:
+      0n
+    case Con{x, rest}:
+      match x:
+        case C.Wasm.Instr.block{body}:
+          3n+Nat.add(ib(body), ib(rest))
+        case C.Wasm.Instr.loop{body}:
+          3n+Nat.add(ib(body), ib(rest))
+        case C.Wasm.Instr.br_table{ls, _}:
+          11n+Nat.add(ib.tab(ls), ib(rest))
+        case _:
+          7n+ib(rest)
+
+def probe1(+rr: U32, +d: Nat, +acc: List<&2, C.Wasm.Instr>) -> {ib(C.Cir.code.alloc(rr, d, acc)) == ib(acc) : Nat}:
+  {==}
+
+def probe2(+v: C.Cir.Expr, +d: Nat, +acc: List<&2, C.Wasm.Instr>) -> {ib(C.Cir.code.emit(v, d, acc)) == ib(acc) : Nat}:
+  {==}
+
+def probe3(+prog: C.Cir.Stmt, +regs: Nat, +k: U32) -> {ib(M.body(C.Cir.run(prog, regs, k))) == ib(C.Cir.code.stmt(prog, 0n, [])) : Nat}:
+  {==}
+
+def probe4(+k: U32) -> {ib(M.body(C.Cir.alloc(k))) == 0n : Nat}:
+  {==}
+
+def probe5(+s: U32, +d: Nat, +acc: List<&2, C.Wasm.Instr>) -> {ib(Con{C.Cir.code.halt(s, d), acc}) == ib(acc) : Nat}:
+  {==}
+
+def probe6(+d: Nat) -> {ib(C.Cir.code.at([])) == ib([]) : Nat}:
+  {==}

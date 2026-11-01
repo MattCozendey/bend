@@ -164,131 +164,126 @@ def of.at(+g: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2,
 # the cell c stands for t: T.tm.of reads t from it, with any fuel f that is at
 # least t's size
 def is.tm.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
-  +img: List<&2, C.Term>, +c: U32, t: C.Term, le: N.Le(C.Term.size(t), f), h: PM.Is(ds, m, im, fi, nx, ks, img, c, t)) ->
+  +img: List<&2, C.Term>, +c: U32, t: C.Term, +le: N.Le(C.Term.size(t), f), h: PM.Is(ds, m, im, fi, nx, ks, img, c, t)) ->
   {T.tm.of(f, m, ks, img, c) == Some{t} : Maybe<&2, C.Term>}:
   match f:
     case 0n:
       Empty.absurd({T.tm.of(0n, m, ks, img, c) == Some{t} : Maybe<&2, C.Term>}, size.nz(t, le))
     case 1n+(+g):
-      +x = C.Cir.Cells.get(m, c)
-      +x2 = PM.Fd(2n, m, c)
-      +x3 = PM.Fd(3n, m, c)
-      +x4 = PM.Fd(4n, m, c)
-      +Q = T.tm.quan(PM.Qn(m, c))
       match t:
         case C.Term.Var{+i}:
           (nd, ei) = h
-          %of.at(g, m, ks, img, c, 0, nd.tag(ds, im, fi, nx, c, x, C.Term.Var{i}, 0, nd)) : {_ == Some{C.Term.Var{i}} : Maybe<&2, C.Term>}
-          %ei : {Some{C.Term.Var{U32.to_nat(x2)}} == Some{C.Term.Var{_}} : Maybe<&2, C.Term>}
+          %of.at(g, m, ks, img, c, 0, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Var{i}, 0, nd)) : {_ == Some{C.Term.Var{i}} : Maybe<&2, C.Term>}
+          %ei : {Some{C.Term.Var{U32.to_nat(PM.Fd(2n, m, c))}} == Some{C.Term.Var{_}} : Maybe<&2, C.Term>}
           {==}
         case C.Term.Ref{+k}:
           (nd, r) = h
           (ei, r2) = r
-          %of.at(g, m, ks, img, c, 1, nd.tag(ds, im, fi, nx, c, x, C.Term.Ref{k}, 1, nd)) : {_ == Some{C.Term.Ref{k}} : Maybe<&2, C.Term>}
+          %of.at(g, m, ks, img, c, 1, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Ref{k}, 1, nd)) : {_ == Some{C.Term.Ref{k}} : Maybe<&2, C.Term>}
           ei
         case C.Term.Ann{+y, +z}:
           (nd, r) = h
           (py, pz) = r
           (sy, hy) = py
           (sz, hz) = pz
-          %of.at(g, m, ks, img, c, 2, nd.tag(ds, im, fi, nx, c, x, C.Term.Ann{y, z}, 2, nd)) : {_ == Some{C.Term.Ann{y, z}} : Maybe<&2, C.Term>}
-          two.of(a => b => C.Term.Ann{a, b}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), y, z, C.Term.Ann{y, z},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz), {==})
+          %of.at(g, m, ks, img, c, 2, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Ann{y, z}, 2, nd)) : {_ == Some{C.Term.Ann{y, z}} : Maybe<&2, C.Term>}
+          two.of(a => b => C.Term.Ann{a, b}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), y, z, C.Term.Ann{y, z},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz), {==})
         case C.Term.Let{+q, +v, +b}:
           (nd, r) = h
           (hq, r2) = r
           (pv, pb) = r2
           (sv, hv) = pv
           (sb, hb) = pb
-          %of.at(g, m, ks, img, c, 3, nd.tag(ds, im, fi, nx, c, x, C.Term.Let{q, v, b}, 3, nd)) : {_ == Some{C.Term.Let{q, v, b}} : Maybe<&2, C.Term>}
-          two.of(a => d => C.Term.Let{Q, a, d}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), v, b, C.Term.Let{q, v, b},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, v, le.l(C.Term.size(v), C.Term.size(b), g, le), hv),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, b, le.r(C.Term.size(v), C.Term.size(b), g, le), hb),
-            Equal.cong(C.Quan, C.Term, p => C.Term.Let{p, v, b}, Q, q, quan.of(x, q, hq)))
+          %of.at(g, m, ks, img, c, 3, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Let{q, v, b}, 3, nd)) : {_ == Some{C.Term.Let{q, v, b}} : Maybe<&2, C.Term>}
+          two.of(a => d => C.Term.Let{T.tm.quan(PM.Qn(m, c)), a, d}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), v, b, C.Term.Let{q, v, b},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), v, le.l(C.Term.size(v), C.Term.size(b), g, le), hv),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), b, le.r(C.Term.size(v), C.Term.size(b), g, le), hb),
+            Equal.cong(C.Quan, C.Term, p => C.Term.Let{p, v, b}, T.tm.quan(PM.Qn(m, c)), q, quan.of(C.Cir.Cells.get(m, c), q, hq)))
         case C.Term.Typ{+y}:
           (nd, r) = h
           (sy, hy) = r
-          %of.at(g, m, ks, img, c, 4, nd.tag(ds, im, fi, nx, c, x, C.Term.Typ{y}, 4, nd)) : {_ == Some{C.Term.Typ{y}} : Maybe<&2, C.Term>}
-          one.of(a => C.Term.Typ{a}, T.tm.of(g, m, ks, img, x2), y, C.Term.Typ{y},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le, hy), {==})
+          %of.at(g, m, ks, img, c, 4, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Typ{y}, 4, nd)) : {_ == Some{C.Term.Typ{y}} : Maybe<&2, C.Term>}
+          one.of(a => C.Term.Typ{a}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), y, C.Term.Typ{y},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le, hy), {==})
         case C.Term.Min{+y, +z}:
           (nd, r) = h
           (py, pz) = r
           (sy, hy) = py
           (sz, hz) = pz
-          %of.at(g, m, ks, img, c, 5, nd.tag(ds, im, fi, nx, c, x, C.Term.Min{y, z}, 5, nd)) : {_ == Some{C.Term.Min{y, z}} : Maybe<&2, C.Term>}
-          two.of(a => b => C.Term.Min{a, b}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), y, z, C.Term.Min{y, z},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz), {==})
+          %of.at(g, m, ks, img, c, 5, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Min{y, z}, 5, nd)) : {_ == Some{C.Term.Min{y, z}} : Maybe<&2, C.Term>}
+          two.of(a => b => C.Term.Min{a, b}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), y, z, C.Term.Min{y, z},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz), {==})
         case C.Term.All{+q, +y, +z}:
           (nd, r) = h
           (hq, r2) = r
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          %of.at(g, m, ks, img, c, 6, nd.tag(ds, im, fi, nx, c, x, C.Term.All{q, y, z}, 6, nd)) : {_ == Some{C.Term.All{q, y, z}} : Maybe<&2, C.Term>}
-          two.of(a => d => C.Term.All{Q, a, d}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), y, z, C.Term.All{q, y, z},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz),
-            Equal.cong(C.Quan, C.Term, p => C.Term.All{p, y, z}, Q, q, quan.of(x, q, hq)))
+          %of.at(g, m, ks, img, c, 6, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.All{q, y, z}, 6, nd)) : {_ == Some{C.Term.All{q, y, z}} : Maybe<&2, C.Term>}
+          two.of(a => d => C.Term.All{T.tm.quan(PM.Qn(m, c)), a, d}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), y, z, C.Term.All{q, y, z},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz),
+            Equal.cong(C.Quan, C.Term, p => C.Term.All{p, y, z}, T.tm.quan(PM.Qn(m, c)), q, quan.of(C.Cir.Cells.get(m, c), q, hq)))
         case C.Term.Lam{+q, +y}:
           (nd, r) = h
           (hq, r2) = r
           (sy, hy) = r2
-          %of.at(g, m, ks, img, c, 7, nd.tag(ds, im, fi, nx, c, x, C.Term.Lam{q, y}, 7, nd)) : {_ == Some{C.Term.Lam{q, y}} : Maybe<&2, C.Term>}
-          one.of(a => C.Term.Lam{Q, a}, T.tm.of(g, m, ks, img, x2), y, C.Term.Lam{q, y},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le, hy),
-            Equal.cong(C.Quan, C.Term, p => C.Term.Lam{p, y}, Q, q, quan.of(x, q, hq)))
+          %of.at(g, m, ks, img, c, 7, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Lam{q, y}, 7, nd)) : {_ == Some{C.Term.Lam{q, y}} : Maybe<&2, C.Term>}
+          one.of(a => C.Term.Lam{T.tm.quan(PM.Qn(m, c)), a}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), y, C.Term.Lam{q, y},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le, hy),
+            Equal.cong(C.Quan, C.Term, p => C.Term.Lam{p, y}, T.tm.quan(PM.Qn(m, c)), q, quan.of(C.Cir.Cells.get(m, c), q, hq)))
         case C.Term.App{+q, +y, +z}:
           (nd, r) = h
           (hq, r2) = r
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          %of.at(g, m, ks, img, c, 8, nd.tag(ds, im, fi, nx, c, x, C.Term.App{q, y, z}, 8, nd)) : {_ == Some{C.Term.App{q, y, z}} : Maybe<&2, C.Term>}
-          two.of(a => d => C.Term.App{Q, a, d}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), y, z, C.Term.App{q, y, z},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz),
-            Equal.cong(C.Quan, C.Term, p => C.Term.App{p, y, z}, Q, q, quan.of(x, q, hq)))
+          %of.at(g, m, ks, img, c, 8, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.App{q, y, z}, 8, nd)) : {_ == Some{C.Term.App{q, y, z}} : Maybe<&2, C.Term>}
+          two.of(a => d => C.Term.App{T.tm.quan(PM.Qn(m, c)), a, d}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), y, z, C.Term.App{q, y, z},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz),
+            Equal.cong(C.Quan, C.Term, p => C.Term.App{p, y, z}, T.tm.quan(PM.Qn(m, c)), q, quan.of(C.Cir.Cells.get(m, c), q, hq)))
         case C.Term.Sig{+q, +y, +z}:
           (nd, r) = h
           (hq, r2) = r
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          %of.at(g, m, ks, img, c, 9, nd.tag(ds, im, fi, nx, c, x, C.Term.Sig{q, y, z}, 9, nd)) : {_ == Some{C.Term.Sig{q, y, z}} : Maybe<&2, C.Term>}
-          two.of(a => d => C.Term.Sig{Q, a, d}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), y, z, C.Term.Sig{q, y, z},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz),
-            Equal.cong(C.Quan, C.Term, p => C.Term.Sig{p, y, z}, Q, q, quan.of(x, q, hq)))
+          %of.at(g, m, ks, img, c, 9, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Sig{q, y, z}, 9, nd)) : {_ == Some{C.Term.Sig{q, y, z}} : Maybe<&2, C.Term>}
+          two.of(a => d => C.Term.Sig{T.tm.quan(PM.Qn(m, c)), a, d}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), y, z, C.Term.Sig{q, y, z},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz),
+            Equal.cong(C.Quan, C.Term, p => C.Term.Sig{p, y, z}, T.tm.quan(PM.Qn(m, c)), q, quan.of(C.Cir.Cells.get(m, c), q, hq)))
         case C.Term.Tup{+q, +y, +z}:
           (nd, r) = h
           (hq, r2) = r
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          %of.at(g, m, ks, img, c, 10, nd.tag(ds, im, fi, nx, c, x, C.Term.Tup{q, y, z}, 10, nd)) : {_ == Some{C.Term.Tup{q, y, z}} : Maybe<&2, C.Term>}
-          two.of(a => d => C.Term.Tup{Q, a, d}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), y, z, C.Term.Tup{q, y, z},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz),
-            Equal.cong(C.Quan, C.Term, p => C.Term.Tup{p, y, z}, Q, q, quan.of(x, q, hq)))
+          %of.at(g, m, ks, img, c, 10, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Tup{q, y, z}, 10, nd)) : {_ == Some{C.Term.Tup{q, y, z}} : Maybe<&2, C.Term>}
+          two.of(a => d => C.Term.Tup{T.tm.quan(PM.Qn(m, c)), a, d}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), y, z, C.Term.Tup{q, y, z},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz),
+            Equal.cong(C.Quan, C.Term, p => C.Term.Tup{p, y, z}, T.tm.quan(PM.Qn(m, c)), q, quan.of(C.Cir.Cells.get(m, c), q, hq)))
         case C.Term.Prj{+y}:
           (nd, r) = h
           (sy, hy) = r
-          %of.at(g, m, ks, img, c, 11, nd.tag(ds, im, fi, nx, c, x, C.Term.Prj{y}, 11, nd)) : {_ == Some{C.Term.Prj{y}} : Maybe<&2, C.Term>}
-          one.of(a => C.Term.Prj{a}, T.tm.of(g, m, ks, img, x2), y, C.Term.Prj{y},
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le, hy), {==})
+          %of.at(g, m, ks, img, c, 11, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Prj{y}, 11, nd)) : {_ == Some{C.Term.Prj{y}} : Maybe<&2, C.Term>}
+          one.of(a => C.Term.Prj{a}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), y, C.Term.Prj{y},
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le, hy), {==})
         case C.Term.Enu{+e}:
           (nd, r) = h
           (ei, r2) = r
-          %of.at(g, m, ks, img, c, 12, nd.tag(ds, im, fi, nx, c, x, C.Term.Enu{e}, 12, nd)) : {_ == Some{C.Term.Enu{e}} : Maybe<&2, C.Term>}
+          %of.at(g, m, ks, img, c, 12, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Enu{e}, 12, nd)) : {_ == Some{C.Term.Enu{e}} : Maybe<&2, C.Term>}
           ei
         case C.Term.Lab{+k}:
           (nd, nm) = h
           (en, ej) = nm
-          %of.at(g, m, ks, img, c, 13, nd.tag(ds, im, fi, nx, c, x, C.Term.Lab{k}, 13, nd)) : {_ == Some{C.Term.Lab{k}} : Maybe<&2, C.Term>}
-          named.of(T.tm.name(ks, x2), k, en)
+          %of.at(g, m, ks, img, c, 13, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Lab{k}, 13, nd)) : {_ == Some{C.Term.Lab{k}} : Maybe<&2, C.Term>}
+          named.of(T.tm.name(ks, PM.Fd(2n, m, c)), k, en)
         case C.Term.Mat{+k, +y, +z}:
           (nd, r) = h
           (nm, r2) = r
@@ -296,40 +291,40 @@ def is.tm.at(+f: Nat, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32,
           (py, pz) = r2
           (sy, hy) = py
           (sz, hz) = pz
-          %of.at(g, m, ks, img, c, 14, nd.tag(ds, im, fi, nx, c, x, C.Term.Mat{k, y, z}, 14, nd)) : {_ == Some{C.Term.Mat{k, y, z}} : Maybe<&2, C.Term>}
-          mat.of(T.tm.name(ks, x2), T.tm.of(g, m, ks, img, x3), T.tm.of(g, m, ks, img, x4), k, y, z, en,
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x4, z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz))
+          %of.at(g, m, ks, img, c, 14, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Mat{k, y, z}, 14, nd)) : {_ == Some{C.Term.Mat{k, y, z}} : Maybe<&2, C.Term>}
+          mat.of(T.tm.name(ks, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(4n, m, c)), k, y, z, en,
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), y, le.l(C.Term.size(y), C.Term.size(z), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(4n, m, c), z, le.r(C.Term.size(y), C.Term.size(z), g, le), hz))
         case C.Term.Efq{}:
-          %of.at(g, m, ks, img, c, 15, nd.tag(ds, im, fi, nx, c, x, C.Term.Efq{}, 15, h)) : {_ == Some{C.Term.Efq{}} : Maybe<&2, C.Term>}
+          %of.at(g, m, ks, img, c, 15, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Efq{}, 15, h)) : {_ == Some{C.Term.Efq{}} : Maybe<&2, C.Term>}
           {==}
         case C.Term.Eql{+y, +z, +w}:
           (nd, r) = h
           (py, r2) = r
-          (pz, pw) = r2
           (sy, hy) = py
+          (pz, pw) = r2
           (sz, hz) = pz
           (sw, hw) = pw
-          %of.at(g, m, ks, img, c, 16, nd.tag(ds, im, fi, nx, c, x, C.Term.Eql{y, z, w}, 16, nd)) : {_ == Some{C.Term.Eql{y, z, w}} : Maybe<&2, C.Term>}
-          three.of(a => b => d => C.Term.Eql{a, b, d}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), T.tm.of(g, m, ks, img, x4), y, z, w,
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le.l(C.Term.size(y), Nat.add(C.Term.size(z), C.Term.size(w)), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, z, le.m(C.Term.size(y), C.Term.size(z), C.Term.size(w), g, le), hz),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x4, w, le.e(C.Term.size(y), C.Term.size(z), C.Term.size(w), g, le), hw))
+          %of.at(g, m, ks, img, c, 16, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Eql{y, z, w}, 16, nd)) : {_ == Some{C.Term.Eql{y, z, w}} : Maybe<&2, C.Term>}
+          three.of(a => b => d => C.Term.Eql{a, b, d}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(4n, m, c)), y, z, w,
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le.l(C.Term.size(y), Nat.add(C.Term.size(z), C.Term.size(w)), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, le.m(C.Term.size(y), C.Term.size(z), C.Term.size(w), g, le), hz),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(4n, m, c), w, le.e(C.Term.size(y), C.Term.size(z), C.Term.size(w), g, le), hw))
         case C.Term.Rfl{}:
-          %of.at(g, m, ks, img, c, 17, nd.tag(ds, im, fi, nx, c, x, C.Term.Rfl{}, 17, h)) : {_ == Some{C.Term.Rfl{}} : Maybe<&2, C.Term>}
+          %of.at(g, m, ks, img, c, 17, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rfl{}, 17, h)) : {_ == Some{C.Term.Rfl{}} : Maybe<&2, C.Term>}
           {==}
         case C.Term.Rwt{+y, +z, +w}:
           (nd, r) = h
           (py, r2) = r
-          (pz, pw) = r2
           (sy, hy) = py
+          (pz, pw) = r2
           (sz, hz) = pz
           (sw, hw) = pw
-          %of.at(g, m, ks, img, c, 18, nd.tag(ds, im, fi, nx, c, x, C.Term.Rwt{y, z, w}, 18, nd)) : {_ == Some{C.Term.Rwt{y, z, w}} : Maybe<&2, C.Term>}
-          three.of(a => b => d => C.Term.Rwt{a, b, d}, T.tm.of(g, m, ks, img, x2), T.tm.of(g, m, ks, img, x3), T.tm.of(g, m, ks, img, x4), y, z, w,
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x2, y, le.l(C.Term.size(y), Nat.add(C.Term.size(z), C.Term.size(w)), g, le), hy),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x3, z, le.m(C.Term.size(y), C.Term.size(z), C.Term.size(w), g, le), hz),
-            is.tm.at(g, ds, m, im, fi, nx, ks, img, x4, w, le.e(C.Term.size(y), C.Term.size(z), C.Term.size(w), g, le), hw))
+          %of.at(g, m, ks, img, c, 18, nd.tag(ds, im, fi, nx, c, C.Cir.Cells.get(m, c), C.Term.Rwt{y, z, w}, 18, nd)) : {_ == Some{C.Term.Rwt{y, z, w}} : Maybe<&2, C.Term>}
+          three.of(a => b => d => C.Term.Rwt{a, b, d}, T.tm.of(g, m, ks, img, PM.Fd(2n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(3n, m, c)), T.tm.of(g, m, ks, img, PM.Fd(4n, m, c)), y, z, w,
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(2n, m, c), y, le.l(C.Term.size(y), Nat.add(C.Term.size(z), C.Term.size(w)), g, le), hy),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(3n, m, c), z, le.m(C.Term.size(y), C.Term.size(z), C.Term.size(w), g, le), hz),
+            is.tm.at(g, ds, m, im, fi, nx, ks, img, PM.Fd(4n, m, c), w, le.e(C.Term.size(y), C.Term.size(z), C.Term.size(w), g, le), hw))
 
 # the cell c stands for t: T.tm.of reads t from it
 def is.tm(+ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +ks: List<&2, List<&2, U32>>,
