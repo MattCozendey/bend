@@ -256,3 +256,106 @@ def rc.wc(cs: List<&2, C.Cir.Cell>, +c: U32, +m: C.Wasm.Bytes, +Cn: Nat, +ec: {U
           rcell.wc(rest, U32.inc(c), m5, c, 1n+Cn, ei, P, hP, W, hW, hc, hs, hq),
           rcell.W5(m, c, x0, x1, x2, x3, x4, P, hP, W, hW, hc)),
         rc.wc(rest, U32.inc(c), m5, 1n+Cn, ei, P, hP, W, hW, hq))
+
+# The cells as Cir loads them
+# ---------------------------
+
+# the cells loaded from c2 on keep a cell c before them
+def get.load(cs: List<&2, C.Cir.Cell>, +c2: U32, +cl: C.Cir.Cells, +c: U32, +C2n: Nat, +ec2: {U32.to_nat(c2) == C2n : Nat},
+  +P: Nat, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat}, +W: Nat, +hW: {W == PH.H.W(32n) : Nat},
+  +hs: N.Le(1n+U32.to_nat(c), C2n), +h: N.Le(Nat.add(List.length(&2, C.Cir.Cell, cs), C2n), P)) ->
+  {C.Cir.Cells.get(C.Cir.load(cs, c2, cl), c) == C.Cir.Cells.get(cl, c) : C.Cir.Cell}:
+  match cs:
+    case Nil{}:
+      {==}
+    case Con{+x, +rest}:
+      +q = List.length(&2, C.Cir.Cell, rest)
+      +hq = N.le_rw_l(1n+Nat.add(q, C2n), Nat.add(q, 1n+C2n), P, Equal.sym(Nat, Nat.add(q, 1n+C2n), 1n+Nat.add(q, C2n), N.add_succ_r(q, C2n)), h)
+      +h1 = N.le_trans(1n+C2n, 1n+Nat.add(q, C2n), P, N.le_add_l(q, C2n), h)
+      +ei = F.inc.eq(c2, C2n, ec2, W, hW, N.le_rw_r(2n+C2n, PH.H.W(32n), W, Equal.sym(Nat, W, PH.H.W(32n), hW), PH.H.small(32n, C2n, P, hP, h1)))
+      +hs2 = N.le_rw_r(1n+U32.to_nat(c), C2n, U32.to_nat(c2), Equal.sym(Nat, U32.to_nat(c2), C2n, ec2), hs)
+      +cl2 = C.Cir.Cells.set(cl, c2, x)
+      Equal.trans(C.Cir.Cell, C.Cir.Cells.get(C.Cir.load(rest, U32.inc(c2), cl2), c), C.Cir.Cells.get(cl2, c), C.Cir.Cells.get(cl, c),
+        get.load(rest, U32.inc(c2), cl2, c, 1n+C2n, ei, P, hP, W, hW, N.le_succ(1n+U32.to_nat(c), C2n, hs), hq),
+        F.cells.other(cl, c2, c, x, F.ne.nat(c, c2, Inl{hs2})))
+
+# the cells cs loaded from c on are cs
+def gc.load(cs: List<&2, C.Cir.Cell>, +c: U32, +cl: C.Cir.Cells, +Cn: Nat, +ec: {U32.to_nat(c) == Cn : Nat},
+  +P: Nat, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat}, +W: Nat, +hW: {W == PH.H.W(32n) : Nat},
+  +h: N.Le(Nat.add(List.length(&2, C.Cir.Cell, cs), Cn), P)) ->
+  {Q.GC(List.length(&2, C.Cir.Cell, cs), C.Cir.load(cs, c, cl), c) == cs : List<&2, C.Cir.Cell>}:
+  match cs:
+    case Nil{}:
+      {==}
+    case Con{+x, +rest}:
+      +q = List.length(&2, C.Cir.Cell, rest)
+      +hq = N.le_rw_l(1n+Nat.add(q, Cn), Nat.add(q, 1n+Cn), P, Equal.sym(Nat, Nat.add(q, 1n+Cn), 1n+Nat.add(q, Cn), N.add_succ_r(q, Cn)), h)
+      +h1 = N.le_trans(1n+Cn, 1n+Nat.add(q, Cn), P, N.le_add_l(q, Cn), h)
+      +ei = F.inc.eq(c, Cn, ec, W, hW, N.le_rw_r(2n+Cn, PH.H.W(32n), W, Equal.sym(Nat, W, PH.H.W(32n), hW), PH.H.small(32n, Cn, P, hP, h1)))
+      +cl2 = C.Cir.Cells.set(cl, c, x)
+      +X = C.Cir.load(rest, U32.inc(c), cl2)
+      +hs = N.le_rw_l(1n+Cn, 1n+U32.to_nat(c), 1n+Cn, Equal.cong(Nat, Nat, z => 1n+z, Cn, U32.to_nat(c), Equal.sym(Nat, U32.to_nat(c), Cn, ec)), N.le_refl(1n+Cn))
+      F.cons.cong(C.Cir.Cell, C.Cir.Cells.get(X, c), x, Q.GC(q, X, U32.inc(c)), rest,
+        Equal.trans(C.Cir.Cell, C.Cir.Cells.get(X, c), C.Cir.Cells.get(cl2, c), x,
+          get.load(rest, U32.inc(c), cl2, c, 1n+Cn, ei, P, hP, W, hW, hs, hq), F.cells.same(cl, c, x)),
+        gc.load(rest, U32.inc(c), cl2, 1n+Cn, ei, P, hP, W, hW, hq))
+
+# The input
+# ---------
+
+# the bytes written from x on keep a byte y before them
+def r8.wb(xs: List<&2, U32>, +x: U32, +m: C.Wasm.Bytes, +y: U32, +Xn: Nat, +ex: {U32.to_nat(x) == Xn : Nat},
+  +W: Nat, +hW: {W == PH.H.W(32n) : Nat}, +hy: N.Le(1n+U32.to_nat(y), Xn), +hx: N.Le(1n+Nat.add(List.length(&2, U32, xs), Xn), W)) ->
+  {Y.R8(C.Wasm.write.bytes(xs, x, m), y) == Y.R8(m, y) : U32}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+b, +rest}:
+      +q = List.length(&2, U32, rest)
+      +hq = N.le_rw_l(2n+Nat.add(q, Xn), 1n+Nat.add(q, 1n+Xn), W,
+        Equal.cong(Nat, Nat, z => 1n+z, 1n+Nat.add(q, Xn), Nat.add(q, 1n+Xn), Equal.sym(Nat, Nat.add(q, 1n+Xn), 1n+Nat.add(q, Xn), N.add_succ_r(q, Xn))), hx)
+      +ei = F.inc.eq(x, Xn, ex, W, hW, N.le_trans(2n+Xn, 2n+Nat.add(q, Xn), W, N.le_add_l(q, Xn), hx))
+      +hx2 = N.le_rw_r(1n+U32.to_nat(y), Xn, U32.to_nat(x), Equal.sym(Nat, U32.to_nat(x), Xn, ex), hy)
+      Equal.trans(U32, Y.R8(C.Wasm.write.bytes(rest, U32.inc(x), C.Wasm.write8(m, x, b)), y), Y.R8(C.Wasm.write8(m, x, b), y), Y.R8(m, y),
+        r8.wb(rest, U32.inc(x), C.Wasm.write8(m, x, b), y, 1n+Xn, ei, W, hW, N.le_succ(1n+U32.to_nat(y), Xn, hy), hq),
+        Y.R8.other(m, x, y, b, F.ne.nat(y, x, Inl{hx2})))
+
+# the bytes xs written from x read back as xs
+def rb.wb(xs: List<&2, U32>, +x: U32, +m: C.Wasm.Bytes, +Xn: Nat, +ex: {U32.to_nat(x) == Xn : Nat},
+  +W: Nat, +hW: {W == PH.H.W(32n) : Nat}, +hx: N.Le(1n+Nat.add(List.length(&2, U32, xs), Xn), W)) ->
+  {Q.RB(List.length(&2, U32, xs), C.Wasm.write.bytes(xs, x, m), x) == xs : List<&2, U32>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+b, +rest}:
+      +q = List.length(&2, U32, rest)
+      +hq = N.le_rw_l(2n+Nat.add(q, Xn), 1n+Nat.add(q, 1n+Xn), W,
+        Equal.cong(Nat, Nat, z => 1n+z, 1n+Nat.add(q, Xn), Nat.add(q, 1n+Xn), Equal.sym(Nat, Nat.add(q, 1n+Xn), 1n+Nat.add(q, Xn), N.add_succ_r(q, Xn))), hx)
+      +ei = F.inc.eq(x, Xn, ex, W, hW, N.le_trans(2n+Xn, 2n+Nat.add(q, Xn), W, N.le_add_l(q, Xn), hx))
+      +m1 = C.Wasm.write8(m, x, b)
+      +X = C.Wasm.write.bytes(rest, U32.inc(x), m1)
+      +hy = N.le_rw_l(1n+Xn, 1n+U32.to_nat(x), 1n+Xn, Equal.cong(Nat, Nat, z => 1n+z, Xn, U32.to_nat(x), Equal.sym(Nat, U32.to_nat(x), Xn, ex)), N.le_refl(1n+Xn))
+      F.cons.cong(U32, Y.R8(X, x), b, Q.RB(q, X, U32.inc(x)), rest,
+        Equal.trans(U32, Y.R8(X, x), Y.R8(m1, x), b, r8.wb(rest, U32.inc(x), m1, x, 1n+Xn, ei, W, hW, hy, hq), Y.R8.same(m, x, b)),
+        rb.wb(rest, U32.inc(x), m1, 1n+Xn, ei, W, hW, hq))
+
+# the bytes written from x on keep the cells c to c + q - 1 before them
+def rc.wb(xs: List<&2, U32>, +x: U32, +m: C.Wasm.Bytes, q: Nat, +c: U32, +Cn: Nat, +ec: {U32.to_nat(c) == Cn : Nat},
+  +Xn: Nat, +ex: {U32.to_nat(x) == Xn : Nat},
+  +P: Nat, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat}, +W: Nat, +hW: {W == PH.H.W(32n) : Nat},
+  +hs: N.Le(PH.H.t20(Nat.add(q, Cn)), Xn), +hcq: N.Le(Nat.add(q, Cn), P), +hx: N.Le(1n+Nat.add(List.length(&2, U32, xs), Xn), W)) ->
+  {Q.RC(q, C.Wasm.write.bytes(xs, x, m), c) == Q.RC(q, m, c) : List<&2, C.Cir.Cell>}:
+  match xs:
+    case Nil{}:
+      {==}
+    case Con{+b, +rest}:
+      +r = List.length(&2, U32, rest)
+      +hq = N.le_rw_l(2n+Nat.add(r, Xn), 1n+Nat.add(r, 1n+Xn), W,
+        Equal.cong(Nat, Nat, z => 1n+z, 1n+Nat.add(r, Xn), Nat.add(r, 1n+Xn), Equal.sym(Nat, Nat.add(r, 1n+Xn), 1n+Nat.add(r, Xn), N.add_succ_r(r, Xn))), hx)
+      +ei = F.inc.eq(x, Xn, ex, W, hW, N.le_trans(2n+Xn, 2n+Nat.add(r, Xn), W, N.le_add_l(r, Xn), hx))
+      +m1 = C.Wasm.write8(m, x, b)
+      +hs2 = N.le_rw_r(PH.H.t20(Nat.add(q, Cn)), Xn, U32.to_nat(x), Equal.sym(Nat, U32.to_nat(x), Xn, ex), hs)
+      Equal.trans(List<&2, C.Cir.Cell>, Q.RC(q, C.Wasm.write.bytes(rest, U32.inc(x), m1), c), Q.RC(q, m1, c), Q.RC(q, m, c),
+        rc.wb(rest, U32.inc(x), m1, q, c, Cn, ec, 1n+Xn, ei, P, hP, W, hW, N.le_succ(PH.H.t20(Nat.add(q, Cn)), Xn, hs), hcq, hq),
+        F.RC.w8(q, m, x, b, c, Cn, ec, P, hP, W, hW, hcq,
+          {Inl{hs2} : Either<&2, &2, N.Le(PH.H.t20(Nat.add(q, Cn)), U32.to_nat(x)), N.Le(1n+U32.to_nat(x), PH.H.t20(Cn))>}))
