@@ -200,7 +200,7 @@ def dm.fin(g: Bool, +q: Nat, +q0: Word(q), +sput: Word(32n), +b: U32, +a0: Bool,
   +eg: {U32.is_ge(U32{sput}, b) == g : Bool},
   +eih: {Nat.add(Nat.mul(Word.to_nat(q, q0), U32.to_nat(b)), R0) == HI : Nat}, +rih: N.Le(1n+R0, U32.to_nat(b)),
   +eS: {Word.to_nat(32n, sput) == Nat.add(PH.H.bn(a0), Nat.double(R0)) : Nat}) ->
-  DM(1n+q, C.U32.divmod.go.fin(q, q0, U32{sput}, b, g), U32.to_nat(b), Nat.add(PH.H.bn(a0), Nat.double(HI))):
+  DM(1n+q, U32.divmod.go.fin(q, q0, U32{sput}, b, g), U32.to_nat(b), Nat.add(PH.H.bn(a0), Nat.double(HI))):
   match g:
     case False{}:
       +B = U32.to_nat(b)
@@ -232,7 +232,7 @@ def dm.fin(g: Bool, +q: Nat, +q0: Word(q), +sput: Word(32n), +b: U32, +a0: Bool,
 # one round of the division, from the quotient and remainder of the high bits
 def dm.rec(+q: Nat, +a0: Bool, +b: U32, x: Word(q) & U32, +HI: Nat, +T: Nat, +eT: {N.D(32n, PH.H.bn(True{})) == T : Nat},
   +H: Nat, +eH: {Nat.double(H) == T : Nat}, +hb: N.Le(U32.to_nat(b), H), ih: DM(q, x, U32.to_nat(b), HI)) ->
-  DM(1n+q, C.U32.divmod.go.rec(q, a0, b, x), U32.to_nat(b), Nat.add(PH.H.bn(a0), Nat.double(HI))):
+  DM(1n+q, U32.divmod.go.rec(q, a0, b, x), U32.to_nat(b), Nat.add(PH.H.bn(a0), Nat.double(HI))):
   match x:
     case Tuple{+q0, +r0}:
       match r0:
@@ -244,25 +244,25 @@ def dm.rec(+q: Nat, +a0: Bool, +b: U32, x: Word(q) & U32, +HI: Nat, +T: Nat, +eT
           +hR = N.le_trans(1n+R0, B, H, rih, hb)
           +pf = pout.f(PH.H.pout(32n, a0, rw), a0, rw, T, eT, H, eH, hR, {==})
           +ep = PH.H.put(32n, a0, rw)
-          +ep0 = {(%Equal.sym(Bool, PH.H.pout(32n, a0, rw), False{}, pf) :
+          +ep0 = {(%pf :
               {Nat.add(Word.to_nat(32n, sput), N.D(32n, PH.H.bn(_))) == Nat.add(PH.H.bn(a0), Nat.double(R0)) : Nat}; ep) :
             {Nat.add(Word.to_nat(32n, sput), N.D(32n, PH.H.bn(False{}))) == Nat.add(PH.H.bn(a0), Nat.double(R0)) : Nat}}
           +eS = Equal.trans(Nat, Word.to_nat(32n, sput), Nat.add(Word.to_nat(32n, sput), 0n), Nat.add(PH.H.bn(a0), Nat.double(R0)),
             Equal.sym(Nat, Nat.add(Word.to_nat(32n, sput), 0n), Word.to_nat(32n, sput), N.add_zero(Word.to_nat(32n, sput))), ep0)
           %Equal.sym(Bool & Word(32n), Word.shl.out(32n, a0, rw), (PH.H.pout(32n, a0, rw), sput), out.put(32n, a0, rw)) :
-            DM(1n+q, C.U32.divmod.go.shl(q, q0, b, _), B, Nat.add(PH.H.bn(a0), Nat.double(HI)))
+            DM(1n+q, U32.divmod.go.shl(q, q0, b, _), B, Nat.add(PH.H.bn(a0), Nat.double(HI)))
           %Equal.sym(Bool, PH.H.pout(32n, a0, rw), False{}, pf) :
-            DM(1n+q, C.U32.divmod.go.fin(q, q0, U32{sput}, b, Bool.or(_, U32.is_ge(U32{sput}, b))), B, Nat.add(PH.H.bn(a0), Nat.double(HI)))
+            DM(1n+q, U32.divmod.go.fin(q, q0, U32{sput}, b, Bool.or(_, U32.is_ge(U32{sput}, b))), B, Nat.add(PH.H.bn(a0), Nat.double(HI)))
           dm.fin(U32.is_ge(U32{sput}, b), q, q0, sput, b, a0, HI, R0, {==}, eih, rih, eS)
 
 # the long division of a by b, for 1 <= b <= 2^31
 def dm(+p: Nat, +a: Word(p), +b: U32, +T: Nat, +eT: {N.D(32n, PH.H.bn(True{})) == T : Nat},
   +H: Nat, +eH: {Nat.double(H) == T : Nat}, +hb: N.Le(U32.to_nat(b), H), +hb1: N.Le(1n, U32.to_nat(b))) ->
-  DM(p, C.U32.divmod.go(p, a, b), U32.to_nat(b), Word.to_nat(p, a)):
+  DM(p, U32.divmod.go(p, a, b), U32.to_nat(b), Word.to_nat(p, a)):
   match p a:
     case 0n WNil{}:
       ({==}, hb1)
     case 1n+q WCon{+a0, +hi}:
       %Equal.sym(Nat, Word.to_nat(1n+q, WCon{a0, hi}), Nat.add(PH.H.bn(a0), Nat.double(Word.to_nat(q, hi))), wt(q, a0, hi)) :
-        DM(1n+q, C.U32.divmod.go.rec(q, a0, b, C.U32.divmod.go(q, hi, b)), U32.to_nat(b), _)
-      dm.rec(q, a0, b, C.U32.divmod.go(q, hi, b), Word.to_nat(q, hi), T, eT, H, eH, hb, dm(q, hi, b, T, eT, H, eH, hb, hb1))
+        DM(1n+q, U32.divmod.go.rec(q, a0, b, U32.divmod.go(q, hi, b)), U32.to_nat(b), _)
+      dm.rec(q, a0, b, U32.divmod.go(q, hi, b), Word.to_nat(q, hi), T, eT, H, eH, hb, dm(q, hi, b, T, eT, H, eH, hb, hb1))

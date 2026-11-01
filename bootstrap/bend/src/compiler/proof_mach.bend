@@ -1547,6 +1547,16 @@ def vals.of(b: Bool, +ds: List<&2, C.Def>, +t: C.Term, -u: C.Term, eb: {C.Eval.v
 # words bit by bit; a cell set is there (cl.gs), and the others are kept
 # (cl.go).
 
+def bool.t(b: Bool) -> Type:
+  match b:
+    case True{}:
+      Empty
+    case False{}:
+      Unit
+
+def bool.ft(-G: Type, e: {False{} == True{} : Bool}) -> G:
+  Empty.absurd(G, (%e : bool.t(_); Unit{}))
+
 def bq(a: Bool, b: Bool) -> Bool:
   match a b:
     case True{} True{}:
@@ -1568,30 +1578,30 @@ def Weq(n: Nat, v: Word(n), w: Word(n)) -> Bool:
           Bool.and(bq(a, b), Weq(p, s, t))
 
 def weq.fin(a: Bool, b: Bool, x: Cmp) -> {Cmp.is_eq(Word.cmp.fin(a, b, x)) == Bool.and(bq(a, b), Cmp.is_eq(x)) : Bool}:
-  match x a b:
-    case LT{} True{} True{}:
+  match a b x:
+    case True{} True{} LT{}:
       {==}
-    case LT{} True{} False{}:
+    case True{} False{} LT{}:
       {==}
-    case LT{} False{} True{}:
+    case False{} True{} LT{}:
       {==}
-    case LT{} False{} False{}:
+    case False{} False{} LT{}:
       {==}
-    case EQ{} True{} True{}:
+    case True{} True{} EQ{}:
       {==}
-    case EQ{} True{} False{}:
+    case True{} False{} EQ{}:
       {==}
-    case EQ{} False{} True{}:
+    case False{} True{} EQ{}:
       {==}
-    case EQ{} False{} False{}:
+    case False{} False{} EQ{}:
       {==}
-    case GT{} True{} True{}:
+    case True{} True{} GT{}:
       {==}
-    case GT{} True{} False{}:
+    case True{} False{} GT{}:
       {==}
-    case GT{} False{} True{}:
+    case False{} True{} GT{}:
       {==}
-    case GT{} False{} False{}:
+    case False{} False{} GT{}:
       {==}
 
 def weq.cmp(n: Nat, v: Word(n), w: Word(n)) -> {Cmp.is_eq(Word.cmp(n, v, w)) == Weq(n, v, w) : Bool}:
@@ -2350,16 +2360,6 @@ def tbl.f4(-m: C.Cir.Cells, -im: U32, -fi: U32, -nx: U32, t: C.Term, h: Tbl(m, i
         case Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{_, Tuple{e, _}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}:
           e
 
-def bool.t(b: Bool) -> Type:
-  match b:
-    case True{}:
-      Empty
-    case False{}:
-      Unit
-
-
-def bool.ft(-G: Type, e: {False{} == True{} : Bool}) -> G:
-  Empty.absurd(G, (%e : bool.t(_); Unit{}))
 
 # a value by its form, as the table says, has field 4 set
 def f4.one(t: C.Term, hf: {A.tbl(t) == True{} : Bool}) -> {A.f4(t) == 1 : U32}:
