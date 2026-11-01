@@ -5325,6 +5325,23 @@ def release.post(+f: Nat, +dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2
 # its part's cell (Pc) or of a root (Rc); a new cell is no cell yet. So
 # setting either keeps every held term.
 
+# a cell of the pend list is not STATIC, and nothing points to it
+def pendok.mem(qs: List<&2, U32>, +ps: List<&2, U32>, +m: C.Cir.Cells, +fi: U32, +nx: U32, +rs: List<&2, U32>, +z: U32,
+  h: PendOK(qs, ps, m, fi, nx, rs), hm: {Mem(qs, z) == True{} : Bool}) ->
+  P2({Fl(m, z, 1024) == False{} : Bool}, {Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}):
+  match qs:
+    case Nil{}:
+      bool.ft(P2({Fl(m, z, 1024) == False{} : Bool}, {Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}), hm)
+    case Con{+p, +rest}:
+      match h:
+        case Tuple{_, Tuple{hs, Tuple{_, Tuple{h0, hr}}}}:
+          or.cases(U32.is_eq(p, z), Mem(rest, z),
+            P2({Fl(m, z, 1024) == False{} : Bool}, {Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, z) == 0n : Nat}), hm,
+            e => (%Equal.sym(U32, p, z, u32.eq(p, z, e)) :
+                P2({Fl(m, _, 1024) == False{} : Bool}, {Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, rs, _) == 0n : Nat});
+              (hs, h0)),
+            e => pendok.mem(rest, ps, m, fi, nx, rs, z, hr, e))
+
 def is.pend(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
   +fi: U32, +im: U32, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>,
   +x: C.Cir.Cell,
@@ -5332,7 +5349,24 @@ def is.pend(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img:
   hp: {Mem(ps, pend) == True{} : Bool}) ->
   P2(RtsK(dk, ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, os), P2(RtsK(dk, ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, bs),
     FrsK(dk, ds, C.Cir.Cells.set(m, pend, x), im, fi, nx, ks, img, ps, sp, fs))):
-  ?TODO
+  (ho0, r1) = hs
+  (hb, r2) = r1
+  (hh0, r3) = r2
+  (hf, r4) = r3
+  (hp0, hi0) = r4
+  +n = Nat.sub(U32.to_nat(nx), U32.to_nat(fi))
+  +rs = Rt.cells(os)
+  +hh = {hh0 : Held(m, os, bs)}
+  +ho = {ho0 : RtsK(dk, ds, m, im, fi, nx, ks, img, os)}
+  +tbl = img.tbl(dk, ds, ks, img, m, im, fi, nx, hi0)
+  match hp0:
+    case Tuple{hc0, Tuple{hpk, hq2}}:
+      (+hzs, +hz0) = pendok.mem(ps, ps, m, fi, nx, rs, pend, hpk, hp)
+      +hno = neall.rcl(rs, pend, add0.r(Pc(n, m, ps, fi, pend), RcL(rs, pend), hz0))
+      +hnb = neall.held(dk, bs, os, ds, m, im, fi, nx, ks, img, ps, rs, pend, tbl, hz0, hzs, hno, ho, hh)
+      (Rts.fz(dk, os, ds, m, im, fi, nx, ks, img, ps, rs, pend, x, tbl, hz0, hzs, hno, ho),
+        (Rts.fz(dk, bs, ds, m, im, fi, nx, ks, img, ps, rs, pend, x, tbl, hz0, hzs, hnb, hb),
+          Frs.fzp(dk, fs, ds, m, im, fi, nx, ks, img, ps, rs, pend, x, sp, tbl, hz0, hzs, hp, hf)))
 
 def is.fresh(+dk: Bool, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32,
   +fi: U32, +im: U32, +os: List<&2, Rt>, +bs: List<&2, Rt>, +fs: List<&2, AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>,

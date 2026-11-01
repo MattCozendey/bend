@@ -160,3 +160,56 @@ def pr.loop(d: Nat, +X: List<&2, C.Wasm.Instr>, +a: U32, +n: U32, +nx: U32, +t: 
         S.steps.then(10n, 6n, pr.LC(X, a, n, nx, t, ad, rg, mm), pr.TC(X, a, n, nx, ad, rg, mm), LC1,
           pr.test(X, a, n, nx, t, ad, rg, mm), pr.more(X, a, n, nx, ad, rg, mm, nge)),
         pr.loop(p, X, a, n, U32.add(nx, 1), nx, ad, rg, mm, 1n+Xn, eX1, P, hP, W, hW, hX1, hl1, hf1))
+
+# x + d after d steps of 1, below P
+def addn.nat(d: Nat, +x: U32, +Xn: Nat, +eX: {U32.to_nat(x) == Xn : Nat}, +P: Nat, +hP: {Nat.add(PH.H.W(4n), PH.H.t20(P)) == PH.H.W(32n) : Nat},
+  +W: Nat, +hW: {W == PH.H.W(32n) : Nat}, +hx: N.Le(Nat.add(Xn, d), P)) -> {U32.to_nat(addn(d, x)) == Nat.add(Xn, d) : Nat}:
+  match d:
+    case 0n:
+      Equal.trans(Nat, U32.to_nat(x), Xn, Nat.add(Xn, 0n), eX, Equal.sym(Nat, Nat.add(Xn, 0n), Xn, N.add_zero(Xn)))
+    case 1n+(+p):
+      +e1 = Equal.trans(Nat, Nat.add(Xn, 1n+p), 1n+Nat.add(Xn, p), Nat.add(1n+Xn, p), N.add_succ_r(Xn, p), {==})
+      +hX1 = N.le_rw_l(Nat.add(Xn, 1n+p), Nat.add(1n+Xn, p), P, e1, hx)
+      +hXP = N.le_trans(1n+Xn, Nat.add(1n+Xn, p), P, N.le_add_r(1n+Xn, p), hX1)
+      +eX1 = Equal.trans(Nat, U32.to_nat(U32.add(x, 1)), U32.to_nat(U32.inc(x)), 1n+Xn,
+        Equal.cong(U32, Nat, z => U32.to_nat(z), U32.add(x, 1), U32.inc(x), F.inc.add1(x)),
+        F.inc.eq(x, Xn, eX, W, hW, N.le_rw_r(2n+Xn, PH.H.W(32n), W, Equal.sym(Nat, W, PH.H.W(32n), hW), PH.H.small(32n, Xn, P, hP, hXP))))
+      Equal.trans(Nat, U32.to_nat(addn(p, U32.add(x, 1))), Nat.add(1n+Xn, p), Nat.add(Xn, 1n+p),
+        addn.nat(p, U32.add(x, 1), 1n+Xn, eX1, P, hP, W, hW, hX1), Equal.sym(Nat, Nat.add(Xn, 1n+p), Nat.add(1n+Xn, p), e1))
+
+# 20 q as a product
+def mul20(+q: Nat) -> {Nat.mul(q, 20n) == PH.H.t20(q) : Nat}:
+  match q:
+    case 0n:
+      {==}
+    case 1n+p:
+      Equal.cong(Nat, Nat, z => 20n+z, Nat.mul(p, 20n), PH.H.t20(p), mul20(p))
+
+# 20 q <= 19 + 20 p gives q <= p
+def t20.le19(+q: Nat, +p: Nat, h: N.Le(PH.H.t20(q), 19n+PH.H.t20(p))) -> N.Le(q, p):
+  match q p:
+    case 0n _:
+      N.le_zero(p)
+    case 1n+a 0n:
+      Empty.absurd(N.Le(1n+a, 0n), N.not_succ_le(19n, N.le_trans(20n, 20n+PH.H.t20(a), 19n, N.le_add_r(20n, PH.H.t20(a)), h)))
+    case 1n+a 1n+b:
+      t20.le19(a, b, h)
+
+# a quotient and a remainder by 20
+def div.ex(+x: U32) -> Sigma<&2, &2, Nat, Qn => Sigma<&2, &2, Nat, Rn =>
+  S.P2({Nat.add(Nat.mul(Qn, 20n), Rn) == U32.to_nat(x) : Nat}, N.Le(1n+Rn, 20n))>>:
+  match x:
+    case U32{+xw}:
+      (Word.to_nat(32n, DV.dq(32n, U32.divmod.go(32n, xw, 20))), (U32.to_nat(DV.dr(32n, U32.divmod.go(32n, xw, 20))),
+        DV.dm(32n, xw, 20, N.D(32n, 1n), Equal.cong(Nat, Nat, z => N.D(32n, z), PH.H.bn(True{}), 1n, {==}), N.D(31n, 1n),
+          Equal.sym(Nat, N.D(32n, 1n), Nat.double(N.D(31n, 1n)), DV.dsucc(31n, 1n)), Unit{}, Unit{})))
+
+# a >= b false gives a < b
+def nge.to(c: Cmp, +x: Nat, +y: Nat, r: N.Rel(c, x, y), e: {Cmp.is_ge(c) == False{} : Bool}) -> N.Le(1n+x, y):
+  match c:
+    case LT{}:
+      r
+    case EQ{}:
+      Empty.absurd(N.Le(1n+x, y), N.true_ne_false(e))
+    case GT{}:
+      Empty.absurd(N.Le(1n+x, y), N.true_ne_false(e))
