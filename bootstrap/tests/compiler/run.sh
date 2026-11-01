@@ -8,7 +8,7 @@
 # Eval gives), or no result when it gives none. The compiler runs as the JS
 # that `bend -o` writes for compile.bend; with TRUSTED=1, the Lean interpreter
 # also runs it on progs/echo.bend, and must write the same bytes (this takes
-# hours: the interpreter runs the whole compiler). Every tool is pinned: the
+# a few minutes: about 47 million steps of Eval). Every tool is pinned: the
 # script refuses to run with any other. WORK is a folder for what the tests
 # write.
 set -euo pipefail

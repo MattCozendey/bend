@@ -17,6 +17,28 @@ def stepwise (bk : Book) : Nat → Term → Nat → Term × Nat
     | some u => stepwise bk fuel u (n + 1)
     | none => (t, n)
 
+-- stepwise, computed: a value takes no step, and is known to be one at once
+-- (step on a value checks each part again, after each part of it: quadratic)
+def stepwiseF (bk : Book) : Nat → Term → Nat → Term × Nat
+  | 0, t, n => (t, n)
+  | fuel + 1, t, n =>
+    if value bk t then (t, n)
+    else
+      match step bk t with
+      | some u => stepwiseF bk fuel u (n + 1)
+      | none => (t, n)
+
+@[csimp] theorem stepwise_stepwiseF : @stepwise = @stepwiseF := by
+  funext bk fuel t n
+  induction fuel generalizing t n with
+  | zero => rfl
+  | succ fuel ih =>
+    simp only [stepwise, stepwiseF]
+    by_cases hv : value bk t = true
+    · simp only [hv, ite_true, step_value (value_iff.1 hv)]
+    · simp only [hv]
+      split <;> simp_all
+
 -- a run from any count takes steps of Eval, no more than its fuel
 theorem stepwise_sound : stepwise bk fuel t m = (u, n) → ∃ k, n = m + k ∧ Steps bk k t u ∧ k ≤ fuel := by
   induction fuel generalizing t m with
