@@ -135,7 +135,7 @@ def pr.loop(d: Nat, +X: List<&2, C.Wasm.Instr>, +a: U32, +n: U32, +nx: U32, +t: 
         Equal.sym(Nat, U32.to_nat(C.Cir.at(nx)), PH.H.t20(Nat.add(Xn, 0n)), eA), hf))
       S.steps.then(10n, 1n, pr.LC(X, a, n, nx, t, ad, rg, mm), pr.TC(X, a, n, nx, ad, rg, mm), pr.XC(X, a, n, ad, rg, mm, nx),
         pr.test(X, a, n, nx, t, ad, rg, mm), pr.exit(X, a, n, nx, ad, rg, mm, ge))
-    case 1n+p:
+    case 1n+(+p):
       +AD = U32.to_nat(ad)
       # this round goes on: 20 Xn <= 20 (Xn + p) < E
       +e1 = Equal.trans(Nat, Nat.add(Xn, 1n+p), 1n+Nat.add(Xn, p), Nat.add(1n+Xn, p), N.add_succ_r(Xn, p), {==})
