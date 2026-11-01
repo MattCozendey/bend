@@ -2266,7 +2266,7 @@ def ne.fr(b: Bool, +m: C.Cir.Cells, +fr: U32, +sx: U32, kind: FK, eb: {U32.is_eq
       eb
     case True{}:
       +e = u32.eq(fr, sx, eb)
-      +h2 = (%Equal.sym(U32, fr, sx, e) : {U32.is_lt(TgW(Fd(0n, m, _)), 32) == True{} : Bool}; hsx)
+      +h2 = {(%Equal.sym(U32, fr, sx, e) : {U32.is_lt(TgW(Fd(0n, m, _)), 32) == True{} : Bool}; hsx) : {U32.is_lt(TgW(Fd(0n, m, fr)), 32) == True{} : Bool}}
       ne.fr.k(kind, fr, sx, Equal.trans(Bool, U32.is_lt(FK.tag(kind), 32), U32.is_lt(Tg(m, fr), 32), True{},
         Equal.cong(U32, Bool, z => U32.is_lt(z, 32), FK.tag(kind), Tg(m, fr), Equal.sym(U32, Tg(m, fr), FK.tag(kind), etag)), h2))
 
@@ -2330,7 +2330,7 @@ def frs.f1(fs: List<&2, AF>, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +f
               (e0, (ev, (eo, (es, (em, (etg, (eq, (ek,
                 (is.f1.top(a, ds, m, im, fi, nx, ks, img, sx, sv, Fd(2n, m, fr), ia),
                 (frsb.f1(kind, ds, m, im, fi, nx, ks, img, sx, sv, Fd(3n, m, fr), b, ib),
-                 frs.f1(rest, ds, m, im, fi, nx, ks, img, ps, sx, sv, Fd(1n, m, fr), hsx, ir))))))))))))))
+                 frs.f1(rest, ds, m, im, fi, nx, ks, img, ps, sx, sv, Fd(1n, m, fr), hsx, ir)))))))))))))
 
 # Move kit
 # --------
