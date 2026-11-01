@@ -439,5 +439,6 @@ def inv0(+cells: List<&2, C.Cir.Cell>, +i: List<&2, U32>, +len: U32, +p2: U32, +
   +eA2 = Equal.trans(Nat, A, PH.H.t20(1n+Kc), PH.H.t20(1n+U32.to_nat(k)), eA,
     Equal.cong(Nat, Nat, z => PH.H.t20(1n+z), Kc, U32.to_nat(k), Equal.sym(Nat, U32.to_nat(k), Kc, eK)))
   +hK3 = N.le_rw_l(1n+Kc, 1n+U32.to_nat(k), P, Equal.cong(Nat, Nat, z => 1n+z, Kc, U32.to_nat(k), Equal.sym(Nat, U32.to_nat(k), Kc, eK)), hK1)
-  +bnd = (((eA2, hK3), (hEP, hEB)), ((hEF, hFP), ((eCF, Unit{}), (hlm, hpl))))
+  +bnd = {(((eA2, hK3), (hEP, hEB)), ((hEF, hFP), ((eCF, Unit{}), (hlm, hpl)))) :
+    Q.Bounds(P, G, a, fst, fst, k, p2, lim, i, 0)}
   ((({==}, eLn), (eRC2, eRB)), ((N.le_refl(FI), eM), ({==}, bnd)))
