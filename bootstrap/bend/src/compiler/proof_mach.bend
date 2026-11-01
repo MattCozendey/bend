@@ -1595,7 +1595,7 @@ def is.nd(+ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +
       match h:
         case Tuple{n, _}:
           n
-    case C.Term.Prj{+h}:
+    case C.Term.Prj{+hh}:
       match h:
         case Tuple{n, _}:
           n
@@ -1607,7 +1607,7 @@ def is.nd(+ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +
       match h:
         case Tuple{n, _}:
           n
-    case C.Term.Mat{+k, +h, +n}:
+    case C.Term.Mat{+k, +hh, +n}:
       match h:
         case Tuple{n, _}:
           n
@@ -1848,6 +1848,97 @@ def A.node(t: C.Term) -> Bool:
       True{}
     case _:
       False{}
+
+# the table's cell of the tag of a term's cell is a cell
+def vt.of(-m: C.Cir.Cells, -im: U32, -fi: U32, -nx: U32, -f0: U32, +focus: C.Term, etag: {TgW(f0) == A.tag(focus) : U32},
+  tb: Tbl(m, im, fi, nx)) -> {C.Cir.is_cell(U32.add(345, U32.and(f0, 63)), im, fi, nx) == True{} : Bool}:
+  %Equal.sym(U32, TgW(f0), A.tag(focus), etag) : {C.Cir.is_cell(U32.add(345, _), im, fi, nx) == True{} : Bool}
+  tbl.at(m, im, fi, nx, focus, tb)
+
+# the test of M.ev on a cell flagged VALUE is not 0
+def nz.of(-f0: U32, +e4: U32, hv: {U32.is_ne(U32.and(f0, 256), 0) == True{} : Bool}) ->
+  {U32.is_zero(U32.or(Bool.to_u32(U32.is_ne(U32.and(f0, 256), 0)), Bool.to_u32(U32.is_ne(e4, 0)))) == False{} : Bool}:
+  %Equal.sym(Bool, U32.is_ne(U32.and(f0, 256), 0), True{}, hv) :
+    {U32.is_zero(U32.or(Bool.to_u32(_), Bool.to_u32(U32.is_ne(e4, 0)))) == False{} : Bool}
+  or1(U32.is_ne(e4, 0))
+
+# M.ev, past its first statement, and past its second
+def B.cond2() -> C.Cir.Expr:
+  C.M.or(C.M.flag(C.M.g(C.R.c()), C.F.value()), C.M.ne(C.M.entry(4n, C.M.g(C.R.c())), C.M.c(0)))
+
+def B.else() -> C.Cir.Stmt:
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.app())), C.M.ev.app(),
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.ref())), C.M.ev.ref(),
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.ann())), C.M.ev.ann(),
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.let())), C.M.ev.let(),
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.tup())), C.M.ev.tup(),
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.rwt())), C.M.ev.rwt(),
+  C.M.if(C.M.eq(C.M.g(C.R.tag()), C.M.c(C.T.min())), C.M.ev.min(),
+    C.M.halt(2))))))))
+
+def B.ev2() -> C.Cir.Stmt:
+  C.M.do([C.M.set(C.R.tag(), C.M.tag(C.M.g(C.R.c()))), C.M.if(B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else())])
+
+def B.ev3() -> C.Cir.Stmt:
+  C.M.do([C.M.if(B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else())])
+
+# M.ev's first two statements, from a state of mode 0: c and tag get the
+# focus' cell and its tag
+def ev.st1(+foc: U32, +sp: U32, +pend: U32, +r4: U32, +r5: U32, +r6: U32, +r7: U32, +r8: U32, +r9: U32, +r10: U32, +r11: U32, +r12: U32, +r13: U32, +r14: U32, +r15: U32, +r16: U32, +r17: U32, +r18: U32, +r19: U32, +r20: U32, +r21: U32, +r22: U32, +r23: U32, +r24: U32, +r25: U32, +r26: U32, +r27: U32, +r28: U32, +r29: U32, +r30: U32, +r31: U32, +r32: U32, +r33: U32, +r34: U32, +r35: U32, +r36: U32, +r37: U32, +r38: U32, +r39: U32, +r40: U32, +r41: U32, +r42: U32, +r43: U32, +r44: U32, +r45: U32, +r46: U32, +r47: U32, +r48: U32, +r49: U32, +r50: U32, +r51: U32, +r52: U32, +r53: U32, +r54: U32, +r55: U32, +r56: U32, +r57: U32, +r58: U32, +r59: U32, +r60: U32, +r61: U32, +r62: U32, +r63: U32, +m: C.Cir.Cells, +nx: U32, +fi: U32,
+  +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>) -> C.Cir.State:
+  St.set(S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), 8n, foc)
+
+def ev.st2(+foc: U32, +sp: U32, +pend: U32, +r4: U32, +r5: U32, +r6: U32, +r7: U32, +r8: U32, +r9: U32, +r10: U32, +r11: U32, +r12: U32, +r13: U32, +r14: U32, +r15: U32, +r16: U32, +r17: U32, +r18: U32, +r19: U32, +r20: U32, +r21: U32, +r22: U32, +r23: U32, +r24: U32, +r25: U32, +r26: U32, +r27: U32, +r28: U32, +r29: U32, +r30: U32, +r31: U32, +r32: U32, +r33: U32, +r34: U32, +r35: U32, +r36: U32, +r37: U32, +r38: U32, +r39: U32, +r40: U32, +r41: U32, +r42: U32, +r43: U32, +r44: U32, +r45: U32, +r46: U32, +r47: U32, +r48: U32, +r49: U32, +r50: U32, +r51: U32, +r52: U32, +r53: U32, +r54: U32, +r55: U32, +r56: U32, +r57: U32, +r58: U32, +r59: U32, +r60: U32, +r61: U32, +r62: U32, +r63: U32, +m: C.Cir.Cells, +nx: U32, +fi: U32,
+  +im: U32, +pg: U32, +lim: U32, +inp: List<&2, U32>) -> C.Cir.State:
+  St.set(ev.st1(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), 10n, TgW(Fd(0n, m, foc)))
+
+# a round from mode 0 whose focus' cell c is flagged VALUE: c and tag are
+# set, then the mode is 1
+def ev.val.E(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +foc: U32, +sp: U32,
+  +pend: U32, +r4: U32, +r5: U32, +r6: U32, +r7: U32, +r8: U32, +r9: U32, +r10: U32, +r11: U32, +r12: U32, +r13: U32, +r14: U32, +r15: U32, +r16: U32, +r17: U32, +r18: U32, +r19: U32, +r20: U32, +r21: U32, +r22: U32, +r23: U32, +r24: U32, +r25: U32, +r26: U32, +r27: U32, +r28: U32, +r29: U32, +r30: U32, +r31: U32, +r32: U32, +r33: U32, +r34: U32, +r35: U32, +r36: U32, +r37: U32, +r38: U32, +r39: U32, +r40: U32, +r41: U32, +r42: U32, +r43: U32, +r44: U32, +r45: U32, +r46: U32, +r47: U32, +r48: U32, +r49: U32, +r50: U32, +r51: U32, +r52: U32, +r53: U32, +r54: U32, +r55: U32, +r56: U32, +r57: U32, +r58: U32, +r59: U32, +r60: U32, +r61: U32, +r62: U32, +r63: U32, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32, +pg: U32, +lim: U32,
+  +inp: List<&2, U32>, +focus: C.Term,
+  +nd: Nd(ds, im, fi, nx, foc, C.Cir.Cells.get(m, foc), focus, A.tag(focus)),
+  +tb: Tbl(m, im, fi, nx), +hv: {Fl(m, foc, 256) == True{} : Bool}) ->
+  {C.Cir.exec(f, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)) ==
+    C.Cir.Out.next{St.set(ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp), 1n, 1)} : C.Cir.Out}:
+  match nd:
+    case Tuple{+valid, Tuple{_, Tuple{+etag, _}}}:
+      +st1 = ev.st1(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)
+      +st2 = ev.st2(foc, sp, pend, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63, m, nx, fi, im, pg, lim, inp)
+      +st3 = St.set(st2, 1n, 1)
+      +f0 = Fd(0n, m, foc)
+      +ef1 = ev.fld(0n, C.M.g(C.R.c()), St.regs(st1), m, nx, fi, im, pg, lim, inp, Nil{}, 0, foc, {==}, valid)
+      +ef2 = ev.fld(0n, C.M.g(C.R.c()), St.regs(st2), m, nx, fi, im, pg, lim, inp, Nil{}, 0, foc, {==}, valid)
+      +etg = ev.op(C.Wasm.Op.and{}, C.M.f(0n, C.M.g(C.R.c())), C.M.c(63), st1, f0, 63, ef1, {==})
+      +etg2 = ev.op(C.Wasm.Op.and{}, C.M.f(0n, C.M.g(C.R.c())), C.M.c(63), st2, f0, 63, ef2, {==})
+      +efl = ev.op(C.Wasm.Op.ne{}, C.M.and(C.M.f(0n, C.M.g(C.R.c())), C.M.c(256)), C.M.c(0), st2, C.Wasm.op(C.Wasm.Op.and{}, f0, 256), 0,
+        ev.op(C.Wasm.Op.and{}, C.M.f(0n, C.M.g(C.R.c())), C.M.c(256), st2, f0, 256, ef2, {==}), {==})
+      +addr = C.Wasm.op(C.Wasm.Op.add{}, 345, C.Wasm.op(C.Wasm.Op.and{}, f0, 63))
+      +eadr = ev.op(C.Wasm.Op.add{}, C.M.c(345), C.M.tag(C.M.g(C.R.c())), st2, 345, C.Wasm.op(C.Wasm.Op.and{}, f0, 63), {==}, etg2)
+      +vt = vt.of(m, im, fi, nx, f0, focus, etag, tb)
+      +e4 = C.Cir.Cell.get(4n, C.Cir.Cells.get(m, addr))
+      +ee4 = ev.fld(4n, C.M.add(C.M.c(345), C.M.tag(C.M.g(C.R.c()))), St.regs(st2), m, nx, fi, im, pg, lim, inp, Nil{}, 0, addr, eadr, vt)
+      +ene = ev.op(C.Wasm.Op.ne{}, C.M.entry(4n, C.M.g(C.R.c())), C.M.c(0), st2, e4, 0, ee4, {==})
+      +flv = C.Wasm.op(C.Wasm.Op.ne{}, C.Wasm.op(C.Wasm.Op.and{}, f0, 256), 0)
+      +nev = C.Wasm.op(C.Wasm.Op.ne{}, e4, 0)
+      +ec2 = ev.op(C.Wasm.Op.or{}, C.M.flag(C.M.g(C.R.c()), C.F.value()), C.M.ne(C.M.entry(4n, C.M.g(C.R.c())), C.M.c(0)), st2, flv, nev, efl, ene)
+      +nz2 = nz.of(f0, e4, hv)
+      +e3a = Equal.trans(C.Cir.Out, C.Cir.exec(f, C.Cir.Stmt.if{B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else()}, st2),
+        C.Cir.exec(f, C.M.set(C.R.mode(), C.M.c(1)), st2), C.Cir.Out.next{st3},
+        eq.if.t(f, B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else(), st2, C.Wasm.op(C.Wasm.Op.or{}, flv, nev), ec2, nz2),
+        eq.set(f, 1n, C.M.c(1), st2, 1, {==}, {==}))
+      %Equal.sym(C.Cir.Out, C.Cir.exec(f, B.body(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)), C.Cir.exec(f, C.M.ev(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp)),
+        eq.if.t(f, C.M.eq(C.M.g(C.R.mode()), C.M.c(0)), C.M.ev(), C.M.ret(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), 1, {==}, {==})) :
+        {_ == C.Cir.Out.next{st3} : C.Cir.Out}
+      %rw.seq(f, C.M.set(C.R.c(), C.M.g(C.R.focus())), B.ev2(), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), st1,
+        eq.set(f, 8n, C.M.g(C.R.focus()), S(foc, 0, sp, pend, R60{r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51, r52, r53, r54, r55, r56, r57, r58, r59, r60, r61, r62, r63}, m, nx, fi, im, pg, lim, inp), foc, {==}, {==})) : {_ == C.Cir.Out.next{st3} : C.Cir.Out}
+      %rw.seq(f, C.M.set(C.R.tag(), C.M.tag(C.M.g(C.R.c()))), B.ev3(), st1, st2,
+        eq.set(f, 10n, C.M.tag(C.M.g(C.R.c())), st1, TgW(f0), etg, {==})) : {_ == C.Cir.Out.next{st3} : C.Cir.Out}
+      %rw.seq(f, C.Cir.Stmt.if{B.cond2(), C.M.set(C.R.mode(), C.M.c(1)), B.else()}, C.Cir.Stmt.nop{}, st2, st3, e3a) :
+        {_ == C.Cir.Out.next{st3} : C.Cir.Out}
+      %Equal.sym(C.Cir.Out, C.Cir.exec(f, C.Cir.Stmt.nop{}, st3), C.Cir.Out.next{st3}, eq.nop(f, st3)) :
+        {_ == C.Cir.Out.next{st3} : C.Cir.Out}
+      {==}
 
 # The moves, one lemma each (open where the body is ?TODO)
 

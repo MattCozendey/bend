@@ -4236,6 +4236,15 @@ def W1BU_none(+q: Nat, B: Bool, -x: C.Term, -r: C.Term, +h: {None{} == Ub.x(VL(x
     case False{}:
       {==}
 
+def W1BY_none(+q: Nat, my: Maybe<&2, List<&2, U32>>, -x: C.Term, -r: C.Term,
+  h: @u: List<&2, U32> -> {None{} == W1.b(q, Ub.u(C.Name.is_eq(u, C.Program.name.unit()), x), r) : Maybe<&2, Word(1n+q)>}) ->
+  {None{} == W1.b(q, Ub.y(my, x), r) : Maybe<&2, Word(1n+q)>}:
+  match my:
+    case Some{u}:
+      h(u)
+    case None{}:
+      {==}
+
 def W1B_none(+q: Nat, mb: Maybe<&2, Bool>, -r: C.Term, h: @bb: Bool -> {None{} == W1.r2(q, bb, V1(r)) : Maybe<&2, Word(1n+q)>}) ->
   {None{} == W1.b(q, mb, r) : Maybe<&2, Word(1n+q)>}:
   match mb:
@@ -4524,62 +4533,62 @@ def WE1(+q: Nat, +t: C.Term) -> {C.Program.unword(1n+q, t) == Wd(1n+q, t) : Mayb
                             case C.Quan.Q0{}:
                               W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                             case C.Quan.Q1{}:
-                              match y:
+                              match x:
                                 case C.Term.Var{_}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Ref{_}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Ann{_, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Let{_, _, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Typ{_}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Min{_, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.All{_, _, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Lam{_, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.App{_, _, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Sig{_, _, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Tup{_, _, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Prj{_}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Enu{_}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
-                                case C.Term.Lab{+u1}:
-                                  match x:
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
+                                case C.Term.Lab{+bn}:
+                                  match y:
                                     case C.Term.Var{_}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Ref{_}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Ann{_, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Let{_, _, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Typ{_}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Min{_, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.All{_, _, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Lam{_, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.App{_, _, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Sig{_, _, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Tup{_, _, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Prj{_}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Enu{_}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
-                                    case C.Term.Lab{+bn}:
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                    case C.Term.Lab{+u1}:
                                       match r:
                                         case C.Term.Var{_}:
                                           W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1B_none(q, Ub(bt), r, bb => {==}))
@@ -4664,25 +4673,25 @@ def WE1(+q: Nat, +t: C.Term) -> {C.Program.unword(1n+q, t) == Wd(1n+q, t) : Mayb
                                         case C.Term.Rwt{_, _, _}:
                                           W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1B_none(q, Ub(bt), r, bb => {==}))
                                     case C.Term.Mat{_, _, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Efq{}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Eql{_, _, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Rfl{}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                     case C.Term.Rwt{_, _, _}:
-                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BU_none(q, C.Name.is_eq(u1, C.Program.name.unit()), x, r, {==}))
+                                      W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                                 case C.Term.Mat{_, _, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Efq{}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Eql{_, _, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Rfl{}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                                 case C.Term.Rwt{_, _, _}:
-                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
+                                  W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, W1BY_none(q, VL(y), x, r, u => W1BU_none(q, C.Name.is_eq(u, C.Program.name.unit()), x, r, {==})))
                             case C.Quan.Q2{}:
                               W1K_none(q, C.Name.is_eq(k, C.Program.name.wcon()), f, {==})
                         case C.Term.Prj{_}:

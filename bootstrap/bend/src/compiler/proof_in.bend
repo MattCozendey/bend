@@ -2274,3 +2274,67 @@ def In.ir(+f: Nat, +fo: U32, +ii: U32, +ib: U32, +il: U32, +iu: U32, +iw: U32, +
          St.step(fl, m, F, N, il, bl, ks, img, next, C.Cir.Cell{In.hd(True{}), 1, iw, 1, 0}, Fa.hi(m, next, N, F, f0, fc, ks, img, hF, fa), sl),
          Fr.step(m0, m, F, next, C.Cir.Cell{In.hd(True{}), 1, iw, 1, 0}, hF, Fa.lF(m, next, N, F, f0, fc, ks, img, fa), fr),
          k, R, g)))))
+
+# the bits' loop
+def In.c.W() -> C.Cir.Stmt:
+  C.M.while(C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner())
+
+# the word of the low byte of ib, the lowest bit first, over 24 False bits
+def In.wd(+ib: U32) -> Word(32n):
+  WCon{In.bit(ib, 0), WCon{In.bit(ib, 1), WCon{In.bit(ib, 2), WCon{In.bit(ib, 3), WCon{In.bit(ib, 4), WCon{In.bit(ib, 5), WCon{In.bit(ib, 6),
+    WCon{In.bit(ib, 7), Word.zero(24n)}}}}}}}}
+
+# the word that the bits' loop builds
+def In.wd.eq(+ib: U32) -> {C.Program.word(1n+(1n+(1n+(1n+(1n+(1n+(1n+(1n+24n))))))), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(8, 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(8, 1), 1)), WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}}}}}}}}) == C.Program.word(32n, In.wd(ib)) : C.Term}:
+  {==}
+
+# a term, by an equation
+def St.cast(-f: Nat, -m: C.Cir.Cells, -F: U32, -N: Nat, -c: U32, -t: C.Term, -u: C.Term, -ks: List<&2, List<&2, U32>>, -img: List<&2, C.Term>,
+  e: {t == u : C.Term}, s: In.St(f, m, F, N, c, t, ks, img)) -> In.St(f, m, F, N, c, u, ks, img):
+  %e : In.St(f, m, F, N, c, _, ks, img)
+  s
+
+# the bits' loop: iw gets the word of the low byte of ib, over the 24 False
+# bits of the image, in 8 rounds of 3 new cells
+def In.il(+Z: Nat, +fo: U32, +ii: U32, +ib: U32, +il: U32, +iu: U32, +t1: U32, +t2: U32, +m: C.Cir.Cells, +next: U32,
+  +N: Nat, +F: U32, +K: U32, +pg: U32, +L: U32, +I: List<&2, U32>, +f0: Nat, +fc: Nat, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>,
+  -m0: C.Cir.Cells, +fl: Nat, +bl: C.Term, +hF: N.Le(345n, U32.to_nat(F)), +fa: In.Fa(m, next, N, F, f0, fc, ks, img),
+  +sl: In.St(fl, m, F, N, il, bl, ks, img), fr: In.Fr(m0, m, F), -k: C.Cir.State -> C.Cir.Out, -R: C.Cir.State -> Type,
+  g: @iw2: U32 -> @ij2: U32 -> @t12: U32 -> @t22: U32 -> @m2: C.Cir.Cells -> @nx2: U32 -> @pg2: U32 -> In.Fa(m2, nx2, 24n+N, F, f0, fc, ks, img) ->
+    In.St(24n+f0, m2, F, 24n+N, iw2, C.Program.word(32n, In.wd(ib)), ks, img) -> In.St(fl, m2, F, 24n+N, il, bl, ks, img) -> In.Fr(m0, m2, F) ->
+    In.Ok(k(In.S(In.R(fo, ii, ib, il, iu, iw2, ij2, t12, t22), m2, nx2, F, K, pg2, L, I)), R)) ->
+  In.Go(9n+Z, In.c.W(), In.S(In.R(fo, ii, ib, il, iu, 16, 8, t1, t2), m, next, F, K, pg, L, I), k, R):
+  In.wh(8n+Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, 16, 8, t1, t2), m, next, F, K, pg, L, I), k, R, {==},
+   In.ir(7n+Z, fo, ii, ib, il, iu, 16, 8, t1, t2, m, next, N, F, K, pg, L, I, f0, fc, ks, img, m0, f0, 24n, Word.zero(24n), fl, bl, hF, N.le_refl(f0), fa, Im.g16(f0, m, F, N, ks, img, Fa.im(m, next, N, F, f0, fc, ks, img, fa)), sl, fr,
+    t => C.Cir.exec.then(C.Cir.exec(8n+Z, In.c.W(), t), k), R,
+    +iw1 => +ta1 => +tb1 => +m1 => +nx1 => +pg1 => +fa1 => +sw1 => +sl1 => fr1 =>
+     In.wh(7n+Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, iw1, U32.sub(8, 1), ta1, tb1), m1, nx1, F, K, pg1, L, I), k, R, {==},
+      In.ir(6n+Z, fo, ii, ib, il, iu, iw1, U32.sub(8, 1), ta1, tb1, m1, nx1, 3n+N, F, K, pg1, L, I, f0, fc, ks, img, m0, 3n+f0, 1n+24n, WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}, fl, bl, hF, N.le_add_l(3n, f0), fa1, sw1, sl1, fr1,
+       t => C.Cir.exec.then(C.Cir.exec(7n+Z, In.c.W(), t), k), R,
+       +iw2 => +ta2 => +tb2 => +m2 => +nx2 => +pg2 => +fa2 => +sw2 => +sl2 => fr2 =>
+        In.wh(6n+Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, iw2, U32.sub(U32.sub(8, 1), 1), ta2, tb2), m2, nx2, F, K, pg2, L, I), k, R, {==},
+         In.ir(5n+Z, fo, ii, ib, il, iu, iw2, U32.sub(U32.sub(8, 1), 1), ta2, tb2, m2, nx2, 6n+N, F, K, pg2, L, I, f0, fc, ks, img, m0, 6n+f0, 1n+(1n+24n), WCon{In.bit(ib, U32.sub(U32.sub(8, 1), 1)), WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}}, fl, bl, hF, N.le_add_l(6n, f0), fa2, sw2, sl2, fr2,
+          t => C.Cir.exec.then(C.Cir.exec(6n+Z, In.c.W(), t), k), R,
+          +iw3 => +ta3 => +tb3 => +m3 => +nx3 => +pg3 => +fa3 => +sw3 => +sl3 => fr3 =>
+           In.wh(5n+Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, iw3, U32.sub(U32.sub(U32.sub(8, 1), 1), 1), ta3, tb3), m3, nx3, F, K, pg3, L, I), k, R, {==},
+            In.ir(4n+Z, fo, ii, ib, il, iu, iw3, U32.sub(U32.sub(U32.sub(8, 1), 1), 1), ta3, tb3, m3, nx3, 9n+N, F, K, pg3, L, I, f0, fc, ks, img, m0, 9n+f0, 1n+(1n+(1n+24n)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(8, 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(8, 1), 1)), WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}}}, fl, bl, hF, N.le_add_l(9n, f0), fa3, sw3, sl3, fr3,
+             t => C.Cir.exec.then(C.Cir.exec(5n+Z, In.c.W(), t), k), R,
+             +iw4 => +ta4 => +tb4 => +m4 => +nx4 => +pg4 => +fa4 => +sw4 => +sl4 => fr4 =>
+              In.wh(4n+Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, iw4, U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), ta4, tb4), m4, nx4, F, K, pg4, L, I), k, R, {==},
+               In.ir(3n+Z, fo, ii, ib, il, iu, iw4, U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), ta4, tb4, m4, nx4, 12n+N, F, K, pg4, L, I, f0, fc, ks, img, m0, 12n+f0, 1n+(1n+(1n+(1n+24n))), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(8, 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(8, 1), 1)), WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}}}}, fl, bl, hF, N.le_add_l(12n, f0), fa4, sw4, sl4, fr4,
+                t => C.Cir.exec.then(C.Cir.exec(4n+Z, In.c.W(), t), k), R,
+                +iw5 => +ta5 => +tb5 => +m5 => +nx5 => +pg5 => +fa5 => +sw5 => +sl5 => fr5 =>
+                 In.wh(3n+Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, iw5, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), ta5, tb5), m5, nx5, F, K, pg5, L, I), k, R, {==},
+                  In.ir(2n+Z, fo, ii, ib, il, iu, iw5, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), ta5, tb5, m5, nx5, 15n+N, F, K, pg5, L, I, f0, fc, ks, img, m0, 15n+f0, 1n+(1n+(1n+(1n+(1n+24n)))), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(8, 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(8, 1), 1)), WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}}}}}, fl, bl, hF, N.le_add_l(15n, f0), fa5, sw5, sl5, fr5,
+                   t => C.Cir.exec.then(C.Cir.exec(3n+Z, In.c.W(), t), k), R,
+                   +iw6 => +ta6 => +tb6 => +m6 => +nx6 => +pg6 => +fa6 => +sw6 => +sl6 => fr6 =>
+                    In.wh(2n+Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, iw6, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), ta6, tb6), m6, nx6, F, K, pg6, L, I), k, R, {==},
+                     In.ir(1n+Z, fo, ii, ib, il, iu, iw6, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), ta6, tb6, m6, nx6, 18n+N, F, K, pg6, L, I, f0, fc, ks, img, m0, 18n+f0, 1n+(1n+(1n+(1n+(1n+(1n+24n))))), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(8, 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(8, 1), 1)), WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}}}}}}, fl, bl, hF, N.le_add_l(18n, f0), fa6, sw6, sl6, fr6,
+                      t => C.Cir.exec.then(C.Cir.exec(2n+Z, In.c.W(), t), k), R,
+                      +iw7 => +ta7 => +tb7 => +m7 => +nx7 => +pg7 => +fa7 => +sw7 => +sl7 => fr7 =>
+                       In.wh(1n+Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, iw7, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1), ta7, tb7), m7, nx7, F, K, pg7, L, I), k, R, {==},
+                        In.ir(Z, fo, ii, ib, il, iu, iw7, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1), ta7, tb7, m7, nx7, 21n+N, F, K, pg7, L, I, f0, fc, ks, img, m0, 21n+f0, 1n+(1n+(1n+(1n+(1n+(1n+(1n+24n)))))), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(8, 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(8, 1), 1)), WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}}}}}}}, fl, bl, hF, N.le_add_l(21n, f0), fa7, sw7, sl7, fr7,
+                         t => C.Cir.exec.then(C.Cir.exec(1n+Z, In.c.W(), t), k), R,
+                         +iw8 => +ta8 => +tb8 => +m8 => +nx8 => +pg8 => +fa8 => +sw8 => +sl8 => fr8 =>
+                          In.wh.end(Z, C.M.ne(C.M.g(C.R.ij()), C.M.c(0)), In.c.inner(), In.S(In.R(fo, ii, ib, il, iu, iw8, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1), 1), ta8, tb8), m8, nx8, F, K, pg8, L, I), k, R, {==},
+                           g(iw8, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1), 1), ta8, tb8, m8, nx8, pg8, fa8, St.cast(24n+f0, m8, F, 24n+N, iw8, C.Program.word(1n+(1n+(1n+(1n+(1n+(1n+(1n+(1n+24n))))))), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(U32.sub(8, 1), 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(U32.sub(8, 1), 1), 1)), WCon{In.bit(ib, U32.sub(U32.sub(8, 1), 1)), WCon{In.bit(ib, U32.sub(8, 1)), Word.zero(24n)}}}}}}}}), C.Program.word(32n, In.wd(ib)), ks, img, In.wd.eq(ib), sw8), sl8, fr8))))))))))))))))))

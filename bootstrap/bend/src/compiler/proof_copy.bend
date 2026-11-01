@@ -389,7 +389,8 @@ def AL.part(+m: C.Cir.Cells, +P: List<&2, U32>, +am: U32, +bit: U32, +p: U32, +K
     Bool.or(Stc(m, p), Bool.or(Has(P, p),
       Bool.and(Nat.is_lt(Pp(P, m, p), U32.to_nat(Fd(1n, m, p))), U32.is_lt(Fd(1n, m, p), Bu)))))))
 
-# each garbage cell of os: one of the machine's own, not STATIC, its parts
+# each garbage cell of os: one of the machine's own, not STATIC, of a term's
+# tag or of one of the machine's own (so its mask is the table's), its parts
 # as above; one of the pend list has no pointer of the garbage, another
 # counts at least them
 def AL.cells(os: List<&2, U32>, +m: C.Cir.Cells, +P: List<&2, U32>, +Q: List<&2, U32>, +K: U32, +F: U32,
@@ -399,7 +400,9 @@ def AL.cells(os: List<&2, U32>, +m: C.Cir.Cells, +P: List<&2, U32>, +Q: List<&2,
       True{}
     case Con{+o, rest}:
       +am = Am(m, o)
-      Bool.and(Bool.and(Bool.and(U32.is_le(F, o), U32.is_lt(o, N)), Bool.not(Stc(m, o))),
+      +tg = U32.and(Fd(0n, m, o), 63)
+      Bool.and(Bool.and(Bool.and(Bool.and(U32.is_le(F, o), U32.is_lt(o, N)), Bool.not(Stc(m, o))),
+        Bool.or(U32.is_le(tg, 18), U32.is_le(32, tg))),
       Bool.and(Bool.and(AL.part(m, P, am, 1, Fd(2n, m, o), K, F, N, Bu),
         Bool.and(AL.part(m, P, am, 2, Fd(3n, m, o), K, F, N, Bu), AL.part(m, P, am, 4, Fd(4n, m, o), K, F, N, Bu))),
       Bool.and(Bool.pick(Bool, Has(Q, o), Nat.is_eq(Pp(P, m, o), 0n), Nat.is_le(Pp(P, m, o), U32.to_nat(Fd(1n, m, o)))),

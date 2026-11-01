@@ -1800,3 +1800,66 @@ def Sup.split(a: Nat, +b: Nat, -CS: C.Cir.Cells -> U32 -> List<&2, U32> -> List<
       (u, r) = s
       Sup.split.cons(j, b, CS, u, Sup.split(j, b, CS, r))
 
+
+# The registers
+# -------------
+
+# the 64 registers, as one value
+type R64 is Data:
+  R64{r0: U32, r1: U32, r2: U32, r3: U32, r4: U32, r5: U32, r6: U32, r7: U32, r8: U32, r9: U32, r10: U32, r11: U32, r12: U32, r13: U32, r14: U32, r15: U32, r16: U32, r17: U32, r18: U32, r19: U32, r20: U32, r21: U32, r22: U32, r23: U32, r24: U32, r25: U32, r26: U32, r27: U32, r28: U32, r29: U32, r30: U32, r31: U32, r32: U32, r33: U32, r34: U32, r35: U32, r36: U32, r37: U32, r38: U32, r39: U32, r40: U32, r41: U32, r42: U32, r43: U32, r44: U32, r45: U32, r46: U32, r47: U32, r48: U32, r49: U32, r50: U32, r51: U32, r52: U32, r53: U32, r54: U32, r55: U32, r56: U32, r57: U32, r58: U32, r59: U32, r60: U32, r61: U32, r62: U32, r63: U32}
+
+def R64.list(r: R64) -> List<&2, U32>:
+  match r:
+    case R64{a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48, a49, a50, a51, a52, a53, a54, a55, a56, a57, a58, a59, a60, a61, a62, a63}:
+      [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32, a33, a34, a35, a36, a37, a38, a39, a40, a41, a42, a43, a44, a45, a46, a47, a48, a49, a50, a51, a52, a53, a54, a55, a56, a57, a58, a59, a60, a61, a62, a63]
+
+# a state of a run: no output yet
+def St(rg: List<&2, U32>, m: C.Cir.Cells, nx: U32, fs: U32, im: U32, pg: U32, lim: U32, inp: List<&2, U32>) -> C.Cir.State:
+  C.Cir.State{rg, m, nx, fs, im, pg, lim, inp, [], 0}
+
+# The data check
+# --------------
+
+# field k of the cell c, its tag and its quantity
+def Fd(k: Nat, +m: C.Cir.Cells, +c: U32) -> U32:
+  C.Cir.Cell.get(k, C.Cir.Cells.get(m, c))
+
+def Tg(+m: C.Cir.Cells, +c: U32) -> U32:
+  U32.and(Fd(0n, m, c), 63)
+
+def Qb(+m: C.Cir.Cells, +c: U32) -> U32:
+  U32.and(U32.shrn(Fd(0n, m, c), 6n), 3)
+
+# the cell c is flagged DATA
+def FlB(+m: C.Cir.Cells, +c: U32) -> Bool:
+  U32.is_ne(U32.and(Fd(0n, m, c), 512), 0)
+
+def DataB.of(r: Maybe<&2, C.Term>) -> Bool:
+  match r:
+    case None{}:
+      False{}
+    case Some{t}:
+      C.Term.is_data(t)
+
+# the term of c, within f levels, is Data
+def DataB(f: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32) -> Bool:
+  DataB.of(T.tm.of(f, m, ks, img, c))
+
+def DOk.tup(b: Bool, x: Bool, y: Bool) -> Bool:
+  match b:
+    case True{}:
+      x && y
+    case False{}:
+      True{}
+
+# what the check needs of the cells it reaches from c: a flagged cell is
+# Data, a Ref's or an Enu's term is not, and so on in the parts of a pair
+def DOk(f: Nat, +m: C.Cir.Cells, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +c: U32) -> Bool:
+  match f:
+    case 0n:
+      True{}
+    case 1n+(+g):
+      +d = DataB(1n+g, m, ks, img, c)
+      +t = Tg(m, c)
+      (Bool.not(FlB(m, c)) || d) && ((Bool.not(U32.is_eq(t, 1) || U32.is_eq(t, 12)) || Bool.not(d)) &&
+        DOk.tup(U32.is_eq(t, 10), DOk(g, m, ks, img, Fd(2n, m, c)), DOk(g, m, ks, img, Fd(3n, m, c))))
