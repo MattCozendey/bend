@@ -192,7 +192,7 @@ def ev.opw(+o: C.Wasm.Op, +a: C.Cir.Expr, +b: C.Cir.Expr, +st: C.Cir.State, +x: 
   ea: {C.Cir.eval(a, st) == Some{x} : Maybe<&2, U32>}, eb: {C.Cir.eval(b, st) == Some{y} : Maybe<&2, U32>},
   hw: {C.Wasm.op(o, x, y) == w : U32}) ->
   {C.Cir.eval(C.Cir.Expr.op{o, a, b}, st) == Some{w} : Maybe<&2, U32>}:
-  %Equal.sym(U32, C.Wasm.op(o, x, y), w, hw) : {C.Cir.eval(C.Cir.Expr.op{o, a, b}, st) == Some{_} : Maybe<&2, U32>}
+  %hw : {C.Cir.eval(C.Cir.Expr.op{o, a, b}, st) == Some{_} : Maybe<&2, U32>}
   ev.op(o, a, b, st, x, y, ea, eb)
 
 def ev.fld.of(+k: Nat, st: C.Cir.State, +i: U32, hv: {X.cell(st, i) == True{} : Bool}) ->
