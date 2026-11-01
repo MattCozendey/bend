@@ -1,3 +1,26 @@
+# compiler: the start of the machine, M.input (layer B)
+# =====================================================
+#
+# M.input, from Cir.result's start state, leaves the focus the cell of
+# Program.start(i): In.input.post (any fuel: next with In.Post, out of
+# memory, or out of fuel) and In.input.done (the fuel 10 + |i| ends it), in
+# the shapes of input.post and input.done of proof_mach.bend, with In.Post
+# in place of InvIn and the premise 345 <= first.
+#
+# Kit: In.Go(f, s, st, k, R), a run of s then k, in CPS (In.sq, In.set,
+# In.str, In.mk, In.wh, In.wh.end, In.ifT, In.ifF, In.nop). The facts of a
+# state: In.Fa (next is numbered N, F <= N, the image's cells 1 3 4 6 12 13
+# 14 16 88 and the cache's entries stand for their terms, reading only cells
+# below 89 or from F before N), In.St (a cell stands for a term), In.Fr (the
+# cells that the run keeps). The rounds: In.ir (bits), In.il (8 rounds),
+# In.cch (a new cache entry), In.lst (a new list cell), In.or (a byte),
+# In.ol (the loop), In.inp (M.input). The start's facts: In.start.
+#
+# Pitfall: the checker normalizes two types that differ, even by a let or a
+# def to unfold; a St or Im at a concrete fuel then explodes (T.tm.of has 3
+# branches a level). So the lemmas take the fuels as variables, avoid lets
+# of values in types, and spell the same terms in every type.
+
 import Base
 import ./impl.bend as C
 import ./proof_term.bend as T
@@ -3706,7 +3729,7 @@ def In.input.ok(+d: Nat, +p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U
 # input.post of proof_mach.bend, with In.Post (as In.PostIn spells it) in place of InvIn, and the
 # premises hF (the first cell is past the table) and hLM (the input has
 # fewer than 2^32 bytes)
-def In.input.post(+f: Nat, +p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m: U32, +k: U32, +len: U32,
+def In.input.post.lm(+f: Nat, +p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m: U32, +k: U32, +len: U32,
   +pg: U32, +lim: U32, +first: U32, +rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>}, +small: {C.Img.small(p, 0) == True{} : Bool},
   +s: Start(C.Img.cells(ds), i, m, k, len, pg, lim, first), +M2: U32, +hF: N.Le(345n, U32.to_nat(first)),
   +hLM: N.Le(List.length(&2, U32, i), U32.to_nat(M2))) ->
@@ -3723,7 +3746,7 @@ def In.input.post(+f: Nat, +p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2,
 
 # input.done of proof_mach.bend, with the same premises: the fuel 10 + |i|
 # ends the run
-def In.input.done(+p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m: U32, +k: U32, +len: U32,
+def In.input.done.lm(+p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m: U32, +k: U32, +len: U32,
   +pg: U32, +lim: U32, +first: U32, +rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>}, +small: {C.Img.small(p, 0) == True{} : Bool},
   +s: Start(C.Img.cells(ds), i, m, k, len, pg, lim, first), +M2: U32, +hF: N.Le(345n, U32.to_nat(first)),
   +hLM: N.Le(List.length(&2, U32, i), U32.to_nat(M2))) ->
@@ -3731,3 +3754,146 @@ def In.input.done(+p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m
   (10n+Nat.add(List.length(&2, U32, i), 0n),
    Ok.ends(C.Cir.exec(10n+Nat.add(List.length(&2, U32, i), 0n), C.M.input(), St0(C.Mach.regs(), C.Img.cells(ds), first, k, pg, lim, i)),
      s => In.Post(C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}), first, k, lim, i, 80n, 106n, T.tm.names(ds), T.tm.img(ds), 1n+In.f3(List.length(&2, U32, i), 106n), 1n+In.cap(List.length(&2, U32, i), U32.to_nat(first)), s), In.input.ok(0n, p, ds, i, m, k, len, pg, lim, first, rd, small, s, M2, hF, hLM)))
+
+# The input's length
+# ------------------
+
+# the word of n True bits
+def In.wones(n: Nat) -> Word(n):
+  match n:
+    case 0n:
+      WNil{}
+    case 1n+p:
+      WCon{True{}, In.wones(p)}
+
+def Cf.tf(c: Cmp) -> {False{} == Cmp.is_eq(Word.cmp.fin(True{}, False{}, c)) : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      {==}
+    case GT{}:
+      {==}
+
+def Cf.ft(c: Cmp) -> {False{} == Cmp.is_eq(Word.cmp.fin(False{}, True{}, c)) : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      {==}
+    case GT{}:
+      {==}
+
+def Cf.ff(c: Cmp) -> {Cmp.is_eq(c) == Cmp.is_eq(Word.cmp.fin(False{}, False{}, c)) : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      {==}
+    case GT{}:
+      {==}
+
+def Cf.tt(c: Cmp) -> {Cmp.is_eq(c) == Cmp.is_eq(Word.cmp.fin(True{}, True{}, c)) : Bool}:
+  match c:
+    case LT{}:
+      {==}
+    case EQ{}:
+      {==}
+    case GT{}:
+      {==}
+
+# w + 1 is 0 exactly when w is all ones
+def Wd.inc0(n: Nat, w: Word(n)) ->
+  {Cmp.is_eq(Word.cmp(n, w, In.wones(n))) == Cmp.is_eq(Word.cmp(n, Word.inc(n, w), Word.zero(n))) : Bool}:
+  match n:
+    case 0n:
+      match w:
+        case WNil{}:
+          {==}
+    case 1n+(+p):
+      match w:
+        case WCon{False{}, +t}:
+          Equal.trans(Bool, Cmp.is_eq(Word.cmp.fin(False{}, True{}, Word.cmp(p, t, In.wones(p)))), False{},
+            Cmp.is_eq(Word.cmp.fin(True{}, False{}, Word.cmp(p, t, Word.zero(p)))),
+            Equal.sym(Bool, False{}, Cmp.is_eq(Word.cmp.fin(False{}, True{}, Word.cmp(p, t, In.wones(p)))), Cf.ft(Word.cmp(p, t, In.wones(p)))),
+            Cf.tf(Word.cmp(p, t, Word.zero(p))))
+        case WCon{True{}, +t}:
+          Equal.trans(Bool, Cmp.is_eq(Word.cmp.fin(True{}, True{}, Word.cmp(p, t, In.wones(p)))), Cmp.is_eq(Word.cmp(p, t, In.wones(p))),
+            Cmp.is_eq(Word.cmp.fin(False{}, False{}, Word.cmp(p, Word.inc(p, t), Word.zero(p)))),
+            Equal.sym(Bool, Cmp.is_eq(Word.cmp(p, t, In.wones(p))), Cmp.is_eq(Word.cmp.fin(True{}, True{}, Word.cmp(p, t, In.wones(p)))), Cf.tt(Word.cmp(p, t, In.wones(p)))),
+            Equal.trans(Bool, Cmp.is_eq(Word.cmp(p, t, In.wones(p))), Cmp.is_eq(Word.cmp(p, Word.inc(p, t), Word.zero(p))),
+              Cmp.is_eq(Word.cmp.fin(False{}, False{}, Word.cmp(p, Word.inc(p, t), Word.zero(p)))),
+              Wd.inc0(p, t), Cf.ff(Word.cmp(p, Word.inc(p, t), Word.zero(p)))))
+
+def In.inc0(n: U32) -> {U32.is_eq(n, 4294967295) == U32.is_zero(U32.inc(n)) : Bool}:
+  match n:
+    case U32{w}:
+      Wd.inc0(32n, w)
+
+def In.isS(x: Maybe<&2, U32>) -> Type:
+  match x:
+    case None{}:
+      Empty
+    case Some{_}:
+      Unit
+
+def In.ns(-v: U32, e: {None{} == Some{v} : Maybe<&2, U32>}) -> Empty:
+  %Equal.sym(Maybe<&2, U32>, None{}, Some{v}, e) : In.isS(_)
+  Unit{}
+
+def L32.if(b: Bool, +n: U32, rest: List<&2, U32>, +v: U32, eb: {U32.is_eq(n, 4294967295) == b : Bool},
+  e: {C.Wasm.length32.if(b, u => C.Wasm.length32.go(rest, U32.inc(n))) == Some{v} : Maybe<&2, U32>},
+  ih: {C.Wasm.length32.go(rest, U32.inc(n)) == Some{v} : Maybe<&2, U32>} ->
+    N.Le(Nat.add(U32.to_nat(U32.inc(n)), List.length(&2, U32, rest)), U32.to_nat(v))) ->
+  N.Le(Nat.add(U32.to_nat(n), 1n+List.length(&2, U32, rest)), U32.to_nat(v)):
+  match b:
+    case True{}:
+      Empty.absurd(N.Le(Nat.add(U32.to_nat(n), 1n+List.length(&2, U32, rest)), U32.to_nat(v)),
+        In.ns(v, e))
+    case False{}:
+      +ei = PI.U32.inc_nat(n, Equal.trans(Bool, False{}, U32.is_eq(n, 4294967295), U32.is_zero(U32.inc(n)),
+        Equal.sym(Bool, U32.is_eq(n, 4294967295), False{}, eb), In.inc0(n)))
+      %Equal.sym(Nat, Nat.add(U32.to_nat(n), 1n+List.length(&2, U32, rest)), 1n+Nat.add(U32.to_nat(n), List.length(&2, U32, rest)),
+        N.add_succ_r(U32.to_nat(n), List.length(&2, U32, rest))) : N.Le(_, U32.to_nat(v))
+      %ei : N.Le(Nat.add(_, List.length(&2, U32, rest)), U32.to_nat(v))
+      ih(e)
+
+# the input's length fits its U32
+def L32.go(xs: List<&2, U32>, +n: U32, +v: U32, e: {C.Wasm.length32.go(xs, n) == Some{v} : Maybe<&2, U32>}) ->
+  N.Le(Nat.add(U32.to_nat(n), List.length(&2, U32, xs)), U32.to_nat(v)):
+  match xs:
+    case Nil{}:
+      %Equal.sym(Nat, Nat.add(U32.to_nat(n), 0n), U32.to_nat(n), N.add_zero(U32.to_nat(n))) : N.Le(_, U32.to_nat(v))
+      %Equal.cong(Maybe<&2, U32>, U32, y => Maybe.default(&2, U32, y, 0), Some{n}, Some{v}, e) : N.Le(U32.to_nat(n), U32.to_nat(_))
+      N.le_refl(U32.to_nat(n))
+    case Con{x, +rest}:
+      L32.if(U32.is_eq(n, 4294967295), n, rest, v, {==}, e, y => L32.go(rest, U32.inc(n), v, y))
+
+def L32(+i: List<&2, U32>, +len: U32, e: {C.Wasm.length32(i) == Some{len} : Maybe<&2, U32>}) -> N.Le(List.length(&2, U32, i), U32.to_nat(len)):
+  N.le_rw_l(Nat.add(U32.to_nat(0), List.length(&2, U32, i)), List.length(&2, U32, i), U32.to_nat(len), N.zero_add(List.length(&2, U32, i)), L32.go(i, 0, len, e))
+
+def In.el(-cells: List<&2, C.Cir.Cell>, -i: List<&2, U32>, -m: U32, -k: U32, -len: U32, -p: U32, -lim: U32, -first: U32,
+  s: Start(cells, i, m, k, len, p, lim, first)) -> {C.Wasm.length32(i) == Some{len} : Maybe<&2, U32>}:
+  (ek, r1) = s
+  (em, r2) = r1
+  (elim, r3) = r2
+  (el, r4) = r3
+  el
+
+# input.post of proof_mach.bend, with In.Post in place of InvIn (as
+# In.PostIn spells it), and the premise hF: the first cell is past the table
+def In.input.post(+f: Nat, +p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m: U32, +k: U32, +len: U32,
+  +pg: U32, +lim: U32, +first: U32, +rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>}, +small: {C.Img.small(p, 0) == True{} : Bool},
+  +s: Start(C.Img.cells(ds), i, m, k, len, pg, lim, first), +hF: N.Le(345n, U32.to_nat(first))) ->
+  Post(False{}, C.Cir.exec(f, C.M.input(), St0(C.Mach.regs(), C.Img.cells(ds), first, k, pg, lim, i)),
+    s => In.Post(C.Cir.load(C.Img.cells(ds), 1, C.Cir.Cells.none{}), first, k, lim, i, 80n, 106n, T.tm.names(ds), T.tm.img(ds), 1n+In.f3(List.length(&2, U32, i), 106n), 1n+In.cap(List.length(&2, U32, i), U32.to_nat(first)), s),
+    s2 => st2 => Empty):
+  In.input.post.lm(f, p, ds, i, m, k, len, pg, lim, first, rd, small, s, len, hF, L32(i, len, In.el(C.Img.cells(ds), i, m, k, len, pg, lim, first, s)))
+
+# input.done of proof_mach.bend, with the premise hF: the fuel 10 + |i| ends
+# the run
+def In.input.done(+p: List<&2, U32>, +ds: List<&2, C.Def>, +i: List<&2, U32>, +m: U32, +k: U32, +len: U32,
+  +pg: U32, +lim: U32, +first: U32, +rd: {C.Book.read(p) == Some{ds} : Maybe<List<&2, C.Def>>}, +small: {C.Img.small(p, 0) == True{} : Bool},
+  +s: Start(C.Img.cells(ds), i, m, k, len, pg, lim, first), +hF: N.Le(345n, U32.to_nat(first))) ->
+  Ex(Nat, f => Ends(C.Cir.exec(f, C.M.input(), St0(C.Mach.regs(), C.Img.cells(ds), first, k, pg, lim, i)))):
+  In.input.done.lm(p, ds, i, m, k, len, pg, lim, first, rd, small, s, len, hF, L32(i, len, In.el(C.Img.cells(ds), i, m, k, len, pg, lim, first, s)))

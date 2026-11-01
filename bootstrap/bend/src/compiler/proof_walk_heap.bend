@@ -1806,160 +1806,192 @@ def img.tbl(-ds: List<&2, C.Def>, -ks: List<&2, List<&2, U32>>, -img: List<&2, C
   (tb, r) = io
   tb
 
+# a tag below 19 reads its mask in the table, at most cell 363
+def rel.eqt(c: Cmp, +x: Nat, +y: Nat, r: N.Rel(c, x, y), e: {x == y : Nat}) -> {Cmp.is_eq(c) == True{} : Bool}:
+  match c:
+    case LT{}:
+      Empty.absurd({False{} == True{} : Bool}, N.not_succ_le(y, (%e : N.Le(1n+_, y); r)))
+    case EQ{}:
+      {==}
+    case GT{}:
+      Empty.absurd({False{} == True{} : Bool}, N.not_succ_le(y, (%e : N.Le(1n+y, _); r)))
+
+# U32s of the same number are equal, as is_eq says
+def u.nat.eq(+a: U32, +b: U32, e: {U32.to_nat(a) == U32.to_nat(b) : Nat}) -> {U32.is_eq(a, b) == True{} : Bool}:
+  rel.eqt(U32.cmp(a, b), U32.to_nat(a), U32.to_nat(b), N.U32.rel(a, b), e)
+
+def tbl.small.at(n0: Nat, +tg: U32, en: {U32.to_nat(tg) == n0 : Nat}, h: N.Le(1n+n0, 19n)) ->
+  {U32.is_le(U32.add(345, tg), 363) == True{} : Bool}:
+  match n0:
+    case 0n:
+      %Equal.sym(U32, tg, 0, PM.u32.eq(tg, 0, u.nat.eq(tg, 0, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+      {==}
+    case 1n+n1:
+      match n1:
+        case 0n:
+          %Equal.sym(U32, tg, 1, PM.u32.eq(tg, 1, u.nat.eq(tg, 1, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+          {==}
+        case 1n+n2:
+          match n2:
+            case 0n:
+              %Equal.sym(U32, tg, 2, PM.u32.eq(tg, 2, u.nat.eq(tg, 2, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+              {==}
+            case 1n+n3:
+              match n3:
+                case 0n:
+                  %Equal.sym(U32, tg, 3, PM.u32.eq(tg, 3, u.nat.eq(tg, 3, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                  {==}
+                case 1n+n4:
+                  match n4:
+                    case 0n:
+                      %Equal.sym(U32, tg, 4, PM.u32.eq(tg, 4, u.nat.eq(tg, 4, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                      {==}
+                    case 1n+n5:
+                      match n5:
+                        case 0n:
+                          %Equal.sym(U32, tg, 5, PM.u32.eq(tg, 5, u.nat.eq(tg, 5, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                          {==}
+                        case 1n+n6:
+                          match n6:
+                            case 0n:
+                              %Equal.sym(U32, tg, 6, PM.u32.eq(tg, 6, u.nat.eq(tg, 6, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                              {==}
+                            case 1n+n7:
+                              match n7:
+                                case 0n:
+                                  %Equal.sym(U32, tg, 7, PM.u32.eq(tg, 7, u.nat.eq(tg, 7, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                  {==}
+                                case 1n+n8:
+                                  match n8:
+                                    case 0n:
+                                      %Equal.sym(U32, tg, 8, PM.u32.eq(tg, 8, u.nat.eq(tg, 8, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                      {==}
+                                    case 1n+n9:
+                                      match n9:
+                                        case 0n:
+                                          %Equal.sym(U32, tg, 9, PM.u32.eq(tg, 9, u.nat.eq(tg, 9, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                          {==}
+                                        case 1n+n10:
+                                          match n10:
+                                            case 0n:
+                                              %Equal.sym(U32, tg, 10, PM.u32.eq(tg, 10, u.nat.eq(tg, 10, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                              {==}
+                                            case 1n+n11:
+                                              match n11:
+                                                case 0n:
+                                                  %Equal.sym(U32, tg, 11, PM.u32.eq(tg, 11, u.nat.eq(tg, 11, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                                  {==}
+                                                case 1n+n12:
+                                                  match n12:
+                                                    case 0n:
+                                                      %Equal.sym(U32, tg, 12, PM.u32.eq(tg, 12, u.nat.eq(tg, 12, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                                      {==}
+                                                    case 1n+n13:
+                                                      match n13:
+                                                        case 0n:
+                                                          %Equal.sym(U32, tg, 13, PM.u32.eq(tg, 13, u.nat.eq(tg, 13, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                                          {==}
+                                                        case 1n+n14:
+                                                          match n14:
+                                                            case 0n:
+                                                              %Equal.sym(U32, tg, 14, PM.u32.eq(tg, 14, u.nat.eq(tg, 14, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                                              {==}
+                                                            case 1n+n15:
+                                                              match n15:
+                                                                case 0n:
+                                                                  %Equal.sym(U32, tg, 15, PM.u32.eq(tg, 15, u.nat.eq(tg, 15, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                                                  {==}
+                                                                case 1n+n16:
+                                                                  match n16:
+                                                                    case 0n:
+                                                                      %Equal.sym(U32, tg, 16, PM.u32.eq(tg, 16, u.nat.eq(tg, 16, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                                                      {==}
+                                                                    case 1n+n17:
+                                                                      match n17:
+                                                                        case 0n:
+                                                                          %Equal.sym(U32, tg, 17, PM.u32.eq(tg, 17, u.nat.eq(tg, 17, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                                                          {==}
+                                                                        case 1n+n18:
+                                                                          match n18:
+                                                                            case 0n:
+                                                                              %Equal.sym(U32, tg, 18, PM.u32.eq(tg, 18, u.nat.eq(tg, 18, en))) : {U32.is_le(U32.add(345, _), 363) == True{} : Bool}
+                                                                              {==}
+                                                                            case 1n+n19:
+                                                                              Empty.absurd({U32.is_le(U32.add(345, tg), 363) == True{} : Bool}, h)
+
+def tbl.small(+tg: U32, h: {U32.is_lt(tg, 19) == True{} : Bool}) -> {U32.is_le(U32.add(345, tg), 363) == True{} : Bool}:
+  tbl.small.at(U32.to_nat(tg), tg, {==}, u.lt(tg, 19, h))
+
+def tblat.b(b: Bool, +m: C.Cir.Cells, +o: U32, +z: U32, +eb: {U32.is_lt(PM.Tg(m, o), 19) == b : Bool},
+  hz: N.Le(1n+U32.to_nat(363), U32.to_nat(z))) -> {TblAt(m, o, z) == True{} : Bool}:
+  match b:
+    case False{}:
+      %Equal.sym(Bool, U32.is_lt(PM.Tg(m, o), 19), False{}, eb) :
+        {Bool.or(Bool.not(_), Bool.not(U32.is_eq(U32.add(345, PM.Tg(m, o)), z))) == True{} : Bool}
+      {==}
+    case True{}:
+      %Equal.sym(Bool, U32.is_lt(PM.Tg(m, o), 19), True{}, eb) :
+        {Bool.or(Bool.not(_), Bool.not(U32.is_eq(U32.add(345, PM.Tg(m, o)), z))) == True{} : Bool}
+      %Equal.sym(Bool, U32.is_eq(U32.add(345, PM.Tg(m, o)), z), False{},
+        lit.ne(U32.is_eq(U32.add(345, PM.Tg(m, o)), z), U32.add(345, PM.Tg(m, o)), z, 363, {==}, tbl.small(PM.Tg(m, o), eb), hz)) :
+        {Bool.not(_) == True{} : Bool}
+      {==}
+
+# no cell reads its mask at z, past 363
+def TblR.of(n: Nat, +m: C.Cir.Cells, +o: U32, +z: U32, +hz: N.Le(1n+U32.to_nat(363), U32.to_nat(z))) -> {TblR(n, m, o, z) == True{} : Bool}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+k:
+      and.i(TblAt(m, o, z), TblR(k, m, U32.inc(o), z), tblat.b(U32.is_lt(PM.Tg(m, o), 19), m, o, z, {==}, hz), TblR.of(k, m, U32.inc(o), z, hz))
+
+# z is past 363, when it is one of the machine's own
+def img.hz(-ds: List<&2, C.Def>, -ks: List<&2, List<&2, U32>>, -img: List<&2, C.Term>, -m: C.Cir.Cells, +im: U32, +fi: U32, +nx: U32, +z: U32,
+  io: PM.ImgOK(ds, ks, img, m, im, fi, nx), hzo: {PM.Own(fi, nx, z) == True{} : Bool}) -> N.Le(1n+U32.to_nat(363), U32.to_nat(z)):
+  (tb, r1) = io
+  (hd, r2) = r1
+  (h9, r3) = r2
+  (h10, r4) = r3
+  (h11, r5) = r4
+  (hks, r6) = r5
+  (e363, eim) = r6
+  N.le_trans(1n+U32.to_nat(363), 1n+U32.to_nat(im), U32.to_nat(z), u.le(363, im, e363),
+    N.le_trans(1n+U32.to_nat(im), U32.to_nat(fi), U32.to_nat(z), u.lt(im, fi, eim), u.le(fi, z, and.l(U32.is_le(fi, z), U32.is_lt(z, nx), hzo))))
+
 # A store to a cell that nothing points to: HS
 # -------------------------------------------
 #
 # M.make's stores, after M.alloc: the cell z is one of the machine's own, out
 # of the pend list, not STATIC, of a tag below 32, holds no pointer and has
-# none; it gets a cell x of the machine's own kinds (a tag of 32 or more) that
-# holds no pointer. Then HS holds with the same terms. TblR (no term cell
-# reads its mask at z) and Roots.ne (no def's body is at z) are what HS does
-# not say yet.
+# none; it gets a cell x that is no term cell (a tag of 19 or more) and holds
+# no pointer. Then HS holds with the same terms.
 
 def hs.fz(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2, C.Term>, +m: C.Cir.Cells, +nx: U32, +fi: U32, +im: U32,
   +os: List<&2, PM.Rt>, +bs: List<&2, PM.Rt>, +fs: List<&2, PM.AF>, +sp: U32, +pend: U32, +ps: List<&2, U32>, +z: U32, +x: C.Cir.Cell,
   hs: PM.HS(ds, ks, img, m, nx, fi, im, os, bs, fs, sp, pend, ps),
-  hzo: {PM.Own(fi, nx, z) == True{} : Bool}, +hzm: {PM.Mem(ps, z) == False{} : Bool},
+  +hzo: {PM.Own(fi, nx, z) == True{} : Bool}, +hzm: {PM.Mem(ps, z) == False{} : Bool},
   +hz0: {PM.Ptr(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, ps, PM.Rt.cells(os), z) == 0n : Nat},
   +hzs: {PM.Fl(m, z, 1024) == False{} : Bool}, hzt: {U32.is_lt(PM.TgW(PM.Fd(0n, m, z)), 32) == True{} : Bool},
   +hf0: {PM.Fs(m, ps, z) == Nil{} : List<&2, U32>}, +hf1: {PM.Fs(C.Cir.Cells.set(m, z, x), ps, z) == Nil{} : List<&2, U32>},
-  hxt: {U32.is_lt(PM.TgW(C.Cir.Cell.get(0n, x)), 19) == False{} : Bool},
-  +htN: {TblR(Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), m, fi, z) == True{} : Bool},
-  hr: {Roots.ne(ds, C.I.book(), z) == True{} : Bool}) ->
+  hxt: {U32.is_lt(PM.TgW(C.Cir.Cell.get(0n, x)), 19) == False{} : Bool}) ->
   PM.HS(ds, ks, img, C.Cir.Cells.set(m, z, x), nx, fi, im, os, bs, fs, sp, pend, ps):
-  (ho, r1) = hs
+  (ho0, r1) = hs
   (hb, r2) = r1
   (hh0, r3) = r2
   (hf, r4) = r3
   (hp, hi0) = r4
   +n = Nat.sub(U32.to_nat(nx), U32.to_nat(fi))
   +rs = PM.Rt.cells(os)
-  +hh = {hh0 : PM.Held(m, Nat.sub(U32.to_nat(nx), U32.to_nat(fi)), fi, ps, PM.Rt.cells(os), bs)}
+  +hh = {hh0 : PM.Held(m, os, bs)}
+  +ho = {ho0 : PM.Rts(ds, m, im, fi, nx, ks, img, os)}
   +hi = {hi0 : PM.ImgOK(ds, ks, img, m, im, fi, nx)}
   +tbl = img.tbl(ds, ks, img, m, im, fi, nx, hi)
-  +hnb = neall.held(bs, m, z, n, fi, ps, rs, hz0, hzs, hh)
-  (Rts.fz(os, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, neall.rcl(rs, z, add0.r(PM.Pc(n, m, ps, fi, z), PM.RcL(rs, z), hz0)), ho),
+  +htN = TblR.of(n, m, fi, z, img.hz(ds, ks, img, m, im, fi, nx, z, hi, hzo))
+  +hno = neall.rcl(rs, z, add0.r(PM.Pc(n, m, ps, fi, z), PM.RcL(rs, z), hz0))
+  +hnb = neall.held(bs, os, ds, m, im, fi, nx, ks, img, ps, rs, z, tbl, hz0, hzs, hno, ho, hh)
+  (Rts.fz(os, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, hno, ho),
     (Rts.fz(bs, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, hnb, hb),
-    (Held.fz(bs, m, n, fi, ps, rs, z, x, hf0, hf1, htN, hnb, hh),
+    (Held.fz(bs, os, ds, m, im, fi, nx, ks, img, ps, rs, z, x, tbl, hz0, hzs, hno, ho, hnb, hh),
     (Frs.fz(fs, ds, m, im, fi, nx, ks, img, ps, rs, z, x, sp, tbl, hz0, hzs, hzt, hf),
     (Heap.fz(m, nx, fi, rs, pend, ps, z, x, hf0, hf1, htN, hzm, hz0, hxt, hp),
-      ImgOK.fz(ds, ks, img, m, im, fi, nx, ps, rs, z, x, hz0, hzs, hzo, hr, hi))))))
-
-# Cells set twice
-# ---------------
-
-# a cell set twice holds the second value (M.make's stores, one by one)
-def cl.ss.at(n: Nat, +w: Word(n), +m: C.Cir.Cells, +c: C.Cir.Cell, +d: C.Cir.Cell) ->
-  {C.Cir.Cells.set.at(n, w, C.Cir.Cells.set.at(n, w, m, c), d) == C.Cir.Cells.set.at(n, w, m, d) : C.Cir.Cells}:
-  match n:
-    case 0n:
-      {==}
-    case 1n+p:
-      match w:
-        case WCon{False{}, +t}:
-          match m:
-            case C.Cir.Cells.node{+lo, +hi}:
-              %cl.ss.at(p, t, lo, c, d) : {C.Cir.Cells.node{_, hi} == C.Cir.Cells.node{C.Cir.Cells.set.at(p, t, lo, d), hi} : C.Cir.Cells}
-              {==}
-            case C.Cir.Cells.none{}:
-              %cl.ss.at(p, t, C.Cir.Cells.none{}, c, d) : {C.Cir.Cells.node{_, C.Cir.Cells.none{}} == C.Cir.Cells.node{C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, d), C.Cir.Cells.none{}} : C.Cir.Cells}
-              {==}
-            case C.Cir.Cells.one{+e}:
-              %cl.ss.at(p, t, C.Cir.Cells.none{}, c, d) : {C.Cir.Cells.node{_, C.Cir.Cells.none{}} == C.Cir.Cells.node{C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, d), C.Cir.Cells.none{}} : C.Cir.Cells}
-              {==}
-        case WCon{True{}, +t}:
-          match m:
-            case C.Cir.Cells.node{+lo, +hi}:
-              %cl.ss.at(p, t, hi, c, d) : {C.Cir.Cells.node{lo, _} == C.Cir.Cells.node{lo, C.Cir.Cells.set.at(p, t, hi, d)} : C.Cir.Cells}
-              {==}
-            case C.Cir.Cells.none{}:
-              %cl.ss.at(p, t, C.Cir.Cells.none{}, c, d) : {C.Cir.Cells.node{C.Cir.Cells.none{}, _} == C.Cir.Cells.node{C.Cir.Cells.none{}, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, d)} : C.Cir.Cells}
-              {==}
-            case C.Cir.Cells.one{+e}:
-              %cl.ss.at(p, t, C.Cir.Cells.none{}, c, d) : {C.Cir.Cells.node{C.Cir.Cells.none{}, _} == C.Cir.Cells.node{C.Cir.Cells.none{}, C.Cir.Cells.set.at(p, t, C.Cir.Cells.none{}, d)} : C.Cir.Cells}
-              {==}
-
-def cl.ss(+m: C.Cir.Cells, +i: U32, +c: C.Cir.Cell, +d: C.Cir.Cell) ->
-  {C.Cir.Cells.set(C.Cir.Cells.set(m, i, c), i, d) == C.Cir.Cells.set(m, i, d) : C.Cir.Cells}:
-  match i:
-    case U32{+w}:
-      cl.ss.at(32n, w, m, c, d)
-
-# a store of field k of z, set before to y, sets it to y with field k
-def cl.st(+m: C.Cir.Cells, +z: U32, +y: C.Cir.Cell, +k: Nat, +v: U32) ->
-  {C.Cir.Cells.set(C.Cir.Cells.set(m, z, y), z, C.Cir.Cell.set(k, C.Cir.Cells.get(C.Cir.Cells.set(m, z, y), z), v)) ==
-    C.Cir.Cells.set(m, z, C.Cir.Cell.set(k, y, v)) : C.Cir.Cells}:
-  %Equal.sym(C.Cir.Cell, C.Cir.Cells.get(C.Cir.Cells.set(m, z, y), z), y, PM.cl.gs(m, z, y)) :
-    {C.Cir.Cells.set(C.Cir.Cells.set(m, z, y), z, C.Cir.Cell.set(k, _, v)) == C.Cir.Cells.set(m, z, C.Cir.Cell.set(k, y, v)) : C.Cir.Cells}
-  cl.ss(m, z, y, C.Cir.Cell.set(k, y, v))
-
-# The registers
-# -------------
-
-# a set keeps the length
-def rg.len(xs: List<&2, U32>, +i: Nat, +v: U32) -> {List.length(&2, U32, List.set(&2, U32, xs, i, v)) == List.length(&2, U32, xs) : Nat}:
-  match xs:
-    case Nil{}:
-      {==}
-    case Con{+h, +t}:
-      match i:
-        case 0n:
-          {==}
-        case 1n+j:
-          %rg.len(t, j, v) : {1n+_ == 1n+List.length(&2, U32, t) : Nat}
-          {==}
-
-# a set register holds its value
-def rg.same(xs: List<&2, U32>, +i: Nat, +v: U32, h: {Nat.is_lt(i, List.length(&2, U32, xs)) == True{} : Bool}) ->
-  {List.get(&2, U32, List.set(&2, U32, xs, i, v), i) == Some{v} : Maybe<&2, U32>}:
-  match xs:
-    case Nil{}:
-      PM.bool.ft({List.get(&2, U32, Nil{}, i) == Some{v} : Maybe<&2, U32>}, (%Equal.sym(Bool, Nat.is_lt(i, 0n), True{}, h) : {_ == True{} : Bool}; h))
-    case Con{+hd, +t}:
-      match i:
-        case 0n:
-          {==}
-        case 1n+j:
-          rg.same(t, j, v, h)
-
-# and keeps the others
-def rg.other(xs: List<&2, U32>, +i: Nat, +j: Nat, +v: U32, h: {Nat.is_eq(i, j) == False{} : Bool}) ->
-  {List.get(&2, U32, List.set(&2, U32, xs, i, v), j) == List.get(&2, U32, xs, j) : Maybe<&2, U32>}:
-  match xs:
-    case Nil{}:
-      {==}
-    case Con{+hd, +t}:
-      match i j:
-        case 0n 0n:
-          PM.bool.ft({Some{v} == Some{hd} : Maybe<&2, U32>}, h)
-        case 0n 1n+q:
-          {==}
-        case 1n+p 0n:
-          {==}
-        case 1n+p 1n+q:
-          rg.other(t, p, q, v, h)
-
-# Nat.is_eq is symmetric, on False
-def ne.sym(a: Nat, b: Nat, h: {Nat.is_eq(a, b) == False{} : Bool}) -> {Nat.is_eq(b, a) == False{} : Bool}:
-  match a b:
-    case 0n 0n:
-      h
-    case 0n 1n+q:
-      {==}
-    case 1n+p 0n:
-      {==}
-    case 1n+p 1n+q:
-      ne.sym(p, q, h)
-
-# a register that keep has not: a set to it keeps the registers of keep
-def kept.set(+regs: List<&2, U32>, +regs2: List<&2, U32>, keep: List<&2, Nat>, +i: Nat, +v: U32,
-  hi: {PM.Nat.mem(keep, i) == False{} : Bool}, h: PM.Kept(regs, regs2, keep)) -> PM.Kept(regs, List.set(&2, U32, regs2, i, v), keep):
-  match keep:
-    case Nil{}:
-      Unit{}
-    case Con{+j, +rest}:
-      (e, r) = h
-      +hi2 = hi
-      (Equal.trans(Maybe<&2, U32>, List.get(&2, U32, List.set(&2, U32, regs2, i, v), j), List.get(&2, U32, regs2, j), List.get(&2, U32, regs, j),
-          rg.other(regs2, i, j, v, ne.sym(j, i, or.f.l(Nat.is_eq(j, i), PM.Nat.mem(rest, i), hi2))), e),
-        kept.set(regs, regs2, rest, i, v, or.f.r(Nat.is_eq(j, i), PM.Nat.mem(rest, i), hi2), r))
+      ImgOK.fz(ds, ks, img, m, im, fi, nx, ps, rs, z, x, hz0, hzs, hzo, hi))))))

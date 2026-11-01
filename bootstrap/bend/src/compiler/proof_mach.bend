@@ -77,9 +77,11 @@ def copy.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img:
   hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
   he: {List.get(&2, U32, regs, 36n) == Some{ce} : Maybe<&2, U32>},
   hn: {List.get(&2, U32, regs, 37n) == Some{U32.from_nat(List.length(&2, C.Arg, es))} : Maybe<&2, U32>},
-  env: D.Ag(ds, m, im, fi, nx, ks, img, ps, ce, es),
+  env: D.Ag(ds, m, im, fi, nx, ks, img, ps, os, ce, es),
+  hr: {Bool.and(Nat.is_lt(r, 64n), Bool.not(D.Nat.mem([3n, 39n], r))) == True{} : Bool},
+  hsrc: {D.Nat.mem([4n, 5n, 6n, 7n, 39n], src) == False{} : Bool},
   hk: {D.Disj(keep, D.Copy.scr(r)) == True{} : Bool}) ->
-  D.CopyPost(f, ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, src, keep, os, bs, fs, sp, pend, ps, c, t, ce, es, hs, hl, hc, hp, he, hn, env, hk):
+  D.CopyPost(f, ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, src, keep, os, bs, fs, sp, pend, ps, c, t, ce, es, hs, hl, hc, hp, he, hn, env, hr, hsrc, hk):
   ?TODO
 
 
@@ -93,8 +95,10 @@ def copy.done(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2,
   hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
   he: {List.get(&2, U32, regs, 36n) == Some{ce} : Maybe<&2, U32>},
   hn: {List.get(&2, U32, regs, 37n) == Some{U32.from_nat(List.length(&2, C.Arg, es))} : Maybe<&2, U32>},
-  env: D.Ag(ds, m, im, fi, nx, ks, img, ps, ce, es)) ->
-  D.CopyDone(ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, src, os, bs, fs, sp, pend, ps, c, t, ce, es, hs, hl, hc, hp, he, hn, env):
+  env: D.Ag(ds, m, im, fi, nx, ks, img, ps, os, ce, es),
+  hr: {Bool.and(Nat.is_lt(r, 64n), Bool.not(D.Nat.mem([3n, 39n], r))) == True{} : Bool},
+  hsrc: {D.Nat.mem([4n, 5n, 6n, 7n, 39n], src) == False{} : Bool}) ->
+  D.CopyDone(ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, src, os, bs, fs, sp, pend, ps, c, t, ce, es, hs, hl, hc, hp, he, hn, env, hr, hsrc):
   ?TODO
 
 
@@ -106,8 +110,9 @@ def data.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img:
   hl: {List.length(&2, U32, regs) == 64n : Nat},
   hc: {List.get(&2, U32, regs, r) == Some{c} : Maybe<&2, U32>},
   hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
+  hr: {D.Nat.mem(D.Data.scr(), r) == False{} : Bool},
   hk: {D.Disj(keep, D.Data.scr()) == True{} : Bool}) ->
-  D.DataPost(f, ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, keep, os, bs, fs, sp, pend, ps, c, v, hs, hl, hc, hp, hk):
+  D.DataPost(f, ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, keep, os, bs, fs, sp, pend, ps, c, v, hs, hl, hc, hp, hr, hk):
   ?TODO
 
 
@@ -118,8 +123,9 @@ def data.done(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2,
   hs: D.HS(ds, ks, img, m, nx, fi, im, os, Con{D.Rt{c, v}, bs}, fs, sp, pend, ps),
   hl: {List.length(&2, U32, regs) == 64n : Nat},
   hc: {List.get(&2, U32, regs, r) == Some{c} : Maybe<&2, U32>},
-  hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>}) ->
-  D.DataDone(ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, os, bs, fs, sp, pend, ps, c, v, hs, hl, hc, hp):
+  hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
+  hr: {D.Nat.mem(D.Data.scr(), r) == False{} : Bool}) ->
+  D.DataDone(ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, r, os, bs, fs, sp, pend, ps, c, v, hs, hl, hc, hp, hr):
   ?TODO
 
 
@@ -133,7 +139,7 @@ def walk.post(+f: Nat, +ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img:
   ht: {List.get(&2, U32, regs, 19n) == Some{tc} : Maybe<&2, U32>},
   ha: {List.get(&2, U32, regs, 21n) == Some{a} : Maybe<&2, U32>},
   hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
-  args: D.Ag(ds, m, im, fi, nx, ks, img, ps, a, xs),
+  args: D.Ag(ds, m, im, fi, nx, ks, img, ps, os, a, xs),
   hk: {D.Disj(keep, D.Walk.scr()) == True{} : Bool}) ->
   D.WalkPost(f, ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, keep, os, bs, fs, sp, pend, ps, tc, tt, a, xs, hs, hst, hl, ht, ha, hp, args, hk):
   ?TODO
@@ -149,7 +155,7 @@ def walk.done(+ds: List<&2, C.Def>, +ks: List<&2, List<&2, U32>>, +img: List<&2,
   ht: {List.get(&2, U32, regs, 19n) == Some{tc} : Maybe<&2, U32>},
   ha: {List.get(&2, U32, regs, 21n) == Some{a} : Maybe<&2, U32>},
   hp: {List.get(&2, U32, regs, 3n) == Some{pend} : Maybe<&2, U32>},
-  args: D.Ag(ds, m, im, fi, nx, ks, img, ps, a, xs)) ->
+  args: D.Ag(ds, m, im, fi, nx, ks, img, ps, os, a, xs)) ->
   D.WalkDone(ds, ks, img, regs, m, nx, fi, im, pg, lim, inp, os, bs, fs, sp, pend, ps, tc, tt, a, xs, hs, hst, hl, ht, ha, hp, args):
   ?TODO
 

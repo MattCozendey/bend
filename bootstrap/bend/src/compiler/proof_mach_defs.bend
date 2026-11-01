@@ -3437,9 +3437,84 @@ def is.fz(t: C.Term, +ds: List<&2, C.Def>, +m: C.Cir.Cells, +im: U32, +fi: U32, 
 # and at most 64 roots).
 
 # a count is at most 3 × the machine's cells and the roots
+# 3 (1 + p) = 3 + 3 p
+def mul3(+p: Nat) -> {Nat.mul(3n, 1n+p) == 3n+Nat.mul(3n, p) : Nat}:
+  +e2 = Equal.cong(Nat, Nat, x => 1n+x, Nat.add(p, 1n+Nat.add(p, 0n)), 1n+Nat.add(p, Nat.add(p, 0n)), N.add_succ_r(p, Nat.add(p, 0n)))
+  +e5 = Equal.cong(Nat, Nat, x => 1n+x, Nat.add(p, 1n+Nat.mul(2n, p)), 1n+Nat.add(p, Nat.mul(2n, p)), N.add_succ_r(p, Nat.mul(2n, p)))
+  +e4 = Equal.trans(Nat, Nat.add(p, 2n+Nat.mul(2n, p)), 1n+Nat.add(p, 1n+Nat.mul(2n, p)), 2n+Nat.add(p, Nat.mul(2n, p)),
+    N.add_succ_r(p, 1n+Nat.mul(2n, p)), e5)
+  Equal.trans(Nat, Nat.mul(3n, 1n+p), 1n+Nat.add(p, 2n+Nat.mul(2n, p)), 3n+Nat.mul(3n, p),
+    Equal.cong(Nat, Nat, x => 1n+Nat.add(p, x), Nat.mul(2n, 1n+p), 2n+Nat.mul(2n, p), e2),
+    Equal.cong(Nat, Nat, x => 1n+x, Nat.add(p, 2n+Nat.mul(2n, p)), 2n+Nat.add(p, Nat.mul(2n, p)), e4))
+
+def rcl.len.b(b: Bool, +r: Nat, +l: Nat, h: N.Le(r, l)) -> N.Le(Nat.add(Nat.of(b), r), 1n+l):
+  match b:
+    case True{}:
+      h
+    case False{}:
+      N.le_succ(r, l, h)
+
+# RcL counts at most the list's length
+def rcl.len(xs: List<&2, U32>, +c: U32) -> N.Le(RcL(xs, c), List.length(&2, U32, xs)):
+  match xs:
+    case Nil{}:
+      N.le_zero(0n)
+    case Con{+x, +rest}:
+      rcl.len.b(U32.is_eq(x, c), RcL(rest, c), List.length(&2, U32, rest), rcl.len(rest, c))
+
+def len.pick(b: Bool, +x: List<&2, U32>, +y: List<&2, U32>, +k: Nat, hx: N.Le(List.length(&2, U32, x), k),
+  hy: N.Le(List.length(&2, U32, y), k)) -> N.Le(List.length(&2, U32, Bool.pick(List<&2, U32>, b, x, y)), k):
+  match b:
+    case True{}:
+      hx
+    case False{}:
+      hy
+
+def len.opt(b: Bool, +v: U32, +rest: List<&2, U32>, +k: Nat, h: N.Le(List.length(&2, U32, rest), k)) ->
+  N.Le(List.length(&2, U32, Fs.opt(b, v, rest)), 1n+k):
+  match b:
+    case True{}:
+      h
+    case False{}:
+      N.le_succ(List.length(&2, U32, rest), k, h)
+
+def len.term(+a: U32, +x2: U32, +x3: U32, +x4: U32) -> N.Le(List.length(&2, U32, Fs.term(a, x2, x3, x4)), 3n):
+  len.opt(U32.is_ne(U32.and(a, 1), 0), x2, Fs.opt(U32.is_ne(U32.and(a, 2), 0), x3, Fs.opt(U32.is_ne(U32.and(a, 4), 0), x4, Nil{})), 2n,
+    len.opt(U32.is_ne(U32.and(a, 2), 0), x3, Fs.opt(U32.is_ne(U32.and(a, 4), 0), x4, Nil{}), 1n,
+      len.opt(U32.is_ne(U32.and(a, 4), 0), x4, Nil{}, 0n, N.le_zero(0n))))
+
+# a cell holds at most 3 pointers
+def fs.len(+m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32) -> N.Le(List.length(&2, U32, Fs(m, ps, o)), 3n):
+  +tg = TgW(Fd(0n, m, o))
+  len.pick(U32.is_lt(tg, 19), Fs.term(Fd(2n, m, U32.add(345, tg)), Fd(2n, m, o), Fd(3n, m, o), Fd(4n, m, o)),
+    Bool.pick(List<&2, U32>, Bool.and(Bool.and(U32.is_le(32, tg), U32.is_le(tg, 40)), Bool.not(Mem(ps, o))),
+      Con{Fd(2n, m, o), Fs.opt(U32.is_eq(tg, 38), Fd(3n, m, o), Nil{})},
+      Bool.pick(List<&2, U32>, Bool.and(Bool.and(U32.is_eq(tg, 41), FlW(Fd(0n, m, o), 4096)), Bool.not(Mem(ps, o))),
+        [Fd(2n, m, o)], Nil{})), 3n,
+    len.term(Fd(2n, m, U32.add(345, tg)), Fd(2n, m, o), Fd(3n, m, o), Fd(4n, m, o)),
+    len.pick(Bool.and(Bool.and(U32.is_le(32, tg), U32.is_le(tg, 40)), Bool.not(Mem(ps, o))),
+      Con{Fd(2n, m, o), Fs.opt(U32.is_eq(tg, 38), Fd(3n, m, o), Nil{})},
+      Bool.pick(List<&2, U32>, Bool.and(Bool.and(U32.is_eq(tg, 41), FlW(Fd(0n, m, o), 4096)), Bool.not(Mem(ps, o))),
+        [Fd(2n, m, o)], Nil{}), 3n,
+      N.le_succ(List.length(&2, U32, Fs.opt(U32.is_eq(tg, 38), Fd(3n, m, o), Nil{})), 1n,
+        len.opt(U32.is_eq(tg, 38), Fd(3n, m, o), Nil{}, 0n, N.le_zero(0n))),
+      len.pick(Bool.and(Bool.and(U32.is_eq(tg, 41), FlW(Fd(0n, m, o), 4096)), Bool.not(Mem(ps, o))),
+        [Fd(2n, m, o)], Nil{}, 3n, N.le_zero(2n), N.le_zero(3n))))
+
+# the pointers to c of n cells: at most 3 n
+def pc.bound(n: Nat, +m: C.Cir.Cells, +ps: List<&2, U32>, +o: U32, +c: U32) -> N.Le(Pc(n, m, ps, o, c), Nat.mul(3n, n)):
+  match n:
+    case 0n:
+      N.le_zero(0n)
+    case 1n+(+p):
+      N.le_rw_r(Pc(1n+p, m, ps, o, c), 3n+Nat.mul(3n, p), Nat.mul(3n, 1n+p), Equal.sym(Nat, Nat.mul(3n, 1n+p), 3n+Nat.mul(3n, p), mul3(p)),
+        N.add_mono(RcL(Fs(m, ps, o), c), 3n, Pc(p, m, ps, U32.inc(o), c), Nat.mul(3n, p),
+          N.le_trans(RcL(Fs(m, ps, o), c), List.length(&2, U32, Fs(m, ps, o)), 3n, rcl.len(Fs(m, ps, o), c), fs.len(m, ps, o)),
+          pc.bound(p, m, ps, U32.inc(o), c)))
+
 def ptr.bound(+n: Nat, +m: C.Cir.Cells, +fi: U32, +ps: List<&2, U32>, +rs: List<&2, U32>, +c: U32) ->
   N.Le(Ptr(n, m, fi, ps, rs, c), Nat.add(Nat.mul(3n, n), List.length(&2, U32, rs))):
-  ?TODO
+  N.add_mono(Pc(n, m, ps, fi, c), Nat.mul(3n, n), RcL(rs, c), List.length(&2, U32, rs), pc.bound(n, m, ps, fi, c), rcl.len(rs, c))
 
 # M.inc(r), with the held cell c of u in register r, and at most 64 owned
 # roots: c is an owned root too
